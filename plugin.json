@@ -1,0 +1,23 @@
+{
+  "slug": "Genra",
+  "name": "GENRA",
+  "version": "2.1.0",
+  "license": "GPL-3.0-or-later",
+  "brand": "Genra",
+  "author": "Bastian Ofner",
+  "authorEmail": "",
+  "authorUrl": "",
+  "pluginUrl": "",
+  "manualUrl": "",
+  "sourceUrl": "",
+  "donateUrl": "",
+  "changelogUrl": "",
+  "modules": [
+    {
+      "slug": "Genra",
+      "name": "GENRA Generative Sequencer",
+      "description": "Genre-aware generative sequencer: 8 drum voices, bass, melody and polyphonic pads with shared chord progressions",
+      "tags": ["Sequencer", "Random", "Drum", "Polyphonic"]
+    }
+  ]
+}
