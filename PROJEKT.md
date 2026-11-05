@@ -40,6 +40,9 @@ Generativer, genreabhängiger 4-Spur-Sequencer für VCV Rack 2. Erfindet Loops (
 | `src/Store.cpp` | Speicherformat `pattern3`, Übernahme von v2-Patches |
 | `src/Edit.cpp` | Bearbeiten: Einfrieren, Noten schreiben, Chord Follow, Snap, Copy/Paste |
 | `src/GenraGrid.cpp` | Grid-Editor-Modul (`tools/grid_panel.py` erzeugt Frontplatte + `src/LayoutGrid.hpp`) |
+| `src/jiant/` | JIANT-Stimmen VOICE, DRUM-X, ANIMAL: je ein Modul (`Voice.cpp`, `DrumX.cpp`, `Animal.cpp`, jedes in eigenem Namespace), ein Kern-Lader (`*Core.cpp`: lädt pro Modul-Instanz eine eigene Kopie der Kern-Bibliothek nach `Genra/run/` im Rack-Benutzerordner) und der gemeinsame Look `JiantUI.hpp` |
+| `jiantcore/` | die Firmware-Kerne als C-Bibliotheken (`res/voicecore.*`, `drumcore.*`, `animalcore.*`), gebaut vom Makefile aus `jiant.tar.gz` |
+| `tools/jiant_panel.py` | erzeugt `res/JiantVoice.svg`, `res/JiantDrumX.svg`, `res/JiantAnimal.svg` + `src/jiant/JiantLayout.hpp` (`python3 tools/jiant_panel.py real`), Vorschau mit `preview <ordner> <Rack-Quellen>` |
 | `tools/panel.py` | erzeugt `res/Genra.svg` + `src/Layout.hpp` (`python3 tools/panel.py real`) und Vorschau (`preview`) |
 | `test/` | Engine- und MIDI-Rundlauf-Tests (g++, ohne Rack) |
 
@@ -122,3 +125,10 @@ Generativer, genreabhängiger 4-Spur-Sequencer für VCV Rack 2. Erfindet Loops (
 g++ -std=c++11 -O2 -Isrc src/Engine.cpp src/Genres.cpp src/Midi.cpp src/Store.cpp src/Edit.cpp test/test_edit.cpp -o t && ./t
 ```
 (ebenso `test_store.cpp`, `test_midi.cpp`, `test_tracks.cpp`, `test_engine.cpp`)
+
+## JIANT-Stimmen (2.3.0) – Stand 5. November 2026
+- VOICE, DRUM-X und ANIMAL aus den Einzel-Repos (*Voice-from-Jiant-for-Vcv*, *Drum-X-from-jiant-for-VCV*, *Animal-Engine-from-jiant-for-vcv*) ins GENRA-Plugin übernommen. Die Firmware (`jiant.tar.gz`) war in allen dreien identisch und liegt jetzt nur einmal hier.
+- Look wie GENRA: SVG-Frontplatte, Rack-Regler und -Buchsen, Display mit Nunito/ShareTechMono. Jedes Modul einfarbig: VOICE rot `#ff4f5a`, DRUM-X lila `#a98bff`, ANIMAL grün `#4fe08a` (in `tools/jiant_panel.py` und `src/jiant/JiantUI.hpp`).
+- Der Screen mit der Zeichnung der Firmware bleibt, etwas kleiner als vorher (links im Display).
+- Neu: CALL-Taster mit Licht (VOICE, ANIMAL), MODE bzw. LANG zusätzlich als Chips im Display anklickbar, Spur-Chips im DRUM-X-Display (leuchten beim Schlag, Klick wählt die Spur).
+- Plugin-Lizenz jetzt GPL-3.0-only (die JIANT-Teile sind GPL-3.0-only). Patches mit den alten Einzel-Plugins müssen die Module neu einsetzen.

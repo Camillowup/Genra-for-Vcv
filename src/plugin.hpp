@@ -6,3 +6,6 @@ using namespace rack;
 extern Plugin* pluginInstance;
 extern Model* modelGenra;
 extern Model* modelGenraGrid;
+extern Model* modelVoice;
+extern Model* modelDrumX;
+extern Model* modelAnimal;
