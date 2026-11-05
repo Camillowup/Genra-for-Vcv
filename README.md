@@ -1,4 +1,6 @@
-# GENRA v2 – Generativer 4-Spur-Sequencer für VCV Rack 2
+# GENRA v3 – Generativer 4-Spur-Sequencer für VCV Rack 2
+
+> **In Arbeit.** Dieser Stand ist v2 (2.1.0) plus Fehlerkorrekturen; die neuen v3-Funktionen (Genre pro Spur, CV-Eingänge, Szenen, 58 HP) folgen. Projektstand: `PROJEKT.md`.
 
 ![GENRA](docs/genra_vorschau.png)
 
@@ -19,7 +21,7 @@ GENRA erfindet genretypische Loops: **8 Drumspuren, Bass, Melodie und polyphone 
 1. Diese Dateien im Repository ersetzen bzw. hochladen: `src/`, `res/`, `plugin.json`, `Makefile`, `.github/workflows/main.yml` (und optional `README.md`, `docs/`, `tools/`, `test/`).
 2. Unter **Actions** startet der Build automatisch (3–5 Minuten).
 3. Grünen Lauf öffnen → unten bei **Artifacts** `genra-windows` laden → Zip entpacken.
-4. **Nur** `Genra-2.1.0-win-x64.vcvplugin` nach `%LOCALAPPDATA%\Rack2\plugins-win-x64\` kopieren. Eine ältere `Genra-2.0.0-…vcvplugin` und den Ordner `Genra` dort vorher löschen.
+4. **Nur** `Genra-2.2.0-win-x64.vcvplugin` nach `%LOCALAPPDATA%\Rack2\plugins-win-x64\` kopieren. Ältere `Genra-2.x-…vcvplugin`-Dateien und den Ordner `Genra` dort vorher löschen.
 5. Rack neu starten.
 
 Die Versionsnummer liest der Workflow jetzt selbst aus `plugin.json`, für künftige Versionen genügt es, sie dort zu erhöhen.

@@ -19,12 +19,14 @@ std::vector<MidiNote> renderLoop(const Pattern& pat, const Params& P, int L) {
 	int swingTicks = (int)std::lround((swing - 0.5f) * 2.f * TPS);
 	int prev[4] = {0, 0, 0, 0};
 	bool hasPrev = false;
+	const int loopEnd = L * TPS;
 	auto add = [&](int track, int step, int tick, int lenTicks, int note, float vel) {
 		MidiNote m;
 		m.track = track;
 		m.start = step;
 		m.startTick = tick;
-		m.len = std::max(3, lenTicks);
+		// notes end at the loop boundary at the latest (a swung last step would otherwise spill into the next bar)
+		m.len = std::max(1, std::min(std::max(3, lenTicks), loopEnd - tick));
 		m.note = clampi(note, 0, 127);
 		m.vel = clampi((int)std::lround(vel * 127.f), 1, 127);
 		out.push_back(m);
@@ -92,7 +94,79 @@ static void putChunk(std::vector<uint8_t>& file, const char* id, const std::vect
 	file.insert(file.end(), data.begin(), data.end());
 }
 
-std::vector<uint8_t> writeSmf(const std::vector<MidiNote>& notes, float bpm, const char* genreName) {
+static const uint8_t META_MAGIC[4] = {'G', 'N', 'R', 'A'};
+static const uint8_t META_VERSION = 1;
+
+// GENRA chord metadata (sequencer-specific meta event FF 7F): restores the exact progression on import
+static std::vector<uint8_t> chordMeta(const Pattern& pat) {
+	std::vector<uint8_t> m(META_MAGIC, META_MAGIC + 4);
+	m.push_back(META_VERSION);
+	m.push_back(pat.harm);
+	m.push_back(pat.customTimeline);
+	m.push_back(pat.layoutLen);
+	int np = std::min<int>(pat.nProg, MAX_PROG), ne = std::min<int>(pat.nEvents, MAX_EVENTS);
+	m.push_back((uint8_t)np);
+	for (int i = 0; i < np; i++) {
+		const ChordSpec& c = pat.prog[i];
+		uint8_t b[9] = {(uint8_t)c.root, c.quality, c.ext, c.rc, c.rs, (uint8_t)c.extOff, c.explicitQ,
+		                (uint8_t)(c.mask & 0xff), (uint8_t)(c.mask >> 8)};
+		m.insert(m.end(), b, b + 9);
+	}
+	m.push_back((uint8_t)ne);
+	for (int i = 0; i < ne; i++) {
+		m.push_back(pat.ev[i].spec);
+		m.push_back(pat.ev[i].start);
+		m.push_back(pat.ev[i].len);
+	}
+	return m;
+}
+
+static bool parseChordMeta(const uint8_t* d, size_t n, Pattern& pat) {
+	if (n < 9 || std::memcmp(d, META_MAGIC, 4) != 0 || d[4] != META_VERSION)
+		return false;
+	size_t p = 5;
+	uint8_t harm = d[p++], custom = d[p++], layoutLen = d[p++];
+	int np = d[p++];
+	if (np < 1 || np > MAX_PROG || p + np * 9 + 1 > n)
+		return false;
+	ChordSpec prog[MAX_PROG];
+	for (int i = 0; i < np; i++, p += 9) {
+		ChordSpec& c = prog[i];
+		c.root = (int8_t)d[p];
+		c.quality = d[p + 1];
+		c.ext = d[p + 2];
+		c.rc = d[p + 3];
+		c.rs = d[p + 4];
+		c.extOff = (int8_t)d[p + 5];
+		c.explicitQ = d[p + 6];
+		c.mask = (uint16_t)(d[p + 7] | (d[p + 8] << 8));
+		if (c.root < 0 || c.root > 11 || c.quality > Q_MASK)
+			return false;
+	}
+	int ne = d[p++];
+	if (ne < 1 || ne > MAX_EVENTS || p + ne * 3 > n)
+		return false;
+	ChordEvent ev[MAX_EVENTS];
+	for (int i = 0; i < ne; i++, p += 3) {
+		ev[i].spec = d[p];
+		ev[i].start = d[p + 1];
+		ev[i].len = d[p + 2];
+		ev[i].pad = 0;
+		if (ev[i].spec >= np)
+			return false;
+	}
+	pat.harm = harm;
+	pat.customTimeline = custom;
+	pat.layoutLen = layoutLen;
+	pat.nProg = (uint8_t)np;
+	pat.nEvents = (uint8_t)ne;
+	std::memcpy(pat.prog, prog, sizeof(ChordSpec) * np);
+	std::memcpy(pat.ev, ev, sizeof(ChordEvent) * ne);
+	return true;
+}
+
+std::vector<uint8_t> writeSmf(const std::vector<MidiNote>& notes, float bpm, const char* genreName, int loopSteps, const Pattern* pat) {
+	const int loopEnd = std::max(0, loopSteps) * TPS;
 	std::vector<uint8_t> file;
 	std::vector<uint8_t> hdr;
 	put16(hdr, 1);
@@ -120,7 +194,15 @@ std::vector<uint8_t> writeSmf(const std::vector<MidiNote>& notes, float bpm, con
 		t.push_back(2);
 		t.push_back(24);
 		t.push_back(8);
-		putVlq(t, 0);
+		if (pat) {
+			std::vector<uint8_t> meta = chordMeta(*pat);
+			putVlq(t, 0);
+			t.push_back(0xff);
+			t.push_back(0x7f);
+			putVlq(t, (uint32_t)meta.size());
+			t.insert(t.end(), meta.begin(), meta.end());
+		}
+		putVlq(t, (uint32_t)loopEnd); // track end = loop end, so the importer knows the loop length
 		t.push_back(0xff);
 		t.push_back(0x2f);
 		t.push_back(0);
@@ -160,7 +242,7 @@ std::vector<uint8_t> writeSmf(const std::vector<MidiNote>& notes, float bpm, con
 			t.push_back((uint8_t)e.note);
 			t.push_back((uint8_t)(e.type ? e.vel : 64));
 		}
-		putVlq(t, 0);
+		putVlq(t, (uint32_t)std::max(0, loopEnd - last));
 		t.push_back(0xff);
 		t.push_back(0x2f);
 		t.push_back(0);
@@ -216,6 +298,16 @@ static int drumVoice(int note) {
 	}
 }
 
+static void copyChords(const Pattern& from, Pattern& to) {
+	to.harm = from.harm;
+	to.customTimeline = from.customTimeline;
+	to.layoutLen = from.layoutLen;
+	to.nProg = from.nProg;
+	to.nEvents = from.nEvents;
+	std::memcpy(to.prog, from.prog, sizeof(to.prog));
+	std::memcpy(to.ev, from.ev, sizeof(to.ev));
+}
+
 int importSmf(const std::vector<uint8_t>& d, Pattern& pat, const Params& P, std::string& err) {
 	if (d.size() < 14 || std::memcmp(d.data(), "MThd", 4) != 0) {
 		err = "Keine gültige MIDI-Datei.";
@@ -229,6 +321,9 @@ int importSmf(const std::vector<uint8_t>& d, Pattern& pat, const Params& P, std:
 		return 0;
 	}
 	size_t p = 8 + hl;
+	Pattern meta = pat;
+	bool hasMeta = false;
+	uint32_t trackEnd = 0;
 	std::vector<RawNote> notes;
 	std::vector<GroupInfo> groups;
 	std::vector<int> groupKey; // trk*16 + ch
@@ -278,6 +373,10 @@ int importSmf(const std::vector<uint8_t>& d, Pattern& pat, const Params& P, std:
 					break;
 				if (type == 0x03)
 					name = std::string((const char*)&d[q], ml);
+				else if (type == 0x7f && !hasMeta)
+					hasMeta = parseChordMeta(&d[q], ml, meta);
+				else if (type == 0x2f)
+					trackEnd = std::max(trackEnd, tick);
 				q += ml;
 				continue;
 			}
@@ -327,6 +426,8 @@ int importSmf(const std::vector<uint8_t>& d, Pattern& pat, const Params& P, std:
 		return 0;
 	}
 	int tps = std::max(1, division / 4);
+	// step of a note start: swung or slightly late notes (up to half a step) stay on their step
+	auto stepOf = [&](int tick) { return (int)std::floor((double)tick / tps + 0.45); };
 	// statistics per group
 	for (RawNote& n : notes) {
 		GroupInfo& g = groups[n.group];
@@ -370,10 +471,22 @@ int importSmf(const std::vector<uint8_t>& d, Pattern& pat, const Params& P, std:
 	}
 	int maxStep = 0;
 	for (RawNote& n : notes)
-		maxStep = std::max(maxStep, (int)std::lround((double)n.start / tps));
+		maxStep = std::max(maxStep, n.start / tps); // bar a note starts in (late ratchet hits must not add a bar)
 	int bars = (maxStep / 16) + 1;
+	// a track end exactly on a bar line (as GENRA writes it) defines the loop length
+	if (trackEnd > 0) {
+		int barTicks = 16 * tps;
+		int be = (int)std::lround((double)trackEnd / barTicks);
+		if (be >= 1 && be <= MAX_BARS && std::abs((int)trackEnd - be * barTicks) <= tps / 2)
+			bars = hasMeta ? be : std::max(bars, be); // GENRA files: exact; ratchets on a swung last step may cross it
+	}
 	int barsQ = bars <= 1 ? 1 : (bars <= 2 ? 2 : (bars <= 4 ? 4 : 8));
 	int L = barsQ * 16;
+	// notes that round past the loop end but start inside it belong to the last step
+	auto stepIn = [&](int tick) {
+		int st = stepOf(tick);
+		return (st >= L && tick / tps < L) ? L - 1 : st;
+	};
 	bool present[NUM_TRACKS] = {false, false, false, false};
 	for (size_t gi = 0; gi < groups.size(); gi++)
 		present[role[gi]] = true;
@@ -387,7 +500,7 @@ int importSmf(const std::vector<uint8_t>& d, Pattern& pat, const Params& P, std:
 		for (RawNote& n : notes) {
 			if (role[n.group] != T_DRUMS)
 				continue;
-			int s = (int)std::lround((double)n.start / tps);
+			int s = stepIn(n.start);
 			if (s < 0 || s >= L)
 				continue;
 			DrumStep& ds = pat.drums[drumVoice(n.note)][s];
@@ -409,7 +522,7 @@ int importSmf(const std::vector<uint8_t>& d, Pattern& pat, const Params& P, std:
 		for (RawNote& n : notes) {
 			if (role[n.group] != tr)
 				continue;
-			int s = (int)std::lround((double)n.start / tps);
+			int s = stepIn(n.start);
 			if (s < 0 || s >= L)
 				continue;
 			NoteStep& ns = arr[s];
@@ -441,7 +554,7 @@ int importSmf(const std::vector<uint8_t>& d, Pattern& pat, const Params& P, std:
 		for (RawNote& n : notes) {
 			if (role[n.group] != T_BASS)
 				continue;
-			int s = (int)std::lround((double)n.start / tps);
+			int s = stepIn(n.start);
 			int e2 = std::max(s + 1, (int)std::lround((double)n.end / tps));
 			for (int k = std::max(0, s); k < std::min<int>(e2, MAX_STEPS); k++)
 				if (bassAt[k] < 0 || n.note < bassAt[k])
@@ -454,7 +567,7 @@ int importSmf(const std::vector<uint8_t>& d, Pattern& pat, const Params& P, std:
 		for (RawNote& n : notes) {
 			if (role[n.group] != T_PADS)
 				continue;
-			int s = (int)std::lround((double)n.start / tps);
+			int s = stepIn(n.start);
 			if (s < 0 || s >= L)
 				continue;
 			maskAt[s] |= (uint16_t)(1 << mod12(n.note - P.key));
@@ -471,6 +584,26 @@ int importSmf(const std::vector<uint8_t>& d, Pattern& pat, const Params& P, std:
 			ps.force = 1;
 			ps.flen = (uint8_t)std::max<int>(ps.flen, clampi((int)std::lround((double)(n.end - n.start) / tps), 1, 128));
 			ps.fvel = (uint8_t)std::max<int>(ps.fvel, clampi(n.vel, 1, 127));
+		}
+		if (hasMeta) {
+			// use GENRA's own progression if every pad chord in the file fits it (file not re-harmonised in the DAW)
+			bool ok = true;
+			for (int s = 0; s < L && ok; s++) {
+				if (__builtin_popcount(maskAt[s]) < 2)
+					continue;
+				Chord ch = chordAt(meta, P, s);
+				uint16_t cm = 0;
+				for (int i = 0; i < ch.n; i++)
+					cm |= (uint16_t)(1 << mod12(ch.root + ch.iv[i] + P.transp));
+				if ((maskAt[s] & ~cm) != 0)
+					ok = false;
+			}
+			if (ok) {
+				copyChords(meta, pat);
+				err.clear();
+				return barsQ;
+			}
+			hasMeta = false;
 		}
 		// build chord timeline from onsets (single notes are ignored)
 		int nProg = 0, nEv = 0;
@@ -527,6 +660,8 @@ int importSmf(const std::vector<uint8_t>& d, Pattern& pat, const Params& P, std:
 			pat.layoutLen = (uint8_t)L;
 		}
 	}
+	else if (hasMeta)
+		copyChords(meta, pat); // no pads in the file: chords only come from the metadata
 	err.clear();
 	return barsQ;
 }

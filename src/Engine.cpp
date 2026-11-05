@@ -347,7 +347,23 @@ Chord chordFromPcs(uint16_t pcMask, int lowestPc, int bassPc) {
 	return chordFromMask(best, m);
 }
 
-std::string chordName(const Chord& ch, int key) {
+// Key signature: true = sharps. Uses the relative major of key + scale (scale < 0: flats, legacy).
+bool sharpKey(int key, int scale) {
+	static const int REL_MAJOR[NUM_SCALES] = {0, 3, 10, 8, 7, 5, 3, 0, 3};
+	if (scale < 0 || scale >= NUM_SCALES)
+		return false;
+	switch (mod12(key + REL_MAJOR[scale])) {
+		case 7: case 2: case 9: case 4: case 11: return true; // G D A E B major
+		default: return false;                                // C F Bb Eb Ab Db Gb
+	}
+}
+
+const char* noteName(int pc, int key, int scale) {
+	static const char* SHARP[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
+	return sharpKey(key, scale) ? SHARP[mod12(pc)] : NOTE_NAMES[mod12(pc)];
+}
+
+std::string chordName(const Chord& ch, int key, int scale) {
 	bool s[15] = {false};
 	for (int i = 0; i < ch.n; i++) {
 		int v = ch.iv[i];
@@ -388,7 +404,7 @@ std::string chordName(const Chord& ch, int key) {
 		q = b7 ? "7sus2" : "sus2";
 	else if (p5)
 		q = "5";
-	return std::string(NOTE_NAMES[mod12(key + ch.root)]) + q;
+	return std::string(noteName(key + ch.root, key, scale)) + q;
 }
 
 void layoutTimeline(Pattern& pat, int L) {
@@ -475,7 +491,7 @@ std::string alternativeName(int idx, const Params& P, float color) {
 	cs.rc = 128;
 	cs.rs = 255;
 	applyAlternative(cs, idx, P);
-	return chordName(resolveSpec(cs, P, color), P.key + P.transp);
+	return chordName(resolveSpec(cs, P, color), P.key + P.transp, P.scale);
 }
 
 int currentAlternative(const ChordSpec& cs, const Params& P) {

@@ -169,6 +169,10 @@ struct Pattern {
 static const uint32_t PATTERN_MAGIC = 0x47454e52; // "GENR"
 static const uint32_t PATTERN_VERSION = 2;
 
+// version-independent storage (Store.cpp); loadPattern also accepts the raw block of GENRA v2
+std::vector<uint8_t> savePattern(const Pattern& pat);
+bool loadPattern(const std::vector<uint8_t>& data, Pattern& pat);
+
 // ---------------------------------------------------------------- live parameters
 struct Params {
 	int genre = 0;          // current knob genre
@@ -204,7 +208,10 @@ Chord resolveEvent(const Pattern& pat, const Params& P, int e);
 int eventAt(const Pattern& pat, int step);
 bool isEventStart(const Pattern& pat, int step);
 Chord chordAt(const Pattern& pat, const Params& P, int step);
-std::string chordName(const Chord& ch, int key);
+// scale: SCALES index for # / b spelling (-1 = always flats)
+std::string chordName(const Chord& ch, int key, int scale = -1);
+bool sharpKey(int key, int scale);
+const char* noteName(int pc, int key, int scale);
 Chord chordFromPcs(uint16_t pcMask, int lowestPc, int bassPc = -1);
 void layoutTimeline(Pattern& pat, int lengthSteps);
 
@@ -267,7 +274,9 @@ struct MidiNote {
 	int vel;
 };
 std::vector<MidiNote> renderLoop(const Pattern& pat, const Params& P, int L);
-std::vector<uint8_t> writeSmf(const std::vector<MidiNote>& notes, float bpm, const char* genreName);
+// loopSteps: track end is written at the loop end; pat: chord progression stored as GENRA metadata
+std::vector<uint8_t> writeSmf(const std::vector<MidiNote>& notes, float bpm, const char* genreName, int loopSteps = 0,
+                              const Pattern* pat = nullptr);
 // returns number of bars imported (0 on failure); err receives a message
 int importSmf(const std::vector<uint8_t>& data, Pattern& pat, const Params& P, std::string& err);
 

@@ -31,7 +31,7 @@ int main(int argc, char** argv){
     for(int s=0;s<64;s++){ PadEv p=padAt(pat,P,s,L,prev,hp); if(p.on) npads++; } printf("Pads: %d hits\n", npads);
     // fill + drops at end of loop
     printf("Fill   : "); for(int s=48;s<64;s++){ Hit h[NUM_DRUMS]; drumStep(pat,P,s,L,true,h); int c=0; for(int v=0;v<8;v++) c+=h[v].on; printf("%d", c); } printf("\n");
-    auto notes=renderLoop(pat,P,L); auto smf=writeSmf(notes, G.bpm, G.name);
+    auto notes=renderLoop(pat,P,L); auto smf=writeSmf(notes, G.bpm, G.name, L, &pat);
     Pattern p2=pat; std::string err; int bars=importSmf(smf,p2,P,err);
     printf("MIDI: %zu notes, reimport bars=%d %s\n", notes.size(), bars, err.c_str());
     for(int t=0;t<4;t++) generateTrack(pat,t,pi,rng,P);

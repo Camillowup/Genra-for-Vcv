@@ -110,6 +110,45 @@ struct Genra : Module {
 	std::atomic<bool> regenRequested{false};
 	std::atomic<bool> chordRegenRequested{false};
 	std::atomic<bool> importReady{false};
+
+	// chord edits from the display (UI thread) -> applied in process() (audio thread)
+	enum ChordOp : uint8_t { CE_NEXT, CE_SET, CE_COLOR, CE_COLOR_RESET };
+	struct ChordEdit {
+		uint8_t op, idx;
+		int8_t val;
+	};
+	static const uint32_t EDIT_QUEUE = 32;
+	ChordEdit editBuf[EDIT_QUEUE];
+	std::atomic<uint32_t> editHead{0}, editTail{0}; // single producer (UI), single consumer (audio)
+
+	void pushChordEdit(uint8_t op, int idx, int val = 0) {
+		uint32_t h = editHead.load(std::memory_order_relaxed);
+		if (h - editTail.load(std::memory_order_acquire) >= EDIT_QUEUE)
+			return; // queue full: drop (only happens with absurdly fast clicking)
+		editBuf[h % EDIT_QUEUE] = {op, (uint8_t)idx, (int8_t)val};
+		editHead.store(h + 1, std::memory_order_release);
+	}
+
+	void applyChordEdits() {
+		uint32_t t = editTail.load(std::memory_order_relaxed);
+		uint32_t h = editHead.load(std::memory_order_acquire);
+		if (t == h)
+			return;
+		Params P = buildParams();
+		for (; t != h; t++) {
+			const ChordEdit& ce = editBuf[t % EDIT_QUEUE];
+			if (ce.idx >= pat.nProg)
+				continue;
+			ChordSpec& cs = pat.prog[ce.idx];
+			switch (ce.op) {
+				case CE_NEXT: applyAlternative(cs, currentAlternative(cs, P) + 1, P); break;
+				case CE_SET: applyAlternative(cs, ce.val, P); break;
+				case CE_COLOR: cs.extOff = (int8_t)clamp(cs.extOff + ce.val, -3, 3); break;
+				case CE_COLOR_RESET: cs.extOff = 0; break;
+			}
+		}
+		editTail.store(t, std::memory_order_release);
+	}
 	Pattern importBuf;
 	int importLengthIndex = 2;
 
@@ -476,6 +515,7 @@ struct Genra : Module {
 			resetArmed = true;
 		}
 
+		applyChordEdits();
 		if (importReady) {
 			pat = importBuf;
 			params[LENGTH_PARAM].setValue((float)importLengthIndex);
@@ -674,7 +714,8 @@ struct Genra : Module {
 		json_object_set_new(root, "clockMode", json_integer(clockMode));
 		json_object_set_new(root, "chordMode", json_integer(chordMode));
 		json_object_set_new(root, "templateSel", json_integer(templateSel));
-		json_object_set_new(root, "pattern", json_string(string::toBase64((const uint8_t*)&pat, sizeof(Pattern)).c_str()));
+		std::vector<uint8_t> blob = savePattern(pat);
+		json_object_set_new(root, "pattern3", json_string(string::toBase64(blob.data(), blob.size()).c_str()));
 		return root;
 	}
 
@@ -688,17 +729,17 @@ struct Genra : Module {
 			chordMode = clamp((int)json_integer_value(j), 0, 2);
 		if ((j = json_object_get(root, "templateSel")))
 			templateSel = (int)json_integer_value(j);
-		if ((j = json_object_get(root, "pattern"))) {
-			std::vector<uint8_t> data = string::fromBase64(json_string_value(j));
-			if (data.size() == sizeof(Pattern)) {
-				Pattern p;
-				std::memcpy(&p, data.data(), sizeof(Pattern));
-				if (p.magic == PATTERN_MAGIC && p.version == PATTERN_VERSION) {
-					pat = p;
-					lastGenre = curGenre = knobProfile();
-					pendingGenre = false;
-					padHasPrev = false;
-				}
+		// "pattern3": version-independent format (v3+); "pattern": raw block of GENRA v2
+		json_t* jp = json_object_get(root, "pattern3");
+		if (!jp)
+			jp = json_object_get(root, "pattern");
+		if (jp && json_is_string(jp)) {
+			Pattern p;
+			if (loadPattern(string::fromBase64(json_string_value(jp)), p)) {
+				pat = p;
+				lastGenre = curGenre = knobProfile();
+				pendingGenre = false;
+				padHasPrev = false;
 			}
 		}
 	}
@@ -723,7 +764,7 @@ struct Genra : Module {
 		float bpm = inputs[CLOCK_INPUT].isConnected() && stepPeriod > 0.f
 		                ? 60.f * APP->engine->getSampleRate() / (stepPeriod * 4.f)
 		                : params[BPM_PARAM].getValue();
-		std::vector<uint8_t> data = writeSmf(renderLoop(pat, P, L), bpm, prof(curGenre).name);
+		std::vector<uint8_t> data = writeSmf(renderLoop(pat, P, L), bpm, prof(curGenre).name, L, &pat);
 		try {
 			system::writeFile(path, data);
 		}
@@ -863,7 +904,7 @@ struct GenraDisplay : Widget {
 			std::string scaleName = SCALES[P.scale].name;
 			for (char& c : scaleName)
 				c = (char)std::toupper((unsigned char)c);
-			snprintf(buf, sizeof(buf), "%s %s  %s%.0f BPM  SWING %.0f%%", NOTE_NAMES[(P.key + P.transp + 120) % 12], scaleName.c_str(),
+			snprintf(buf, sizeof(buf), "%s %s  %s%.0f BPM  SWING %.0f%%", noteName(P.key + P.transp, P.key + P.transp, P.scale), scaleName.c_str(),
 			         ext ? "EXT " : "", bpm, swing * 100.f);
 			info = buf;
 			int s = std::max(0, m->step);
@@ -891,10 +932,10 @@ struct GenraDisplay : Widget {
 			chords.clear();
 			float color = effColor(P, m->pat.chordGenre);
 			for (int i = 0; i < m->pat.nProg; i++)
-				chords.push_back(chordName(resolveSpec(m->pat.prog[i], P, color), P.key + P.transp));
+				chords.push_back(chordName(resolveSpec(m->pat.prog[i], P, color), P.key + P.transp, P.scale));
 			if (P.extChord) {
 				Chord c = chordAt(m->pat, P, s);
-				chords.assign(1, chordName(c, P.key + P.transp));
+				chords.assign(1, chordName(c, P.key + P.transp, P.scale));
 				curChord = 0;
 			}
 			else
@@ -990,10 +1031,7 @@ struct GenraDisplay : Widget {
 			return;
 		Genra* m = module;
 		if (e.button == GLFW_MOUSE_BUTTON_LEFT) {
-			Params P = m->buildParams();
-			ChordSpec& cs = m->pat.prog[i];
-			int cur = currentAlternative(cs, P);
-			applyAlternative(cs, cur + 1, P);
+			m->pushChordEdit(Genra::CE_NEXT, i);
 			e.consume(this);
 		}
 		else if (e.button == GLFW_MOUSE_BUTTON_RIGHT) {
@@ -1008,9 +1046,7 @@ struct GenraDisplay : Widget {
 		int i = chordAtPos(e.pos);
 		if (i < 0 || i >= module->pat.nProg)
 			return;
-		ChordSpec& cs = module->pat.prog[i];
-		int d = e.scrollDelta.y > 0 ? 1 : -1;
-		cs.extOff = (int8_t)clamp(cs.extOff + d, -3, 3);
+		module->pushChordEdit(Genra::CE_COLOR, i, e.scrollDelta.y > 0 ? 1 : -1);
 		e.consume(this);
 	}
 
@@ -1024,19 +1060,12 @@ struct GenraDisplay : Widget {
 		for (int a = 0; a < numAlternatives(); a++) {
 			std::string name = alternativeName(a, P, color);
 			std::string roman = a < 7 ? string::f("Stufe %d", a + 1) : "geborgt";
-			menu->addChild(createCheckMenuItem(name, roman, [=]() { return a == cur; }, [=]() {
-				Params P2 = m->buildParams();
-				applyAlternative(m->pat.prog[i], a, P2);
-			}));
+			menu->addChild(createCheckMenuItem(name, roman, [=]() { return a == cur; }, [=]() { m->pushChordEdit(Genra::CE_SET, i, a); }));
 		}
 		menu->addChild(new ui::MenuSeparator);
-		menu->addChild(createMenuItem("Mehr Farbe (Mausrad hoch)", "", [=]() {
-			m->pat.prog[i].extOff = (int8_t)clamp(m->pat.prog[i].extOff + 1, -3, 3);
-		}));
-		menu->addChild(createMenuItem("Weniger Farbe (Mausrad runter)", "", [=]() {
-			m->pat.prog[i].extOff = (int8_t)clamp(m->pat.prog[i].extOff - 1, -3, 3);
-		}));
-		menu->addChild(createMenuItem("Farbe zurücksetzen", "", [=]() { m->pat.prog[i].extOff = 0; }));
+		menu->addChild(createMenuItem("Mehr Farbe (Mausrad hoch)", "", [=]() { m->pushChordEdit(Genra::CE_COLOR, i, 1); }));
+		menu->addChild(createMenuItem("Weniger Farbe (Mausrad runter)", "", [=]() { m->pushChordEdit(Genra::CE_COLOR, i, -1); }));
+		menu->addChild(createMenuItem("Farbe zurücksetzen", "", [=]() { m->pushChordEdit(Genra::CE_COLOR_RESET, i); }));
 	}
 };
 
