@@ -9,3 +9,4 @@ extern Model* modelGenraGrid;
 extern Model* modelVoice;
 extern Model* modelDrumX;
 extern Model* modelAnimal;
+extern Model* modelMonk;

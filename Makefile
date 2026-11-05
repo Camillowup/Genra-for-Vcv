@@ -3,6 +3,7 @@ RACK_DIR ?= ../..
 
 SOURCES += $(wildcard src/*.cpp)
 SOURCES += $(wildcard src/jiant/*.cpp)
+SOURCES += $(wildcard src/monk/*.cpp) src/monk/monkface.c
 
 DISTRIBUTABLES += res
 DISTRIBUTABLES += $(wildcard LICENSE*)

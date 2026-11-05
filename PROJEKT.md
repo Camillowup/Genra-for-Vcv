@@ -132,3 +132,10 @@ g++ -std=c++11 -O2 -Isrc src/Engine.cpp src/Genres.cpp src/Midi.cpp src/Store.cp
 - Der Screen mit der Zeichnung der Firmware bleibt, etwas kleiner als vorher (links im Display).
 - Neu: CALL-Taster mit Licht (VOICE, ANIMAL), MODE bzw. LANG zusätzlich als Chips im Display anklickbar, Spur-Chips im DRUM-X-Display (leuchten beim Schlag, Klick wählt die Spur).
 - Plugin-Lizenz jetzt GPL-3.0-only (die JIANT-Teile sind GPL-3.0-only). Patches mit den alten Einzel-Plugins müssen die Module neu einsetzen.
+
+## MONK (2.4.0) – Stand 5. November 2026
+- Sechstes Modul: der Vokal-Synth aus der FM-1-Firmware MONK-1 v0.9.1 (`charlesvestal/fm1-monk`, GPL-3.0; Klang MonkSynth, MIT). 26 HP, Farbe safran `#ffb43d` (in `tools/monk_panel.py` und `src/monk/Monk.cpp`).
+- `src/monk/MonkDsp.hpp`: `firmware/src/dsp/monk.c` als Klasse (eine pro Modul), für jede Samplerate, Echo in voller Rate, neuer Parameter FEEDBACK, Noten über GATE/V-OCT statt Tasten-Stack. Gegen das Original geprüft: bei 44,1 kHz ohne Echo Abweichung ~0,04 % RMS (Rundung).
+- `src/monk/monkface.c` + `src/monk/fw/`: der Zeichencode der Firmware (`app/face.c`, `app/inflate.c`, `dsp/fastmath.h`, unverändert bis auf den Include-Pfad) und die Sänger-Grafiken (`art.h`, erzeugt mit `tools/gen_art.py` aus fm1-monk). Rendert 240×240 RGB565, angezeigt über `jiant::Canvas565`.
+- Frontplatte: `python3 tools/monk_panel.py real` → `res/Monk.svg` + `src/monk/MonkLayout.hpp`; Vorschau mit `preview <ordner> [Rack-Quellen]`.
+- Offen: Klangtest in Rack (Windows-Build über Actions).

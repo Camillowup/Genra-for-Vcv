@@ -9,4 +9,5 @@ void init(Plugin* p) {
 	p->addModel(modelVoice);
 	p->addModel(modelDrumX);
 	p->addModel(modelAnimal);
+	p->addModel(modelMonk);
 }
