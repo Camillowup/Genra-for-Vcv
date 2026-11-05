@@ -1,8 +1,19 @@
 # GENRA v3 – Generativer 4-Spur-Sequencer für VCV Rack 2
 
-> **In Arbeit.** Dieser Stand ist v2 (2.1.0) plus Fehlerkorrekturen; die neuen v3-Funktionen (Genre pro Spur, CV-Eingänge, Szenen, 58 HP) folgen. Projektstand: `PROJEKT.md`.
+Breite: **58 HP**. Projektstand und Entscheidungen: `PROJEKT.md`.
 
-![GENRA](docs/genra_vorschau.png)
+## Neu in v3
+
+- **Genre pro Spur:** Unter den Reglern jeder Spur sitzt ein Genre-Feld. Klick öffnet das Menü: *Global (folgt GENRE)* oder ein eigenes Genre, nach Familien sortiert, mit Varianten. Der Wechsel greift am nächsten Taktanfang (Feld und Display zeigen „…“). Ein eigenes Genre-Feld würfelt die Spur auch bei LOCK neu – die Auswahl ist ein bewusster Befehl. Der globale GENRE-Regler ändert nur Spuren auf *Global*.
+- **GENRE-CV pro Spur** (Buchse neben dem Feld): Mit Kabel wählt die Spannung das Genre der Spur, die Variante kommt aus dem Feld (falls gleiches Genre) oder vom VARIANT-Regler. Rechtsklick-Menü → *Genre-CV-Eingänge*: 0–10 V über alle 24 Genres oder 1/12 V pro Genre (Halbtöne – ein Keyboard über MIDI-CV wählt Genres per Taste, C = House).
+- **Swing pro Spur:** Jede Spur swingt wie das Genre, das sie spielt (Lo-Fi-Melodie über geradem Techno). SWING verschiebt alle gemeinsam. Gilt auch für den MIDI-Export.
+- **Neue CV-Eingänge:** FILL (Trigger: Fill/Drop am Loop-Ende), VARIANT, COMPLEX, COLOR (0–10 V, zum Regler addiert), DENS-CV pro Spur.
+- **HARMONY** (früher CHORDS, jetzt blaugrün): NEW, LOCK, TRIG für die gemeinsame Akkordfolge, der Bass, Melodie und Pads folgen.
+- **Szenen (8 Plätze):** Leerer Platz drücken = aktuellen Loop speichern (alle Spuren, Akkorde, Spur-Genres, Länge). Belegter Platz = abrufen, beim Spielen am nächsten Taktanfang (blinkt bis dahin). Überschreiben: STORE drücken (blinkt), dann den Platz. NEXT-Trigger = nächste belegte Szene, CV 0–10 V = Szene 1–8. Rechtsklick-Menü: *Alle Szenen löschen*. Szenen werden im Patch gespeichert.
+- **Display:** Genre jeder Spur neben ihren Lauflichtern, aktive Szene, Akkordnamen mit # oder b passend zur Tonart.
+- **Fehlerkorrekturen:** MIDI-Export/-Import mit exakter Länge und Akkordfolge, threadsichere Akkord-Bearbeitung, neues Speicherformat (v2-Patches werden übernommen; Spuren stehen dann auf *Global*).
+
+![GENRA](docs/entwuerfe/genra_v3_entwurf.png)
 
 GENRA erfindet genretypische Loops: **8 Drumspuren, Bass, Melodie und polyphone Pads**, die sich eine gemeinsame Tonart und Akkordfolge teilen. **24 Genres mit 46 Varianten**, alle Regler wirken live. Breite: 44 HP.
 
@@ -48,14 +59,15 @@ Die Versionsnummer liest der Workflow jetzt selbst aus `plugin.json`, für künf
 
 ## Bedienung (alle Elemente)
 
-**Global:** GENRE, VARIANT, KEY, SCALE (Auto = Genre), BPM (interne Clock), SWING (relativ zum Genre), COMPLEX, COLOR (Harmonik), MUTATE, LENGTH (1/2/4/8 Takte), NEW ALL, RUN.
-**Akkorde:** NEW, LOCK, TRIG.
-**Pro Spur:** DENSITY · zweiter Regler (Drums: FILL, GHOST; Bass: MOVE; Melodie: RANGE; Pads: VOICING) · OCT (Bass/Melodie/Pads) · MUTE · LOCK · NEW · TRIG.
-**Eingänge:** CLOCK, RESET, RUN, NEW, GENRE CV, MUTATE CV, TRANSP (V/Oct), CHORD (poly).
+**Global:** GENRE, BPM (interne Clock), KEY, SCALE (Auto = Genre), VARIANT, COMPLEX, COLOR (Harmonik), MUTATE, SWING (relativ zum Genre jeder Spur), LENGTH (1/2/4/8 Takte), NEW ALL, RUN.
+**Harmony:** NEW, LOCK, TRIG.
+**Pro Spur:** DENSITY + DENS-CV · zweiter Regler (Drums: FILL, GHOST; Bass: MOVE; Melodie: RANGE; Pads: VOICING) · OCT (Bass/Melodie/Pads) · Genre-Feld + GENRE-CV · MUTE · LOCK · NEW · TRIG.
+**Szenen:** 8 Plätze, STORE, CV, NEXT.
+**Eingänge:** CLOCK, RESET, RUN, NEW, FILL, MUTATE, GENRE, VARIANT, TRANSP (V/Oct), COMPLEX, COLOR, CHORD (poly) · pro Spur GENRE-CV, DENS-CV, TRIG · Szenen CV, NEXT · HARMONY TRIG.
 **Ausgänge:** 8 Drum-Trigger (Höhe = Velocity) · Bass/Melodie: V/OCT, GATE, VEL, ACC, SLIDE · Pads: V/OCT + GATE (poly 4), VEL, MOD.
 
 **Display:** Akkord anklicken = nächste Alternative, Rechtsklick = Liste, Mausrad = mehr/weniger Farbe.
-**Rechtsklick-Menü:** MIDI-Export/-Import, Akkord-Modus, Akkord-Vorlage, nur Akkorde neu würfeln, Clock-Auflösung.
+**Rechtsklick-Menü:** MIDI-Export/-Import, Akkord-Modus, Akkord-Vorlage, nur Akkorde neu würfeln, Genre-CV-Modus, alle Spuren auf Global, alle Szenen löschen, Clock-Auflösung.
 
 ---
 
@@ -64,6 +76,7 @@ Die Versionsnummer liest der Workflow jetzt selbst aus `plugin.json`, für künf
 src/Engine.hpp/.cpp   Theorie, Akkorde, Generierung, Auswertung pro Step
 src/Genres.cpp        24 Genres / 46 Profile (Raster in derselben Notation wie die Spezifikation)
 src/Midi.cpp          MIDI-Export/-Import
+src/Store.cpp         Speicherformat (pattern3) + Übernahme von v2-Patches
 src/Genra.cpp         Rack-Modul, Display, Menüs
 res/Genra.svg         Frontplatte (tools/panel.py real), Vorschau: tools/panel.py preview <datei.svg>
 test/                 Engine- und MIDI-Tests (g++, ohne Rack)

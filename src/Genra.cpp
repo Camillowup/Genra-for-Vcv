@@ -1291,6 +1291,7 @@ struct GenreField : Widget {
 		Widget::drawLayer(args, layer);
 	}
 
+	void onHover(const HoverEvent& e) override { e.consume(this); } // needed to receive Enter / Leave
 	void onEnter(const EnterEvent& e) override { hover = true; }
 	void onLeave(const LeaveEvent& e) override { hover = false; }
 

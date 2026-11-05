@@ -60,7 +60,7 @@ Generativer, genreabhängiger 4-Spur-Sequencer für VCV Rack 2. Erfindet Loops (
 ## Version 3 (2.2.0) – in Arbeit
 **Schwerpunkt:** Genre pro Spur und CV-Eingänge. Die Überarbeitung der Genres selbst folgt in einer späteren Version.
 
-**Frontplatte (Entwurf, 58 HP):** `tools/panel.py` ist schon auf das neue Layout umgestellt, `res/Genra.svg` und `src/Layout.hpp` sind aber noch v2 – erst neu erzeugen (`python3 tools/panel.py real`), wenn `Genra.cpp` die neuen Elemente kennt.
+**Frontplatte (58 HP):** erzeugt von `tools/panel.py` (`real` → `res/Genra.svg` + `src/Layout.hpp`, `preview <datei.svg>` → Vorschau, braucht `../ext/Rack/res/ComponentLibrary`).
 - Globale Reihe: GENRE · BPM · KEY · SCALE · VARIANT · COMPLEX · COLOR · MUTATE · SWING · LENGTH · NEW ALL · RUN
 - HARMONY (dunkles Blaugrün, früher CHORDS): NEW, LOCK, TRIG – gemeinsame Akkordfolge für Bass, Melodie, Pads
 - Pro Spur: Genre-Feld mit Menü (Global / Genre · Variante), GENRE-CV, DENS-CV, MUTE, LOCK, NEW, TRIG
@@ -76,12 +76,20 @@ Generativer, genreabhängiger 4-Spur-Sequencer für VCV Rack 2. Erfindet Loops (
 - [x] Speicherformat `pattern3` (`src/Store.cpp`): Datensätze mit Tags, Felder pro Step mit Anzahl → künftige Erweiterungen brechen alte Patches nicht. v2-Patches (`pattern`, Binärblock Version 2) werden übernommen.
 - [x] Tests: `test/test_store.cpp` neu, `test_midi` prüft auch Dateien ohne Metadaten
 
+**Erledigt – Genre pro Spur & CV (Stand 5. November 2026)**
+- [x] Genre-Feld pro Spur (Widget `GenreField`, Menü nach Familien → Genre → Variante); Wahl in `trackSel[t]` (-1 = Global), gespeichert als `trackGenre` im Patch
+- [x] Regeln: Spur-Genre (Feld oder CV) wechselt am Taktanfang und würfelt auch bei LOCK neu; globaler GENRE-Wechsel betrifft nur ungesperrte Spuren auf Global; NEW ALL würfelt jede ungesperrte Spur in ihrem Genre; Akkorde kommen immer vom globalen Genre
+- [x] GENRE-CV pro Spur (CV > Feld > Global), Modus 0–10 V oder 1/12 V pro Genre (gilt auch für globalen GENRE-CV)
+- [x] CV: VARIANT, COMPLEX, COLOR, DENS pro Spur (0–10 V addiert), FILL-Trigger (im letzten Viertel: gilt für den nächsten Durchlauf)
+- [x] Swing pro Spur: Steps laufen ungeswingt, jede Spur spielt ihre Events mit eigener Swing-Verzögerung (Modul und MIDI-Export)
+- [x] Szenen: 8 Plätze (Pattern, Spur-Genres, Länge), leer = speichern, belegt = abrufen am Taktanfang, STORE zum Überschreiben, NEXT, CV; im Patch gespeichert
+- [x] Display: Spur-Genres an den Lauflichtern, Szene, HARMONY-Farbe
+- [x] Tests: `test/test_tracks.cpp` (300 Zufallskombinationen Spur-Genres/Swing/Länge: Erzeugung, MIDI, Speichern)
+
 **Offen**
-- [ ] Genre pro Spur (Feld + Menü, Wechsel am Taktanfang), GENRE-CV pro Spur
-- [ ] CV: DENSITY pro Spur, VARIANT, COMPLEX, COLOR, FILL-Trigger
-- [ ] Swing pro Spur, Länge pro Spur (Polymeter)
-- [ ] Szenen (8 Plätze, STORE, CV, NEXT)
-- [ ] Frontplatte erzeugen, Build, Test in Rack
+- [ ] Test in Rack (Genre-Feld-Menü, CV-Eingänge, Szenen, v2-Patch laden)
+- [ ] Länge pro Spur (Polymeter) – zurückgestellt: tonale Spuren müssten Akkorde über den echten Step statt den umgebrochenen lesen
+- [ ] Genres überarbeiten (eigene spätere Version), Genres aus MIDI lernen
 
 **Tests (ohne Rack):**
 ```
