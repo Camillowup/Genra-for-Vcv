@@ -63,11 +63,13 @@ struct Reader {
 };
 } // namespace
 
-static const int DRUM_FIELDS = 6, NOTE_FIELDS = 15, PAD_FIELDS = 10, SPEC_FIELDS = 9, EV_FIELDS = 3;
+// field counts per step; v3.0 wrote 6 / 15 / 10 – older data simply lacks the newer fields
+static const int DRUM_FIELDS = 7, NOTE_FIELDS = 18, PAD_FIELDS = 12, SPEC_FIELDS = 9, EV_FIELDS = 3;
 
 static void putNote(Writer& w, const NoteStep& s) {
 	uint8_t f[NOTE_FIELDS] = {s.r, s.rm, s.vj, s.ra, s.rs, (uint8_t)s.a1, (uint8_t)s.b1, (uint8_t)s.c1,
-	                          (uint8_t)s.a2, (uint8_t)s.b2, (uint8_t)s.c2, (uint8_t)s.absNote, s.force, s.flen, s.fvel};
+	                          (uint8_t)s.a2, (uint8_t)s.b2, (uint8_t)s.c2, (uint8_t)s.absNote, s.force, s.flen, s.fvel,
+	                          s.fflags, s.fgate, (uint8_t)s.froot};
 	for (uint8_t b : f)
 		w.u8(b);
 }
@@ -90,6 +92,8 @@ std::vector<uint8_t> savePattern(const Pattern& pat) {
 	w.u8(pat.customTimeline);
 	w.u8(pat.harm);
 	w.u8(pat.layoutLen);
+	for (int t = 0; t < NUM_TRACKS; t++)
+		w.u8(pat.chordFollow[t]);
 	w.end();
 
 	w.begin(ST_CHOP);
@@ -131,7 +135,7 @@ std::vector<uint8_t> savePattern(const Pattern& pat) {
 	for (int v = 0; v < NUM_DRUMS; v++)
 		for (int s = 0; s < MAX_STEPS; s++) {
 			const DrumStep& d = pat.drums[v][s];
-			uint8_t f[DRUM_FIELDS] = {d.r, d.rg, d.rf, d.vj, d.rr, d.fv};
+			uint8_t f[DRUM_FIELDS] = {d.r, d.rg, d.rf, d.vj, d.rr, d.fv, d.frat};
 			for (uint8_t b : f)
 				w.u8(b);
 		}
@@ -153,7 +157,8 @@ std::vector<uint8_t> savePattern(const Pattern& pat) {
 	for (int s = 0; s < MAX_STEPS; s++) {
 		const PadStep& p = pat.pads[s];
 		uint8_t f[PAD_FIELDS] = {p.r, p.vj, p.force, p.flen, p.fvel, p.nNotes,
-		                         (uint8_t)p.notes[0], (uint8_t)p.notes[1], (uint8_t)p.notes[2], (uint8_t)p.notes[3]};
+		                         (uint8_t)p.notes[0], (uint8_t)p.notes[1], (uint8_t)p.notes[2], (uint8_t)p.notes[3],
+		                         p.fgate, (uint8_t)p.froot};
 		for (uint8_t b : f)
 			w.u8(b);
 	}
@@ -173,12 +178,16 @@ static void readFields(Reader& r, uint8_t* f, int known, int have) {
 
 static void getNote(Reader& r, NoteStep& s, int have) {
 	uint8_t f[NOTE_FIELDS] = {s.r, s.rm, s.vj, s.ra, s.rs, (uint8_t)s.a1, (uint8_t)s.b1, (uint8_t)s.c1,
-	                          (uint8_t)s.a2, (uint8_t)s.b2, (uint8_t)s.c2, (uint8_t)s.absNote, s.force, s.flen, s.fvel};
+	                          (uint8_t)s.a2, (uint8_t)s.b2, (uint8_t)s.c2, (uint8_t)s.absNote, s.force, s.flen, s.fvel,
+	                          s.fflags, s.fgate, (uint8_t)s.froot};
 	readFields(r, f, NOTE_FIELDS, have);
 	s.r = f[0], s.rm = f[1], s.vj = f[2], s.ra = f[3], s.rs = f[4];
 	s.a1 = (int8_t)f[5], s.b1 = (int8_t)f[6], s.c1 = (int8_t)f[7];
 	s.a2 = (int8_t)f[8], s.b2 = (int8_t)f[9], s.c2 = (int8_t)f[10];
 	s.absNote = (int8_t)f[11], s.force = f[12], s.flen = f[13], s.fvel = f[14];
+	s.fflags = f[15], s.fgate = f[16], s.froot = (int8_t)f[17];
+	if (s.froot < -1 || s.froot > 11)
+		s.froot = -1;
 }
 
 static bool loadV2Raw(const std::vector<uint8_t>& data, Pattern& pat);
@@ -223,6 +232,11 @@ bool loadPattern(const std::vector<uint8_t>& data, Pattern& out) {
 				pat.customTimeline = q.u8();
 				pat.harm = q.u8();
 				pat.layoutLen = q.u8();
+				for (int t = 0; t < nt; t++) {
+					uint8_t f = q.u8(); // absent in v3.0 data: 0
+					if (t < NUM_TRACKS)
+						pat.chordFollow[t] = f ? 1 : 0;
+				}
 				break;
 			}
 			case ST_CHOP: {
@@ -280,9 +294,10 @@ bool loadPattern(const std::vector<uint8_t>& data, Pattern& out) {
 						bool in = v < NUM_DRUMS && s < MAX_STEPS;
 						DrumStep tmp = {};
 						DrumStep& d = in ? pat.drums[v][s] : tmp;
-						uint8_t f[DRUM_FIELDS] = {d.r, d.rg, d.rf, d.vj, d.rr, d.fv};
+						uint8_t f[DRUM_FIELDS] = {d.r, d.rg, d.rf, d.vj, d.rr, d.fv, d.frat};
 						readFields(q, f, DRUM_FIELDS, have);
 						d.r = f[0], d.rg = f[1], d.rf = f[2], d.vj = f[3], d.rr = f[4], d.fv = f[5];
+						d.frat = std::min<uint8_t>(f[6], 4);
 					}
 				break;
 			}
@@ -302,12 +317,17 @@ bool loadPattern(const std::vector<uint8_t>& data, Pattern& out) {
 					PadStep tmp = {};
 					PadStep& p = s < MAX_STEPS ? pat.pads[s] : tmp;
 					uint8_t f[PAD_FIELDS] = {p.r, p.vj, p.force, p.flen, p.fvel, p.nNotes,
-					                         (uint8_t)p.notes[0], (uint8_t)p.notes[1], (uint8_t)p.notes[2], (uint8_t)p.notes[3]};
+					                         (uint8_t)p.notes[0], (uint8_t)p.notes[1], (uint8_t)p.notes[2], (uint8_t)p.notes[3],
+					                         p.fgate, (uint8_t)p.froot};
 					readFields(q, f, PAD_FIELDS, have);
 					p.r = f[0], p.vj = f[1], p.force = f[2], p.flen = f[3], p.fvel = f[4];
 					p.nNotes = std::min<uint8_t>(f[5], 4);
 					for (int k = 0; k < 4; k++)
 						p.notes[k] = (int8_t)f[6 + k];
+					p.fgate = f[10];
+					p.froot = (int8_t)f[11];
+					if (p.froot < -1 || p.froot > 11)
+						p.froot = -1;
 				}
 				break;
 			}
@@ -377,6 +397,46 @@ struct Pattern {
 	PadStep pads[128];
 };
 } // namespace v2
+
+// for tests: the raw block GENRA v2 would have saved for this pattern
+std::vector<uint8_t> v2RawForTest(const Pattern& pat) {
+	v2::Pattern o;
+	std::memset(&o, 0, sizeof(o));
+	o.magic = PATTERN_MAGIC;
+	o.version = 2;
+	for (int t = 0; t < 4; t++) {
+		o.trackGenre[t] = pat.trackGenre[t];
+		o.fixed[t] = pat.fixed[t];
+	}
+	o.chordGenre = pat.chordGenre, o.melMode = pat.melMode, o.melCenter = pat.melCenter;
+	o.customTimeline = pat.customTimeline, o.harm = pat.harm, o.nProg = pat.nProg, o.nEvents = pat.nEvents, o.layoutLen = pat.layoutLen;
+	std::memcpy(o.chop, pat.chop, sizeof(o.chop));
+	std::memcpy(o.chopR, pat.chopR, sizeof(o.chopR));
+	for (int i = 0; i < 8; i++) {
+		const ChordSpec& c = pat.prog[i];
+		o.prog[i] = {c.root, c.quality, c.ext, c.rc, c.rs, c.extOff, c.explicitQ, c.mask};
+	}
+	for (int i = 0; i < 32; i++)
+		o.ev[i] = {pat.ev[i].spec, pat.ev[i].start, pat.ev[i].len, 0};
+	for (int v = 0; v < 8; v++)
+		for (int s = 0; s < 128; s++) {
+			const DrumStep& d = pat.drums[v][s];
+			o.drums[v][s] = {d.r, d.rg, d.rf, d.vj, d.rr, d.fv};
+		}
+	for (int tr = 0; tr < 2; tr++)
+		for (int s = 0; s < 128; s++) {
+			const NoteStep& n = tr == 0 ? pat.bass[s] : pat.mel[s];
+			v2::NoteStep& a = tr == 0 ? o.bass[s] : o.mel[s];
+			a = {n.r, n.rm, n.vj, n.ra, n.rs, n.a1, n.b1, n.c1, n.a2, n.b2, n.c2, n.absNote, n.force, n.flen, n.fvel};
+		}
+	for (int s = 0; s < 128; s++) {
+		const PadStep& p = pat.pads[s];
+		v2::PadStep& a = o.pads[s];
+		a.r = p.r, a.vj = p.vj, a.force = p.force, a.flen = p.flen, a.fvel = p.fvel, a.nNotes = p.nNotes;
+		std::memcpy(a.notes, p.notes, 4);
+	}
+	return std::vector<uint8_t>((const uint8_t*)&o, (const uint8_t*)&o + sizeof(o));
+}
 
 static bool loadV2Raw(const std::vector<uint8_t>& data, Pattern& out) {
 	if (data.size() != sizeof(v2::Pattern))

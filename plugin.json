@@ -18,6 +18,12 @@
       "name": "GENRA Generative Sequencer",
       "description": "Genre-aware generative sequencer: 8 drum voices, bass, melody and polyphonic pads with shared chord progressions",
       "tags": ["Sequencer", "Random", "Drum", "Polyphonic"]
+    },
+    {
+      "slug": "GenraGrid",
+      "name": "GENRA Grid Editor",
+      "description": "Grid editor for GENRA: drum grid, piano roll and velocity lane for every track, docks next to GENRA",
+      "tags": ["Sequencer", "Expander", "Visual"]
     }
   ]
 }

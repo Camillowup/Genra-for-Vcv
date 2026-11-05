@@ -112,8 +112,12 @@ int variantOfProfile(int idx);
 
 // ---------------------------------------------------------------- pattern
 struct DrumStep {
-	uint8_t r, rg, rf, vj, rr, fv; // fv: fixed velocity (imported), 0 = none
+	uint8_t r, rg, rf, vj, rr, fv; // fv: fixed velocity (imported / edited), 0 = none
+	uint8_t frat;                  // fixed: roll / ratchet count (0/1 = single hit, 2-4)
 };
+
+// flags of fixed notes (edited in the grid editor)
+enum NoteFlags { FF_SLIDE = 1, FF_ACC = 2, FF_SET = 0x80 /* flags are valid (otherwise: legacy import) */ };
 
 struct NoteStep {
 	uint8_t r, rm, vj, ra, rs; // rs: slide random
@@ -122,12 +126,17 @@ struct NoteStep {
 	int8_t absNote;    // imported: midi note minus key, NO_ABS otherwise
 	uint8_t force;     // 0 probabilistic, 1 on, 2 off
 	uint8_t flen, fvel;
+	uint8_t fflags;    // fixed: NoteFlags
+	uint8_t fgate;     // fixed: gate in % of the length (0 = default)
+	int8_t froot;      // fixed: chord root (semitones above key) the note was written against, -1 = unknown
 };
 
 struct PadStep {
 	uint8_t r, vj, force, flen, fvel;
 	uint8_t nNotes;   // imported: exact notes (midi minus key)
 	int8_t notes[4];
+	uint8_t fgate;    // fixed: gate in % (0 = default)
+	int8_t froot;     // fixed: chord root the notes were written against, -1 = unknown
 };
 
 struct ChordSpec {
@@ -154,7 +163,8 @@ struct Pattern {
 	uint8_t customTimeline;
 	uint8_t harm;
 	uint8_t nProg, nEvents, layoutLen;
-	uint8_t fixed[NUM_TRACKS]; // track plays imported notes exactly
+	uint8_t fixed[NUM_TRACKS]; // track plays imported / edited notes exactly
+	uint8_t chordFollow[NUM_TRACKS]; // fixed notes move with the chords (diatonically)
 	uint8_t reserved[8];
 	uint8_t chop[MAX_BARS][16]; // break-chop source step per bar
 	uint8_t chopR[MAX_BARS];
@@ -172,6 +182,7 @@ static const uint32_t PATTERN_VERSION = 2;
 // version-independent storage (Store.cpp); loadPattern also accepts the raw block of GENRA v2
 std::vector<uint8_t> savePattern(const Pattern& pat);
 bool loadPattern(const std::vector<uint8_t>& data, Pattern& pat);
+std::vector<uint8_t> v2RawForTest(const Pattern& pat);
 
 // ---------------------------------------------------------------- live parameters
 struct Params {
@@ -263,6 +274,36 @@ struct PadEv {
 };
 // prev: previous voicing (voice leading), updated in place
 PadEv padAt(const Pattern& pat, const Params& P, int step, int L, int prev[4], bool& hasPrev);
+
+// ---------------------------------------------------------------- grid editing (Edit.cpp)
+// a note as it sounds (midi pitch incl. key, transpose and octave)
+struct GridNote {
+	int start = 0, len = 1, pitch = 60, vel = 100;
+	bool slide = false, acc = false;
+};
+// fixed note (relative to key) after chord follow
+int followAbs(const Pattern& pat, const Params& P, int track, int step, int absNote, int froot);
+// turn a generated track into fixed notes that sound the same (loop of L steps, repeated up to MAX_STEPS)
+void freezeTrack(Pattern& pat, const Params& P, int track, int L);
+// notes of bass / melody / pads as they sound in the first L steps
+std::vector<GridNote> trackNotes(const Pattern& pat, const Params& P, int track, int L);
+// write notes into a fixed track (steps 0..L-1 are replaced, the rest is kept)
+void writeTrackNotes(Pattern& pat, const Params& P, int track, const std::vector<GridNote>& notes, int L);
+// drums (fixed track): vel 0 = no hit
+void setDrum(Pattern& pat, int voice, int step, int vel, int ratchet);
+void setChordFollow(Pattern& pat, const Params& P, int track, bool on, int L);
+// snap: 0 off, 1 scale, 2 chord tones
+int snapPitch(const Pattern& pat, const Params& P, int step, int pitch, int mode);
+void copyTrack(const Pattern& from, Pattern& to, int track);
+void clearTrack(Pattern& pat, int track);
+struct BarClip {
+	int track = -1;
+	DrumStep drums[NUM_DRUMS][16];
+	NoteStep notes[16];
+	PadStep pads[16];
+};
+void copyBar(const Pattern& pat, int track, int bar, BarClip& clip);
+bool pasteBar(Pattern& pat, int track, int bar, const BarClip& clip);
 
 // ---------------------------------------------------------------- MIDI
 struct MidiNote {

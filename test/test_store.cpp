@@ -13,11 +13,9 @@ int main(){
     // round trip
     Pattern q; if(!loadPattern(savePattern(pat),q) || !same(pat,q)){ fails++; printf("roundtrip %d\n",g); }
     // v2 raw block (identical layout today)
-    std::vector<uint8_t> raw((const uint8_t*)&pat,(const uint8_t*)&pat+sizeof(Pattern));
-    Pattern r; pat.version=2; std::memcpy(raw.data()+4,&pat.version,4);
-    if(!loadPattern(raw,r)){ fails++; printf("v2 load %d\n",g); }
-    else { r.version=pat.version; if(!same(pat,r)){ fails++; printf("v2 content %d\n",g);} }
-    pat.version=PATTERN_VERSION;
+    Pattern r;
+    if(!loadPattern(v2RawForTest(pat),r)){ fails++; printf("v2 load %d\n",g); }
+    else if(!same(pat,r)){ fails++; printf("v2 content %d\n",g); }
     // truncated / garbage data must not crash or load half
     auto blob=savePattern(pat);
     for(size_t cut : {0ul,3ul,10ul,blob.size()/2}){ std::vector<uint8_t> b(blob.begin(),blob.begin()+cut); Pattern x; if(loadPattern(b,x) && cut<blob.size()/2){ fails++; printf("truncated %zu loaded\n",cut);} }

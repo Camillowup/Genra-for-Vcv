@@ -517,6 +517,7 @@ void initPattern(Pattern& pat) {
 	for (int s = 0; s < MAX_STEPS; s++) {
 		pat.bass[s].absNote = NO_ABS;
 		pat.mel[s].absNote = NO_ABS;
+		pat.bass[s].froot = pat.mel[s].froot = pat.pads[s].froot = -1;
 	}
 	pat.nProg = 1;
 	pat.prog[0].root = 0;
@@ -876,6 +877,22 @@ void generateTrack(Pattern& pat, int track, int g, Rng& rng, const Params& P) {
 		case T_PADS: genPads(pat, g, rng); break;
 		default: break;
 	}
+	// fields that only fixed (edited / imported) notes use
+	for (int s = 0; s < MAX_STEPS; s++) {
+		if (track == T_DRUMS)
+			for (int v = 0; v < NUM_DRUMS; v++)
+				pat.drums[v][s].frat = 0;
+		if (track == T_BASS || track == T_MELODY) {
+			NoteStep& n = track == T_BASS ? pat.bass[s] : pat.mel[s];
+			n.fflags = 0;
+			n.fgate = 0;
+			n.froot = -1;
+		}
+		if (track == T_PADS) {
+			pat.pads[s].fgate = 0;
+			pat.pads[s].froot = -1;
+		}
+	}
 	(void)P;
 }
 
@@ -1016,24 +1033,29 @@ Hit drumHit(const Pattern& pat, const Params& P, int v, int step, int L, bool fi
 	int g = pat.trackGenre[T_DRUMS];
 	const Genre& G = prof(g);
 	int gs = step % 16;
-	if (pat.fixed[T_DRUMS]) {
-		const DrumStep& d = pat.drums[v][step];
+	const bool fx = pat.fixed[T_DRUMS] != 0;
+	float cx = effComplex(P, g);
+	int src = step;
+	if (dropped(G, P, T_DRUMS, v, step, L))
+		return h; // drops at the loop end also apply to edited drums
+	if (!fx) {
+		// break chops: kick, snare, rim and hats read from another step of the bar
+		int bar = step / 16;
+		if (G.chop > 0.f && (v == KICK || v == SNARE || v == RIM || v == CHAT) &&
+		    pat.chopR[bar] / 255.f < G.chop * (0.3f + cx * 1.2f))
+			src = bar * 16 + pat.chop[bar][gs];
+	}
+	const DrumStep& d = pat.drums[v][src];
+	if (fx) {
+		// fixed (imported / edited): exact hits; fills and humanize below still apply
 		if (d.fv) {
 			h.on = true;
 			h.vel = d.fv / 127.f;
+			if (d.frat > 1)
+				h.ratchet = std::min<int>(d.frat, 4);
 		}
-		return h;
 	}
-	if (dropped(G, P, T_DRUMS, v, step, L))
-		return h;
-	float cx = effComplex(P, g);
-	// break chops: kick, snare, rim and hats read from another step of the bar
-	int src = step;
-	int bar = step / 16;
-	if (G.chop > 0.f && (v == KICK || v == SNARE || v == RIM || v == CHAT) &&
-	    pat.chopR[bar] / 255.f < G.chop * (0.3f + cx * 1.2f))
-		src = bar * 16 + pat.chop[bar][gs];
-	const DrumStep& d = pat.drums[v][src];
+	else {
 	int sgs = src % 16;
 	float p = G.pDrum[v][src % G.drumLen];
 	float dn = P.density[T_DRUMS];
@@ -1063,6 +1085,7 @@ Hit drumHit(const Pattern& pat, const Params& P, int v, int step, int L, bool fi
 			h.vel = 0.28f + d.vj / 255.f * 0.15f;
 		}
 	}
+	} // generated
 	// genre-specific fills over the end of the loop
 	if (fill && L >= 16) {
 		int fs = L - 8;
@@ -1122,9 +1145,9 @@ Hit drumHit(const Pattern& pat, const Params& P, int v, int step, int L, bool fi
 			}
 		}
 	}
-	if (h.on && h.ratchet == 1 && G.pRoll[v][src % G.drumLen] && (d.rr >> 1) / 127.f < 0.3f + cx * 0.7f)
+	if (!fx && h.on && h.ratchet == 1 && G.pRoll[v][src % G.drumLen] && (d.rr >> 1) / 127.f < 0.3f + cx * 0.7f)
 		h.ratchet = (d.rr & 1) ? 3 : 2;
-	if (h.on && h.ratchet == 1 && v == CHAT) {
+	if (!fx && h.on && h.ratchet == 1 && v == CHAT) {
 		float rp = G.rolls * cx * 0.55f + cx * cx * 0.06f;
 		if (d.rr / 255.f < rp)
 			h.ratchet = (G.rolls > 0.7f && (d.rr & 2)) ? 4 : ((d.rr & 1) ? 3 : 2);
@@ -1152,7 +1175,7 @@ static bool bassActive(const Pattern& pat, const Params& P, int step, int L) {
 	int bi = pat.fixed[T_BASS] ? step : bassIndex(G, step);
 	const NoteStep& n = pat.bass[bi];
 	if (pat.fixed[T_BASS])
-		return n.force == 1;
+		return n.force == 1 && !dropped(G, P, T_BASS, 0, step, L);
 	if (n.force == 1)
 		return true;
 	if (n.force == 2)
@@ -1229,7 +1252,17 @@ NoteEv bassAt(const Pattern& pat, const Params& P, int step, int L) {
 	float mv = clampf(G.bassMove + (P.move - 0.5f) * 1.2f, 0.f, 1.f);
 	if (pat.fixed[T_BASS] || n.flen) {
 		e.len = std::max(1, (int)n.flen);
-		e.gate = 0.95f;
+		e.gate = n.fgate ? n.fgate / 100.f : 0.95f;
+		if (pat.fixed[T_BASS] && (n.fflags & FF_SET) && (n.fflags & FF_SLIDE)) {
+			int k = 1;
+			while (k < 16 && step + k < L && !bassActive(pat, P, step + k, L))
+				k++;
+			if (step + k < L) {
+				e.slide = true;
+				e.len = k;
+				e.gate = 1.05f;
+			}
+		}
 	}
 	else {
 		int cap = G.bassLen == 0 ? 1 : (G.bassLen == 1 ? 2 : 16);
@@ -1250,7 +1283,7 @@ NoteEv bassAt(const Pattern& pat, const Params& P, int step, int L) {
 		}
 	}
 	if (n.absNote != NO_ABS)
-		e.pitch = n.absNote + P.key + P.transp + 12 * P.oct[0];
+		e.pitch = followAbs(pat, P, T_BASS, step, n.absNote, n.froot) + P.key + P.transp + 12 * P.oct[0];
 	else {
 		Chord ch = chordAt(pat, P, step);
 		bool alt = n.rm / 255.f < mv * 0.8f;
@@ -1263,7 +1296,10 @@ NoteEv bassAt(const Pattern& pat, const Params& P, int step, int L) {
 		e.vel = n.fvel / 127.f;
 	else
 		e.vel = clampf(0.78f + (gs % 4 == 0 ? 0.12f : 0.f) + (n.vj / 255.f - 0.5f) * 0.14f, 0.f, 1.f);
-	e.acc = n.fvel ? (n.fvel > 100) : (n.ra / 255.f < 0.18f + cx * 0.15f);
+	if (pat.fixed[T_BASS] && (n.fflags & FF_SET))
+		e.acc = (n.fflags & FF_ACC) != 0;
+	else
+		e.acc = n.fvel ? (n.fvel > 100) : (n.ra / 255.f < 0.18f + cx * 0.15f);
 	e.pitch = clampi(e.pitch, 0, 127);
 	return e;
 }
@@ -1271,7 +1307,7 @@ NoteEv bassAt(const Pattern& pat, const Params& P, int step, int L) {
 static bool melActive(const Pattern& pat, const Params& P, int step, int L) {
 	const NoteStep& n = pat.mel[step];
 	if (pat.fixed[T_MELODY])
-		return n.force == 1;
+		return n.force == 1 && !dropped(prof(pat.trackGenre[T_MELODY]), P, T_MELODY, 0, step, L);
 	if (n.force)
 		return n.force == 1;
 	int g = pat.trackGenre[T_MELODY];
@@ -1314,7 +1350,17 @@ NoteEv melAt(const Pattern& pat, const Params& P, int step, int L) {
 	e.on = true;
 	if (pat.fixed[T_MELODY] || n.flen) {
 		e.len = std::max(1, (int)n.flen);
-		e.gate = 0.95f;
+		e.gate = n.fgate ? n.fgate / 100.f : 0.95f;
+		if (pat.fixed[T_MELODY] && (n.fflags & FF_SET) && (n.fflags & FF_SLIDE)) {
+			int k = 1;
+			while (k < 16 && step + k < L && !melActive(pat, P, step + k, L))
+				k++;
+			if (step + k < L) {
+				e.slide = true;
+				e.len = k;
+				e.gate = 1.05f;
+			}
+		}
 	}
 	else {
 		static const int CAP[5] = {2, 4, 1, 8, 1};
@@ -1340,7 +1386,7 @@ NoteEv melAt(const Pattern& pat, const Params& P, int step, int L) {
 	if (base > 66)
 		base -= 12;
 	if (n.absNote != NO_ABS)
-		e.pitch = n.absNote + P.key + P.transp + 12 * P.oct[1];
+		e.pitch = followAbs(pat, P, T_MELODY, step, n.absNote, n.froot) + P.key + P.transp + 12 * P.oct[1];
 	else {
 		Chord ch = chordAt(pat, P, step);
 		if (pat.melMode == 1) {
@@ -1367,7 +1413,10 @@ NoteEv melAt(const Pattern& pat, const Params& P, int step, int L) {
 		e.vel = n.fvel / 127.f;
 	else
 		e.vel = clampf(0.74f + (gs % 4 == 0 ? 0.1f : 0.f) + (n.vj / 255.f - 0.5f) * 0.16f, 0.f, 1.f);
-	e.acc = n.fvel ? (n.fvel > 100) : (n.ra / 255.f < 0.15f + cx * 0.15f);
+	if (pat.fixed[T_MELODY] && (n.fflags & FF_SET))
+		e.acc = (n.fflags & FF_ACC) != 0;
+	else
+		e.acc = n.fvel ? (n.fvel > 100) : (n.ra / 255.f < 0.15f + cx * 0.15f);
 	e.pitch = clampi(e.pitch, 0, 127);
 	return e;
 }
@@ -1513,7 +1562,7 @@ PadEv padAt(const Pattern& pat, const Params& P, int step, int L, int prev[4], b
 	e.on = true;
 	if (pat.fixed[T_PADS] || ps.flen) {
 		e.len = std::max(1, (int)ps.flen);
-		e.gate = 0.97f;
+		e.gate = (pat.fixed[T_PADS] && ps.fgate) ? ps.fgate / 100.f : 0.97f;
 	}
 	else if (G.padStyle == PS_SUSTAIN) {
 		int ev = eventAt(pat, step);
@@ -1537,7 +1586,7 @@ PadEv padAt(const Pattern& pat, const Params& P, int step, int L, int prev[4], b
 	if (pat.fixed[T_PADS] && ps.nNotes > 0) {
 		for (int k = 0; k < 4; k++) {
 			int idx = k < ps.nNotes ? k : 0;
-			int n = ps.notes[idx] + P.key + P.transp + 12 * P.oct[2] + (k < ps.nNotes ? 0 : 12);
+			int n = followAbs(pat, P, T_PADS, step, ps.notes[idx], ps.froot) + P.key + P.transp + 12 * P.oct[2] + (k < ps.nNotes ? 0 : 12);
 			e.notes[k] = clampi(n, 0, 127);
 			prev[k] = e.notes[k];
 		}
