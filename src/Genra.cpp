@@ -25,6 +25,13 @@ using CyanLight = ColorLight<0x3d, 0xc9, 0xff>;
 using PurpleLight = ColorLight<0xa9, 0x8b, 0xff>;
 using MintLight = ColorLight<0x5d, 0xff, 0x8a>;
 using TealLight = ColorLight<0x4f, 0xd1, 0xbd>;
+// scene slots: green = active, red = pattern stored
+struct SceneLight : GrayModuleLightWidget {
+	SceneLight() {
+		addBaseColor(nvgRGB(0x5d, 0xff, 0x8a));
+		addBaseColor(nvgRGB(0xff, 0x2a, 0x1a));
+	}
+};
 
 // ================================================================= shared drawing
 static void drawText(NVGcontext* vg, std::shared_ptr<window::Font> f, float xmm, float ymm, float sizeMm, NVGcolor c, const std::string& s,
@@ -439,12 +446,23 @@ struct GenraWidget : ModuleWidget {
 		in(layout::IN_COMPLEX, Genra::COMPLEX_INPUT);
 		in(layout::IN_COLOR, Genra::COLOR_INPUT);
 		in(layout::IN_CHORD, Genra::CHORD_INPUT);
+		in(layout::IN_SWING, Genra::SWING_INPUT);
+		in(layout::IN_BPM, Genra::BPM_INPUT);
+		in(layout::IN_LENGTH, Genra::LENGTH_INPUT);
+		out(layout::OUT_CLOCK, Genra::CLOCK_OUTPUT);
+		out(layout::OUT_RESET, Genra::RESET_OUTPUT);
+		out(layout::OUT_RUN, Genra::RUN_OUTPUT);
+		out(layout::OUT_BAR, Genra::BAR_OUTPUT);
+		out(layout::OUT_END, Genra::END_OUTPUT);
+		out(layout::OUT_FILL, Genra::FILL_OUTPUT);
+		out(layout::OUT_ROOT, Genra::ROOT_OUTPUT);
+		out(layout::OUT_CHORD, Genra::CHORD_OUTPUT);
 
 		// scenes
 		const float* scene[NUM_SCENES] = {layout::SCENE_0, layout::SCENE_1, layout::SCENE_2, layout::SCENE_3,
 		                                  layout::SCENE_4, layout::SCENE_5, layout::SCENE_6, layout::SCENE_7};
 		for (int i = 0; i < NUM_SCENES; i++)
-			addParam(createLightParamCentered<VCVLightBezel<MintLight>>(P(scene[i]), module, Genra::SCENE_PARAM + i, Genra::SCENE_LIGHT + i));
+			addParam(createLightParamCentered<VCVLightBezel<SceneLight>>(P(scene[i]), module, Genra::SCENE_PARAM + i, Genra::SCENE_LIGHT + 2 * i));
 		addParam(createLightParamCentered<VCVLightBezelLatch<WhiteLight>>(P(layout::STORE), module, Genra::STORE_PARAM, Genra::STORE_LIGHT));
 		in(layout::IN_SCENE, Genra::SCENE_INPUT);
 		in(layout::IN_NEXT, Genra::NEXT_INPUT);

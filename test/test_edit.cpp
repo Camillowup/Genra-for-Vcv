@@ -83,6 +83,27 @@ int main(){
     copyTrack(pat,other,T_BASS);
     CHECK(other.fixed[T_BASS] && std::memcmp(other.bass,pat.bass,sizeof(pat.bass))==0 && std::memcmp(other.drums,keep.drums,sizeof(keep.drums))==0, "copyTrack");
   }
+  // 6. chance and "every 2nd pass" on edited notes
+  { Params P; Pattern pat; initPattern(pat); Rng rng(9); bool lk[4]={0,0,0,0}; generate(pat,5,rng,lk,false,P); int L=64;
+    std::vector<GridNote> ns(3); ns[0].start=0; ns[0].pitch=40; ns[0].chance=50; ns[1].start=8; ns[1].pitch=43; ns[1].cond=NC_EVERY2; ns[2].start=16; ns[2].pitch=45;
+    writeTrackNotes(pat,P,T_BASS,ns,L);
+    freezeTrack(pat,P,T_DRUMS,L); clearTrack(pat,T_DRUMS); setDrum(pat,SNARE,4,100,1); setDrumChance(pat,SNARE,4,25,0);
+    int a=0,b=0,c=0,d=0,N=400;
+    for(int pass=0; pass<N; pass++){ P.pass=pass; a+=bassAt(pat,P,0,L).on; b+=bassAt(pat,P,8,L).on; c+=bassAt(pat,P,16,L).on; d+=drumHit(pat,P,SNARE,4,L,false).on;
+      CHECK(bassAt(pat,P,8,L).on == (pass%2==0), "every2 pass %d", pass); }
+    CHECK(a>N*0.4 && a<N*0.6, "chance 50: %d/%d", a, N);
+    CHECK(c==N, "always: %d", c);
+    CHECK(d>N*0.15 && d<N*0.35, "drum chance 25: %d/%d", d, N);
+    P.pass=1; auto shown=trackNotes(pat,P,T_BASS,L);
+    CHECK(shown.size()==3 && shown[0].chance==50 && shown[1].cond==NC_EVERY2 && shown[2].chance==100, "editor shows all notes with chance (%zu)", shown.size());
+    P.ignoreChance=true; CHECK(drumHit(pat,P,SNARE,4,L,false).on, "editor shows drum hit"); P.ignoreChance=false;
+    writeTrackNotes(pat,P,T_BASS,shown,L); auto again=trackNotes(pat,P,T_BASS,L);
+    CHECK(again.size()==3 && again[0].chance==50 && again[1].cond==NC_EVERY2, "chance round trip");
+    Pattern q; CHECK(loadPattern(savePattern(pat),q) && std::memcmp(&q,&pat,sizeof(Pattern))==0, "store chance");
+    // pads: one chance per chord onset
+    std::vector<GridNote> pn(3); for(int i=0;i<3;i++){ pn[i].start=0; pn[i].pitch=60+i*4; pn[i].len=8; pn[i].chance= i==1? 30 : 60; }
+    writeTrackNotes(pat,P,T_PADS,pn,L); CHECK(pat.pads[0].fchance==60, "pad chance %d", pat.pads[0].fchance);
+  }
   printf("edit fails=%d\n",fails);
   return fails;
 }

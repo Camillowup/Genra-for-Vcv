@@ -114,7 +114,11 @@ int variantOfProfile(int idx);
 struct DrumStep {
 	uint8_t r, rg, rf, vj, rr, fv; // fv: fixed velocity (imported / edited), 0 = none
 	uint8_t frat;                  // fixed: roll / ratchet count (0/1 = single hit, 2-4)
+	uint8_t fchance, fcond;        // fixed: chance in % (0 = always), condition (NoteCond)
 };
+
+// condition of a fixed note / hit
+enum NoteCond { NC_ALWAYS = 0, NC_EVERY2 = 1 /* every 2nd loop pass (1st, 3rd, ...) */ };
 
 // flags of fixed notes (edited in the grid editor)
 enum NoteFlags { FF_SLIDE = 1, FF_ACC = 2, FF_SET = 0x80 /* flags are valid (otherwise: legacy import) */ };
@@ -129,6 +133,7 @@ struct NoteStep {
 	uint8_t fflags;    // fixed: NoteFlags
 	uint8_t fgate;     // fixed: gate in % of the length (0 = default)
 	int8_t froot;      // fixed: chord root (semitones above key) the note was written against, -1 = unknown
+	uint8_t fchance, fcond; // fixed: chance in % (0 = always), NoteCond
 };
 
 struct PadStep {
@@ -137,6 +142,7 @@ struct PadStep {
 	int8_t notes[4];
 	uint8_t fgate;    // fixed: gate in % (0 = default)
 	int8_t froot;     // fixed: chord root the notes were written against, -1 = unknown
+	uint8_t fchance, fcond; // fixed: chance in % (0 = always), NoteCond
 };
 
 struct ChordSpec {
@@ -204,6 +210,8 @@ struct Params {
 	int chordMode = CM_MIXED;
 	int templateSel = -1;   // -1 random
 	bool fillActive = false; // this pass ends with a fill / drop (decided per loop pass)
+	int pass = 0;            // loop pass counter (CHANCE / every 2nd pass of edited notes)
+	bool ignoreChance = false; // editor view: show every edited note, also those skipped this pass
 };
 
 // ---------------------------------------------------------------- chords
@@ -280,7 +288,11 @@ PadEv padAt(const Pattern& pat, const Params& P, int step, int L, int prev[4], b
 struct GridNote {
 	int start = 0, len = 1, pitch = 60, vel = 100;
 	bool slide = false, acc = false;
+	int chance = 100; // %
+	int cond = NC_ALWAYS;
 };
+// does an edited note / hit with this chance play in this pass?
+bool chancePlays(int chance, int cond, int track, int voice, int step, const Params& P);
 // fixed note (relative to key) after chord follow
 int followAbs(const Pattern& pat, const Params& P, int track, int step, int absNote, int froot);
 // turn a generated track into fixed notes that sound the same (loop of L steps, repeated up to MAX_STEPS)
@@ -291,6 +303,7 @@ std::vector<GridNote> trackNotes(const Pattern& pat, const Params& P, int track,
 void writeTrackNotes(Pattern& pat, const Params& P, int track, const std::vector<GridNote>& notes, int L);
 // drums (fixed track): vel 0 = no hit
 void setDrum(Pattern& pat, int voice, int step, int vel, int ratchet);
+void setDrumChance(Pattern& pat, int voice, int step, int chance, int cond);
 void setChordFollow(Pattern& pat, const Params& P, int track, bool on, int L);
 // snap: 0 off, 1 scale, 2 chord tones
 int snapPitch(const Pattern& pat, const Params& P, int step, int pitch, int mode);

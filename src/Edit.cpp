@@ -31,6 +31,23 @@ static int diatonicShift(const int* sc, int n, int k) {
 	return o2 * 12 + sc[idx - o2 * 7] + alt;
 }
 
+bool chancePlays(int chance, int cond, int track, int voice, int step, const Params& P) {
+	if (P.ignoreChance)
+		return true;
+	if (cond == NC_EVERY2 && (P.pass & 1))
+		return false;
+	if (chance <= 0 || chance >= 100)
+		return true;
+	// deterministic per pass: the display, playback and MIDI export agree
+	uint32_t h = (uint32_t)(track * 977 + voice * 131 + step * 7919) ^ ((uint32_t)P.pass * 2654435761u);
+	h ^= h >> 15;
+	h *= 2246822519u;
+	h ^= h >> 13;
+	h *= 3266489917u;
+	h ^= h >> 16;
+	return (int)(h % 100u) < chance;
+}
+
 int followAbs(const Pattern& pat, const Params& P, int track, int step, int absNote, int froot) {
 	if (track < 0 || track >= NUM_TRACKS || !pat.chordFollow[track] || froot < 0)
 		return absNote;
@@ -96,6 +113,7 @@ void freezeTrack(Pattern& pat, const Params& P0, int track, int L) {
 				DrumStep& d = pat.drums[v][s];
 				d.fv = hits[s][v].on ? vel127(hits[s][v].vel) : 0;
 				d.frat = hits[s][v].on && hits[s][v].ratchet > 1 ? (uint8_t)hits[s][v].ratchet : 0;
+				d.fchance = d.fcond = 0;
 			}
 	}
 	else if (track == T_BASS || track == T_MELODY) {
@@ -117,6 +135,7 @@ void freezeTrack(Pattern& pat, const Params& P0, int track, int L) {
 				n.fflags = (uint8_t)(FF_SET | (e.slide ? FF_SLIDE : 0) | (e.acc ? FF_ACC : 0));
 				n.fgate = (uint8_t)clampi((int)std::lround(e.gate * 100.f), 1, 200);
 				n.froot = (int8_t)mod12(roots[s]);
+				n.fchance = n.fcond = 0;
 			}
 			else {
 				n.force = 2;
@@ -150,6 +169,7 @@ void freezeTrack(Pattern& pat, const Params& P0, int track, int L) {
 				ps.fvel = vel127(e.vel);
 				ps.fgate = (uint8_t)clampi((int)std::lround(e.gate * 100.f), 1, 200);
 				ps.froot = (int8_t)mod12(roots[s]);
+				ps.fchance = ps.fcond = 0;
 			}
 			else {
 				ps.force = 2;
@@ -163,8 +183,10 @@ void freezeTrack(Pattern& pat, const Params& P0, int track, int L) {
 	pat.fixed[track] = 1;
 }
 
-std::vector<GridNote> trackNotes(const Pattern& pat, const Params& P, int track, int L) {
+std::vector<GridNote> trackNotes(const Pattern& pat, const Params& P0, int track, int L) {
 	std::vector<GridNote> out;
+	Params P = P0;
+	P.ignoreChance = true; // the editor shows every note, also those skipped in this pass
 	L = clampi(L, 1, MAX_STEPS);
 	if (track == T_BASS || track == T_MELODY) {
 		for (int s = 0; s < L; s++) {
@@ -178,6 +200,11 @@ std::vector<GridNote> trackNotes(const Pattern& pat, const Params& P, int track,
 			g.vel = vel127(e.vel);
 			g.slide = e.slide;
 			g.acc = e.acc;
+			if (pat.fixed[track]) {
+				const NoteStep& n = track == T_BASS ? pat.bass[s] : pat.mel[s];
+				g.chance = n.fchance ? n.fchance : 100;
+				g.cond = n.fcond;
+			}
 			out.push_back(g);
 		}
 		// mono: a note ends where the next one starts
@@ -204,6 +231,10 @@ std::vector<GridNote> trackNotes(const Pattern& pat, const Params& P, int track,
 				g.len = std::max(1, std::min(e.len, L - s));
 				g.pitch = e.notes[k];
 				g.vel = vel127(e.vel);
+				if (pat.fixed[T_PADS]) {
+					g.chance = pat.pads[s].fchance ? pat.pads[s].fchance : 100;
+					g.cond = pat.pads[s].fcond;
+				}
 				out.push_back(g);
 			}
 		}
@@ -217,12 +248,14 @@ void writeTrackNotes(Pattern& pat, const Params& P, int track, const std::vector
 	L = clampi(L, 1, MAX_STEPS);
 	freezeTrack(pat, P, track, L);
 	if (track == T_PADS) {
+		int chanceMax[MAX_STEPS] = {0};
 		for (int s = 0; s < L; s++) {
 			PadStep& ps = pat.pads[s];
 			ps.force = 2;
 			ps.nNotes = 0;
 			ps.flen = ps.fvel = ps.fgate = 0;
 			ps.froot = -1;
+			ps.fchance = ps.fcond = 0;
 		}
 		for (const GridNote& g : notes) {
 			if (g.start < 0 || g.start >= L)
@@ -238,7 +271,14 @@ void writeTrackNotes(Pattern& pat, const Params& P, int track, const std::vector
 			ps.flen = (uint8_t)std::max<int>(ps.flen, clampi(g.len, 1, 128));
 			ps.fvel = (uint8_t)std::max<int>(ps.fvel, clampi(g.vel, 1, 127));
 			ps.froot = (int8_t)mod12(chordAt(pat, P, g.start).root);
+			// one chance per chord onset: the most likely note decides
+			chanceMax[g.start] = std::max(chanceMax[g.start], clampi(g.chance, 1, 100));
+			if (g.cond)
+				ps.fcond = (uint8_t)clampi(g.cond, 0, 1);
 		}
+		for (int s = 0; s < L; s++)
+			if (chanceMax[s] > 0)
+				pat.pads[s].fchance = (uint8_t)(chanceMax[s] >= 100 ? 0 : chanceMax[s]);
 		// fill up to 4 voices with doublings so nothing is added an octave up
 		for (int s = 0; s < L; s++) {
 			PadStep& ps = pat.pads[s];
@@ -258,6 +298,7 @@ void writeTrackNotes(Pattern& pat, const Params& P, int track, const std::vector
 		n.absNote = NO_ABS;
 		n.flen = n.fvel = n.fflags = n.fgate = 0;
 		n.froot = -1;
+		n.fchance = n.fcond = 0;
 	}
 	for (const GridNote& g : notes) {
 		if (g.start < 0 || g.start >= L)
@@ -270,6 +311,8 @@ void writeTrackNotes(Pattern& pat, const Params& P, int track, const std::vector
 		n.fflags = (uint8_t)(FF_SET | (g.slide ? FF_SLIDE : 0) | (g.acc ? FF_ACC : 0));
 		n.fgate = 0;
 		n.froot = (int8_t)mod12(chordAt(pat, P, g.start).root);
+		n.fchance = (uint8_t)(g.chance >= 100 ? 0 : clampi(g.chance, 1, 99));
+		n.fcond = (uint8_t)clampi(g.cond, 0, 1);
 	}
 	if (track == T_MELODY)
 		pat.melMode = 0;
@@ -281,7 +324,17 @@ void setDrum(Pattern& pat, int voice, int step, int vel, int ratchet) {
 	DrumStep& d = pat.drums[voice][step];
 	d.fv = (uint8_t)clampi(vel, 0, 127);
 	d.frat = vel > 0 && ratchet > 1 ? (uint8_t)clampi(ratchet, 2, 4) : 0;
+	if (vel <= 0)
+		d.fchance = d.fcond = 0;
 	pat.fixed[T_DRUMS] = 1;
+}
+
+void setDrumChance(Pattern& pat, int voice, int step, int chance, int cond) {
+	if (voice < 0 || voice >= NUM_DRUMS || step < 0 || step >= MAX_STEPS)
+		return;
+	DrumStep& d = pat.drums[voice][step];
+	d.fchance = (uint8_t)(chance >= 100 ? 0 : clampi(chance, 1, 99));
+	d.fcond = (uint8_t)clampi(cond, 0, 1);
 }
 
 void setChordFollow(Pattern& pat, const Params& P, int track, bool on, int L) {
@@ -383,6 +436,7 @@ void clearTrack(Pattern& pat, int track) {
 				for (int v = 0; v < NUM_DRUMS; v++) {
 					pat.drums[v][s].fv = 0;
 					pat.drums[v][s].frat = 0;
+					pat.drums[v][s].fchance = pat.drums[v][s].fcond = 0;
 				}
 				break;
 			case T_BASS:
@@ -392,6 +446,7 @@ void clearTrack(Pattern& pat, int track) {
 				n.absNote = NO_ABS;
 				n.flen = n.fvel = n.fflags = n.fgate = 0;
 				n.froot = -1;
+				n.fchance = n.fcond = 0;
 				break;
 			}
 			case T_PADS: {
@@ -400,6 +455,7 @@ void clearTrack(Pattern& pat, int track) {
 				ps.nNotes = 0;
 				ps.flen = ps.fvel = ps.fgate = 0;
 				ps.froot = -1;
+				ps.fchance = ps.fcond = 0;
 				break;
 			}
 		}
@@ -431,6 +487,8 @@ bool pasteBar(Pattern& pat, int track, int bar, const BarClip& clip) {
 				for (int v = 0; v < NUM_DRUMS; v++) {
 					pat.drums[v][s].fv = clip.drums[v][i].fv;
 					pat.drums[v][s].frat = clip.drums[v][i].frat;
+					pat.drums[v][s].fchance = clip.drums[v][i].fchance;
+					pat.drums[v][s].fcond = clip.drums[v][i].fcond;
 				}
 				break;
 			case T_BASS: pat.bass[s] = clip.notes[i]; break;

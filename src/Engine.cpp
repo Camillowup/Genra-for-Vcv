@@ -881,16 +881,18 @@ void generateTrack(Pattern& pat, int track, int g, Rng& rng, const Params& P) {
 	for (int s = 0; s < MAX_STEPS; s++) {
 		if (track == T_DRUMS)
 			for (int v = 0; v < NUM_DRUMS; v++)
-				pat.drums[v][s].frat = 0;
+				pat.drums[v][s].frat = pat.drums[v][s].fchance = pat.drums[v][s].fcond = 0;
 		if (track == T_BASS || track == T_MELODY) {
 			NoteStep& n = track == T_BASS ? pat.bass[s] : pat.mel[s];
 			n.fflags = 0;
 			n.fgate = 0;
 			n.froot = -1;
+			n.fchance = n.fcond = 0;
 		}
 		if (track == T_PADS) {
 			pat.pads[s].fgate = 0;
 			pat.pads[s].froot = -1;
+			pat.pads[s].fchance = pat.pads[s].fcond = 0;
 		}
 	}
 	(void)P;
@@ -1048,7 +1050,7 @@ Hit drumHit(const Pattern& pat, const Params& P, int v, int step, int L, bool fi
 	const DrumStep& d = pat.drums[v][src];
 	if (fx) {
 		// fixed (imported / edited): exact hits; fills and humanize below still apply
-		if (d.fv) {
+		if (d.fv && chancePlays(d.fchance ? d.fchance : 100, d.fcond, T_DRUMS, v, step, P)) {
 			h.on = true;
 			h.vel = d.fv / 127.f;
 			if (d.frat > 1)
@@ -1175,7 +1177,7 @@ static bool bassActive(const Pattern& pat, const Params& P, int step, int L) {
 	int bi = pat.fixed[T_BASS] ? step : bassIndex(G, step);
 	const NoteStep& n = pat.bass[bi];
 	if (pat.fixed[T_BASS])
-		return n.force == 1 && !dropped(G, P, T_BASS, 0, step, L);
+		return n.force == 1 && !dropped(G, P, T_BASS, 0, step, L) && chancePlays(n.fchance ? n.fchance : 100, n.fcond, T_BASS, 0, step, P);
 	if (n.force == 1)
 		return true;
 	if (n.force == 2)
@@ -1307,7 +1309,8 @@ NoteEv bassAt(const Pattern& pat, const Params& P, int step, int L) {
 static bool melActive(const Pattern& pat, const Params& P, int step, int L) {
 	const NoteStep& n = pat.mel[step];
 	if (pat.fixed[T_MELODY])
-		return n.force == 1 && !dropped(prof(pat.trackGenre[T_MELODY]), P, T_MELODY, 0, step, L);
+		return n.force == 1 && !dropped(prof(pat.trackGenre[T_MELODY]), P, T_MELODY, 0, step, L) &&
+		       chancePlays(n.fchance ? n.fchance : 100, n.fcond, T_MELODY, 0, step, P);
 	if (n.force)
 		return n.force == 1;
 	int g = pat.trackGenre[T_MELODY];
@@ -1424,7 +1427,7 @@ NoteEv melAt(const Pattern& pat, const Params& P, int step, int L) {
 static bool padActive(const Pattern& pat, const Params& P, int step) {
 	const PadStep& ps = pat.pads[step];
 	if (pat.fixed[T_PADS])
-		return ps.force == 1;
+		return ps.force == 1 && chancePlays(ps.fchance ? ps.fchance : 100, ps.fcond, T_PADS, 0, step, P);
 	int g = pat.trackGenre[T_PADS];
 	const Genre& G = prof(g);
 	float d = P.density[T_PADS];

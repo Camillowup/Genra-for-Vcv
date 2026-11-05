@@ -103,6 +103,10 @@ struct Genra : Module {
 		ENUMS(DENS_INPUT, 4),
 		SCENE_INPUT,
 		NEXT_INPUT,
+		// v3.1
+		SWING_INPUT,
+		BPM_INPUT,
+		LENGTH_INPUT,
 		INPUTS_LEN
 	};
 	enum OutputId {
@@ -121,6 +125,15 @@ struct Genra : Module {
 		PAD_MOD_OUTPUT,
 		BASS_SLIDE_OUTPUT,
 		MEL_SLIDE_OUTPUT,
+		// v3.1
+		CLOCK_OUTPUT,
+		RESET_OUTPUT,
+		RUN_OUTPUT,
+		BAR_OUTPUT,
+		END_OUTPUT,
+		FILL_OUTPUT,
+		ROOT_OUTPUT,
+		CHORD_OUTPUT,
 		OUTPUTS_LEN
 	};
 	enum LightId {
@@ -132,7 +145,7 @@ struct Genra : Module {
 		ENUMS(TNEW_LIGHT, 4),
 		CHORDNEW_LIGHT,
 		// v3
-		ENUMS(SCENE_LIGHT, NUM_SCENES),
+		ENUMS(SCENE_LIGHT, NUM_SCENES * 2), // per scene: green (active), red (pattern stored)
 		STORE_LIGHT,
 		LIGHTS_LEN
 	};
@@ -249,6 +262,11 @@ struct Genra : Module {
 	float subInterval = 0.f, subCounter = 0.f;
 	bool resetArmed = false;
 	float blink = 0.f;
+	int passCount = 0; // loop passes since start (CHANCE of edited notes)
+	dsp::PulseGenerator clockPulse, resetPulse, barPulse, endPulse;
+	float rootV = 0.f;
+	float chordV[6] = {0.f, 0.f, 0.f, 0.f, 0.f, 0.f};
+	int chordN = 0;
 
 	// ---- live inputs (copied into Params)
 	int transpSemis = 0;
@@ -368,6 +386,17 @@ struct Genra : Module {
 		configInput(COLOR_INPUT, "Color CV (0-10 V, addiert)");
 		configInput(SCENE_INPUT, "Szene CV (0-10 V = Szene 1-8)");
 		configInput(NEXT_INPUT, "Nächste Szene (Trigger)");
+		configInput(SWING_INPUT, "Swing CV (0-10 V, addiert)");
+		configInput(BPM_INPUT, "Tempo CV (interne Clock, 10 BPM pro Volt, addiert)");
+		configInput(LENGTH_INPUT, "Loop-Länge CV (0-10 V, addiert)");
+		configOutput(CLOCK_OUTPUT, "Clock (16tel)");
+		configOutput(RESET_OUTPUT, "Reset (Loop-Anfang)");
+		configOutput(RUN_OUTPUT, "Run (Gate, solange GENRA läuft)");
+		configOutput(BAR_OUTPUT, "Bar (Impuls pro Takt)");
+		configOutput(END_OUTPUT, "Loop-Ende (Impuls auf dem letzten Step)");
+		configOutput(FILL_OUTPUT, "Fill / Drop (Gate)");
+		configOutput(ROOT_OUTPUT, "Grundton des aktuellen Akkords (V/Oct)");
+		configOutput(CHORD_OUTPUT, "Aktueller Akkord (polyphon, V/Oct)");
 		for (int v = 0; v < NUM_DRUMS; v++)
 			configOutput(DRUM_OUTPUT + v, std::string(DRUM_NAMES[v]) + " Trigger (Höhe = Velocity)");
 		configOutput(BASS_VOCT_OUTPUT, "Bass V/Oct");
@@ -393,12 +422,12 @@ struct Genra : Module {
 	}
 
 	// ------------------------------------------------------------ helpers
+	static float cv01(Input& in) { return in.isConnected() ? in.getVoltage() / 10.f : 0.f; }
+
 	int lengthSteps() {
-		int idx = clamp((int)std::round(params[LENGTH_PARAM].getValue()), 0, 3);
+		int idx = clamp((int)std::round(params[LENGTH_PARAM].getValue() + cv01(inputs[LENGTH_INPUT]) * 3.f), 0, 3);
 		return LENGTHS[idx] * STEPS_PER_BAR;
 	}
-
-	static float cv01(Input& in) { return in.isConnected() ? in.getVoltage() / 10.f : 0.f; }
 
 	Params buildParams() {
 		Params P;
@@ -416,7 +445,7 @@ struct Genra : Module {
 		}
 		P.complexK = clamp(params[COMPLEX_PARAM].getValue() + cv01(inputs[COMPLEX_INPUT]), 0.f, 1.f);
 		P.colorK = clamp(params[COLOR_PARAM].getValue() + cv01(inputs[COLOR_INPUT]), 0.f, 1.f);
-		P.swingK = params[SWING_PARAM].getValue();
+		P.swingK = clamp(params[SWING_PARAM].getValue() + cv01(inputs[SWING_INPUT]) * 2.f, -1.f, 1.f);
 		P.lengthBars = lengthSteps() / STEPS_PER_BAR;
 		for (int t = 0; t < 4; t++)
 			P.density[t] = clamp(params[DENS_PARAM + t].getValue() + cv01(inputs[DENS_INPUT + t]), 0.f, 1.f);
@@ -433,6 +462,7 @@ struct Genra : Module {
 		P.chordMode = chordMode;
 		P.templateSel = templateSel;
 		P.fillActive = fillActive;
+		P.pass = passCount;
 		return P;
 	}
 
@@ -749,6 +779,17 @@ struct Genra : Module {
 			if (changed)
 				P = buildParams();
 		}
+		if (step == 0 && !firstPass)
+			passCount++;
+		P.pass = passCount;
+		// sync outputs (unswung grid)
+		clockPulse.trigger(2e-3f);
+		if (step == 0)
+			resetPulse.trigger(2e-3f);
+		if (step % STEPS_PER_BAR == 0)
+			barPulse.trigger(2e-3f);
+		if (step == L - 1)
+			endPulse.trigger(2e-3f);
 		if (step == 0) {
 			fillActive = fillCarry || rng.uni() < P.fill;
 			fillCarry = false;
@@ -793,6 +834,15 @@ struct Genra : Module {
 				dPad = d;
 			else
 				startPad(qPad, sr);
+		}
+		// current chord on ROOT / CHORD (V/Oct, root between C4 and B4)
+		{
+			Chord ch = chordAt(pat, P, step);
+			int rootPc = ((P.key + P.transp + ch.root) % 12 + 12) % 12;
+			rootV = rootPc / 12.f;
+			chordN = std::min(ch.n, 6);
+			for (int i = 0; i < chordN; i++)
+				chordV[i] = rootV + ch.iv[i] / 12.f;
 		}
 		// modulation: smooth rise over each chord
 		int e = eventAt(pat, step);
@@ -844,6 +894,8 @@ struct Genra : Module {
 			subTicksLeft = 0;
 			dDrums = dBass = dMel = dPad = -1.f;
 			resetArmed = true;
+			passCount = 0;
+			firstPass = true;
 		}
 		if (fillTrig.process(inputs[FILL_INPUT].getVoltage(), 0.1f, 1.f)) {
 			fillActive = true; // this pass ends with a fill / drop
@@ -947,6 +999,8 @@ struct Genra : Module {
 		}
 		else {
 			float bpm = params[BPM_PARAM].getValue();
+			if (inputs[BPM_INPUT].isConnected())
+				bpm = clamp(bpm + inputs[BPM_INPUT].getVoltage() * 10.f, 40.f, 220.f);
 			stepPeriod = sr * 60.f / bpm / 4.f;
 			phase += 1.f / stepPeriod;
 			if (phase >= 1.f || resetArmed) {
@@ -1020,6 +1074,23 @@ struct Genra : Module {
 			outputs[PAD_MOD_OUTPUT].setVoltage(modValue);
 		}
 
+		// ---- sync / harmony outputs
+		{
+			float st = args.sampleTime;
+			bool c = clockPulse.process(st), r = resetPulse.process(st), b = barPulse.process(st), en = endPulse.process(st);
+			outputs[CLOCK_OUTPUT].setVoltage(c ? 10.f : 0.f);
+			outputs[RESET_OUTPUT].setVoltage(r ? 10.f : 0.f);
+			outputs[BAR_OUTPUT].setVoltage(b ? 10.f : 0.f);
+			outputs[END_OUTPUT].setVoltage(en ? 10.f : 0.f);
+			outputs[RUN_OUTPUT].setVoltage(running ? 10.f : 0.f);
+			int L = lengthSteps();
+			outputs[FILL_OUTPUT].setVoltage(running && fillActive && step >= L - 8 && L >= 16 ? 10.f : 0.f);
+			outputs[ROOT_OUTPUT].setVoltage(rootV);
+			outputs[CHORD_OUTPUT].setChannels(std::max(1, chordN));
+			for (int i = 0; i < std::max(1, chordN); i++)
+				outputs[CHORD_OUTPUT].setVoltage(chordN ? chordV[i] : rootV, i);
+		}
+
 		// ---- lights
 		if (lightDivider.process()) {
 			float dt = args.sampleTime * lightDivider.getDivision();
@@ -1039,12 +1110,18 @@ struct Genra : Module {
 				lights[LOCK_LIGHT + t].setBrightness(params[LOCK_PARAM + t].getValue());
 			}
 			for (int i = 0; i < NUM_SCENES; i++) {
-				float b = scenes[i].used ? 0.18f : 0.f;
-				if (i == activeScene)
-					b = 1.f;
-				if (i == pendingScene)
-					b = blink < 0.5f ? 1.f : 0.25f;
-				lights[SCENE_LIGHT + i].setBrightness(b);
+				// green = active scene (blinking: comes at the next bar), red = pattern stored, off = empty
+				float green = 0.f, red = scenes[i].used ? 0.85f : 0.f;
+				if (i == activeScene) {
+					green = 1.f;
+					red = 0.f;
+				}
+				if (i == pendingScene) {
+					green = blink < 0.5f ? 1.f : 0.f;
+					red = blink < 0.5f ? 0.f : 0.85f;
+				}
+				lights[SCENE_LIGHT + 2 * i].setBrightness(green);
+				lights[SCENE_LIGHT + 2 * i + 1].setBrightness(red);
 			}
 			lights[STORE_LIGHT].setBrightness(params[STORE_PARAM].getValue() > 0.5f ? (blink < 0.5f ? 1.f : 0.4f) : 0.f);
 		}

@@ -503,6 +503,7 @@ int importSmf(const std::vector<uint8_t>& d, Pattern& pat, const Params& P, std:
 			for (int s = 0; s < MAX_STEPS; s++) {
 				pat.drums[v][s].fv = 0;
 				pat.drums[v][s].frat = 0;
+				pat.drums[v][s].fchance = pat.drums[v][s].fcond = 0;
 			}
 		for (RawNote& n : notes) {
 			if (role[n.group] != T_DRUMS)
@@ -528,6 +529,7 @@ int importSmf(const std::vector<uint8_t>& d, Pattern& pat, const Params& P, std:
 			arr[s].fflags = 0;
 			arr[s].fgate = 0;
 			arr[s].froot = -1;
+			arr[s].fchance = arr[s].fcond = 0;
 		}
 		for (RawNote& n : notes) {
 			if (role[n.group] != tr)
@@ -558,6 +560,7 @@ int importSmf(const std::vector<uint8_t>& d, Pattern& pat, const Params& P, std:
 			pat.pads[s].nNotes = 0;
 			pat.pads[s].fgate = 0;
 			pat.pads[s].froot = -1;
+			pat.pads[s].fchance = pat.pads[s].fcond = 0;
 		}
 		// bass note per step (root hint for chord detection)
 		int bassAt[MAX_STEPS];

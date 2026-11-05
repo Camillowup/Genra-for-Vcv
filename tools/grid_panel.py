@@ -16,7 +16,7 @@ VIEW = sys.argv[3] if len(sys.argv) > 3 else "piano"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CL = os.path.abspath(os.path.join(ROOT, "..", "ext", "Rack", "res", "ComponentLibrary"))
 
-HP = 46
+HP = 50
 W = HP * 5.08
 H = 128.5
 BG, PLATE, LINE, TXT, DIM = "#17181d", "#212329", "#34363f", "#d9dbe2", "#8a8d99"
@@ -210,6 +210,7 @@ else:
              (23, 1, 44, 0.7, False, False), (24, 4, 39, 0.9, False, False), (28, 2, 34, 0.7, False, False),
              (30, 2, 41, 0.8, False, False)]
     rowOf = {r[0]: i for i, r in enumerate(rows)}
+    CHANCE = {3: 50, 5: 75, 11: 25, 12: 60}
     for i, (st, ln, midi, v, sl, acc) in enumerate(notes):
         x, y = gx0 + st * sw + 0.3, gy0 + rowOf[midi] * rh + 0.25
         sel = i == 8
@@ -219,12 +220,15 @@ else:
         e(f'<rect x="{x+ln*sw-1.5:.2f}" y="{y+0.5:.2f}" width="0.5" height="{rh-1.5:.2f}" fill="#07080a" fill-opacity="0.5"/>')
         if acc:
             text(x + 1.2, y + rh - 0.9, ">", 1.8, "#07080a", 800, "start", 0)
+        if i in CHANCE:
+            e(f'<rect x="{x:.2f}" y="{y:.2f}" width="{ln*sw-0.6:.2f}" height="{rh-0.5:.2f}" rx="0.6" fill="#07080a" fill-opacity="0.45" stroke="{col}" stroke-width="0.3" stroke-dasharray="0.7 0.45"/>')
+            text(x + ln * sw - 1.9, y + rh - 1.05, f"{CHANCE[i]}%", 1.45, "#ffffff", 700, "end", 0)
         if sl and i + 1 < len(notes):
             nst, _, nmidi, *_ = notes[i + 1]
             x2, y2 = gx0 + nst * sw + 0.6, gy0 + rowOf[nmidi] * rh + rh / 2
             x1, y1 = x + ln * sw - 0.6, y + rh / 2
             e(f'<path d="M{x1:.2f} {y1:.2f} C{x1+1.5:.2f} {y1:.2f} {x2-1.5:.2f} {y2:.2f} {x2:.2f} {y2:.2f}" fill="none" stroke="#ffffff" stroke-width="0.4" stroke-dasharray="0.6 0.4"/>')
-    vel = [(st, v) for st, ln, midi, v, sl, acc in notes]
+    vel = [(st, CHANCE.get(i, 100) / 100.0) for i, (st, ln, midi, v, sl, acc) in enumerate(notes)]
 # playhead
 px = gx0 + playhead * sw
 e(f'<rect x="{px:.2f}" y="{gy0:.2f}" width="{sw:.2f}" height="{gy1-gy0:.2f}" fill="#ffffff" fill-opacity="0.06"/>')
@@ -233,7 +237,9 @@ e(f'<line x1="{px:.2f}" y1="{gy0-1:.2f}" x2="{px:.2f}" y2="{gy1:.2f}" stroke="#f
 # velocity lane
 vy0, vy1 = gy1 + 4.0, gy1 + 4.0 + vel_h
 e(f'<rect x="{gx0:.2f}" y="{vy0:.2f}" width="{gx1-gx0:.2f}" height="{vel_h:.2f}" fill="#0c0d11"/>')
-text(gx0 - 1.6, vy0 + vel_h / 2 - 0.2, "VEL", 1.8, DIM, 700, "end", 0.3)
+lane_chance = CUR != 0
+text(gx0 - 1.6, vy0 + 3.0, "VEL", 1.7, DIM if lane_chance else col, 700, "end", 0.3)
+text(gx0 - 1.6, vy0 + 6.4, "CHANCE", 1.5, col if lane_chance else DIM, 700, "end", 0.2)
 if CUR == 0:
     text(gx0 - 1.6, vy0 + vel_h / 2 + 2.4, "KICK", 1.6, col, 700, "end", 0.3)
     e(f'<rect x="{gx0-14.5:.2f}" y="{gy0+0.4:.2f}" width="{gx1-gx0+14.5:.2f}" height="{rh-0.8:.2f}" rx="0.6" fill="none" stroke="{col}" stroke-opacity="0.5" stroke-width="0.3"/>')
@@ -268,10 +274,12 @@ button(vx + 40.5, cy, "AUTO", "#ffffff", "SCROLL", name="AUTO")
 
 # notes
 nx = 112
-e(f'<rect x="{nx}" y="{top}" width="50" height="{H-top-4}" rx="1.6" fill="{PLATE}"/>')
-text(nx + 25, top + 4.2, "NOTES", 1.8, TXT, 800, "middle", 0.5)
+e(f'<rect x="{nx}" y="{top}" width="61" height="{H-top-4}" rx="1.6" fill="{PLATE}"/>')
+text(nx + 30.5, top + 4.2, "NOTES", 1.8, TXT, 800, "middle", 0.5)
 knob("VEL", nx + 7.5, cy, label="VEL")
 knob("LEN", nx + 18.5, cy, label="LEN")
+knob("CHANCE", nx + 29.5, cy, label="CHANCE")
+nx += 11
 button(nx + 30.5, cy, "SNAP", None, name="SNAP")
 for i, m in enumerate(["OFF", "SCALE", "CHORD"]):
     yy = cy - 3.4 + i * 3.4
@@ -280,7 +288,7 @@ text(nx + 30.5, cy + 8.5, "", 1.6, DIM)
 button(nx + 43.5, cy, "CHORD", HARM if CUR != 0 else None, "FOLLOW", name="FOLLOW")
 
 # edit
-ex = 164
+ex = 175
 ew = W - 6 - ex
 e(f'<rect x="{ex}" y="{top}" width="{ew:.2f}" height="{H-top-4}" rx="1.6" fill="{PLATE}"/>')
 text(ex + ew / 2, top + 4.2, "EDIT", 1.8, TXT, 800, "middle", 0.5)

@@ -20,7 +20,7 @@ PREVIEW = MODE == "preview"
 REAL = MODE in ("real", "preview")
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-HP = 58
+HP = 64
 W = HP * 5.08
 H = 128.5
 
@@ -159,7 +159,7 @@ button("CHORDNEW", cg0 + cgw * 0.2, gy, CHORDCOL, "NEW")
 button("CHORDLOCK", cg0 + cgw * 0.5, gy, CHORDCOL, "LOCK")
 jack("IN_CHORDNEW", cg0 + cgw * 0.8, gy, "TRIG")
 
-# ---------------------------------------------------------------- inputs (3 x 4)
+# ---------------------------------------------------------------- inputs (3 x 5)
 TOP = 51.5
 BOT = 127.0
 INW = 40
@@ -168,15 +168,28 @@ text(6 + INW / 2, TOP + 4.6, "IN", 2.0, TXT, 700)
 ins = ["CLOCK", "RESET", "RUN",
        "NEW", "FILL", "MUTATE",
        "GENRE", "VARIANT", "TRANSP",
-       "COMPLEX", "COLOR", "CHORD"]
+       "COMPLEX", "COLOR", "SWING",
+       "BPM", "LENGTH", "CHORD"]
+IN_Y0, IN_DY = 62.0, 13.2
 for i, lab in enumerate(ins):
-    jack("IN_" + lab, 14 + (i % 3) * 12, 63.5 + (i // 3) * 15.2, lab, lsize=1.6)
-text(38, 63.5 + 3 * 15.2 + 8.6, "POLY", 1.4, CHORDCOL, 700)
-text(6 + INW / 2, BOT - 3.2, "CV 0-10 V", 1.4, DIM, 600)
+    jack("IN_" + lab, 14 + (i % 3) * 12, IN_Y0 + (i // 3) * IN_DY, lab, lsize=1.6, ldy=5.9)
+text(38, IN_Y0 + 4 * IN_DY + 8.2, "POLY", 1.3, CHORDCOL, 700)
+
+# ---------------------------------------------------------------- sync / harmony outputs (2 x 4)
+OW = 27
+OX = W - 6 - OW  # right edge (scenes sit next to the inputs)
+e(f'<rect x="{OX:.2f}" y="{TOP}" width="{OW}" height="{BOT-TOP}" rx="1.6" fill="{PLATE}"/>')
+text(OX + OW / 2, TOP + 4.6, "OUT", 2.0, TXT, 700)
+SYNCCOL = "#c9ccd6"
+outs_s = [("CLOCK", SYNCCOL), ("RESET", SYNCCOL), ("RUN", SYNCCOL), ("BAR", SYNCCOL),
+          ("END", SYNCCOL), ("FILL", SYNCCOL), ("ROOT", CHORDCOL), ("CHORD", CHORDCOL)]
+for i, (lab, c) in enumerate(outs_s):
+    jack("OUT_" + lab, OX + 7.5 + (i % 2) * 12, 64.0 + (i // 2) * 14.2, lab, True, c, ldy=5.9)
+text(OX + 7.5 + 12, 64.0 + 3 * 14.2 + 9.0, "POLY", 1.3, CHORDCOL, 700)
 
 # ---------------------------------------------------------------- scenes column
 SCW = 30
-sx0 = W - 6 - SCW
+sx0 = 6 + INW + 1
 e(f'<rect x="{sx0:.2f}" y="{TOP}" width="{SCW}" height="{BOT-TOP}" rx="1.6" fill="{PLATE}"/>')
 e(f'<rect x="{sx0:.2f}" y="{TOP}" width="{SCW}" height="1.3" rx="0.6" fill="{SCENECOL}"/>')
 scx = sx0 + SCW / 2
@@ -191,8 +204,8 @@ jack("IN_SCENE", scx - 6.5, 119.0, "CV", lsize=1.6, ldy=6.0)
 jack("IN_NEXT", scx + 6.5, 119.0, "NEXT", lsize=1.6, ldy=6.0)
 
 # ---------------------------------------------------------------- tracks
-x0 = 6 + INW + 1
-TW = sx0 - 1 - x0
+x0 = sx0 + SCW + 1
+TW = OX - 1 - x0
 DRW = 63
 OTW = (TW - DRW) / 3
 Y_TITLE, Y_KNOB, Y_FIELD, Y_BTN = TOP + 5.6, 64.5, 79.6, 91.2
@@ -275,7 +288,8 @@ if PREVIEW:
         sw, sh = w / PX, h / PX
         out.insert(-1, f'<svg x="{x-sw/2:.3f}" y="{y-sh/2:.3f}" width="{sw:.3f}" height="{sh:.3f}" viewBox="{vbs}">{body}</svg>')
 
-    lit = {"RUN": "#5dff8a", "LOCK_1": "#ff4f6d", "SCENE_0": SCENECOL}
+    STORED = "#ff2a1a"  # scene slot holds a pattern (red)
+    lit = {"RUN": "#5dff8a", "LOCK_1": "#ff4f6d", "SCENE_0": SCENECOL, "SCENE_1": STORED, "SCENE_2": STORED, "SCENE_5": STORED}
     # mock content of the genre fields: (text, follows global?)
     FIELDS = {0: ("GLOBAL", True), 1: ("DUB · STEPPERS", False), 2: ("LO-FI · JAZZY", False), 3: ("AMBIENT · BRIGHT", False)}
     for c in components:
