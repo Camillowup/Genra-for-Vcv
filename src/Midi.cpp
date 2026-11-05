@@ -15,8 +15,10 @@ static inline int mod12(int x) { return ((x % 12) + 12) % 12; }
 std::vector<MidiNote> renderLoop(const Pattern& pat, const Params& P, int L) {
 	std::vector<MidiNote> out;
 	L = clampi(L, 1, MAX_STEPS);
-	float swing = effSwing(P, pat.trackGenre[T_DRUMS]);
-	int swingTicks = (int)std::lround((swing - 0.5f) * 2.f * TPS);
+	// every track swings like the genre it plays
+	int swingTicks[NUM_TRACKS];
+	for (int t = 0; t < NUM_TRACKS; t++)
+		swingTicks[t] = (int)std::lround((effSwing(P, pat.trackGenre[t]) - 0.5f) * 2.f * TPS);
 	int prev[4] = {0, 0, 0, 0};
 	bool hasPrev = false;
 	const int loopEnd = L * TPS;
@@ -32,7 +34,10 @@ std::vector<MidiNote> renderLoop(const Pattern& pat, const Params& P, int L) {
 		out.push_back(m);
 	};
 	for (int s = 0; s < L; s++) {
-		int t0 = s * TPS + ((s % 2 == 1) ? swingTicks : 0);
+		int t0s[NUM_TRACKS];
+		for (int t = 0; t < NUM_TRACKS; t++)
+			t0s[t] = s * TPS + ((s % 2 == 1) ? swingTicks[t] : 0);
+		int t0 = t0s[T_DRUMS];
 		Hit hits[NUM_DRUMS];
 		drumStep(pat, P, s, L, false, hits);
 		for (int v = 0; v < NUM_DRUMS; v++) {
@@ -44,10 +49,10 @@ std::vector<MidiNote> renderLoop(const Pattern& pat, const Params& P, int L) {
 		}
 		NoteEv b = bassAt(pat, P, s, L);
 		if (b.on)
-			add(1, s, t0, (int)(b.len * TPS * b.gate), b.pitch, b.vel);
+			add(1, s, t0s[T_BASS], (int)(b.len * TPS * b.gate), b.pitch, b.vel);
 		NoteEv m = melAt(pat, P, s, L);
 		if (m.on)
-			add(2, s, t0, (int)(m.len * TPS * m.gate), m.pitch, m.vel);
+			add(2, s, t0s[T_MELODY], (int)(m.len * TPS * m.gate), m.pitch, m.vel);
 		PadEv p = padAt(pat, P, s, L, prev, hasPrev);
 		if (p.on) {
 			for (int k = 0; k < 4; k++) {
@@ -56,7 +61,7 @@ std::vector<MidiNote> renderLoop(const Pattern& pat, const Params& P, int L) {
 					if (p.notes[j] == p.notes[k])
 						dup = true;
 				if (!dup)
-					add(3, s, t0, (int)(p.len * TPS * p.gate), p.notes[k], p.vel);
+					add(3, s, t0s[T_PADS], (int)(p.len * TPS * p.gate), p.notes[k], p.vel);
 			}
 		}
 	}

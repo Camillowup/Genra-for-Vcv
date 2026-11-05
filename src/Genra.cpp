@@ -1,4 +1,4 @@
-// GENRA – generative 4-track sequencer, VCV Rack module
+// GENRA – generative 4-track sequencer, VCV Rack module (v3)
 #include "plugin.hpp"
 #include "Engine.hpp"
 #include "Layout.hpp"
@@ -11,11 +11,38 @@
 using namespace genra;
 
 static const int LENGTHS[4] = {1, 2, 4, 8};
+static const int NUM_SCENES = 8;
 static const char* CLOCK_MODES[4] = {"16tel (4 PPQN)", "8tel (2 PPQN)", "Viertel (1 PPQN)", "24 PPQN"};
 static const char* CHORD_MODES[3] = {"Gemischt (Vorlagen + frei)", "Nur Genre-Vorlagen", "Frei erzeugt"};
+static const char* GENRE_CV_MODES[2] = {"0–10 V über alle Genres", "1/12 V pro Genre (Halbtöne, 0 V = House)"};
+static const char* TRACK_NAMES[4] = {"Drums", "Bass", "Melodie", "Pads"};
 
 static const NVGcolor TRACK_COLORS[4] = {
 	nvgRGB(0xff, 0x8a, 0x3d), nvgRGB(0xff, 0x4f, 0x6d), nvgRGB(0x3d, 0xc9, 0xff), nvgRGB(0xa9, 0x8b, 0xff)};
+static const NVGcolor HARMONY_COLOR = nvgRGB(0x2f, 0x9e, 0x8f);
+
+// genre families in GENRE knob order (for the menus)
+struct Family {
+	const char* name;
+	int first, count;
+};
+static const Family FAMILIES[5] = {
+	{"House", 0, 5}, {"Techno", 5, 5}, {"Breaks & Bass", 10, 5}, {"Hip-Hop & Downtempo", 15, 6}, {"Dub · Synthwave · Ambient", 21, 3}};
+
+static std::string upper(std::string s) {
+	for (char& c : s)
+		c = (char)std::toupper((unsigned char)c);
+	return s;
+}
+
+// "JUNGLE · RAGGA" (variant only if the genre has several)
+static std::string profileLabel(int p) {
+	int g = genreOfProfile(p);
+	std::string s = upper(prof(p).name);
+	if (numVariants(g) > 1)
+		s += " · " + upper(prof(p).variant);
+	return s;
+}
 
 struct Genra;
 // shows the variant's name of the current genre on hover / right-click
@@ -24,6 +51,7 @@ struct VariantQuantity : ParamQuantity {
 };
 
 struct Genra : Module {
+	// NOTE: only append to these lists – Rack stores params by index, older patches rely on the order
 	enum ParamId {
 		GENRE_PARAM,
 		KEY_PARAM,
@@ -49,6 +77,9 @@ struct Genra : Module {
 		VARIANT_PARAM,
 		CHORDNEW_PARAM,
 		ENUMS(TNEW_PARAM, 4),
+		// v3
+		ENUMS(SCENE_PARAM, NUM_SCENES),
+		STORE_PARAM,
 		PARAMS_LEN
 	};
 	enum InputId {
@@ -62,6 +93,15 @@ struct Genra : Module {
 		CHORD_INPUT,
 		ENUMS(TNEW_INPUT, 4),
 		CHORDNEW_INPUT,
+		// v3
+		FILL_INPUT,
+		VARIANT_INPUT,
+		COMPLEX_INPUT,
+		COLOR_INPUT,
+		ENUMS(TGENRE_INPUT, 4),
+		ENUMS(DENS_INPUT, 4),
+		SCENE_INPUT,
+		NEXT_INPUT,
 		INPUTS_LEN
 	};
 	enum OutputId {
@@ -90,6 +130,9 @@ struct Genra : Module {
 		ENUMS(LOCK_LIGHT, 4),
 		ENUMS(TNEW_LIGHT, 4),
 		CHORDNEW_LIGHT,
+		// v3
+		ENUMS(SCENE_LIGHT, NUM_SCENES),
+		STORE_LIGHT,
 		LIGHTS_LEN
 	};
 
@@ -100,16 +143,38 @@ struct Genra : Module {
 	int step = -1;
 	bool firstPass = true;
 	bool fillActive = false;
+	bool fillCarry = false; // FILL trigger in the last beat: also fill the next pass
 	bool pendingGenre = false;
 	int lastGenre = -1;
 	int clockMode = 0;
 	int chordMode = CM_MIXED;
 	int templateSel = -1;
+	int genreCvMode = 0;
+
+	// ---- genre per track: -1 = follows GENRE, otherwise a profile index (written by the UI thread)
+	std::atomic<int> trackSel[4];
+	std::atomic<bool> trackSelChanged[4];
+	bool pendingTrack[4] = {false, false, false, false};
+	bool ownPrev[4] = {false, false, false, false};
+
+	// ---- scenes
+	struct Scene {
+		bool used = false;
+		Pattern pat;
+		int8_t sel[4] = {-1, -1, -1, -1};
+		int8_t lengthIdx = 2;
+	};
+	Scene scenes[NUM_SCENES];
+	int activeScene = -1;
+	int pendingScene = -1;
+	int lastSceneCv = -1;
 
 	// ---- requests from the UI thread
 	std::atomic<bool> regenRequested{false};
 	std::atomic<bool> chordRegenRequested{false};
 	std::atomic<bool> importReady{false};
+	std::atomic<bool> resetTracksRequested{false};
+	std::atomic<bool> clearScenesRequested{false};
 
 	// chord edits from the display (UI thread) -> applied in process() (audio thread)
 	enum ChordOp : uint8_t { CE_NEXT, CE_SET, CE_COLOR, CE_COLOR_RESET };
@@ -152,10 +217,10 @@ struct Genra : Module {
 	Pattern importBuf;
 	int importLengthIndex = 2;
 
-	// ---- clock
-	dsp::SchmittTrigger clockTrig, resetTrig, runTrig, newTrig;
+	// ---- clock & triggers
+	dsp::SchmittTrigger clockTrig, resetTrig, runTrig, newTrig, fillTrig, nextTrig;
 	dsp::BooleanTrigger newBtn, runBtn, chordNewBtn;
-	dsp::BooleanTrigger tnewBtn[4];
+	dsp::BooleanTrigger tnewBtn[4], sceneBtn[NUM_SCENES];
 	dsp::SchmittTrigger tnewTrig[4], chordNewTrig;
 	float tnewFlash[4] = {0.f, 0.f, 0.f, 0.f};
 	float chordNewFlash = 0.f;
@@ -166,8 +231,8 @@ struct Genra : Module {
 	int pulseCount = 0;
 	int subTicksLeft = 0;
 	float subInterval = 0.f, subCounter = 0.f;
-	float pendingTick = -1.f;
 	bool resetArmed = false;
+	float blink = 0.f;
 
 	// ---- live inputs (copied into Params)
 	int transpSemis = 0;
@@ -175,6 +240,12 @@ struct Genra : Module {
 	int extRoot = 0;
 	uint16_t extMask = 0;
 	int curGenre = 0;
+
+	// ---- events waiting for their track's swing delay
+	Hit qDrums[NUM_DRUMS];
+	NoteEv qBass, qMel;
+	PadEv qPad;
+	float dDrums = -1.f, dBass = -1.f, dMel = -1.f, dPad = -1.f;
 
 	// ---- voices
 	struct DrumVoice {
@@ -206,14 +277,18 @@ struct Genra : Module {
 
 	Genra() {
 		initGenres();
+		for (int t = 0; t < 4; t++) {
+			trackSel[t] = -1;
+			trackSelChanged[t] = false;
+		}
 		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
 		std::vector<std::string> genreNames;
 		for (int g = 0; g < NUM_GENRES; g++)
 			genreNames.push_back(prof(profileOf(g, 0)).name);
-		configSwitch(GENRE_PARAM, 0.f, NUM_GENRES - 1, 0.f, "Genre", genreNames);
+		configSwitch(GENRE_PARAM, 0.f, NUM_GENRES - 1, 0.f, "Genre (global)", genreNames);
 		configParam<VariantQuantity>(VARIANT_PARAM, 0.f, MAX_VARIANTS - 1, 0.f, "Variante");
 		paramQuantities[VARIANT_PARAM]->snapEnabled = true;
-		configButton(CHORDNEW_PARAM, "Neue Akkordfolge (NEW)");
+		configButton(CHORDNEW_PARAM, "Harmony: neue Akkordfolge (NEW)");
 		configSwitch(KEY_PARAM, 0.f, 11.f, 9.f, "Tonart (Grundton)",
 		             {"C", "C#/Db", "D", "D#/Eb", "E", "F", "F#/Gb", "G", "G#/Ab", "A", "A#/Bb", "B/H"});
 		std::vector<std::string> scaleNames = {"Auto (Genre)"};
@@ -222,23 +297,25 @@ struct Genra : Module {
 		configSwitch(SCALE_PARAM, 0.f, NUM_SCALES, 0.f, "Tonleiter", scaleNames);
 		configParam(BPM_PARAM, 40.f, 220.f, 124.f, "Tempo (interne Clock)", " BPM");
 		paramQuantities[BPM_PARAM]->snapEnabled = true;
-		configParam(SWING_PARAM, -1.f, 1.f, 0.f, "Swing (relativ zum Genre)", "%", 0.f, 25.f);
+		configParam(SWING_PARAM, -1.f, 1.f, 0.f, "Swing (relativ zum Genre jeder Spur)", "%", 0.f, 25.f);
 		configParam(COMPLEX_PARAM, 0.f, 1.f, 0.5f, "Rhythmische Komplexität (relativ zum Genre)", "%", 0.f, 200.f, -100.f);
 		configParam(COLOR_PARAM, 0.f, 1.f, 0.5f, "Harmonische Farbe (relativ zum Genre)", "%", 0.f, 200.f, -100.f);
 		configParam(MUTATE_PARAM, 0.f, 1.f, 0.f, "Mutation pro Durchlauf", "%", 0.f, 100.f);
 		configSwitch(LENGTH_PARAM, 0.f, 3.f, 2.f, "Loop-Länge", {"1 Takt", "2 Takte", "4 Takte", "8 Takte"});
-		configButton(NEW_PARAM, "Neu würfeln (NEW)");
+		configButton(NEW_PARAM, "Alles neu würfeln (NEW ALL)");
 		configButton(RUN_PARAM, "Start / Stop");
-		configSwitch(CHORDLOCK_PARAM, 0.f, 1.f, 0.f, "Akkordfolge sperren", {"Aus", "Gesperrt"});
-		static const char* TN[4] = {"Drums", "Bass", "Melodie", "Pads"};
+		configSwitch(CHORDLOCK_PARAM, 0.f, 1.f, 0.f, "Harmony: Akkordfolge sperren", {"Aus", "Gesperrt"});
 		for (int t = 0; t < 4; t++) {
-			configParam(DENS_PARAM + t, 0.f, 1.f, 0.5f, std::string(TN[t]) + " Dichte", "%", 0.f, 200.f);
-			configSwitch(MUTE_PARAM + t, 0.f, 1.f, 0.f, std::string(TN[t]) + " Mute", {"Aus", "Stumm"});
-			configSwitch(LOCK_PARAM + t, 0.f, 1.f, 0.f, std::string(TN[t]) + " Lock", {"Aus", "Gesperrt"});
-			configButton(TNEW_PARAM + t, std::string(TN[t]) + " neu würfeln (NEW)");
-			configInput(TNEW_INPUT + t, std::string(TN[t]) + " neu würfeln (Trigger)");
+			std::string tn = TRACK_NAMES[t];
+			configParam(DENS_PARAM + t, 0.f, 1.f, 0.5f, tn + " Dichte", "%", 0.f, 200.f);
+			configSwitch(MUTE_PARAM + t, 0.f, 1.f, 0.f, tn + " Mute", {"Aus", "Stumm"});
+			configSwitch(LOCK_PARAM + t, 0.f, 1.f, 0.f, tn + " Lock", {"Aus", "Gesperrt"});
+			configButton(TNEW_PARAM + t, tn + " neu würfeln (NEW)");
+			configInput(TNEW_INPUT + t, tn + " neu würfeln (Trigger)");
+			configInput(TGENRE_INPUT + t, tn + " Genre CV (überschreibt das Genre-Feld)");
+			configInput(DENS_INPUT + t, tn + " Dichte CV (0-10 V, addiert)");
 		}
-		configParam(FILL_PARAM, 0.f, 1.f, 0.25f, "Drum-Fill Wahrscheinlichkeit", "%", 0.f, 100.f);
+		configParam(FILL_PARAM, 0.f, 1.f, 0.25f, "Drum-Fill / Drop Wahrscheinlichkeit", "%", 0.f, 100.f);
 		configParam(GHOST_PARAM, 0.f, 1.f, 0.3f, "Ghost Notes", "%", 0.f, 100.f);
 		configParam(MOVE_PARAM, 0.f, 1.f, 0.5f, "Bass Bewegung (relativ zum Genre)", "%", 0.f, 200.f, -100.f);
 		configParam(RANGE_PARAM, 0.f, 1.f, 0.5f, "Melodie Tonumfang", "%", 0.f, 100.f);
@@ -246,22 +323,34 @@ struct Genra : Module {
 		static const char* ON[3] = {"Bass", "Melodie", "Pads"};
 		for (int i = 0; i < 3; i++)
 			configSwitch(OCT_PARAM + i, -2.f, 2.f, 0.f, std::string(ON[i]) + " Oktave", {"-2", "-1", "0", "+1", "+2"});
-		for (int id : std::initializer_list<int>{RUN_PARAM, NEW_PARAM, CHORDLOCK_PARAM, CHORDNEW_PARAM, TNEW_PARAM, TNEW_PARAM + 1, TNEW_PARAM + 2, TNEW_PARAM + 3})
+		for (int i = 0; i < NUM_SCENES; i++)
+			configButton(SCENE_PARAM + i, string::f("Szene %d (abrufen; leer oder nach STORE: speichern)", i + 1));
+		configSwitch(STORE_PARAM, 0.f, 1.f, 0.f, "Szene speichern (STORE, dann Szenen-Taster)", {"Aus", "Bereit"});
+		for (int id : std::initializer_list<int>{RUN_PARAM, NEW_PARAM, CHORDLOCK_PARAM, CHORDNEW_PARAM, STORE_PARAM})
 			paramQuantities[id]->randomizeEnabled = false;
 		for (int t = 0; t < 4; t++) {
+			paramQuantities[TNEW_PARAM + t]->randomizeEnabled = false;
 			paramQuantities[MUTE_PARAM + t]->randomizeEnabled = false;
 			paramQuantities[LOCK_PARAM + t]->randomizeEnabled = false;
 		}
+		for (int i = 0; i < NUM_SCENES; i++)
+			paramQuantities[SCENE_PARAM + i]->randomizeEnabled = false;
 
 		configInput(CLOCK_INPUT, "Clock");
 		configInput(RESET_INPUT, "Reset");
 		configInput(RUN_INPUT, "Run (Trigger schaltet um)");
-		configInput(NEW_INPUT, "Neu würfeln (Trigger)");
-		configInput(GENRE_INPUT, "Genre CV (0-10 V)");
-		configInput(MUTATE_INPUT, "Mutate CV (0-10 V)");
+		configInput(NEW_INPUT, "Alles neu würfeln (Trigger)");
+		configInput(GENRE_INPUT, "Genre CV (global)");
+		configInput(MUTATE_INPUT, "Mutate CV (0-10 V, addiert)");
 		configInput(TRANSP_INPUT, "Transpose (V/Oct)");
 		configInput(CHORD_INPUT, "Akkord (polyphon, V/Oct)");
-		configInput(CHORDNEW_INPUT, "Neue Akkordfolge (Trigger)");
+		configInput(CHORDNEW_INPUT, "Harmony: neue Akkordfolge (Trigger)");
+		configInput(FILL_INPUT, "Fill / Drop am Loop-Ende auslösen (Trigger)");
+		configInput(VARIANT_INPUT, "Variante CV (0-10 V, addiert)");
+		configInput(COMPLEX_INPUT, "Complex CV (0-10 V, addiert)");
+		configInput(COLOR_INPUT, "Color CV (0-10 V, addiert)");
+		configInput(SCENE_INPUT, "Szene CV (0-10 V = Szene 1-8)");
+		configInput(NEXT_INPUT, "Nächste Szene (Trigger)");
 		for (int v = 0; v < NUM_DRUMS; v++)
 			configOutput(DRUM_OUTPUT + v, std::string(DRUM_NAMES[v]) + " Trigger (Höhe = Velocity)");
 		configOutput(BASS_VOCT_OUTPUT, "Bass V/Oct");
@@ -283,7 +372,7 @@ struct Genra : Module {
 		rng = Rng(random::u64());
 		initPattern(pat);
 		curGenre = 0;
-		doGenerate();
+		doGenerate(true);
 	}
 
 	// ------------------------------------------------------------ helpers
@@ -291,6 +380,8 @@ struct Genra : Module {
 		int idx = clamp((int)std::round(params[LENGTH_PARAM].getValue()), 0, 3);
 		return LENGTHS[idx] * STEPS_PER_BAR;
 	}
+
+	static float cv01(Input& in) { return in.isConnected() ? in.getVoltage() / 10.f : 0.f; }
 
 	Params buildParams() {
 		Params P;
@@ -306,12 +397,12 @@ struct Genra : Module {
 			P.scale = sc - 1;
 			P.scaleOverride = true;
 		}
-		P.complexK = params[COMPLEX_PARAM].getValue();
-		P.colorK = params[COLOR_PARAM].getValue();
+		P.complexK = clamp(params[COMPLEX_PARAM].getValue() + cv01(inputs[COMPLEX_INPUT]), 0.f, 1.f);
+		P.colorK = clamp(params[COLOR_PARAM].getValue() + cv01(inputs[COLOR_INPUT]), 0.f, 1.f);
 		P.swingK = params[SWING_PARAM].getValue();
 		P.lengthBars = lengthSteps() / STEPS_PER_BAR;
 		for (int t = 0; t < 4; t++)
-			P.density[t] = params[DENS_PARAM + t].getValue();
+			P.density[t] = clamp(params[DENS_PARAM + t].getValue() + cv01(inputs[DENS_INPUT + t]), 0.f, 1.f);
 		P.fill = params[FILL_PARAM].getValue();
 		P.ghost = params[GHOST_PARAM].getValue();
 		P.move = params[MOVE_PARAM].getValue();
@@ -334,7 +425,46 @@ struct Genra : Module {
 	}
 	bool chordLocked() { return params[CHORDLOCK_PARAM].getValue() > 0.5f; }
 
-	void doGenerate() {
+	// ---- genre selection
+	// genre CV: 0-10 V over all genres, or 1/12 V per genre
+	float genreCvSteps(float v) { return genreCvMode == 1 ? v * 12.f : v / 10.f * (NUM_GENRES - 1); }
+
+	int knobGenre() {
+		float g = params[GENRE_PARAM].getValue();
+		if (inputs[GENRE_INPUT].isConnected())
+			g += genreCvSteps(inputs[GENRE_INPUT].getVoltage());
+		return clamp((int)std::round(g), 0, NUM_GENRES - 1);
+	}
+	int knobVariant() {
+		float v = params[VARIANT_PARAM].getValue() + cv01(inputs[VARIANT_INPUT]) * (MAX_VARIANTS - 1);
+		return clamp((int)std::round(v), 0, MAX_VARIANTS - 1);
+	}
+	int knobProfile() { return profileOf(knobGenre(), knobVariant()); }
+
+	bool trackHasCv(int t) { return inputs[TGENRE_INPUT + t].isConnected(); }
+	bool ownGenre(int t) { return trackSel[t] >= 0 || trackHasCv(t); }
+
+	// profile a track should play: CV > genre field > global GENRE
+	int trackTarget(int t) {
+		int sel = trackSel[t];
+		if (trackHasCv(t)) {
+			int g = clamp((int)std::round(genreCvSteps(inputs[TGENRE_INPUT + t].getVoltage())), 0, NUM_GENRES - 1);
+			int v = (sel >= 0 && genreOfProfile(sel) == g) ? variantOfProfile(sel) : knobVariant();
+			return profileOf(g, v);
+		}
+		if (sel >= 0)
+			return clamp(sel, 0, numProfiles() - 1);
+		return curGenre;
+	}
+
+	void setTrackSel(int t, int profile) {
+		trackSel[t] = profile;
+		trackSelChanged[t] = true;
+	}
+
+	// all: NEW ALL (every unlocked track in its own genre); otherwise a global genre change
+	// (only unlocked tracks that follow GENRE)
+	void doGenerate(bool all) {
 		Params P = buildParams();
 		if (lastGenre >= 0 && lastGenre != curGenre) {
 			templateSel = -1; // template indices are genre specific
@@ -342,26 +472,43 @@ struct Genra : Module {
 		}
 		bool lk[NUM_TRACKS];
 		locks(lk);
-		generate(pat, curGenre, rng, lk, chordLocked(), P);
+		if (!chordLocked())
+			generateChords(pat, curGenre, rng, P);
+		for (int t = 0; t < NUM_TRACKS; t++) {
+			if (lk[t] || (!all && ownGenre(t)))
+				continue;
+			generateTrack(pat, t, trackTarget(t), rng, P);
+			pendingTrack[t] = false;
+		}
+		layoutTimeline(pat, lengthSteps());
 		lastGenre = curGenre;
 		padHasPrev = false;
 		newFlash = 1.f;
+	}
+
+	void newTrack(int t) {
+		Params P = buildParams();
+		generateTrack(pat, t, trackTarget(t), rng, P);
+		pendingTrack[t] = false;
+		if (t == T_PADS)
+			padHasPrev = false;
+		tnewFlash[t] = 1.f;
 	}
 
 	void readGenre() {
 		curGenre = knobProfile();
 		if (lastGenre >= 0 && curGenre != lastGenre && !pendingGenre)
 			pendingGenre = true;
-	}
-
-	int knobGenre() {
-		float g = params[GENRE_PARAM].getValue();
-		if (inputs[GENRE_INPUT].isConnected())
-			g += inputs[GENRE_INPUT].getVoltage() / 10.f * (NUM_GENRES - 1);
-		return clamp((int)std::round(g), 0, NUM_GENRES - 1);
-	}
-	int knobProfile() {
-		return profileOf(knobGenre(), (int)std::round(params[VARIANT_PARAM].getValue()));
+		for (int t = 0; t < 4; t++) {
+			bool own = ownGenre(t);
+			if (trackSelChanged[t].exchange(false))
+				pendingTrack[t] = true; // new choice in the genre field (also back to Global)
+			if (ownPrev[t] && !own)
+				pendingTrack[t] = true; // CV unplugged -> back to the global genre
+			if (own && trackTarget(t) != pat.trackGenre[t])
+				pendingTrack[t] = true;
+			ownPrev[t] = own;
+		}
 	}
 
 	void readChordInput() {
@@ -388,7 +535,80 @@ struct Genra : Module {
 		extChord = true;
 	}
 
-	// ------------------------------------------------------------ tick
+	// ------------------------------------------------------------ scenes
+	void storeScene(int i) {
+		Scene& s = scenes[i];
+		s.used = true;
+		s.pat = pat;
+		for (int t = 0; t < 4; t++)
+			s.sel[t] = (int8_t)trackSel[t];
+		s.lengthIdx = (int8_t)clamp((int)std::round(params[LENGTH_PARAM].getValue()), 0, 3);
+		activeScene = i;
+		pendingScene = -1;
+	}
+
+	void recallScene(int i) {
+		const Scene& s = scenes[i];
+		if (!s.used)
+			return;
+		pat = s.pat;
+		for (int t = 0; t < 4; t++) {
+			trackSel[t] = s.sel[t];
+			trackSelChanged[t] = false;
+			pendingTrack[t] = false;
+			ownPrev[t] = ownGenre(t);
+		}
+		params[LENGTH_PARAM].setValue((float)s.lengthIdx);
+		pendingGenre = false;
+		lastGenre = curGenre; // the scene's pattern stands, even if the GENRE knob differs
+		padHasPrev = false;
+		activeScene = i;
+	}
+
+	void requestScene(int i) {
+		if (i < 0 || i >= NUM_SCENES || !scenes[i].used)
+			return;
+		if (!running || step < 0)
+			recallScene(i); // stopped: switch right away
+		else
+			pendingScene = i; // playing: at the next bar line
+	}
+
+	void processScenes() {
+		bool armed = params[STORE_PARAM].getValue() > 0.5f;
+		for (int i = 0; i < NUM_SCENES; i++) {
+			if (!sceneBtn[i].process(params[SCENE_PARAM + i].getValue() > 0.5f))
+				continue;
+			if (armed || !scenes[i].used) {
+				storeScene(i);
+				params[STORE_PARAM].setValue(0.f);
+				armed = false;
+			}
+			else
+				requestScene(i);
+		}
+		if (nextTrig.process(inputs[NEXT_INPUT].getVoltage(), 0.1f, 1.f)) {
+			int from = pendingScene >= 0 ? pendingScene : activeScene;
+			for (int k = 1; k <= NUM_SCENES; k++) {
+				int i = ((from < 0 ? -1 : from) + k) % NUM_SCENES;
+				if (scenes[i].used) {
+					requestScene(i);
+					break;
+				}
+			}
+		}
+		if (inputs[SCENE_INPUT].isConnected()) {
+			int s = clamp((int)std::round(inputs[SCENE_INPUT].getVoltage() / 10.f * (NUM_SCENES - 1)), 0, NUM_SCENES - 1);
+			if (s != lastSceneCv) {
+				lastSceneCv = s;
+				requestScene(s);
+			}
+		}
+		else
+			lastSceneCv = -1;
+	}
+
+	// ------------------------------------------------------------ voices
 	void queueDrum(int v, const Hit& h, float sr) {
 		if (h.delay > 0.f) {
 			DrumVoice& d = drums[v];
@@ -424,7 +644,63 @@ struct Genra : Module {
 		m.gate = std::max(0.004f * sr, n.len * stepPeriod * n.gate);
 	}
 
+	void startPad(const PadEv& pe, float sr) {
+		if (padV.gate > 0.f)
+			padV.retrig = 0.002f * sr;
+		for (int k = 0; k < 4; k++)
+			padV.pitch[k] = (pe.notes[k] - 60) / 12.f;
+		padV.vel = pe.vel;
+		padV.gate = std::max(0.004f * sr, pe.len * stepPeriod * pe.gate);
+	}
+
+	void fireDrums(float sr) {
+		for (int v = 0; v < NUM_DRUMS; v++)
+			if (qDrums[v].on)
+				queueDrum(v, qDrums[v], sr);
+	}
+
+	// events still waiting for their swing delay are played now (before the next step)
+	void flushQueued(float sr) {
+		if (dDrums >= 0.f)
+			fireDrums(sr);
+		if (dBass >= 0.f)
+			startMono(bassV, qBass, sr);
+		if (dMel >= 0.f)
+			startMono(melV, qMel, sr);
+		if (dPad >= 0.f)
+			startPad(qPad, sr);
+		dDrums = dBass = dMel = dPad = -1.f;
+	}
+
+	void processQueued(float sr) {
+		if (dDrums >= 0.f && (dDrums -= 1.f) <= 0.f) {
+			dDrums = -1.f;
+			fireDrums(sr);
+		}
+		if (dBass >= 0.f && (dBass -= 1.f) <= 0.f) {
+			dBass = -1.f;
+			startMono(bassV, qBass, sr);
+		}
+		if (dMel >= 0.f && (dMel -= 1.f) <= 0.f) {
+			dMel = -1.f;
+			startMono(melV, qMel, sr);
+		}
+		if (dPad >= 0.f && (dPad -= 1.f) <= 0.f) {
+			dPad = -1.f;
+			startPad(qPad, sr);
+		}
+	}
+
+	// swing of one track: odd 16ths are delayed by the swing of the genre the track plays
+	float swingDelay(const Params& P, int t) {
+		if (step % 2 == 0)
+			return 0.f;
+		return (effSwing(P, pat.trackGenre[t]) - 0.5f) * 2.f * stepPeriod;
+	}
+
+	// ------------------------------------------------------------ tick (one 16th, unswung)
 	void doTick(float sr) {
+		flushQueued(sr);
 		int L = lengthSteps();
 		if (pat.layoutLen != L)
 			layoutTimeline(pat, L);
@@ -432,47 +708,74 @@ struct Genra : Module {
 		if (step >= L)
 			step = 0;
 		Params P = buildParams();
-		if (pendingGenre && step % STEPS_PER_BAR == 0) {
-			pendingGenre = false;
-			doGenerate();
-			P = buildParams();
+		if (step % STEPS_PER_BAR == 0) {
+			bool changed = false;
+			if (pendingScene >= 0) {
+				recallScene(pendingScene);
+				pendingScene = -1;
+				L = lengthSteps();
+				layoutTimeline(pat, L);
+				if (step >= L)
+					step = 0;
+				changed = true;
+			}
+			if (pendingGenre) {
+				pendingGenre = false;
+				doGenerate(false);
+				changed = true;
+			}
+			for (int t = 0; t < 4; t++)
+				if (pendingTrack[t]) {
+					newTrack(t);
+					changed = true;
+				}
+			if (changed)
+				P = buildParams();
 		}
 		if (step == 0) {
-			fillActive = rng.uni() < P.fill;
+			fillActive = fillCarry || rng.uni() < P.fill;
+			fillCarry = false;
 			P.fillActive = fillActive;
 			if (!firstPass) {
-				float m = params[MUTATE_PARAM].getValue();
-				if (inputs[MUTATE_INPUT].isConnected())
-					m += inputs[MUTATE_INPUT].getVoltage() / 10.f;
+				float m = params[MUTATE_PARAM].getValue() + cv01(inputs[MUTATE_INPUT]);
 				bool lk[NUM_TRACKS];
 				locks(lk);
 				mutate(pat, clamp(m, 0.f, 1.f), rng, lk, chordLocked(), P);
 			}
 			firstPass = false;
 		}
-		// drums
-		Hit hits[NUM_DRUMS];
-		drumStep(pat, P, step, L, fillActive, hits);
-		if (params[MUTE_PARAM + 0].getValue() < 0.5f)
-			for (int v = 0; v < NUM_DRUMS; v++)
-				if (hits[v].on)
-					queueDrum(v, hits[v], sr);
-		// bass / melody
-		NoteEv b = bassAt(pat, P, step, L);
-		if (b.on && params[MUTE_PARAM + 1].getValue() < 0.5f)
-			startMono(bassV, b, sr);
-		NoteEv m = melAt(pat, P, step, L);
-		if (m.on && params[MUTE_PARAM + 2].getValue() < 0.5f)
-			startMono(melV, m, sr);
-		// pads
-		PadEv pe = padAt(pat, P, step, L, padPrev, padHasPrev);
-		if (pe.on && params[MUTE_PARAM + 3].getValue() < 0.5f) {
-			if (padV.gate > 0.f)
-				padV.retrig = 0.002f * sr;
-			for (int k = 0; k < 4; k++)
-				padV.pitch[k] = (pe.notes[k] - 60) / 12.f;
-			padV.vel = pe.vel;
-			padV.gate = std::max(0.004f * sr, pe.len * stepPeriod * pe.gate);
+		// compute this step for every track, play it after the track's swing delay
+		drumStep(pat, P, step, L, fillActive, qDrums);
+		if (params[MUTE_PARAM + 0].getValue() < 0.5f) {
+			float d = swingDelay(P, T_DRUMS);
+			if (d >= 1.f)
+				dDrums = d;
+			else
+				fireDrums(sr);
+		}
+		qBass = bassAt(pat, P, step, L);
+		if (qBass.on && params[MUTE_PARAM + 1].getValue() < 0.5f) {
+			float d = swingDelay(P, T_BASS);
+			if (d >= 1.f)
+				dBass = d;
+			else
+				startMono(bassV, qBass, sr);
+		}
+		qMel = melAt(pat, P, step, L);
+		if (qMel.on && params[MUTE_PARAM + 2].getValue() < 0.5f) {
+			float d = swingDelay(P, T_MELODY);
+			if (d >= 1.f)
+				dMel = d;
+			else
+				startMono(melV, qMel, sr);
+		}
+		qPad = padAt(pat, P, step, L, padPrev, padHasPrev);
+		if (qPad.on && params[MUTE_PARAM + 3].getValue() < 0.5f) {
+			float d = swingDelay(P, T_PADS);
+			if (d >= 1.f)
+				dPad = d;
+			else
+				startPad(qPad, sr);
 		}
 		// modulation: smooth rise over each chord
 		int e = eventAt(pat, step);
@@ -488,9 +791,20 @@ struct Genra : Module {
 		running = true;
 		chordMode = CM_MIXED;
 		templateSel = -1;
+		genreCvMode = 0;
+		for (int t = 0; t < 4; t++) {
+			trackSel[t] = -1;
+			trackSelChanged[t] = false;
+			pendingTrack[t] = false;
+		}
+		for (int i = 0; i < NUM_SCENES; i++)
+			scenes[i].used = false;
+		activeScene = pendingScene = -1;
+		dDrums = dBass = dMel = dPad = -1.f;
 		initPattern(pat);
+		lastGenre = -1;
 		curGenre = 0;
-		doGenerate();
+		doGenerate(true);
 	}
 
 	void onRandomize(const RandomizeEvent& e) override {
@@ -511,8 +825,13 @@ struct Genra : Module {
 			phase = 0.f;
 			pulseCount = 0;
 			subTicksLeft = 0;
-			pendingTick = -1.f;
+			dDrums = dBass = dMel = dPad = -1.f;
 			resetArmed = true;
+		}
+		if (fillTrig.process(inputs[FILL_INPUT].getVoltage(), 0.1f, 1.f)) {
+			fillActive = true; // this pass ends with a fill / drop
+			if (step >= lengthSteps() - 4)
+				fillCarry = true; // too late for this pass: the next one
 		}
 
 		applyChordEdits();
@@ -522,23 +841,26 @@ struct Genra : Module {
 			importReady = false;
 			padHasPrev = false;
 		}
+		if (resetTracksRequested.exchange(false))
+			for (int t = 0; t < 4; t++)
+				setTrackSel(t, -1);
+		if (clearScenesRequested.exchange(false)) {
+			for (int i = 0; i < NUM_SCENES; i++)
+				scenes[i].used = false;
+			activeScene = pendingScene = -1;
+		}
+		processScenes();
 		readGenre();
 		readChordInput();
 		if (regenRequested.exchange(false)) {
 			pendingGenre = false;
-			doGenerate();
+			doGenerate(true);
 		}
 		for (int t = 0; t < 4; t++) {
 			bool trig = tnewBtn[t].process(params[TNEW_PARAM + t].getValue() > 0.5f);
 			trig |= tnewTrig[t].process(inputs[TNEW_INPUT + t].getVoltage(), 0.1f, 1.f);
-			if (trig) {
-				// an explicit per-track NEW works even when the track is locked
-				Params P = buildParams();
-				generateTrack(pat, t, curGenre, rng, P);
-				if (t == T_PADS)
-					padHasPrev = false;
-				tnewFlash[t] = 1.f;
-			}
+			if (trig)
+				newTrack(t); // an explicit per-track NEW works even when the track is locked
 		}
 		{
 			bool trig = chordNewBtn.process(params[CHORDNEW_PARAM].getValue() > 0.5f);
@@ -609,24 +931,9 @@ struct Genra : Module {
 		}
 
 		if (running) {
-			if (pendingTick >= 0.f) {
-				pendingTick -= 1.f;
-				if (pendingTick <= 0.f || tick) {
-					pendingTick = -1.f;
-					doTick(sr);
-				}
-			}
-			if (tick) {
-				int L = lengthSteps();
-				int next = (step + 1 >= L) ? 0 : step + 1;
-				Params P = buildParams();
-				float swing = effSwing(P, pat.trackGenre[T_DRUMS]);
-				float delay = (next % 2 == 1) ? (swing - 0.5f) * 2.f * stepPeriod : 0.f;
-				if (delay >= 1.f)
-					pendingTick = delay;
-				else
-					doTick(sr);
-			}
+			processQueued(sr);
+			if (tick)
+				doTick(sr);
 		}
 
 		// ---- outputs
@@ -690,6 +997,9 @@ struct Genra : Module {
 		// ---- lights
 		if (lightDivider.process()) {
 			float dt = args.sampleTime * lightDivider.getDivision();
+			blink += dt * 3.f;
+			if (blink >= 1.f)
+				blink -= 1.f;
 			newFlash = std::max(0.f, newFlash - dt * 4.f);
 			lights[NEW_LIGHT].setBrightness(newFlash);
 			lights[RUN_LIGHT].setBrightness(running ? 1.f : 0.f);
@@ -698,12 +1008,19 @@ struct Genra : Module {
 			lights[CHORDNEW_LIGHT].setBrightness(chordNewFlash);
 			for (int t = 0; t < 4; t++) {
 				tnewFlash[t] = std::max(0.f, tnewFlash[t] - dt * 4.f);
-				lights[TNEW_LIGHT + t].setBrightness(tnewFlash[t]);
-			}
-			for (int t = 0; t < 4; t++) {
+				lights[TNEW_LIGHT + t].setBrightness(std::max(tnewFlash[t], pendingTrack[t] && blink < 0.5f ? 0.4f : 0.f));
 				lights[MUTE_LIGHT + t].setBrightness(params[MUTE_PARAM + t].getValue());
 				lights[LOCK_LIGHT + t].setBrightness(params[LOCK_PARAM + t].getValue());
 			}
+			for (int i = 0; i < NUM_SCENES; i++) {
+				float b = scenes[i].used ? 0.18f : 0.f;
+				if (i == activeScene)
+					b = 1.f;
+				if (i == pendingScene)
+					b = blink < 0.5f ? 1.f : 0.25f;
+				lights[SCENE_LIGHT + i].setBrightness(b);
+			}
+			lights[STORE_LIGHT].setBrightness(params[STORE_PARAM].getValue() > 0.5f ? (blink < 0.5f ? 1.f : 0.4f) : 0.f);
 		}
 	}
 
@@ -714,9 +1031,39 @@ struct Genra : Module {
 		json_object_set_new(root, "clockMode", json_integer(clockMode));
 		json_object_set_new(root, "chordMode", json_integer(chordMode));
 		json_object_set_new(root, "templateSel", json_integer(templateSel));
+		json_object_set_new(root, "genreCvMode", json_integer(genreCvMode));
 		std::vector<uint8_t> blob = savePattern(pat);
 		json_object_set_new(root, "pattern3", json_string(string::toBase64(blob.data(), blob.size()).c_str()));
+		json_t* sel = json_array();
+		for (int t = 0; t < 4; t++)
+			json_array_append_new(sel, json_integer(trackSel[t]));
+		json_object_set_new(root, "trackGenre", sel);
+		json_t* sc = json_array();
+		for (int i = 0; i < NUM_SCENES; i++) {
+			if (!scenes[i].used)
+				continue;
+			json_t* o = json_object();
+			json_object_set_new(o, "slot", json_integer(i));
+			std::vector<uint8_t> b = savePattern(scenes[i].pat);
+			json_object_set_new(o, "pattern3", json_string(string::toBase64(b.data(), b.size()).c_str()));
+			json_t* s = json_array();
+			for (int t = 0; t < 4; t++)
+				json_array_append_new(s, json_integer(scenes[i].sel[t]));
+			json_object_set_new(o, "trackGenre", s);
+			json_object_set_new(o, "length", json_integer(scenes[i].lengthIdx));
+			json_array_append_new(sc, o);
+		}
+		json_object_set_new(root, "scenes", sc);
+		json_object_set_new(root, "activeScene", json_integer(activeScene));
 		return root;
+	}
+
+	static void readSel(json_t* arr, int8_t out[4]) {
+		for (int t = 0; t < 4; t++) {
+			json_t* v = arr ? json_array_get(arr, t) : nullptr;
+			int p = v ? (int)json_integer_value(v) : -1;
+			out[t] = (int8_t)(p >= 0 && p < numProfiles() ? p : -1);
+		}
 	}
 
 	void dataFromJson(json_t* root) override {
@@ -729,6 +1076,8 @@ struct Genra : Module {
 			chordMode = clamp((int)json_integer_value(j), 0, 2);
 		if ((j = json_object_get(root, "templateSel")))
 			templateSel = (int)json_integer_value(j);
+		if ((j = json_object_get(root, "genreCvMode")))
+			genreCvMode = clamp((int)json_integer_value(j), 0, 1);
 		// "pattern3": version-independent format (v3+); "pattern": raw block of GENRA v2
 		json_t* jp = json_object_get(root, "pattern3");
 		if (!jp)
@@ -742,6 +1091,40 @@ struct Genra : Module {
 				padHasPrev = false;
 			}
 		}
+		int8_t sel[4];
+		readSel(json_object_get(root, "trackGenre"), sel); // missing (v2 patch): all tracks follow GENRE
+		for (int t = 0; t < 4; t++) {
+			trackSel[t] = sel[t];
+			trackSelChanged[t] = false;
+			pendingTrack[t] = false;
+			ownPrev[t] = sel[t] >= 0;
+		}
+		for (int i = 0; i < NUM_SCENES; i++)
+			scenes[i].used = false;
+		json_t* sc = json_object_get(root, "scenes");
+		for (size_t k = 0; sc && k < json_array_size(sc); k++) {
+			json_t* o = json_array_get(sc, k);
+			json_t* js = json_object_get(o, "slot");
+			json_t* jpat = json_object_get(o, "pattern3");
+			if (!js || !jpat || !json_is_string(jpat))
+				continue;
+			int i = (int)json_integer_value(js);
+			if (i < 0 || i >= NUM_SCENES)
+				continue;
+			Scene& s = scenes[i];
+			if (!loadPattern(string::fromBase64(json_string_value(jpat)), s.pat))
+				continue;
+			readSel(json_object_get(o, "trackGenre"), s.sel);
+			json_t* jl = json_object_get(o, "length");
+			s.lengthIdx = (int8_t)clamp(jl ? (int)json_integer_value(jl) : 2, 0, 3);
+			s.used = true;
+		}
+		activeScene = -1;
+		if ((j = json_object_get(root, "activeScene"))) {
+			int a = (int)json_integer_value(j);
+			activeScene = (a >= 0 && a < NUM_SCENES && scenes[a].used) ? a : -1;
+		}
+		pendingScene = -1;
 	}
 
 	// ------------------------------------------------------------ MIDI file actions (UI thread)
@@ -819,7 +1202,6 @@ std::string VariantQuantity::getDisplayValueString() {
 }
 
 // ================================================================= lights
-struct GenraLight : GrayModuleLightWidget {};
 template <int R, int G, int B>
 struct ColorLight : GrayModuleLightWidget {
 	ColorLight() { addBaseColor(nvgRGB(R, G, B)); }
@@ -829,11 +1211,137 @@ using PinkLight = ColorLight<0xff, 0x4f, 0x6d>;
 using CyanLight = ColorLight<0x3d, 0xc9, 0xff>;
 using PurpleLight = ColorLight<0xa9, 0x8b, 0xff>;
 using MintLight = ColorLight<0x5d, 0xff, 0x8a>;
+using TealLight = ColorLight<0x4f, 0xd1, 0xbd>;
+
+// ================================================================= shared drawing
+static void drawText(NVGcontext* vg, std::shared_ptr<window::Font> f, float xmm, float ymm, float sizeMm, NVGcolor c, const std::string& s,
+                     int align = NVG_ALIGN_LEFT | NVG_ALIGN_BASELINE, float spacing = 0.f) {
+	nvgFontFaceId(vg, f->handle);
+	nvgFontSize(vg, mm2px(sizeMm));
+	nvgTextLetterSpacing(vg, mm2px(spacing));
+	nvgFillColor(vg, c);
+	nvgTextAlign(vg, align);
+	nvgText(vg, mm2px(xmm), mm2px(ymm), s.c_str(), NULL);
+}
+
+static float textWidthMm(NVGcontext* vg, std::shared_ptr<window::Font> f, float sizeMm, float spacing, const std::string& s) {
+	nvgFontFaceId(vg, f->handle);
+	nvgFontSize(vg, mm2px(sizeMm));
+	nvgTextLetterSpacing(vg, mm2px(spacing));
+	float b[4];
+	nvgTextBounds(vg, 0, 0, s.c_str(), NULL, b);
+	return (b[2] - b[0]) / mm2px(1.f);
+}
+
+// ================================================================= genre field (one per track)
+struct GenreField : Widget {
+	Genra* module = nullptr;
+	int track = 0;
+	bool hover = false;
+
+	void drawLayer(const DrawArgs& args, int layer) override {
+		if (layer != 1)
+			return;
+		std::shared_ptr<window::Font> bold = APP->window->loadFont(asset::system("res/fonts/Nunito-Bold.ttf"));
+		if (!bold)
+			return;
+		NVGcontext* vg = args.vg;
+		float w = box.size.x / mm2px(1.f), h = box.size.y / mm2px(1.f);
+		NVGcolor col = TRACK_COLORS[track];
+		NVGcolor dim = nvgRGB(0x8a, 0x8d, 0x99);
+		std::string label = "GLOBAL";
+		bool own = false, pending = false;
+		if (module) {
+			Genra* m = module;
+			pending = m->pendingTrack[track];
+			if (m->trackHasCv(track)) {
+				label = "CV  " + profileLabel(m->trackTarget(track));
+				own = true;
+			}
+			else if (m->trackSel[track] >= 0) {
+				label = profileLabel(m->trackSel[track]);
+				own = true;
+			}
+		}
+		if (pending)
+			label += " …";
+		if (hover) {
+			nvgBeginPath(vg);
+			nvgRoundedRect(vg, 0, 0, box.size.x, box.size.y, mm2px(0.9f));
+			nvgFillColor(vg, nvgRGBA(0xff, 0xff, 0xff, 0x10));
+			nvgFill(vg);
+		}
+		// shrink long names to fit
+		float avail = w - 5.f, size = 2.1f;
+		while (size > 1.4f && textWidthMm(vg, bold, size, 0.15f, label) > avail)
+			size -= 0.1f;
+		NVGcolor tc = own ? col : dim;
+		if (pending)
+			tc.a = 0.7f;
+		drawText(vg, bold, 1.4f, h / 2.f, size, tc, label, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, 0.15f);
+		// arrow
+		float ax = w - 2.4f, ay = h / 2.f;
+		nvgBeginPath(vg);
+		nvgMoveTo(vg, mm2px(ax - 1.f), mm2px(ay - 0.5f));
+		nvgLineTo(vg, mm2px(ax + 1.f), mm2px(ay - 0.5f));
+		nvgLineTo(vg, mm2px(ax), mm2px(ay + 0.7f));
+		nvgClosePath(vg);
+		nvgFillColor(vg, own ? col : dim);
+		nvgFill(vg);
+		Widget::drawLayer(args, layer);
+	}
+
+	void onEnter(const EnterEvent& e) override { hover = true; }
+	void onLeave(const LeaveEvent& e) override { hover = false; }
+
+	void onButton(const ButtonEvent& e) override {
+		if (!module || e.action != GLFW_PRESS || (e.button != GLFW_MOUSE_BUTTON_LEFT && e.button != GLFW_MOUSE_BUTTON_RIGHT))
+			return;
+		openMenu();
+		e.consume(this);
+	}
+
+	void openMenu() {
+		Genra* m = module;
+		int t = track;
+		ui::Menu* menu = createMenu();
+		menu->addChild(createMenuLabel(std::string("Genre der Spur ") + TRACK_NAMES[t]));
+		if (m->trackHasCv(t))
+			menu->addChild(createMenuLabel("CV-Eingang verbunden: die Spannung wählt das Genre"));
+		menu->addChild(createCheckMenuItem("Global (folgt GENRE)", "", [=]() { return m->trackSel[t] < 0; }, [=]() { m->setTrackSel(t, -1); }));
+		menu->addChild(new ui::MenuSeparator);
+		for (int f = 0; f < 5; f++) {
+			const Family& fam = FAMILIES[f];
+			int sel = m->trackSel[t];
+			int sg = sel >= 0 ? genreOfProfile(sel) : -1;
+			bool inFam = sg >= fam.first && sg < fam.first + fam.count;
+			menu->addChild(createSubmenuItem(fam.name, inFam ? "✔" : "", [=](ui::Menu* sub) {
+				for (int g = fam.first; g < fam.first + fam.count; g++) {
+					int nv = numVariants(g);
+					std::string gname = prof(profileOf(g, 0)).name;
+					if (nv == 1) {
+						int p = profileOf(g, 0);
+						sub->addChild(createCheckMenuItem(gname, "", [=]() { return m->trackSel[t] == p; }, [=]() { m->setTrackSel(t, p); }));
+						continue;
+					}
+					int cur = m->trackSel[t];
+					bool here = cur >= 0 && genreOfProfile(cur) == g;
+					sub->addChild(createSubmenuItem(gname, here ? "✔" : "", [=](ui::Menu* sub2) {
+						for (int v = 0; v < nv; v++) {
+							int p = profileOf(g, v);
+							sub2->addChild(createCheckMenuItem(prof(p).variant, "", [=]() { return m->trackSel[t] == p; }, [=]() { m->setTrackSel(t, p); }));
+						}
+					}));
+				}
+			}));
+		}
+	}
+};
 
 // ================================================================= display
 // geometry (mm, relative to the display's top-left)
-static const float CHORD_X = 64.f;
-static const float CHORD_W = 78.f;
+static const float CHORD_X = 78.f;
+static const float CHORD_W = 136.f;
 static const float CHORD_Y = 2.6f;
 static const float CHORD_H = 6.f;
 
@@ -841,9 +1349,8 @@ struct GenraDisplay : Widget {
 	Genra* module = nullptr;
 	int hoverChord = -1;
 
-
 	int nChordsShown() { return module ? std::max<int>(1, module->pat.nProg) : 4; }
-	float chordBoxW() { return std::min(17.f, CHORD_W / nChordsShown()); }
+	float chordBoxW() { return std::min(18.f, CHORD_W / nChordsShown()); }
 
 	int chordAtPos(Vec pos) {
 		Vec mm = pos.div(mm2px(Vec(1.f, 1.f)));
@@ -854,16 +1361,6 @@ struct GenraDisplay : Widget {
 			return -1;
 		int i = (int)(x / chordBoxW());
 		return i < nChordsShown() ? i : -1;
-	}
-
-	void text(NVGcontext* vg, std::shared_ptr<window::Font> f, float xmm, float ymm, float sizeMm, NVGcolor c, const std::string& s,
-	          int align = NVG_ALIGN_LEFT | NVG_ALIGN_BASELINE, float spacing = 0.f) {
-		nvgFontFaceId(vg, f->handle);
-		nvgFontSize(vg, mm2px(sizeMm));
-		nvgTextLetterSpacing(vg, mm2px(spacing));
-		nvgFillColor(vg, c);
-		nvgTextAlign(vg, align);
-		nvgText(vg, mm2px(xmm), mm2px(ymm), s.c_str(), NULL);
 	}
 
 	void drawLayer(const DrawArgs& args, int layer) override {
@@ -877,8 +1374,10 @@ struct GenraDisplay : Widget {
 		NVGcolor white = nvgRGB(0xf2, 0xf3, 0xf7), dim = nvgRGB(0x8a, 0x8d, 0x99), dark = nvgRGB(0x1a, 0x1b, 0x21);
 		float wmm = box.size.x / mm2px(1.f);
 
-		std::string genre = "TECHNO", variant = "ROLLING", info = "A MINOR  128 BPM  SWING 52%", bar = "BAR 1/4", status;
-		std::vector<std::string> chords = {"Am", "F", "C", "G"};
+		std::string genre = "JUNGLE", variant = "RAGGA", info = "F MINOR  170 BPM  SWING 54%", bar = "BAR 1/4", status;
+		std::vector<std::string> chords = {"Fm", "Db", "Fm", "Gb"};
+		std::string laneName[4] = {"JUNGLE", "DUB", "LO-FI", "AMBIENT"};
+		bool lanePending[4] = {false, false, false, false};
 		int curChord = 0;
 		bool lanes[4][16] = {};
 		int curStep = -1;
@@ -888,12 +1387,8 @@ struct GenraDisplay : Widget {
 			Params P = m->buildParams();
 			int L = m->lengthSteps();
 			int g = m->curGenre;
-			genre = prof(g).name;
-			for (char& c : genre)
-				c = (char)std::toupper((unsigned char)c);
-			variant = prof(g).variant;
-			for (char& c : variant)
-				c = (char)std::toupper((unsigned char)c);
+			genre = upper(prof(g).name);
+			variant = upper(prof(g).variant);
 			if (m->pendingGenre)
 				variant += " ...";
 			float swing = effSwing(P, m->pat.trackGenre[T_DRUMS]);
@@ -901,15 +1396,22 @@ struct GenraDisplay : Widget {
 			bool ext = m->inputs[Genra::CLOCK_INPUT].isConnected();
 			float bpm = ext ? (m->stepPeriod > 0.f ? 60.f * APP->engine->getSampleRate() / (m->stepPeriod * 4.f) : 0.f)
 			                : m->params[Genra::BPM_PARAM].getValue();
-			std::string scaleName = SCALES[P.scale].name;
-			for (char& c : scaleName)
-				c = (char)std::toupper((unsigned char)c);
+			std::string scaleName = upper(SCALES[P.scale].name);
 			snprintf(buf, sizeof(buf), "%s %s  %s%.0f BPM  SWING %.0f%%", noteName(P.key + P.transp, P.key + P.transp, P.scale), scaleName.c_str(),
 			         ext ? "EXT " : "", bpm, swing * 100.f);
 			info = buf;
 			int s = std::max(0, m->step);
 			snprintf(buf, sizeof(buf), "BAR %d/%d", s / 16 + 1, L / 16);
 			bar = buf;
+			if (m->activeScene >= 0 || m->pendingScene >= 0) {
+				if (m->pendingScene >= 0 && m->activeScene >= 0)
+					snprintf(buf, sizeof(buf), "   SCENE %d > %d", m->activeScene + 1, m->pendingScene + 1);
+				else if (m->pendingScene >= 0)
+					snprintf(buf, sizeof(buf), "   SCENE > %d", m->pendingScene + 1);
+				else
+					snprintf(buf, sizeof(buf), "   SCENE %d", m->activeScene + 1);
+				bar += buf;
+			}
 			std::vector<std::string> st;
 			if (!m->running)
 				st.push_back("STOP");
@@ -941,6 +1443,11 @@ struct GenraDisplay : Widget {
 			else
 				curChord = m->pat.ev[eventAt(m->pat, s)].spec;
 
+			for (int t = 0; t < 4; t++) {
+				laneName[t] = upper(prof(m->pat.trackGenre[t]).name);
+				lanePending[t] = m->pendingTrack[t] || (m->pendingGenre && !m->ownGenre(t) && m->params[Genra::LOCK_PARAM + t].getValue() < 0.5f);
+			}
+
 			int barStart = (s / 16) * 16;
 			curStep = m->step >= 0 ? s % 16 : -1;
 			int prev[4];
@@ -961,42 +1468,39 @@ struct GenraDisplay : Widget {
 		}
 
 		// left: genre + info
-		text(vg, bold, 4.f, 7.2f, 5.2f, white, genre, NVG_ALIGN_LEFT | NVG_ALIGN_BASELINE, 0.3f);
-		{
-			// variant name right after the genre name
-			nvgFontFaceId(vg, bold->handle);
-			nvgFontSize(vg, mm2px(5.2f));
-			nvgTextLetterSpacing(vg, mm2px(0.3f));
-			float bounds[4];
-			nvgTextBounds(vg, 0, 0, genre.c_str(), NULL, bounds);
-			float wmmG = (bounds[2] - bounds[0]) / mm2px(1.f);
-			text(vg, bold, 4.f + wmmG + 2.f, 7.2f, 2.6f, dim, std::string("· ") + variant, NVG_ALIGN_LEFT | NVG_ALIGN_BASELINE, 0.3f);
-		}
-		text(vg, mono, 4.f, 12.6f, 2.7f, dim, info);
+		drawText(vg, bold, 4.f, 7.2f, 5.2f, white, genre, NVG_ALIGN_LEFT | NVG_ALIGN_BASELINE, 0.3f);
+		float wmmG = textWidthMm(vg, bold, 5.2f, 0.3f, genre);
+		drawText(vg, bold, 4.f + wmmG + 2.f, 7.2f, 2.6f, dim, std::string("· ") + variant, NVG_ALIGN_LEFT | NVG_ALIGN_BASELINE, 0.3f);
+		drawText(vg, mono, 4.f, 12.6f, 2.7f, dim, info);
 
 		// chords
 		int n = (int)chords.size();
-		float bw = std::min(17.f, CHORD_W / std::max(1, n));
+		float bw = std::min(18.f, CHORD_W / std::max(1, n));
 		for (int i = 0; i < n; i++) {
 			float x = CHORD_X + i * bw;
 			bool active = i == curChord;
 			bool hover = i == hoverChord;
 			nvgBeginPath(vg);
 			nvgRoundedRect(vg, mm2px(x), mm2px(CHORD_Y), mm2px(bw - 1.2f), mm2px(CHORD_H), mm2px(0.8f));
-			nvgFillColor(vg, active ? TRACK_COLORS[3] : (hover ? nvgRGB(0x2a, 0x2b, 0x33) : dark));
+			nvgFillColor(vg, active ? HARMONY_COLOR : (hover ? nvgRGB(0x2a, 0x2b, 0x33) : dark));
 			nvgFill(vg);
-			float fs = n > 5 ? 2.2f : 2.7f;
-			text(vg, bold, x + (bw - 1.2f) / 2.f, CHORD_Y + CHORD_H / 2.f, fs, active ? nvgRGB(0x0a, 0x0a, 0x0d) : dim, chords[i],
-			     NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
+			float fs = n > 5 ? 2.3f : 2.7f;
+			drawText(vg, bold, x + (bw - 1.2f) / 2.f, CHORD_Y + CHORD_H / 2.f, fs, active ? nvgRGB(0x0a, 0x0a, 0x0d) : dim, chords[i],
+			         NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
 		}
-		text(vg, mono, CHORD_X, 13.f, 2.4f, dim, bar);
-		text(vg, mono, CHORD_X + CHORD_W - 1.2f, 13.f, 2.4f, TRACK_COLORS[3], status, NVG_ALIGN_RIGHT | NVG_ALIGN_BASELINE);
+		drawText(vg, mono, CHORD_X, 13.f, 2.4f, dim, bar);
+		drawText(vg, mono, CHORD_X + CHORD_W - 1.2f, 13.f, 2.4f, HARMONY_COLOR, status, NVG_ALIGN_RIGHT | NVG_ALIGN_BASELINE);
 
-		// lanes
+		// lanes with the genre each track plays
 		float lx = wmm - 4.f - 16 * 2.3f;
 		for (int t = 0; t < 4; t++) {
+			float y = 2.8f + t * 3.3f;
+			NVGcolor lc = TRACK_COLORS[t];
+			if (lanePending[t])
+				lc.a = 0.55f;
+			drawText(vg, mono, lx - 1.6f, y + 2.0f, 2.1f, lc, laneName[t] + (lanePending[t] ? " …" : ""), NVG_ALIGN_RIGHT | NVG_ALIGN_BASELINE);
 			for (int i = 0; i < 16; i++) {
-				float x = lx + i * 2.3f, y = 2.8f + t * 3.3f;
+				float x = lx + i * 2.3f;
 				bool on = module ? lanes[t][i] : ((i * 7 + t * 5) % 11 < (5 - t));
 				nvgBeginPath(vg);
 				nvgRoundedRect(vg, mm2px(x), mm2px(y), mm2px(1.8f), mm2px(2.4f), mm2px(0.3f));
@@ -1081,47 +1585,83 @@ struct GenraWidget : ModuleWidget {
 		addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
 		auto P = [](const float* p) { return mm2px(Vec(p[0], p[1])); };
+		auto knob = [&](const float* p, int id) { addParam(createParamCentered<RoundSmallBlackKnob>(P(p), module, id)); };
+		auto in = [&](const float* p, int id) { addInput(createInputCentered<PJ301MPort>(P(p), module, id)); };
+		auto out = [&](const float* p, int id) { addOutput(createOutputCentered<PJ301MPort>(P(p), module, id)); };
 
 		GenraDisplay* disp = createWidget<GenraDisplay>(mm2px(Vec(layout::DISPLAY[0], layout::DISPLAY[1])));
 		disp->box.size = mm2px(Vec(layout::DISPLAY[2], layout::DISPLAY[3]));
 		disp->module = module;
 		addChild(disp);
 
+		// global row
 		addParam(createParamCentered<RoundLargeBlackKnob>(P(layout::GENRE), module, Genra::GENRE_PARAM));
-		addParam(createParamCentered<RoundSmallBlackKnob>(P(layout::KEY), module, Genra::KEY_PARAM));
-		addParam(createParamCentered<RoundSmallBlackKnob>(P(layout::SCALE), module, Genra::SCALE_PARAM));
-		addParam(createParamCentered<RoundSmallBlackKnob>(P(layout::BPM), module, Genra::BPM_PARAM));
-		addParam(createParamCentered<RoundSmallBlackKnob>(P(layout::SWING), module, Genra::SWING_PARAM));
-		addParam(createParamCentered<RoundSmallBlackKnob>(P(layout::COMPLEX), module, Genra::COMPLEX_PARAM));
-		addParam(createParamCentered<RoundSmallBlackKnob>(P(layout::COLOR), module, Genra::COLOR_PARAM));
-		addParam(createParamCentered<RoundSmallBlackKnob>(P(layout::MUTATE), module, Genra::MUTATE_PARAM));
-		addParam(createParamCentered<RoundSmallBlackKnob>(P(layout::LENGTH), module, Genra::LENGTH_PARAM));
+		knob(layout::BPM, Genra::BPM_PARAM);
+		knob(layout::KEY, Genra::KEY_PARAM);
+		knob(layout::SCALE, Genra::SCALE_PARAM);
+		knob(layout::VARIANT, Genra::VARIANT_PARAM);
+		knob(layout::COMPLEX, Genra::COMPLEX_PARAM);
+		knob(layout::COLOR, Genra::COLOR_PARAM);
+		knob(layout::MUTATE, Genra::MUTATE_PARAM);
+		knob(layout::SWING, Genra::SWING_PARAM);
+		knob(layout::LENGTH, Genra::LENGTH_PARAM);
 		addParam(createLightParamCentered<VCVLightBezel<WhiteLight>>(P(layout::NEW), module, Genra::NEW_PARAM, Genra::NEW_LIGHT));
 		addParam(createLightParamCentered<VCVLightBezel<MintLight>>(P(layout::RUN), module, Genra::RUN_PARAM, Genra::RUN_LIGHT));
-		addParam(createLightParamCentered<VCVLightBezelLatch<PurpleLight>>(P(layout::CHORDLOCK), module, Genra::CHORDLOCK_PARAM, Genra::CHORDLOCK_LIGHT));
-		addParam(createParamCentered<RoundSmallBlackKnob>(P(layout::VARIANT), module, Genra::VARIANT_PARAM));
-		addParam(createLightParamCentered<VCVLightBezel<PurpleLight>>(P(layout::CHORDNEW), module, Genra::CHORDNEW_PARAM, Genra::CHORDNEW_LIGHT));
-		addInput(createInputCentered<PJ301MPort>(P(layout::IN_CHORDNEW), module, Genra::CHORDNEW_INPUT));
+		// harmony
+		addParam(createLightParamCentered<VCVLightBezel<TealLight>>(P(layout::CHORDNEW), module, Genra::CHORDNEW_PARAM, Genra::CHORDNEW_LIGHT));
+		addParam(createLightParamCentered<VCVLightBezelLatch<TealLight>>(P(layout::CHORDLOCK), module, Genra::CHORDLOCK_PARAM, Genra::CHORDLOCK_LIGHT));
+		in(layout::IN_CHORDNEW, Genra::CHORDNEW_INPUT);
+
+		// inputs
+		in(layout::IN_CLOCK, Genra::CLOCK_INPUT);
+		in(layout::IN_RESET, Genra::RESET_INPUT);
+		in(layout::IN_RUN, Genra::RUN_INPUT);
+		in(layout::IN_NEW, Genra::NEW_INPUT);
+		in(layout::IN_FILL, Genra::FILL_INPUT);
+		in(layout::IN_MUTATE, Genra::MUTATE_INPUT);
+		in(layout::IN_GENRE, Genra::GENRE_INPUT);
+		in(layout::IN_VARIANT, Genra::VARIANT_INPUT);
+		in(layout::IN_TRANSP, Genra::TRANSP_INPUT);
+		in(layout::IN_COMPLEX, Genra::COMPLEX_INPUT);
+		in(layout::IN_COLOR, Genra::COLOR_INPUT);
+		in(layout::IN_CHORD, Genra::CHORD_INPUT);
+
+		// scenes
+		const float* scene[NUM_SCENES] = {layout::SCENE_0, layout::SCENE_1, layout::SCENE_2, layout::SCENE_3,
+		                                  layout::SCENE_4, layout::SCENE_5, layout::SCENE_6, layout::SCENE_7};
+		for (int i = 0; i < NUM_SCENES; i++)
+			addParam(createLightParamCentered<VCVLightBezel<MintLight>>(P(scene[i]), module, Genra::SCENE_PARAM + i, Genra::SCENE_LIGHT + i));
+		addParam(createLightParamCentered<VCVLightBezelLatch<WhiteLight>>(P(layout::STORE), module, Genra::STORE_PARAM, Genra::STORE_LIGHT));
+		in(layout::IN_SCENE, Genra::SCENE_INPUT);
+		in(layout::IN_NEXT, Genra::NEXT_INPUT);
+
+		// tracks
+		const float* dens[4] = {layout::DENS_0, layout::DENS_1, layout::DENS_2, layout::DENS_3};
+		const float* densIn[4] = {layout::IN_DENS_0, layout::IN_DENS_1, layout::IN_DENS_2, layout::IN_DENS_3};
+		const float* field[4] = {layout::FIELD_0, layout::FIELD_1, layout::FIELD_2, layout::FIELD_3};
+		const float* genreIn[4] = {layout::IN_GENRE_0, layout::IN_GENRE_1, layout::IN_GENRE_2, layout::IN_GENRE_3};
+		const float* mute[4] = {layout::MUTE_0, layout::MUTE_1, layout::MUTE_2, layout::MUTE_3};
+		const float* lock[4] = {layout::LOCK_0, layout::LOCK_1, layout::LOCK_2, layout::LOCK_3};
 		const float* tnew[4] = {layout::NEW_0, layout::NEW_1, layout::NEW_2, layout::NEW_3};
 		const float* tin[4] = {layout::IN_NEW_0, layout::IN_NEW_1, layout::IN_NEW_2, layout::IN_NEW_3};
 		for (int t = 0; t < 4; t++) {
-			addParam(createLightParamCentered<VCVLightBezel<WhiteLight>>(P(tnew[t]), module, Genra::TNEW_PARAM + t, Genra::TNEW_LIGHT + t));
-			addInput(createInputCentered<PJ301MPort>(P(tin[t]), module, Genra::TNEW_INPUT + t));
-		}
-		addOutput(createOutputCentered<PJ301MPort>(P(layout::BASS_SLIDE), module, Genra::BASS_SLIDE_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(P(layout::MEL_SLIDE), module, Genra::MEL_SLIDE_OUTPUT));
-
-		const float* dens[4] = {layout::DENS_0, layout::DENS_1, layout::DENS_2, layout::DENS_3};
-		const float* mute[4] = {layout::MUTE_0, layout::MUTE_1, layout::MUTE_2, layout::MUTE_3};
-		const float* lock[4] = {layout::LOCK_0, layout::LOCK_1, layout::LOCK_2, layout::LOCK_3};
-		const float* oct[3] = {layout::OCT_0, layout::OCT_1, layout::OCT_2};
-		for (int t = 0; t < 4; t++)
 			addParam(createParamCentered<RoundBlackKnob>(P(dens[t]), module, Genra::DENS_PARAM + t));
-		addParam(createParamCentered<RoundSmallBlackKnob>(P(layout::FILL), module, Genra::FILL_PARAM));
-		addParam(createParamCentered<RoundSmallBlackKnob>(P(layout::GHOST), module, Genra::GHOST_PARAM));
-		addParam(createParamCentered<RoundSmallBlackKnob>(P(layout::MOVE), module, Genra::MOVE_PARAM));
-		addParam(createParamCentered<RoundSmallBlackKnob>(P(layout::RANGE), module, Genra::RANGE_PARAM));
-		addParam(createParamCentered<RoundSmallBlackKnob>(P(layout::VOICING), module, Genra::VOICING_PARAM));
+			in(densIn[t], Genra::DENS_INPUT + t);
+			GenreField* gf = createWidget<GenreField>(mm2px(Vec(field[t][0], field[t][1])));
+			gf->box.size = mm2px(Vec(field[t][2], field[t][3]));
+			gf->module = module;
+			gf->track = t;
+			addChild(gf);
+			in(genreIn[t], Genra::TGENRE_INPUT + t);
+			addParam(createLightParamCentered<VCVLightBezel<WhiteLight>>(P(tnew[t]), module, Genra::TNEW_PARAM + t, Genra::TNEW_LIGHT + t));
+			in(tin[t], Genra::TNEW_INPUT + t);
+		}
+		knob(layout::FILL, Genra::FILL_PARAM);
+		knob(layout::GHOST, Genra::GHOST_PARAM);
+		knob(layout::MOVE, Genra::MOVE_PARAM);
+		knob(layout::RANGE, Genra::RANGE_PARAM);
+		knob(layout::VOICING, Genra::VOICING_PARAM);
+		const float* oct[3] = {layout::OCT_0, layout::OCT_1, layout::OCT_2};
 		for (int i = 0; i < 3; i++)
 			addParam(createParamCentered<Trimpot>(P(oct[i]), module, Genra::OCT_PARAM + i));
 
@@ -1134,20 +1674,25 @@ struct GenraWidget : ModuleWidget {
 		addParam(createLightParamCentered<VCVLightBezelLatch<CyanLight>>(P(lock[2]), module, Genra::LOCK_PARAM + 2, Genra::LOCK_LIGHT + 2));
 		addParam(createLightParamCentered<VCVLightBezelLatch<PurpleLight>>(P(lock[3]), module, Genra::LOCK_PARAM + 3, Genra::LOCK_LIGHT + 3));
 
-		const float* ins[8] = {layout::IN_CLOCK, layout::IN_RESET, layout::IN_RUN, layout::IN_NEW,
-		                       layout::IN_GENRE, layout::IN_MUTATE, layout::IN_TRANSP, layout::IN_CHORD};
-		for (int i = 0; i < 8; i++)
-			addInput(createInputCentered<PJ301MPort>(P(ins[i]), module, i));
-
+		// outputs
 		const float* drumOut[8] = {layout::DRUM_0, layout::DRUM_1, layout::DRUM_2, layout::DRUM_3,
 		                           layout::DRUM_4, layout::DRUM_5, layout::DRUM_6, layout::DRUM_7};
 		for (int v = 0; v < 8; v++)
-			addOutput(createOutputCentered<PJ301MPort>(P(drumOut[v]), module, Genra::DRUM_OUTPUT + v));
-		const float* outs[12] = {layout::BASS_VOCT, layout::BASS_GATE, layout::BASS_VEL, layout::BASS_ACC,
-		                         layout::MEL_VOCT, layout::MEL_GATE, layout::MEL_VEL, layout::MEL_ACC,
-		                         layout::PAD_VOCT, layout::PAD_GATE, layout::PAD_VEL, layout::PAD_MOD};
-		for (int i = 0; i < 12; i++)
-			addOutput(createOutputCentered<PJ301MPort>(P(outs[i]), module, Genra::BASS_VOCT_OUTPUT + i));
+			out(drumOut[v], Genra::DRUM_OUTPUT + v);
+		out(layout::BASS_VOCT, Genra::BASS_VOCT_OUTPUT);
+		out(layout::BASS_GATE, Genra::BASS_GATE_OUTPUT);
+		out(layout::BASS_VEL, Genra::BASS_VEL_OUTPUT);
+		out(layout::BASS_ACC, Genra::BASS_ACC_OUTPUT);
+		out(layout::BASS_SLIDE, Genra::BASS_SLIDE_OUTPUT);
+		out(layout::MEL_VOCT, Genra::MEL_VOCT_OUTPUT);
+		out(layout::MEL_GATE, Genra::MEL_GATE_OUTPUT);
+		out(layout::MEL_VEL, Genra::MEL_VEL_OUTPUT);
+		out(layout::MEL_ACC, Genra::MEL_ACC_OUTPUT);
+		out(layout::MEL_SLIDE, Genra::MEL_SLIDE_OUTPUT);
+		out(layout::PAD_VOCT, Genra::PAD_VOCT_OUTPUT);
+		out(layout::PAD_GATE, Genra::PAD_GATE_OUTPUT);
+		out(layout::PAD_VEL, Genra::PAD_VEL_OUTPUT);
+		out(layout::PAD_MOD, Genra::PAD_MOD_OUTPUT);
 	}
 
 	void appendContextMenu(Menu* menu) override {
@@ -1176,6 +1721,12 @@ struct GenraWidget : ModuleWidget {
 			}
 		}));
 		menu->addChild(createMenuItem("Nur Akkorde neu würfeln", "", [=]() { m->chordRegenRequested = true; }));
+		menu->addChild(new MenuSeparator);
+		menu->addChild(createIndexSubmenuItem("Genre-CV-Eingänge", {GENRE_CV_MODES[0], GENRE_CV_MODES[1]},
+		                                      [=]() { return (size_t)m->genreCvMode; },
+		                                      [=](size_t v) { m->genreCvMode = (int)v; }));
+		menu->addChild(createMenuItem("Alle Spuren auf Global (folgen GENRE)", "", [=]() { m->resetTracksRequested = true; }));
+		menu->addChild(createMenuItem("Alle Szenen löschen", "", [=]() { m->clearScenesRequested = true; }));
 		menu->addChild(new MenuSeparator);
 		menu->addChild(createIndexSubmenuItem("Clock-Eingang", {CLOCK_MODES[0], CLOCK_MODES[1], CLOCK_MODES[2], CLOCK_MODES[3]},
 		                                      [=]() { return (size_t)m->clockMode; },
