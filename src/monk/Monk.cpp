@@ -18,7 +18,6 @@ namespace monk_mod {
 static const int NK = 8;
 static const char* K_NAMES[NK] = {"VOWEL", "HEAD", "BREATH", "GLIDE", "VOICES", "DETUNE", "SPREAD", "TUNE"};
 static const char* VOWEL_NAMES[5] = {"OO", "OH", "AH", "EH", "EE"};
-static const char* ROUTE_NAMES[4] = {"VOWEL", "PITCH", "BOTH", "BOTH INV"};
 static const char* NOTE_NAMES[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 
 using namespace monkdsp;
