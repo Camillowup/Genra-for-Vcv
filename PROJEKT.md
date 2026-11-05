@@ -1,6 +1,6 @@
 # GENRA – Projektstand
 
-**Stand:** 5. November 2026 · **Version 3 in Arbeit (2.2.0)** · Repo: `CamilloGF/genra-v3`
+**Stand:** 5. November 2026 · **Version 3.1 in Arbeit (2.2.0)** · Repo: `CamilloGF/genra-v3`
 Vorgänger: v1 `CamilloGF/vcv-sequenzer-Genra` (2.0.0), v2 `CamilloGF/Genra-v2` (2.1.0, läuft in Rack)
 Plattform: VCV Rack Pro 2.6.6 unter Windows · Build: GitHub Actions (`.github/workflows/main.yml`)
 
@@ -39,7 +39,7 @@ Generativer, genreabhängiger 4-Spur-Sequencer für VCV Rack 2. Erfindet Loops (
 | `src/GenraModule.hpp` / `src/Genra.cpp` | Rack-Modul GENRA: Clock/Swing, Ausgänge, Display, Menüs, Speichern |
 | `src/Store.cpp` | Speicherformat `pattern3`, Übernahme von v2-Patches |
 | `src/Edit.cpp` | Bearbeiten: Einfrieren, Noten schreiben, Chord Follow, Snap, Copy/Paste |
-| `src/GenraGrid.cpp` | Grid-Editor-Modul |
+| `src/GenraGrid.cpp` | Grid-Editor-Modul (`tools/grid_panel.py` erzeugt Frontplatte + `src/LayoutGrid.hpp`) |
 | `tools/panel.py` | erzeugt `res/Genra.svg` + `src/Layout.hpp` (`python3 tools/panel.py real`) und Vorschau (`preview`) |
 | `test/` | Engine- und MIDI-Rundlauf-Tests (g++, ohne Rack) |
 
@@ -99,8 +99,20 @@ Generativer, genreabhängiger 4-Spur-Sequencer für VCV Rack 2. Erfindet Loops (
 - [x] SNAP (Tonleiter/Akkord), UNDO/REDO (64 Schritte), COPY/PASTE BAR, CLEAR, GEN
 - [x] Tests: `test/test_edit.cpp`
 
+**Erledigt – v3.1 (Stand 5. November 2026)**
+- [x] GENRA 64 HP: SCENES neben IN, OUT-Spalte rechts aussen; Eingänge SWING, BPM, LENGTH; Ausgänge CLOCK, RESET, RUN, BAR, END, FILL, ROOT, CHORD (poly)
+- [x] Szenen-LEDs zweifarbig: rot = gespeichert, grün = aktiv
+- [x] CHANCE + „jeden 2. Durchlauf“ für bearbeitete Noten/Schläge (`fchance`, `fcond`); Durchlaufzähler `Params::pass`, deterministisch pro Durchlauf (`chancePlays`); Editor zeigt alle Noten (`ignoreChance`)
+- [x] Grid Editor 50 HP: CHANCE-Regler, untere Spur VEL/CHANCE, Mehrfachauswahl (Rahmen, Strg-Klick, Strg+A), Auswahl verschieben/transponieren/löschen/kopieren/duplizieren per Maus und Tastatur
+- [x] Entschieden: kein direkter MIDI-Ausgang (MIDI-Export reicht)
+
+**Als Nächstes**
+- [ ] 13 neue Genres per Spezifikation (Doc zum Kommentieren), hinten angehängt: Afrobeat, Afrobeats, Amapiano, Afro House · Dub Techno, Melodic Techno, Hard/Industrial Techno, Tech House, Detroit Techno · Baile Funk, Reggaeton, Footwork, Breakcore
+- [ ] Später: Länge pro Spur (Polymeter), Szenen verketten (Song-Modus), Seed merken, Mikro-Timing
+- [ ] Ganz am Schluss: alle Genres nach Gehör feinschleifen
+
 **Offen**
-- [ ] Test in Rack (v3 + Grid Editor) (Genre-Feld-Menü, CV-Eingänge, Szenen, v2-Patch laden)
+- [ ] Test in Rack (v3.1: neue Ausgänge, Szenen-Farben, CHANCE, Mehrfachauswahl) (Genre-Feld-Menü, CV-Eingänge, Szenen, v2-Patch laden)
 - [ ] Länge pro Spur (Polymeter) – zurückgestellt: tonale Spuren müssten Akkorde über den echten Step statt den umgebrochenen lesen
 - [ ] Genres überarbeiten (eigene spätere Version), Genres aus MIDI lernen
 
