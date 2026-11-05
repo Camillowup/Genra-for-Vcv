@@ -1,7 +1,7 @@
 {
   "slug": "Genra",
   "name": "GENRA",
-  "version": "2.4.0",
+  "version": "2.5.0",
   "license": "GPL-3.0-only",
   "brand": "Genra",
   "author": "Bastian Ofner",
@@ -48,6 +48,12 @@
       "name": "MONK",
       "description": "MONK-1's formant vocal synth (MonkSynth): twelve singers, five vowels, choir, vibrato and stereo echo, the singer drawn live",
       "tags": ["Synth voice", "Oscillator", "Delay"]
+    },
+    {
+      "slug": "GenraMono",
+      "name": "GENRA MONO",
+      "description": "Monophonic bass synth after the Moog Minitaur: two morphing oscillators, eight filter models (ladder, diode, MS-20, SEM, OTA), two ADSRs, LFO",
+      "tags": ["Synth voice", "Oscillator", "Filter", "Envelope generator", "LFO"]
     }
   ]
 }

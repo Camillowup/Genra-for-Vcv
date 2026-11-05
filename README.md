@@ -1,6 +1,6 @@
 # GENRA v3 – Generativer 4-Spur-Sequencer für VCV Rack 2
 
-Breite: **64 HP** (GENRA) und **50 HP** (Grid Editor). Dazu im selben Plugin die drei JIANT-Stimmen **VOICE** (26 HP), **DRUM-X** (32 HP) und **ANIMAL** (26 HP) sowie **MONK** (26 HP). Projektstand und Entscheidungen: `PROJEKT.md`.
+Breite: **64 HP** (GENRA) und **50 HP** (Grid Editor). Dazu im selben Plugin die drei JIANT-Stimmen **VOICE** (26 HP), **DRUM-X** (32 HP) und **ANIMAL** (26 HP), **MONK** (26 HP) sowie der Bass-Synth **GENRA MONO** (26 HP). Projektstand und Entscheidungen: `PROJEKT.md`.
 
 ## GENRA Grid Editor (zweites Modul)
 
@@ -46,6 +46,21 @@ Der Vokal-Synthesizer aus der FM-1-Firmware [MONK-1](https://github.com/charlesv
 - **ENVELOPE** ATK DEC SUS REL (bis 5 s), **VIBRATO · ECHO** DEPTH, RATE, ECHO (Menge), TIME, FDBK (neu, im Original fest 50 %).
 - **Ein/Aus:** V/OCT (C4 = 0 V), GATE, VEL, PRESS, SINGER · ENV (0–10 V), DRY (mono ohne Echo), L, R. Einstimmig wie das Original: GATE startet die Note, V/OCT bei gehaltenem Gate gleitet ohne neuen Anschlag (GLIDE).
 - Mit MIDI: MIDI-CV-Modul → V/OCT, GATE, VEL und AFT → PRESS.
+
+## GENRA MONO: Bass-Synth nach dem Moog Minitaur
+
+| | |
+|---|---|
+| ![GENRA MONO](docs/entwuerfe/genra_mono.png) | ![Filter-Menü](docs/entwuerfe/genra_mono_menu.png) |
+
+Monophoner Synth (26 HP) im GENRA-Look, Akzentfarbe **Türkis**.
+
+- **Oszillatoren:** VCO1/VCO2 WAVE stufenlos Dreieck → Sägezahn → Rechteck → schmaler Puls, VCO2 FREQ ±12 Halbtöne (fein um die Mitte), Pegel pro Oszillator (hohe Pegel übersteuern das Filter), GLIDE.
+- **Filter:** Klick auf das Feld öffnet die Liste, das Mausrad blättert: LADDER 24 (Moog, Standard, Bass bleibt bei Resonanz erhalten), LADDER 12, DIODE (303), MS-20, SVF LP/BP/HP (Oberheim SEM), OTA (Juno). CUTOFF, RES, EG AMT (bipolar), DRIVE, KEY TRK.
+- **Hüllkurven:** Filter- und Amp-ADSR mit analogen Kurven (1 ms … 10 s).
+- **LFO:** RATE (0,05–50 Hz), TRI/SQR, Stärke auf Tonhöhe und Filter, eigener LFO-Ausgang.
+- **Eingänge:** V/OCT (0 V = C4), GATE, VEL, CV für CUTOFF (1 V/Okt.), RES, DRIVE, RATE (1 V/Okt.), VCA, EXT (externes Audio durchs Filter). **Ausgänge:** LFO, OUT.
+- Oszillatoren und Filter laufen mit 2-facher Überabtastung.
 
 ## Neu in v3
 
@@ -136,5 +151,7 @@ src/jiant/            JIANT-Stimmen VOICE, DRUM-X, ANIMAL (Module, Kern-Lader, g
 jiantcore/            die drei Firmware-Kerne als eigene kleine Bibliotheken (res/*core.dll beim Build)
 jiant.tar.gz          Firmware-Quellen von JIANT FM (beim ersten Build nach jiant/ entpackt)
 res/Jiant*.svg        Frontplatten (tools/jiant_panel.py real), Vorschau: tools/jiant_panel.py preview <ordner> <Rack>
+src/mono/             GENRA MONO: Modul (GenraMono.cpp) und Klang-Engine (MonoDsp.hpp, ohne Rack testbar)
+res/GenraMono.svg     Frontplatte (tools/mono_panel.py real), Vorschau: tools/mono_panel.py preview <datei.png> <Rack> [menu]
 test/                 Engine- und MIDI-Tests (g++, ohne Rack)
 ```

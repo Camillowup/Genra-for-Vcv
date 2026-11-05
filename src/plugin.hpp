@@ -10,3 +10,4 @@ extern Model* modelVoice;
 extern Model* modelDrumX;
 extern Model* modelAnimal;
 extern Model* modelMonk;
+extern Model* modelGenraMono;

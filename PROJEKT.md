@@ -43,6 +43,8 @@ Generativer, genreabhängiger 4-Spur-Sequencer für VCV Rack 2. Erfindet Loops (
 | `src/jiant/` | JIANT-Stimmen VOICE, DRUM-X, ANIMAL: je ein Modul (`Voice.cpp`, `DrumX.cpp`, `Animal.cpp`, jedes in eigenem Namespace), ein Kern-Lader (`*Core.cpp`: lädt pro Modul-Instanz eine eigene Kopie der Kern-Bibliothek nach `Genra/run/` im Rack-Benutzerordner) und der gemeinsame Look `JiantUI.hpp` |
 | `jiantcore/` | die Firmware-Kerne als C-Bibliotheken (`res/voicecore.*`, `drumcore.*`, `animalcore.*`), gebaut vom Makefile aus `jiant.tar.gz` |
 | `tools/jiant_panel.py` | erzeugt `res/JiantVoice.svg`, `res/JiantDrumX.svg`, `res/JiantAnimal.svg` + `src/jiant/JiantLayout.hpp` (`python3 tools/jiant_panel.py real`), Vorschau mit `preview <ordner> <Rack-Quellen>` |
+| `src/mono/` | GENRA MONO: Modul `GenraMono.cpp` (Filter-Dropdown, türkise Knopfzeiger) und Klang-Engine `MonoDsp.hpp` (rein C++, Test `test/test_mono.cpp`) |
+| `tools/mono_panel.py` | erzeugt `res/GenraMono.svg` + `src/mono/MonoLayout.hpp` (`python3 tools/mono_panel.py real`), Vorschau mit `preview <datei.png> <Rack-Quellen> [menu]` |
 | `tools/panel.py` | erzeugt `res/Genra.svg` + `src/Layout.hpp` (`python3 tools/panel.py real`) und Vorschau (`preview`) |
 | `test/` | Engine- und MIDI-Rundlauf-Tests (g++, ohne Rack) |
 
@@ -125,6 +127,7 @@ Generativer, genreabhängiger 4-Spur-Sequencer für VCV Rack 2. Erfindet Loops (
 g++ -std=c++11 -O2 -Isrc src/Engine.cpp src/Genres.cpp src/Midi.cpp src/Store.cpp src/Edit.cpp test/test_edit.cpp -o t && ./t
 ```
 (ebenso `test_store.cpp`, `test_midi.cpp`, `test_tracks.cpp`, `test_engine.cpp`)
+GENRA MONO: `g++ -std=c++17 -O2 test/test_mono.cpp -o tm && ./tm`
 
 ## JIANT-Stimmen (2.3.0) – Stand 5. November 2026
 - VOICE, DRUM-X und ANIMAL aus den Einzel-Repos (*Voice-from-Jiant-for-Vcv*, *Drum-X-from-jiant-for-VCV*, *Animal-Engine-from-jiant-for-vcv*) ins GENRA-Plugin übernommen. Die Firmware (`jiant.tar.gz`) war in allen dreien identisch und liegt jetzt nur einmal hier.
@@ -139,3 +142,10 @@ g++ -std=c++11 -O2 -Isrc src/Engine.cpp src/Genres.cpp src/Midi.cpp src/Store.cp
 - `src/monk/monkface.c` + `src/monk/fw/`: der Zeichencode der Firmware (`app/face.c`, `app/inflate.c`, `dsp/fastmath.h`, unverändert bis auf den Include-Pfad) und die Sänger-Grafiken (`art.h`, erzeugt mit `tools/gen_art.py` aus fm1-monk). Rendert 240×240 RGB565, angezeigt über `jiant::Canvas565`.
 - Frontplatte: `python3 tools/monk_panel.py real` → `res/Monk.svg` + `src/monk/MonkLayout.hpp`; Vorschau mit `preview <ordner> [Rack-Quellen]`.
 - Offen: Klangtest in Rack (Windows-Build über Actions).
+
+## GENRA MONO (2.5.0) – Stand 5. November 2026
+- Monophoner Bass-Synth nach dem Moog Minitaur als siebtes Modul (Branch `mono`, aufbauend auf `monk`). 26 HP, Akzentfarbe Türkis `#1fb3a3` (in `tools/mono_panel.py` und `src/mono/GenraMono.cpp`), türkise Kopfleiste, türkise Zeiger auf den Rack-Knöpfen.
+- Engine (`src/mono/MonoDsp.hpp`): 2 BLEP-Oszillatoren mit Wellenform-Morph, Mixer → DRIVE → Filter, 2-fache Überabtastung, 8 Filtermodelle (ZDF-Ladder mit Bassausgleich, Ladder 12, Diode/303, MS-20 mit sättigender Resonanz, SEM-SVF LP/BP/HP, OTA), 2 ADSR mit RC-Kurven, LFO TRI/SQR, VCA mit Sättigung, DC-Filter.
+- Filtertyp als Parameter `FTYPE` (speicherbar, Undo), Auswahl über das Feld (Klick = Liste, Mausrad) oder Rechtsklick-Menü.
+- Test `test/test_mono.cpp`: Tonhöhe, alle Filter bei voller Resonanz/Drive stabil, Selbstoszillation (Ladder, Diode, MS-20; SEM nicht), Bassausgleich, Hüllkurvenzeiten.
+- [ ] Klangtest in Rack, Feinschliff nach Gehör (Lautstärke-Ausgleich zwischen den Filtertypen, Kurven von DRIVE und EG AMT).

@@ -10,4 +10,5 @@ void init(Plugin* p) {
 	p->addModel(modelDrumX);
 	p->addModel(modelAnimal);
 	p->addModel(modelMonk);
+	p->addModel(modelGenraMono);
 }
