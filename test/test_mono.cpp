@@ -56,6 +56,26 @@ int main() {
 		float f = freqOf(o, fs);
 		CHECK(std::fabs(f - 220.f) < 1.f, "pitch wave %.2f: %.2f Hz", w, f);
 	}
+	// 1b. TUNE: full right = one octave up, a little = a few cents
+	{
+		Voice v;
+		v.setSampleRate(fs);
+		Params p;
+		p.tune1 = 1.f;
+		p.level2 = 0.f;
+		p.cutoff = 1.f;
+		p.egAmt = 0.f;
+		Inputs in;
+		in.gate = true;
+		in.voct = -0.25f;
+		std::vector<float> o(fs);
+		float l;
+		for (auto& s : o)
+			v.process(p, in, s, l);
+		float f = freqOf(o, fs);
+		CHECK(std::fabs(f - 440.f) < 2.f, "tune +12: %.2f Hz", f);
+		CHECK(std::fabs(tuneSemis(0.1f) - 0.12f) < 1e-4f, "tune fine");
+	}
 	// 2. every filter: full resonance, full drive, cutoff sweeps, hard notes: finite and bounded
 	for (int t = 0; t < NUM_FILTERS; t++) {
 		Voice v;

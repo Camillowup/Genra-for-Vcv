@@ -214,12 +214,16 @@ struct Biquad {
 	}
 };
 
+/** TUNE knobs -1..1 → ±12 semitones, fine around the middle. */
+inline float tuneSemis(float t) { return 12.f * t * std::fabs(t); }
+
 /** Time knobs 0..1 → 1 ms .. 10 s. */
 inline float knobTime(float k) { return 0.001f * std::pow(10000.f, clampf(k, 0.f, 1.f)); }
 
 // ---------------------------------------------------------------- the voice
 struct Params {
-	float wave1 = 0.33f, wave2 = 0.33f, freq2 = 0.f /* -1..1 */, level1 = 0.8f, level2 = 0.8f, glide = 0.f;
+	float wave1 = 0.33f, wave2 = 0.33f, tune1 = 0.f, tune2 = 0.f /* -1..1: ±12 semitones, fine at the middle */;
+	float level1 = 0.8f, level2 = 0.8f, glide = 0.f;
 	int ftype = LADDER24;
 	float cutoff = 0.5f, res = 0.f, egAmt = 0.3f /* -1..1 */, drive = 0.f, keytrk = 0.f;
 	float fA = 0.f, fD = 0.4f, fS = 0.f, fR = 0.3f;
@@ -278,9 +282,9 @@ struct Voice {
 		float ae = aenv.process(in.gate, knobTime(p.aA), knobTime(p.aD), p.aS, knobTime(p.aR), dt);
 
 		float vib = p.lfoPitch * p.lfoPitch * l;  // up to ±1 octave
-		float semi2 = 12.f * p.freq2 * std::fabs(p.freq2);
-		float f1 = C4 * std::pow(2.f, pitch + vib);
-		float f2 = f1 * std::pow(2.f, semi2 / 12.f);
+		float base = C4 * std::pow(2.f, pitch + vib);
+		float f1 = base * std::pow(2.f, tuneSemis(p.tune1) / 12.f);
+		float f2 = base * std::pow(2.f, tuneSemis(p.tune2) / 12.f);
 		float fsOs = fs * OS;
 
 		float oct = std::log2(20.f) + clampf(p.cutoff, 0.f, 1.f) * std::log2(1000.f)

@@ -1,6 +1,6 @@
 # GENRA – Projektstand
 
-**Stand:** 5. November 2026 · **Version 3.1 in Arbeit (2.2.0)** · Repo: `CamilloGF/genra-v3`
+**Stand:** 5. November 2026 · **Plugin 2.5.0: 7 Module** (GENRA, GRID, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO) · Repo: `CamilloGF/genra-v3`
 Vorgänger: v1 `CamilloGF/vcv-sequenzer-Genra` (2.0.0), v2 `CamilloGF/Genra-v2` (2.1.0, läuft in Rack)
 Plattform: VCV Rack Pro 2.6.6 unter Windows · Build: GitHub Actions (`.github/workflows/main.yml`)
 
@@ -144,8 +144,8 @@ GENRA MONO: `g++ -std=c++17 -O2 test/test_mono.cpp -o tm && ./tm`
 - Offen: Klangtest in Rack (Windows-Build über Actions).
 
 ## GENRA MONO (2.5.0) – Stand 5. November 2026
-- Monophoner Bass-Synth nach dem Moog Minitaur als siebtes Modul (Branch `mono`, aufbauend auf `monk`). 26 HP, Akzentfarbe Türkis `#1fb3a3` (in `tools/mono_panel.py` und `src/mono/GenraMono.cpp`), türkise Kopfleiste, türkise Zeiger auf den Rack-Knöpfen.
+- Monophoner Bass-Synth nach dem Moog Minitaur als siebtes Modul (Branch `mono`, aufbauend auf `monk`). 28 HP, Farbe türkis `#1fb3a3` (in `tools/mono_panel.py` und `src/mono/GenraMono.cpp`). Look wie MONK/JIANT: dunkle Kopfleiste mit Titel MONO und Farbbalken, zentrierte Sektionstitel, getönte Ausgänge, normale Rack-Knöpfe. Pro VCO WAVE, TUNE (±12 Halbtöne, fein um die Mitte), LEVEL; GLIDE.
 - Engine (`src/mono/MonoDsp.hpp`): 2 BLEP-Oszillatoren mit Wellenform-Morph, Mixer → DRIVE → Filter, 2-fache Überabtastung, 8 Filtermodelle (ZDF-Ladder mit Bassausgleich, Ladder 12, Diode/303, MS-20 mit sättigender Resonanz, SEM-SVF LP/BP/HP, OTA), 2 ADSR mit RC-Kurven, LFO TRI/SQR, VCA mit Sättigung, DC-Filter.
 - Filtertyp als Parameter `FTYPE` (speicherbar, Undo), Auswahl über das Feld (Klick = Liste, Mausrad) oder Rechtsklick-Menü.
-- Test `test/test_mono.cpp`: Tonhöhe, alle Filter bei voller Resonanz/Drive stabil, Selbstoszillation (Ladder, Diode, MS-20; SEM nicht), Bassausgleich, Hüllkurvenzeiten.
+- Test `test/test_mono.cpp`: Tonhöhe, TUNE, alle Filter bei voller Resonanz/Drive stabil, Selbstoszillation (Ladder, Diode, MS-20; SEM nicht), Bassausgleich, Hüllkurvenzeiten.
 - [ ] Klangtest in Rack, Feinschliff nach Gehör (Lautstärke-Ausgleich zwischen den Filtertypen, Kurven von DRIVE und EG AMT).

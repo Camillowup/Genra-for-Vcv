@@ -1,6 +1,6 @@
 # GENRA v3 – Generativer 4-Spur-Sequencer für VCV Rack 2
 
-Breite: **64 HP** (GENRA) und **50 HP** (Grid Editor). Dazu im selben Plugin die drei JIANT-Stimmen **VOICE** (26 HP), **DRUM-X** (32 HP) und **ANIMAL** (26 HP), **MONK** (26 HP) sowie der Bass-Synth **GENRA MONO** (26 HP). Projektstand und Entscheidungen: `PROJEKT.md`.
+Breite: **64 HP** (GENRA) und **50 HP** (Grid Editor). Dazu im selben Plugin die drei JIANT-Stimmen **VOICE** (26 HP), **DRUM-X** (32 HP) und **ANIMAL** (26 HP), **MONK** (26 HP) sowie der Bass-Synth **GENRA MONO** (28 HP). Projektstand und Entscheidungen: `PROJEKT.md`.
 
 ## GENRA Grid Editor (zweites Modul)
 
@@ -53,9 +53,9 @@ Der Vokal-Synthesizer aus der FM-1-Firmware [MONK-1](https://github.com/charlesv
 |---|---|
 | ![GENRA MONO](docs/entwuerfe/genra_mono.png) | ![Filter-Menü](docs/entwuerfe/genra_mono_menu.png) |
 
-Monophoner Synth (26 HP) im GENRA-Look, Akzentfarbe **Türkis**.
+Monophoner Synth (28 HP) im Look von MONK und den JIANT-Stimmen, Farbe **türkis**.
 
-- **Oszillatoren:** VCO1/VCO2 WAVE stufenlos Dreieck → Sägezahn → Rechteck → schmaler Puls, VCO2 FREQ ±12 Halbtöne (fein um die Mitte), Pegel pro Oszillator (hohe Pegel übersteuern das Filter), GLIDE.
+- **Oszillatoren:** pro VCO WAVE (stufenlos Dreieck → Sägezahn → Rechteck → schmaler Puls), TUNE (±12 Halbtöne, fein um die Mitte – zum leichten Verstimmen) und LEVEL (hohe Pegel übersteuern das Filter); GLIDE.
 - **Filter:** Klick auf das Feld öffnet die Liste, das Mausrad blättert: LADDER 24 (Moog, Standard, Bass bleibt bei Resonanz erhalten), LADDER 12, DIODE (303), MS-20, SVF LP/BP/HP (Oberheim SEM), OTA (Juno). CUTOFF, RES, EG AMT (bipolar), DRIVE, KEY TRK.
 - **Hüllkurven:** Filter- und Amp-ADSR mit analogen Kurven (1 ms … 10 s).
 - **LFO:** RATE (0,05–50 Hz), TRI/SQR, Stärke auf Tonhöhe und Filter, eigener LFO-Ausgang.

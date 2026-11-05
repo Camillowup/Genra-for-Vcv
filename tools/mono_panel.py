@@ -25,9 +25,10 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RACK = sys.argv[3] if PREVIEW and len(sys.argv) > 3 and sys.argv[3] != "menu" else os.path.join(ROOT, "..", "ext", "Rack")
 CL = os.path.join(RACK, "res", "ComponentLibrary")
 
-HP = 26
+HP = 28
 W, H = HP * 5.08, 128.5
 BG, PLATE, LINE, TXT, DIM, DARK = "#17181d", "#212329", "#34363f", "#d9dbe2", "#8a8d99", "#07080a"
+TITLE, RING = "#e6e7ec", "#4a4c57"
 # keep in step with src/mono/GenraMono.cpp (ACCENT)
 ACC, ACC2, INK = "#1fb3a3", "#0e7a70", "#06302b"
 
@@ -75,31 +76,38 @@ def text(x, y, s, size=1.8, color=DIM, weight=600, anchor="middle", sp=0.25):
         e(f'<path fill="{color}" d="{" ".join(paths)}"/>')
 
 
+def tint(f):
+    """The accent mixed onto the plate (f: the accent's share), as on the JIANT voices and MONK."""
+    c = [int(ACC[i:i + 2], 16) for i in (1, 3, 5)]
+    p = [int(PLATE[i:i + 2], 16) for i in (1, 3, 5)]
+    return "#" + "".join(f"{round(p[i] + (c[i] - p[i]) * f):02x}" for i in range(3))
+
+
 def section(x, y, w, h, title):
-    e(f'<rect x="{x}" y="{y}" width="{w:.2f}" height="{h}" rx="1.6" fill="{PLATE}"/>')
-    e(f'<rect x="{x}" y="{y}" width="{w:.2f}" height="0.9" rx="0.45" fill="{ACC}"/>')
-    text(x + 2.5, y + 4.8, title, 2.2, ACC, 800, "start", 0.5)
+    e(f'<rect x="{x}" y="{y}" width="{w:.2f}" height="{h}" rx="1.2" fill="{PLATE}"/>')
+    e(f'<rect x="{x}" y="{y}" width="{w:.2f}" height="0.88" rx="0.44" fill="{ACC}"/>')
+    text(x + w / 2, y + 5.0, title, 2.03, ACC, 800, "middle", 0.75)
 
 
 def knob(name, x, y, label, kind="knob", hot=False):
     comps.append((kind, name, x, y))
-    r = R[kind] + 1.0
-    e(f'<circle cx="{x}" cy="{y}" r="{r:.2f}" fill="none" stroke="{ACC if hot else LINE}" '
-      f'stroke-opacity="{0.6 if hot else 1}" stroke-width="0.35" stroke-dasharray="0.4 0.9"/>')
-    text(x, y + R[kind] + 3.5, label, 1.75)
+    r = R[kind] + 0.88
+    e(f'<circle cx="{x}" cy="{y}" r="{r:.2f}" fill="none" stroke="{ACC if hot else RING}" stroke-width="0.29" '
+      f'stroke-dasharray="0.29 0.73" stroke-linecap="round"/>')
+    text(x, y + R[kind] + 3.4, label, 1.7, TXT, 600, "middle", 0.3)
 
 
 def switch(name, x, y, top, bot):
     comps.append(("switch", name, x, y))
-    text(x, y - 4.5, top, 1.5)
-    text(x, y + 5.9, bot, 1.5)
+    text(x, y - 4.5, top, 1.5, TXT, 600, "middle", 0.25)
+    text(x, y + 5.9, bot, 1.5, TXT, 600, "middle", 0.25)
 
 
 def jack(name, x, y, label, out_=False):
     comps.append(("output" if out_ else "input", name, x, y))
     if out_:
-        e(f'<rect x="{x - 4.7}" y="{y - 4.9}" width="9.4" height="11.9" rx="1.2" fill="{ACC}"/>')
-    text(x, y + 5.6, label, 1.55, INK if out_ else DIM, 800 if out_ else 600, "middle", 0.2)
+        e(f'<rect x="{x - 4.25}" y="{y - 4.75}" width="8.5" height="11.6" rx="0.9" fill="{tint(0.32)}"/>')
+    text(x, y + 5.7, label, 1.63, TXT, 600, "middle", 0.3)
 
 
 def adsr(x, y, w=10, h=2.6):
@@ -108,66 +116,73 @@ def adsr(x, y, w=10, h=2.6):
       f'stroke-linejoin="round" stroke-opacity="0.7"/>')
 
 
-# ---------------------------------------------------------------- frame and header
+def width(s, size, weight, sp):
+    gs, cmap, upm, hmtx = font(weight)
+    return sum(hmtx[cmap.get(ord(c), "space")][0] * size / upm + sp for c in s) - sp
+
+
+# ---------------------------------------------------------------- frame and header (as MONK and the JIANT voices)
 e(f'<svg xmlns="http://www.w3.org/2000/svg" width="{W:.2f}mm" height="{H}mm" viewBox="0 0 {W:.2f} {H}">')
 e(f'<rect width="{W:.2f}" height="{H}" fill="{BG}"/>')
-e(f'<rect width="{W:.2f}" height="12" fill="{ACC}"/>')
-e(f'<rect y="12" width="{W:.2f}" height="0.8" fill="{ACC2}"/>')
-text(14, 8.4, "GENRA", 4.2, BG, 800, "start", 0.8)
-text(34.6, 8.4, "MONO", 4.2, BG, 400, "start", 0.8)
-text(W - 14, 8.1, "TAURUS-STYLE BASS SYNTH", 1.6, INK, 700, "end", 0.35)
+text(12.9, 7.6, "MONO", 5.1, TITLE, 800, "start", 1.08)
+text(12.9 + width("MONO", 5.1, 800, 1.08) + 3.4, 7.45, "GENRA · TAURUS-STYLE BASS", 1.76, DIM, 600, "start", 0.47)
+e(f'<rect x="{W - 27.1:.2f}" y="5.55" width="11.5" height="1.08" rx="0.54" fill="{ACC}"/>')
 
-# ---------------------------------------------------------------- oscillators
-section(3, 15, 55, 44, "OSCILLATORS")
-xs = [12.5, 30.5, 48.5]
-for x, (n, l) in zip(xs, [("WAVE1", "VCO1 WAVE"), ("WAVE2", "VCO2 WAVE"), ("FREQ2", "VCO2 FREQ")]):
-    knob(n, x, 27.5, l)
-for x, (n, l) in zip(xs, [("LEVEL1", "VCO1 LVL"), ("LEVEL2", "VCO2 LVL"), ("GLIDE", "GLIDE")]):
-    knob(n, x, 46, l)
+# ---------------------------------------------------------------- oscillators: per VCO wave, tune, level; glide
+ow = 65.16
+section(3, 13.5, ow, 45.5, "OSCILLATORS")
+for row, y in ((1, 27.0), (2, 45.0)):
+    text(5.6, y + 0.7, f"VCO{row}", 1.7, ACC, 800, "start", 0.3)
+    knob(f"WAVE{row}", 21, y, "WAVE")
+    knob(f"TUNE{row}", 35, y, "TUNE")
+    knob(f"LEVEL{row}", 49, y, "LEVEL")
+e(f'<line x1="56.5" y1="21" x2="56.5" y2="55" stroke="{LINE}" stroke-width="0.3"/>')
+knob("GLIDE", 62.3, 36, "GLIDE", "small")
 
 # ---------------------------------------------------------------- filter
-fw = W - 3 - 60
-section(60, 15, fw, 44, "FILTER")
-e(f'<path d="M110,19.6 H120 Q122.5,19.6 123.3,17.2 Q124.2,20.4 126,22.2" fill="none" stroke="{ACC}" '
-  f'stroke-width="0.35" stroke-opacity="0.7"/>')
-FIELD = (63, 22.2, 63, 5.4)
-e(f'<rect x="{FIELD[0]}" y="{FIELD[1]}" width="{FIELD[2]}" height="{FIELD[3]}" rx="0.9" fill="{DARK}" '
-  f'stroke="{ACC}" stroke-width="0.35"/>')
-e(f'<polyline points="121.6,24.2 122.8,25.5 124,24.2" fill="none" stroke="{ACC}" stroke-width="0.4" '
-  f'stroke-linecap="round" stroke-linejoin="round"/>')
-knob("CUTOFF", 76, 41.5, "CUTOFF", "large", hot=True)
-knob("RES", 98, 36, "RES")
-knob("EGAMT", 117, 36, "EG AMT")
-knob("DRIVE", 98, 50.5, "DRIVE", "small")
-knob("KEYTRK", 117, 50.5, "KEY TRK", "small")
+fx = 3 + ow + 2
+fw = W - 3 - fx
+section(fx, 13.5, fw, 45.5, "FILTER")
+FIELD = (fx + 3, 20.6, fw - 6, 5.4)
+e(f'<rect x="{FIELD[0]:.2f}" y="{FIELD[1]}" width="{FIELD[2]:.2f}" height="{FIELD[3]}" rx="0.9" fill="{DARK}" '
+  f'stroke="{LINE}" stroke-width="0.4"/>')
+cx = FIELD[0] + FIELD[2] - 3
+e(f'<polyline points="{cx - 1.2:.2f},{FIELD[1] + 2.1} {cx:.2f},{FIELD[1] + 3.4} {cx + 1.2:.2f},{FIELD[1] + 2.1}" '
+  f'fill="none" stroke="{ACC}" stroke-width="0.4" stroke-linecap="round" stroke-linejoin="round"/>')
+knob("CUTOFF", fx + 16, 40.5, "CUTOFF", "large", hot=True)
+knob("RES", fx + 38, 35, "RES")
+knob("EGAMT", fx + 57, 35, "EG AMT")
+knob("DRIVE", fx + 38, 50, "DRIVE", "small")
+knob("KEYTRK", fx + 57, 50, "KEY TRK", "small")
 
 # ---------------------------------------------------------------- envelopes
+mid = W / 2
 section(3, 61, W - 6, 25, "ENVELOPES")
-text(34, 69.4, "FILTER", 1.6, TXT, 800, "middle", 0.4)
-adsr(40.5, 69.6)
-text(97, 69.4, "AMP", 1.6, TXT, 800, "middle", 0.4)
-adsr(101.5, 69.6)
+text(mid / 2 + 2, 70.0, "FILTER", 1.6, TXT, 800, "middle", 0.4)
+adsr(mid / 2 + 8.5, 70.2)
+text(mid + mid / 2 - 2, 70.0, "AMP", 1.6, TXT, 800, "middle", 0.4)
+adsr(mid + mid / 2 + 2.5, 70.2)
 for i, l in enumerate("ADSR"):
-    knob(f"F{l}", 13 + i * 14, 75.8, l, "small")
-    knob(f"A{l}", 77 + i * 14, 75.8, l, "small")
-e(f'<line x1="66.04" y1="66" x2="66.04" y2="83" stroke="{LINE}" stroke-width="0.3"/>')
+    knob(f"F{l}", 14 + i * 15, 76.3, l, "small")
+    knob(f"A{l}", mid + 12.1 + i * 15, 76.3, l, "small")
+e(f'<line x1="{mid:.2f}" y1="68" x2="{mid:.2f}" y2="83" stroke="{LINE}" stroke-width="0.3"/>')
 
 # ---------------------------------------------------------------- lfo
-section(3, 88, W - 6, 17, "LFO")
-knob("RATE", 34, 96.2, "RATE", "small")
-switch("LFOWAVE", 54, 96.2, "TRI", "SQR")
-knob("LFOPITCH", 76, 96.2, "> PITCH", "small")
-knob("LFOFILT", 100, 96.2, "> FILTER", "small")
+section(3, 88, W - 6, 17.5, "LFO")
+knob("RATE", 26, 97.6, "RATE", "small")
+switch("LFOWAVE", 50, 97.6, "TRI", "SQR")
+knob("LFOPITCH", 92, 97.6, "> PITCH", "small")
+knob("LFOFILT", 116, 97.6, "> FILTER", "small")
 
 # ---------------------------------------------------------------- in / out
-e(f'<rect x="3" y="107" width="{W - 6:.2f}" height="18.5" rx="1.6" fill="{PLATE}"/>')
+e(f'<rect x="3" y="107.5" width="{W - 6:.2f}" height="18" rx="1.2" fill="{PLATE}"/>')
 for i, (n, l) in enumerate([("IN_VOCT", "V/OCT"), ("IN_GATE", "GATE"), ("IN_VEL", "VEL"), ("IN_CUTOFF", "CUTOFF"),
                             ("IN_RES", "RES"), ("IN_DRIVE", "DRIVE"), ("IN_RATE", "RATE"), ("IN_VCA", "VCA"),
                             ("IN_EXT", "EXT")]):
-    jack(n, 9.5 + i * 10.4, 114.3, l)
-e(f'<line x1="106.4" y1="109" x2="106.4" y2="123.5" stroke="{LINE}" stroke-width="0.3"/>')
-jack("OUT_LFO", 112, 114.3, "LFO", True)
-jack("OUT_AUDIO", 123, 114.3, "OUT", True)
+    jack(n, 10 + i * 10.8, 114.6, l)
+e(f'<line x1="{W - 31:.2f}" y1="109.5" x2="{W - 31:.2f}" y2="123.5" stroke="{LINE}" stroke-width="0.3"/>')
+jack("OUT_LFO", W - 23, 114.6, "LFO", True)
+jack("OUT_AUDIO", W - 11, 114.6, "OUT", True)
 
 e("</svg>")
 
@@ -218,8 +233,6 @@ for kind, n, x, y in comps:
     if kind in KIND:
         img(KIND[kind] + "_bg", x, y)
         img(KIND[kind], x, y)
-        r = R[kind] * 0.82
-        out.insert(-1, f'<line x1="{x}" y1="{y}" x2="{x}" y2="{y - r:.2f}" stroke="{ACC}" stroke-width="0.7" stroke-linecap="round"/>')
     elif kind == "switch":
         img("CKSS_1", x, y)
     else:
@@ -231,7 +244,7 @@ ptext(FIELD[0] + 2, FIELD[1] + 3.55, FILTERS[0][0], 1.9, TXT, 700, "start", 0.35
 ptext(FIELD[0] + 20.5, FIELD[1] + 3.55, FILTERS[0][1].upper(), 1.5, DIM, 600, "start", 0.3)
 if MENU:
     y0 = FIELD[1] + FIELD[3] + 0.4
-    out.insert(-1, f'<rect x="{FIELD[0]}" y="{y0}" width="{FIELD[2]}" height="{len(FILTERS) * 5 + 1}" rx="0.9" '
+    out.insert(-1, f'<rect x="{FIELD[0]:.2f}" y="{y0}" width="{FIELD[2]}" height="{len(FILTERS) * 5 + 1}" rx="0.9" '
                    f'fill="#101115" stroke="{ACC}" stroke-width="0.35"/>')
     for i, (nm, d) in enumerate(FILTERS):
         y = y0 + 0.5 + i * 5

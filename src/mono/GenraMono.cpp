@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// GENRA MONO – monophonic bass synth after the Moog Minitaur, in the GENRA look (accent: turquoise).
+// GENRA MONO – monophonic bass synth after the Moog Minitaur, in the look of MONK and the JIANT voices (accent: turquoise).
 // Sound engine: MonoDsp.hpp. Panel: tools/mono_panel.py (res/GenraMono.svg + MonoLayout.hpp).
 #include "../plugin.hpp"
 #include "MonoDsp.hpp"
@@ -17,7 +17,7 @@ inline Vec P(const float* p) { return mm2px(Vec(p[0], p[1])); }
 
 struct GenraMono : Module {
 	enum ParamId {
-		WAVE1_PARAM, WAVE2_PARAM, FREQ2_PARAM, LEVEL1_PARAM, LEVEL2_PARAM, GLIDE_PARAM,
+		WAVE1_PARAM, WAVE2_PARAM, TUNE1_PARAM, TUNE2_PARAM, LEVEL1_PARAM, LEVEL2_PARAM, GLIDE_PARAM,
 		FTYPE_PARAM, CUTOFF_PARAM, RES_PARAM, EGAMT_PARAM, DRIVE_PARAM, KEYTRK_PARAM,
 		FA_PARAM, FD_PARAM, FS_PARAM, FR_PARAM, AA_PARAM, AD_PARAM, AS_PARAM, AR_PARAM,
 		RATE_PARAM, LFOWAVE_PARAM, LFOPITCH_PARAM, LFOFILT_PARAM,
@@ -35,12 +35,9 @@ struct GenraMono : Module {
 		}
 		std::string getUnit() override { return gmono::knobTime(getValue()) < 1.f ? " ms" : " s"; }
 	};
-	/** VCO2 detune: ±12 semitones, fine around the middle. */
-	struct DetuneQuantity : ParamQuantity {
-		std::string getDisplayValueString() override {
-			float v = getValue();
-			return string::f("%+.2f", 12.f * v * std::fabs(v));
-		}
+	/** TUNE: ±12 semitones, fine around the middle. */
+	struct TuneQuantity : ParamQuantity {
+		std::string getDisplayValueString() override { return string::f("%+.2f", gmono::tuneSemis(getValue())); }
 		std::string getUnit() override { return " st"; }
 	};
 
@@ -54,7 +51,8 @@ struct GenraMono : Module {
 		configParam(WAVE2_PARAM, 0.f, 1.f, 0.33f, "VCO2 wave", "", 0.f, 1.f);
 		paramQuantities[WAVE1_PARAM]->description = paramQuantities[WAVE2_PARAM]->description =
 		    "Triangle → saw → square → narrow pulse";
-		configParam<DetuneQuantity>(FREQ2_PARAM, -1.f, 1.f, 0.03f, "VCO2 frequency");
+		configParam<TuneQuantity>(TUNE1_PARAM, -1.f, 1.f, 0.f, "VCO1 tune");
+		configParam<TuneQuantity>(TUNE2_PARAM, -1.f, 1.f, 0.03f, "VCO2 tune");
 		configParam(LEVEL1_PARAM, 0.f, 1.f, 0.8f, "VCO1 level", "%", 0.f, 100.f);
 		configParam(LEVEL2_PARAM, 0.f, 1.f, 0.8f, "VCO2 level", "%", 0.f, 100.f);
 		paramQuantities[LEVEL1_PARAM]->description = paramQuantities[LEVEL2_PARAM]->description =
@@ -108,7 +106,8 @@ struct GenraMono : Module {
 		auto v = [&](int id) { return params[id].getValue(); };
 		p.wave1 = v(WAVE1_PARAM);
 		p.wave2 = v(WAVE2_PARAM);
-		p.freq2 = v(FREQ2_PARAM);
+		p.tune1 = v(TUNE1_PARAM);
+		p.tune2 = v(TUNE2_PARAM);
 		p.level1 = v(LEVEL1_PARAM);
 		p.level2 = v(LEVEL2_PARAM);
 		p.glide = v(GLIDE_PARAM);
@@ -149,30 +148,6 @@ struct GenraMono : Module {
 };
 
 // ---------------------------------------------------------------- widgets
-/** A turquoise indicator over the knob's own, turning with it. */
-struct AccentLine : widget::TransparentWidget {
-	float len = 0.8f;
-	void draw(const DrawArgs& args) override {
-		float cx = box.size.x / 2, cy = box.size.y / 2, r = std::min(cx, cy) * len;
-		nvgBeginPath(args.vg);
-		nvgMoveTo(args.vg, cx, cy - r * 0.15f);
-		nvgLineTo(args.vg, cx, cy - r);
-		nvgStrokeColor(args.vg, ACCENT);
-		nvgStrokeWidth(args.vg, 1.8f);
-		nvgLineCap(args.vg, NVG_ROUND);
-		nvgStroke(args.vg);
-	}
-};
-
-template <class K>
-struct MonoKnob : K {
-	MonoKnob() {
-		AccentLine* l = new AccentLine;
-		l->box.size = this->sw->box.size;
-		this->tw->addChild(l);
-	}
-};
-
 static std::shared_ptr<window::Font> boldFont() {
 	return APP->window->loadFont(asset::system("res/fonts/Nunito-Bold.ttf"));
 }
@@ -252,19 +227,20 @@ struct GenraMonoWidget : ModuleWidget {
 		addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
 		using M = GenraMono;
-		auto knob = [&](const float* p, int id) { addParam(createParamCentered<MonoKnob<RoundBlackKnob>>(P(p), module, id)); };
-		auto small = [&](const float* p, int id) { addParam(createParamCentered<MonoKnob<RoundSmallBlackKnob>>(P(p), module, id)); };
+		auto knob = [&](const float* p, int id) { addParam(createParamCentered<RoundBlackKnob>(P(p), module, id)); };
+		auto small = [&](const float* p, int id) { addParam(createParamCentered<RoundSmallBlackKnob>(P(p), module, id)); };
 		knob(L::WAVE1, M::WAVE1_PARAM);
-		knob(L::WAVE2, M::WAVE2_PARAM);
-		knob(L::FREQ2, M::FREQ2_PARAM);
+		knob(L::TUNE1, M::TUNE1_PARAM);
 		knob(L::LEVEL1, M::LEVEL1_PARAM);
+		knob(L::WAVE2, M::WAVE2_PARAM);
+		knob(L::TUNE2, M::TUNE2_PARAM);
 		knob(L::LEVEL2, M::LEVEL2_PARAM);
-		knob(L::GLIDE, M::GLIDE_PARAM);
+		small(L::GLIDE, M::GLIDE_PARAM);
 
 		FilterField* field = createParam<FilterField>(mm2px(Vec(L::FIELD[0], L::FIELD[1])), module, M::FTYPE_PARAM);
 		field->box.size = mm2px(Vec(L::FIELD[2], L::FIELD[3]));
 		addParam(field);
-		addParam(createParamCentered<MonoKnob<RoundLargeBlackKnob>>(P(L::CUTOFF), module, M::CUTOFF_PARAM));
+		addParam(createParamCentered<RoundLargeBlackKnob>(P(L::CUTOFF), module, M::CUTOFF_PARAM));
 		knob(L::RES, M::RES_PARAM);
 		knob(L::EGAMT, M::EGAMT_PARAM);
 		small(L::DRIVE, M::DRIVE_PARAM);
