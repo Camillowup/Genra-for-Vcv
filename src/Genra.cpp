@@ -131,7 +131,7 @@ struct GenreField : Widget {
 			menu->addChild(createMenuLabel("CV-Eingang verbunden: die Spannung wählt das Genre"));
 		menu->addChild(createCheckMenuItem("Global (folgt GENRE)", "", [=]() { return m->trackSel[t] < 0; }, [=]() { m->setTrackSel(t, -1); }));
 		menu->addChild(new ui::MenuSeparator);
-		for (int f = 0; f < 5; f++) {
+		for (int f = 0; f < (int)(sizeof(FAMILIES) / sizeof(FAMILIES[0])); f++) {
 			const Family& fam = FAMILIES[f];
 			int sel = m->trackSel[t];
 			int sg = sel >= 0 ? genreOfProfile(sel) : -1;

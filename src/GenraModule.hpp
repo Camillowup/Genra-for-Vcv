@@ -27,8 +27,9 @@ struct Family {
 	const char* name;
 	int first, count;
 };
-static const Family FAMILIES[5] = {
-	{"House", 0, 5}, {"Techno", 5, 5}, {"Breaks & Bass", 10, 5}, {"Hip-Hop & Downtempo", 15, 6}, {"Dub · Synthwave · Ambient", 21, 3}};
+static const Family FAMILIES[8] = {
+	{"House", 0, 5}, {"Techno", 5, 5}, {"Breaks & Bass", 10, 5}, {"Hip-Hop & Downtempo", 15, 6}, {"Dub · Synthwave · Ambient", 21, 3},
+	{"Afro", 24, 4}, {"Techno Styles", 28, 5}, {"Latin & Club", 33, 4}};
 
 inline std::string upper(std::string s) {
 	for (char& c : s)

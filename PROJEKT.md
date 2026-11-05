@@ -34,7 +34,7 @@ Generativer, genreabhängiger 4-Spur-Sequencer für VCV Rack 2. Erfindet Loops (
 | Datei | Inhalt |
 |---|---|
 | `src/Engine.hpp/.cpp` | Theorie, Akkorde, Generierung (`generate`, `mutate`), Auswertung pro Step (`drumHit`, `bassAt`, `melAt`, `padAt`) – rein C++, ohne Rack testbar |
-| `src/Genres.cpp` | 14 Genre-Profile, Tonleitern |
+| `src/Genres.cpp` | Genre-Profile (37 Genres, 83 Varianten), Tonleitern |
 | `src/Midi.cpp` | SMF-Export/-Import |
 | `src/GenraModule.hpp` / `src/Genra.cpp` | Rack-Modul GENRA: Clock/Swing, Ausgänge, Display, Menüs, Speichern |
 | `src/Store.cpp` | Speicherformat `pattern3`, Übernahme von v2-Patches |
@@ -53,7 +53,7 @@ Generativer, genreabhängiger 4-Spur-Sequencer für VCV Rack 2. Erfindet Loops (
 
 ## Version 2 (2.1.0) – Stand 4. November 2026
 - Spezifikation: Claude-Doc „GENRA v2 – Genre-Spezifikation“ (Entscheidungen am Ende).
-- 44 HP; 24 Genres in Familien-Reihenfolge, 46 Profile (Varianten über VARIANT-Regler).
+- 44 HP; 37 Genres in Familien-Reihenfolge, 83 Profile (Varianten über VARIANT-Regler).
 - NEW + TRIG pro Spur (wirkt auch bei LOCK), Akkord-NEW + TRIG, SLIDE-Ausgänge Bass/Melodie.
 - Engine: 32-Step-Raster, Roll-Positionen ('r'), Break-Chops, Drops (an FILL gekoppelt), Genre-Fills, Humanize, Polymeter-Bass, MS_ACID-Melodie, padBase (Grime-Pads aus).
 - COMPLEX = Rolls/Chops/Melodie-Slides, MOVE = Bass-Slides, FILL = Fill + Drop.
@@ -107,7 +107,8 @@ Generativer, genreabhängiger 4-Spur-Sequencer für VCV Rack 2. Erfindet Loops (
 - [x] Entschieden: kein direkter MIDI-Ausgang (MIDI-Export reicht)
 
 **Als Nächstes**
-- [ ] 13 neue Genres per Spezifikation (Doc zum Kommentieren), hinten angehängt: Afrobeat, Afrobeats, Amapiano, Afro House · Dub Techno, Melodic Techno, Hard/Industrial Techno, Tech House, Detroit Techno · Baile Funk, Reggaeton, Footwork, Breakcore
+- [x] 13 neue Genres (Stufe 1, mit vorhandenen Engine-Mitteln), hinten angehängt (Genre 24–36, Profile 46–82), Familien Afro / Techno Styles / Latin & Club; GENRE-CV 0–10 V verteilt jetzt alle 37 Genres: Afrobeat, Afrobeats, Amapiano, Afro House · Dub Techno, Melodic Techno, Hard/Industrial Techno, Tech House, Detroit Techno · Baile Funk, Reggaeton, Footwork, Breakcore
+- [ ] Genre-Stufe 2 (Engine): Pad-Echo (Dub Techno), Melodie-Stil CHOP, Kick-Fill, Log-Drum-Bass, Bass folgt Tom-Spur, Gabber-Kick-Layer
 - [ ] Später: Länge pro Spur (Polymeter), Szenen verketten (Song-Modus), Seed merken, Mikro-Timing
 - [ ] Ganz am Schluss: alle Genres nach Gehör feinschleifen
 
