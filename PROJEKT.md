@@ -7,7 +7,7 @@ Plattform: VCV Rack Pro 2.6.6 unter Windows · Build: GitHub Actions (`.github/w
 ## Konzept
 Generativer, genreabhängiger 4-Spur-Sequencer für VCV Rack 2. Erfindet Loops (1/2/4/8 Takte) für **8 Drumstimmen, Bass, Melodie und polyphone Pads (4 Stimmen)**. Alle Spuren teilen Tonart und Akkordfolge.
 
-**Genres (14):** Techno, House, UK Garage, 2-Step, Dubstep, Dub, Hip-Hop, Lo-Fi, Trap, Drum & Bass, Breakbeat, Trance, Synthwave, Ambient
+**Genres:** v1 14 · v2 24 (46 Varianten) · v3 37 (83 Varianten), Liste im README
 
 ## Frontplatte (42 HP)
 - **Display:** Genre, Tonart/Tonleiter, BPM, Swing, Akkordfolge (klick-/scroll-editierbar), Step-Lauflichter der 4 Spuren
@@ -53,7 +53,7 @@ Generativer, genreabhängiger 4-Spur-Sequencer für VCV Rack 2. Erfindet Loops (
 
 ## Version 2 (2.1.0) – Stand 4. November 2026
 - Spezifikation: Claude-Doc „GENRA v2 – Genre-Spezifikation“ (Entscheidungen am Ende).
-- 44 HP; 37 Genres in Familien-Reihenfolge, 83 Profile (Varianten über VARIANT-Regler).
+- 44 HP; 24 Genres in Familien-Reihenfolge, 46 Profile (Varianten über VARIANT-Regler).
 - NEW + TRIG pro Spur (wirkt auch bei LOCK), Akkord-NEW + TRIG, SLIDE-Ausgänge Bass/Melodie.
 - Engine: 32-Step-Raster, Roll-Positionen ('r'), Break-Chops, Drops (an FILL gekoppelt), Genre-Fills, Humanize, Polymeter-Bass, MS_ACID-Melodie, padBase (Grime-Pads aus).
 - COMPLEX = Rolls/Chops/Melodie-Slides, MOVE = Bass-Slides, FILL = Fill + Drop.
