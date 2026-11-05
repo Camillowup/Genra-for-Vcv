@@ -36,7 +36,10 @@ Generativer, genreabhängiger 4-Spur-Sequencer für VCV Rack 2. Erfindet Loops (
 | `src/Engine.hpp/.cpp` | Theorie, Akkorde, Generierung (`generate`, `mutate`), Auswertung pro Step (`drumHit`, `bassAt`, `melAt`, `padAt`) – rein C++, ohne Rack testbar |
 | `src/Genres.cpp` | 14 Genre-Profile, Tonleitern |
 | `src/Midi.cpp` | SMF-Export/-Import |
-| `src/Genra.cpp` | Rack-Modul: Clock/Swing, Ausgänge, Display, Menüs, Speichern |
+| `src/GenraModule.hpp` / `src/Genra.cpp` | Rack-Modul GENRA: Clock/Swing, Ausgänge, Display, Menüs, Speichern |
+| `src/Store.cpp` | Speicherformat `pattern3`, Übernahme von v2-Patches |
+| `src/Edit.cpp` | Bearbeiten: Einfrieren, Noten schreiben, Chord Follow, Snap, Copy/Paste |
+| `src/GenraGrid.cpp` | Grid-Editor-Modul |
 | `tools/panel.py` | erzeugt `res/Genra.svg` + `src/Layout.hpp` (`python3 tools/panel.py real`) und Vorschau (`preview`) |
 | `test/` | Engine- und MIDI-Rundlauf-Tests (g++, ohne Rack) |
 
@@ -103,6 +106,6 @@ Generativer, genreabhängiger 4-Spur-Sequencer für VCV Rack 2. Erfindet Loops (
 
 **Tests (ohne Rack):**
 ```
-g++ -std=c++11 -O2 -Isrc src/Engine.cpp src/Genres.cpp src/Midi.cpp src/Store.cpp test/test_store.cpp -o t && ./t
+g++ -std=c++11 -O2 -Isrc src/Engine.cpp src/Genres.cpp src/Midi.cpp src/Store.cpp src/Edit.cpp test/test_edit.cpp -o t && ./t
 ```
-(ebenso `test_midi.cpp`, `test_engine.cpp`)
+(ebenso `test_store.cpp`, `test_midi.cpp`, `test_tracks.cpp`, `test_engine.cpp`)
