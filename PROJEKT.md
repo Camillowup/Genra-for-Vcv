@@ -86,8 +86,18 @@ Generativer, genreabhängiger 4-Spur-Sequencer für VCV Rack 2. Erfindet Loops (
 - [x] Display: Spur-Genres an den Lauflichtern, Szene, HARMONY-Farbe
 - [x] Tests: `test/test_tracks.cpp` (300 Zufallskombinationen Spur-Genres/Swing/Länge: Erzeugung, MIDI, Speichern)
 
+**Erledigt – GENRA Grid Editor (Stand 5. November 2026)**
+- [x] Zweites Modul `GenraGrid` (46 HP), Frontplatte aus `tools/grid_panel.py` (`real` → `res/GenraGrid.svg` + `src/LayoutGrid.hpp`, `preview <datei> piano|drums`)
+- [x] Verbindung: angedocktes GENRA links/rechts (Expander) oder per Menü gewählte Modul-ID (`linkedId`)
+- [x] Bearbeiten im UI-Thread auf einer Kopie; fertige Spur per `Genra::submitTrack()` → Audio-Thread übernimmt sie mit `copyTrack()`
+- [x] Erste Änderung friert die Spur ein (`freezeTrack`: klingt identisch – Test für alle 46 Profile × 4 Spuren); Fills/Drops/Humanize bleiben live
+- [x] Feste Noten können jetzt Slide, Akzent, Gate, Roll (Drums) und Akkordbezug (`froot`) speichern; Speicherformat erweitert (ältere Daten laden weiter)
+- [x] CHORD FOLLOW (`chordFollow[t]`): Grundton → neuer Grundton, sonst diatonische Verschiebung
+- [x] SNAP (Tonleiter/Akkord), UNDO/REDO (64 Schritte), COPY/PASTE BAR, CLEAR, GEN
+- [x] Tests: `test/test_edit.cpp`
+
 **Offen**
-- [ ] Test in Rack (Genre-Feld-Menü, CV-Eingänge, Szenen, v2-Patch laden)
+- [ ] Test in Rack (v3 + Grid Editor) (Genre-Feld-Menü, CV-Eingänge, Szenen, v2-Patch laden)
 - [ ] Länge pro Spur (Polymeter) – zurückgestellt: tonale Spuren müssten Akkorde über den echten Step statt den umgebrochenen lesen
 - [ ] Genres überarbeiten (eigene spätere Version), Genres aus MIDI lernen
 

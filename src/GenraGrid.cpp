@@ -145,6 +145,7 @@ struct GridDisplay : Widget {
 	Pattern work;        // pattern being edited (copy)
 	Pattern before;      // state before the current gesture (undo)
 	bool editing = false;
+	bool changed = false; // the current gesture really changed something
 	bool dirty = false;  // work has to be handed to GENRA
 	int showWork = 0;    // frames to keep drawing `work` after a hand-off
 	std::vector<GridNote> notes;
@@ -230,18 +231,26 @@ struct GridDisplay : Widget {
 		int t = module->track;
 		freezeTrack(work, P, t, L);
 		editing = true;
+		changed = false;
 		return true;
 	}
 	void apply() { // the note list was changed during a gesture
 		int t = module->track;
 		if (t != T_DRUMS)
 			writeTrackNotes(work, P, t, notes, L);
+		changed = true;
+		dirty = true;
+	}
+	void touched() { // drum / direct pattern edits
+		changed = true;
 		dirty = true;
 	}
 	void commit() {
 		if (!editing)
 			return;
 		editing = false;
+		if (!changed)
+			return; // e.g. a click on a note without moving it: the track stays as it is
 		pushUndo(before, module->track);
 		dirty = true;
 	}
@@ -331,7 +340,7 @@ struct GridDisplay : Widget {
 			bool on = work.drums[v][s].fv > 0;
 			drag = on ? D_ERASE : D_PAINT;
 			setDrum(work, v, s, on ? 0 : newVel(), 1);
-			dirty = true;
+			touched();
 			return;
 		}
 		notes = trackNotes(work, P, t, L);
@@ -367,9 +376,9 @@ struct GridDisplay : Widget {
 		int t = module->track;
 		if (t == T_DRUMS) {
 			DrumStep& d = work.drums[module->drumRow][s];
-			if (d.fv) {
+			if (d.fv && d.fv != v) {
 				d.fv = (uint8_t)v;
-				dirty = true;
+				touched();
 			}
 			return;
 		}
@@ -400,7 +409,7 @@ struct GridDisplay : Widget {
 			int want = drag == D_PAINT ? newVel() : 0;
 			if ((work.drums[v][s].fv > 0) != (want > 0)) {
 				setDrum(work, v, s, want, 1);
-				dirty = true;
+				touched();
 			}
 			return;
 		}
@@ -473,6 +482,7 @@ struct GridDisplay : Widget {
 			DrumStep& ds = work.drums[v][s];
 			if (ds.fv) {
 				ds.fv = (uint8_t)clamp(ds.fv + d, 1, 127);
+				touched();
 				commit();
 			}
 			else
@@ -511,7 +521,7 @@ struct GridDisplay : Widget {
 			if (tt != T_DRUMS)
 				self->apply();
 			else
-				self->dirty = true;
+				self->touched();
 			self->commit();
 		};
 		if (t == T_DRUMS) {
@@ -608,7 +618,7 @@ struct GridDisplay : Widget {
 			return false;
 		bool ok = pasteBar(work, module->track, firstBar(), clip);
 		if (ok) {
-			dirty = true;
+			touched();
 			commit();
 		}
 		else
@@ -619,7 +629,7 @@ struct GridDisplay : Widget {
 		if (!begin())
 			return;
 		clearTrack(work, module->track);
-		dirty = true;
+		touched();
 		commit();
 	}
 	void doGen() {
