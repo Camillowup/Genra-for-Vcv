@@ -403,7 +403,7 @@ struct AnimalWidget : ModuleWidget {
 		modes->accent = ACCENT;
 		addParam(modes);
 
-		addParam(createParamCentered<RoundSmallBlackKnob>(jiant::at(L::MODE), module, Animal::MODE_PARAM));
+		addParam(createParamCentered<GSmallKnob>(jiant::at(L::MODE), module, Animal::MODE_PARAM));
 		addParam(createParamCentered<VCVBezel>(jiant::at(L::PREV), module, Animal::PREV_PARAM));
 		addParam(createParamCentered<VCVBezel>(jiant::at(L::NEXT), module, Animal::NEXT_PARAM));
 		addParam(createLightParamCentered<VCVLightBezel<jiant::AccentLight<JIANT_ANIMAL_RGB>>>(
@@ -412,11 +412,11 @@ struct AnimalWidget : ModuleWidget {
 		vs->place(L::VOICE, 3);
 		vs->accent = ACCENT;
 		addParam(vs);
-		addParam(createParamCentered<RoundSmallBlackKnob>(jiant::at(L::LEVEL), module, Animal::LEVEL_PARAM));
+		addParam(createParamCentered<GSmallKnob>(jiant::at(L::LEVEL), module, Animal::LEVEL_PARAM));
 
 		static const char* defLab[NE] = {"TOUCH", "COUPLE", "CAP", "HYST", "RATE", "GROUP", "FM"};
 		for (int k = 0; k < NE; k++) {
-			addParam(createParamCentered<RoundSmallBlackKnob>(jiant::at(L::E[k]), module, Animal::E_PARAM + k));
+			addParam(createParamCentered<GSmallKnob>(jiant::at(L::E[k]), module, Animal::E_PARAM + k));
 			addInput(createInputCentered<PJ301MPort>(jiant::at(L::E_IN[k]), module, Animal::E_INPUT + k));
 			jiant::KnobText* t = new jiant::KnobText;
 			t->box = jiant::area(L::E_TEXT[k]);
@@ -432,8 +432,8 @@ struct AnimalWidget : ModuleWidget {
 		const float* env[4] = {L::ATK, L::DEC, L::SUS, L::REL};
 		const float* fx[4] = {L::DIST, L::CHOR, L::DLY, L::REV};
 		for (int i = 0; i < 4; i++) {
-			addParam(createParamCentered<Trimpot>(jiant::at(env[i]), module, Animal::ATK_PARAM + i));
-			addParam(createParamCentered<Trimpot>(jiant::at(fx[i]), module, Animal::DIST_PARAM + i));
+			addParam(createParamCentered<GTrimpot>(jiant::at(env[i]), module, Animal::ATK_PARAM + i));
+			addParam(createParamCentered<GTrimpot>(jiant::at(fx[i]), module, Animal::DIST_PARAM + i));
 		}
 		addInput(createInputCentered<PJ301MPort>(jiant::at(L::VOCT), module, Animal::VOCT_INPUT));
 		addInput(createInputCentered<PJ301MPort>(jiant::at(L::GATE), module, Animal::GATE_INPUT));

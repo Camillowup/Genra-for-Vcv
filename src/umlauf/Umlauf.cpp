@@ -1231,8 +1231,8 @@ struct UmlaufWidget : ModuleWidget {
 		}
 
 		using M = Umlauf;
-		auto knob = [&](const float* p, int id) { addParam(createParamCentered<RoundBlackKnob>(ui::mm(p), module, id)); };
-		auto small = [&](const float* p, int id) { addParam(createParamCentered<RoundSmallBlackKnob>(ui::mm(p), module, id)); };
+		auto knob = [&](const float* p, int id) { addParam(createParamCentered<GKnob>(ui::mm(p), module, id)); };
+		auto small = [&](const float* p, int id) { addParam(createParamCentered<GSmallKnob>(ui::mm(p), module, id)); };
 		knob(L::SHAPE, M::SHAPE_PARAM);
 		knob(L::MODE, M::MODE_PARAM);
 		knob(L::SPEED, M::SPEED_PARAM);

@@ -133,8 +133,8 @@ struct UmlaufFxWidget : ModuleWidget {
 		addChild(createWidget<ScrewBlack>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 		addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
-		auto knob = [&](const float* p, int id) { addParam(createParamCentered<RoundBlackKnob>(ui::mm(p), module, id)); };
-		auto small = [&](const float* p, int id) { addParam(createParamCentered<RoundSmallBlackKnob>(ui::mm(p), module, id)); };
+		auto knob = [&](const float* p, int id) { addParam(createParamCentered<GKnob>(ui::mm(p), module, id)); };
+		auto small = [&](const float* p, int id) { addParam(createParamCentered<GSmallKnob>(ui::mm(p), module, id)); };
 		auto lamps = [&](const float* p, int id, int n) {
 			ui::LampRow* w = createParam<ui::LampRow>(Vec(0, 0), module, id);
 			w->place(p, n);

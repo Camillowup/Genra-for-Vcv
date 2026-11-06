@@ -526,8 +526,8 @@ struct StotterWidget : ModuleWidget {
 		addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
 		using M = Stotter;
-		auto small = [&](const float* p, int id) { addParam(createParamCentered<RoundSmallBlackKnob>(ui::mm(p), module, id)); };
-		auto knob = [&](const float* p, int id) { addParam(createParamCentered<RoundBlackKnob>(ui::mm(p), module, id)); };
+		auto small = [&](const float* p, int id) { addParam(createParamCentered<GSmallKnob>(ui::mm(p), module, id)); };
+		auto knob = [&](const float* p, int id) { addParam(createParamCentered<GKnob>(ui::mm(p), module, id)); };
 		auto in = [&](const float* p, int id) { addInput(createInputCentered<PJ301MPort>(ui::mm(p), module, id)); };
 
 		Display* d = new Display;
@@ -564,7 +564,7 @@ struct StotterWidget : ModuleWidget {
 		addParam(createLightParamCentered<SmallLatch<RED_>>(ui::mm(L::KILL_HI), module, M::KILL_HI_PARAM, M::KILL_HI_LIGHT));
 
 		// filter
-		addParam(createParamCentered<RoundLargeBlackKnob>(ui::mm(L::FILTER), module, M::FILTER_PARAM));
+		addParam(createParamCentered<GLargeKnob>(ui::mm(L::FILTER), module, M::FILTER_PARAM));
 		small(L::RESO, M::RESO_PARAM);
 		small(L::DRIVE, M::DRIVE_PARAM);
 		knob(L::INTENSITY, M::INTENSITY_PARAM);

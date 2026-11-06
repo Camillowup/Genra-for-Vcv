@@ -77,6 +77,7 @@ struct Kwasub : Module {
 		PRESET_INPUT,
 		SUB_INPUT, NOISE_INPUT, XMOD_INPUT, ATK_INPUT, REL_INPUT, SAT_INPUT, DLY_INPUT, VERB_INPUT,
 		MOD_INPUT, PRESS_INPUT, BEND_INPUT, GLIDE_INPUT,
+		ACC_INPUT, SLIDE_INPUT, // 2.13 (GENRA strip)
 		NUM_INPUTS
 	};
 	enum OutputId { ENV_OUTPUT, LFO_OUTPUT, L_OUTPUT, R_OUTPUT, NUM_OUTPUTS };
@@ -207,7 +208,8 @@ struct Kwasub : Module {
 		                              "Wobble depth CV", "Preset CV (0–10 V over all presets)", "Sub CV", "Noise CV",
 		                              "X-mod CV", "Amp attack CV", "Amp release CV", "Saturation CV", "Delay mix CV",
 		                              "Reverb mix CV", "Mod wheel (0–10 V)", "Pressure (0–10 V)", "Pitch bend (±5 V)",
-		                              "Glide CV"};
+		                              "Glide CV", "Accent (gate: the note starts louder and brighter, GENRA's ACC)",
+		                              "Slide (high: glide into the next note, GENRA's SLIDE)"};
 		for (int i = 0; i < NUM_INPUTS; i++)
 			configInput(i, in[i]);
 		configOutput(ENV_OUTPUT, "Amp envelope of the newest voice (0–10 V)");
@@ -481,6 +483,13 @@ struct Kwasub : Module {
 				continue;
 			cv[b.key()] += m->inputs[b.input].getVoltage() * 0.1f * (float) (fwHi(b) - fwLo(b));
 		}
+		// SLIDE high: glide on top of the GLIDE knob (GENRA's slides)
+		if (inputs[SLIDE_INPUT].getVoltage() >= 1.f)
+			for (const Bind& b : binds)
+				if (b.kind == PATCH && b.fw == kwid::V_GLIDE) {
+					cv[b.key()] += 0.35f * (float) (fwHi(b) - fwLo(b));
+					break;
+				}
 		bool done[NKEYS] = {};
 		for (const Bind& b : binds) {
 			int k = b.key();
@@ -513,6 +522,8 @@ struct Kwasub : Module {
 			}
 			int n = clamp((int) std::lround(60.f + 12.f * inputs[VOCT_INPUT].getPolyVoltage(c)), 0, 127);
 			int vel = velOn ? clamp((int) std::lround(inputs[VEL_INPUT].getPolyVoltage(c) * 12.7f), 1, 127) : 100;
+			if (g && !gate[c] && inputs[ACC_INPUT].getPolyVoltage(c) >= 1.f)
+				vel = std::min(127, vel + 30); // accent: velocity up (louder, the filter envelope opens further)
 			if (g && !gate[c]) {
 				a->midi(0x90, n, vel);
 				note[c] = n;
@@ -985,8 +996,8 @@ struct KwasubWidget : ModuleWidget {
 		field(L::FTYPE, M::FTYPE_PARAM, std::vector<std::string>(FILTER_NAMES, FILTER_NAMES + 7),
 		      std::vector<std::string>(FILTER_INFO, FILTER_INFO + 7));
 
-		auto knob = [&](const float* p, int id) { addParam(createParamCentered<RoundBlackKnob>(ui::mm(p), module, id)); };
-		auto small = [&](const float* p, int id) { addParam(createParamCentered<RoundSmallBlackKnob>(ui::mm(p), module, id)); };
+		auto knob = [&](const float* p, int id) { addParam(createParamCentered<GKnob>(ui::mm(p), module, id)); };
+		auto small = [&](const float* p, int id) { addParam(createParamCentered<GSmallKnob>(ui::mm(p), module, id)); };
 		const float* oscK[2][4] = {{L::A_P1, L::A_P2, L::A_P3, L::A_P4}, {L::B_P1, L::B_P2, L::B_P3, L::B_P4}};
 		const float* oscS[2][4] = {{L::A_LVL, L::A_OCT, L::A_SEMI, L::A_FINE}, {L::B_LVL, L::B_OCT, L::B_SEMI, L::B_FINE}};
 		for (int o = 0; o < 2; o++) {
@@ -996,7 +1007,7 @@ struct KwasubWidget : ModuleWidget {
 				small(oscS[o][k], p0 + 5 + k);
 			}
 		}
-		addParam(createParamCentered<RoundLargeBlackKnob>(ui::mm(L::F_CUT), module, M::CUT_PARAM));
+		addParam(createParamCentered<GLargeKnob>(ui::mm(L::F_CUT), module, M::CUT_PARAM));
 		knob(L::F_RES, M::RES_PARAM);
 		knob(L::F_DRV, M::DRV_PARAM);
 		knob(L::F_ENV, M::FENV_PARAM);
@@ -1028,7 +1039,7 @@ struct KwasubWidget : ModuleWidget {
 		                                   L::IN_RES,  L::IN_DRV,   L::IN_FENV,  L::IN_ASHP,  L::IN_ACOL,  L::IN_BSHP,
 		                                   L::IN_BCOL, L::IN_WOB,   L::IN_DEP,   L::IN_PRESET, L::IN_SUB,   L::IN_NOISE,
 		                                   L::IN_XMOD, L::IN_ATK,   L::IN_REL,   L::IN_SAT,   L::IN_DLY,   L::IN_VERB,
-		                                   L::IN_MOD,  L::IN_PRESS, L::IN_BEND,  L::IN_GLIDE};
+		                                   L::IN_MOD,  L::IN_PRESS, L::IN_BEND,  L::IN_GLIDE, L::IN_ACC, L::IN_SLIDE};
 		for (int i = 0; i < M::NUM_INPUTS; i++)
 			addInput(createInputCentered<PJ301MPort>(ui::mm(ins[i]), module, i));
 		const float* outs[M::NUM_OUTPUTS] = {L::OUT_ENV, L::OUT_LFO, L::OUT_L, L::OUT_R};

@@ -1737,10 +1737,10 @@ struct AblaufWidget : ModuleWidget {
 		nm->name = true;
 		add(nm, L::SECNAME);
 
-		addParam(createParamCentered<RoundBlackKnob>(ui::mm(L::ZEILE), module, A::ZEILE_PARAM));
-		addParam(createParamCentered<RowKnob<RoundSmallBlackKnob>>(ui::mm(L::PATTERN), module, A::PATTERN_PARAM));
-		addParam(createParamCentered<RowKnob<RoundSmallBlackKnob>>(ui::mm(L::TAKTE), module, A::TAKTE_PARAM));
-		addParam(createParamCentered<RowKnob<RoundSmallBlackKnob>>(ui::mm(L::ABSCHNITT), module, A::ABSCHNITT_PARAM));
+		addParam(createParamCentered<GKnob>(ui::mm(L::ZEILE), module, A::ZEILE_PARAM));
+		addParam(createParamCentered<RowKnob<GSmallKnob>>(ui::mm(L::PATTERN), module, A::PATTERN_PARAM));
+		addParam(createParamCentered<RowKnob<GSmallKnob>>(ui::mm(L::TAKTE), module, A::TAKTE_PARAM));
+		addParam(createParamCentered<RowKnob<GSmallKnob>>(ui::mm(L::ABSCHNITT), module, A::ABSCHNITT_PARAM));
 
 		const float* tr[4] = {L::TRACK0, L::TRACK1, L::TRACK2, L::TRACK3};
 		addParam(createLightParamCentered<VCVLightBezel<ALight<0x7b, 0x6c, 0xff>>>(ui::mm(tr[0]), module, A::TRACK_PARAM + 0, A::TRACK_LIGHT + 0));

@@ -1523,13 +1523,13 @@ struct GenraGridWidget : ModuleWidget {
 		addParam(createLightParamCentered<VCVLightBezel<GPink>>(P(glayout::TRACK_1), module, GenraGrid::TRACK_PARAM + 1, GenraGrid::TRACK_LIGHT + 1));
 		addParam(createLightParamCentered<VCVLightBezel<GCyan>>(P(glayout::TRACK_2), module, GenraGrid::TRACK_PARAM + 2, GenraGrid::TRACK_LIGHT + 2));
 		addParam(createLightParamCentered<VCVLightBezel<GPurple>>(P(glayout::TRACK_3), module, GenraGrid::TRACK_PARAM + 3, GenraGrid::TRACK_LIGHT + 3));
-		addParam(createParamCentered<RoundSmallBlackKnob>(P(glayout::BAR), module, GenraGrid::BAR_PARAM));
-		addParam(createParamCentered<RoundSmallBlackKnob>(P(glayout::ZOOM), module, GenraGrid::ZOOM_PARAM));
-		addParam(createParamCentered<RoundSmallBlackKnob>(P(glayout::PITCH), module, GenraGrid::PITCH_PARAM));
+		addParam(createParamCentered<GSmallKnob>(P(glayout::BAR), module, GenraGrid::BAR_PARAM));
+		addParam(createParamCentered<GSmallKnob>(P(glayout::ZOOM), module, GenraGrid::ZOOM_PARAM));
+		addParam(createParamCentered<GSmallKnob>(P(glayout::PITCH), module, GenraGrid::PITCH_PARAM));
 		addParam(createLightParamCentered<VCVLightBezelLatch<WhiteLight>>(P(glayout::AUTO), module, GenraGrid::AUTO_PARAM, GenraGrid::AUTO_LIGHT));
-		addParam(createParamCentered<RoundSmallBlackKnob>(P(glayout::VEL), module, GenraGrid::VEL_PARAM));
-		addParam(createParamCentered<RoundSmallBlackKnob>(P(glayout::LEN), module, GenraGrid::LEN_PARAM));
-		addParam(createParamCentered<RoundSmallBlackKnob>(P(glayout::CHANCE), module, GenraGrid::CHANCE_PARAM));
+		addParam(createParamCentered<GSmallKnob>(P(glayout::VEL), module, GenraGrid::VEL_PARAM));
+		addParam(createParamCentered<GSmallKnob>(P(glayout::LEN), module, GenraGrid::LEN_PARAM));
+		addParam(createParamCentered<GSmallKnob>(P(glayout::CHANCE), module, GenraGrid::CHANCE_PARAM));
 		addParam(createParamCentered<VCVBezel>(P(glayout::SNAP), module, GenraGrid::SNAP_PARAM));
 		const float* sl[3] = {glayout::SNAPLED_0, glayout::SNAPLED_1, glayout::SNAPLED_2};
 		for (int i = 0; i < 3; i++)

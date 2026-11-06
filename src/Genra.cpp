@@ -393,7 +393,7 @@ struct GenraWidget : ModuleWidget {
 		addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
 		auto P = [](const float* p) { return mm2px(Vec(p[0], p[1])); };
-		auto knob = [&](const float* p, int id) { addParam(createParamCentered<RoundSmallBlackKnob>(P(p), module, id)); };
+		auto knob = [&](const float* p, int id) { addParam(createParamCentered<GSmallKnob>(P(p), module, id)); };
 		auto in = [&](const float* p, int id) { addInput(createInputCentered<PJ301MPort>(P(p), module, id)); };
 		auto out = [&](const float* p, int id) { addOutput(createOutputCentered<PJ301MPort>(P(p), module, id)); };
 
@@ -403,7 +403,7 @@ struct GenraWidget : ModuleWidget {
 		addChild(disp);
 
 		// global row
-		addParam(createParamCentered<RoundLargeBlackKnob>(P(layout::GENRE), module, Genra::GENRE_PARAM));
+		addParam(createParamCentered<GLargeKnob>(P(layout::GENRE), module, Genra::GENRE_PARAM));
 		knob(layout::BPM, Genra::BPM_PARAM);
 		knob(layout::KEY, Genra::KEY_PARAM);
 		knob(layout::SCALE, Genra::SCALE_PARAM);
@@ -444,6 +444,7 @@ struct GenraWidget : ModuleWidget {
 		out(layout::OUT_FILL, Genra::FILL_OUTPUT);
 		out(layout::OUT_ROOT, Genra::ROOT_OUTPUT);
 		out(layout::OUT_CHORD, Genra::CHORD_OUTPUT);
+		out(layout::OUT_DRUMS, Genra::DRUMS_OUTPUT);
 
 
 		// tracks
@@ -456,7 +457,7 @@ struct GenraWidget : ModuleWidget {
 		const float* tnew[4] = {layout::NEW_0, layout::NEW_1, layout::NEW_2, layout::NEW_3};
 		const float* tin[4] = {layout::IN_NEW_0, layout::IN_NEW_1, layout::IN_NEW_2, layout::IN_NEW_3};
 		for (int t = 0; t < 4; t++) {
-			addParam(createParamCentered<RoundBlackKnob>(P(dens[t]), module, Genra::DENS_PARAM + t));
+			addParam(createParamCentered<GKnob>(P(dens[t]), module, Genra::DENS_PARAM + t));
 			in(densIn[t], Genra::DENS_INPUT + t);
 			GenreField* gf = createWidget<GenreField>(mm2px(Vec(field[t][0], field[t][1])));
 			gf->box.size = mm2px(Vec(field[t][2], field[t][3]));
@@ -474,7 +475,7 @@ struct GenraWidget : ModuleWidget {
 		knob(layout::VOICING, Genra::VOICING_PARAM);
 		const float* oct[3] = {layout::OCT_0, layout::OCT_1, layout::OCT_2};
 		for (int i = 0; i < 3; i++)
-			addParam(createParamCentered<Trimpot>(P(oct[i]), module, Genra::OCT_PARAM + i));
+			addParam(createParamCentered<GTrimpot>(P(oct[i]), module, Genra::OCT_PARAM + i));
 
 		addParam(createLightParamCentered<VCVLightBezelLatch<OrangeLight>>(P(mute[0]), module, Genra::MUTE_PARAM + 0, Genra::MUTE_LIGHT + 0));
 		addParam(createLightParamCentered<VCVLightBezelLatch<PinkLight>>(P(mute[1]), module, Genra::MUTE_PARAM + 1, Genra::MUTE_LIGHT + 1));

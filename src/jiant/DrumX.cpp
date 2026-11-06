@@ -69,7 +69,7 @@ struct DrumX : Module {
 		DLY_PARAM, REV_PARAM, MASTER_PARAM,
 		PARAMS_LEN
 	};
-	enum InputId { MORPH_INPUT, VOCT_INPUT, GATE_INPUT, ENUMS(MACRO_INPUT, NM), ENUMS(TRIG_INPUT, NL), ACC_INPUT, INPUTS_LEN };
+	enum InputId { MORPH_INPUT, VOCT_INPUT, GATE_INPUT, ENUMS(MACRO_INPUT, NM), ENUMS(TRIG_INPUT, NL), ACC_INPUT, GENRA_INPUT, INPUTS_LEN };
 	enum OutputId { ENUMS(LANE_OUTPUT, NL), L_OUTPUT, R_OUTPUT, OUTPUTS_LEN };
 	enum LightId { LIGHTS_LEN };
 
@@ -100,7 +100,7 @@ struct DrumX : Module {
 	int sndShown[JDX_NSND];
 	int sndLane = -1, sndPatch = -1;
 	uint32_t framesSinceVis = 0;
-	dsp::SchmittTrigger trig[NL];
+	dsp::SchmittTrigger trig[NL], gtrig[8];
 	bool padDown[NL] = {};
 	struct CvVoice { bool gate = false; };
 	CvVoice cv[16];
@@ -133,6 +133,7 @@ struct DrumX : Module {
 		configInput(VOCT_INPUT, "V/Oct (GM drum notes: C2 kick, D2 snare, F#2 closed hat ..)");
 		configInput(GATE_INPUT, "Gate (polyphonic)");
 		configInput(ACC_INPUT, "Accent (high: every hit at full velocity)");
+		configInput(GENRA_INPUT, "Drums from GENRA (polyphonic, GENRA's order: kick, snare, clap, rim, closed hat, open hat, tom, perc; height = velocity)");
 		configOutput(L_OUTPUT, "Mix left (mono when Right is not patched)");
 		configOutput(R_OUTPUT, "Mix right");
 		for (int j = 0; j < PARAMS_LEN; j++)
@@ -365,6 +366,19 @@ struct DrumX : Module {
 			if (trig[l].process(g, 0.1f, 1.f)) {
 				int v = accent(clamp((int) std::round(g * 12.7f), 1, 127));
 				forAll([&](const jdx_api* a) { a->hit(l, v); });
+			}
+		}
+		// GENRA's DRUMS cable: its 8 tracks in GENRA's order onto the lanes (rim and the hats sit elsewhere here)
+		if (inputs[GENRA_INPUT].isConnected()) {
+			static const int TO_LANE[8] = {0, 1, 2, 6, 3, 4, 5, 7};
+			int gc = std::min(8, inputs[GENRA_INPUT].getChannels());
+			for (int c = 0; c < gc; c++) {
+				float g = inputs[GENRA_INPUT].getPolyVoltage(c);
+				if (gtrig[c].process(g, 0.1f, 1.f)) {
+					int l = TO_LANE[c];
+					int v = accent(clamp((int) std::round(g * 12.7f), 1, 127));
+					forAll([&](const jdx_api* a) { a->hit(l, v); });
+				}
 			}
 		}
 		int n = inputs[GATE_INPUT].isConnected() ? std::max(1, inputs[GATE_INPUT].getChannels()) : 0;
@@ -634,7 +648,7 @@ struct DrumXWidget : ModuleWidget {
 
 		addParam(createParamCentered<VCVBezel>(jiant::at(L::PREV), module, DrumX::PREV_PARAM));
 		addParam(createParamCentered<VCVBezel>(jiant::at(L::NEXT), module, DrumX::NEXT_PARAM));
-		addParam(createParamCentered<RoundSmallBlackKnob>(jiant::at(L::MORPH), module, DrumX::MORPH_PARAM));
+		addParam(createParamCentered<GSmallKnob>(jiant::at(L::MORPH), module, DrumX::MORPH_PARAM));
 		addInput(createInputCentered<PJ301MPort>(jiant::at(L::MORPH_IN), module, DrumX::MORPH_INPUT));
 		addInput(createInputCentered<PJ301MPort>(jiant::at(L::VOCT), module, DrumX::VOCT_INPUT));
 		addInput(createInputCentered<PJ301MPort>(jiant::at(L::GATE), module, DrumX::GATE_INPUT));
@@ -643,10 +657,10 @@ struct DrumXWidget : ModuleWidget {
 		sh->box = jiant::area(L::SOUND_HEAD);
 		addChild(sh);
 		for (int k = 0; k < JDX_NSND; k++)
-			addParam(createParamCentered<Trimpot>(jiant::at(L::SND[k]), module, DrumX::SND_PARAM + k));
+			addParam(createParamCentered<GTrimpot>(jiant::at(L::SND[k]), module, DrumX::SND_PARAM + k));
 
 		for (int i = 0; i < NM; i++) {
-			addParam(createParamCentered<RoundSmallBlackKnob>(jiant::at(L::MACRO[i]), module, DrumX::MACRO_PARAM + i));
+			addParam(createParamCentered<GSmallKnob>(jiant::at(L::MACRO[i]), module, DrumX::MACRO_PARAM + i));
 			addInput(createInputCentered<PJ301MPort>(jiant::at(L::MACRO_IN[i]), module, DrumX::MACRO_INPUT + i));
 		}
 
@@ -662,14 +676,15 @@ struct DrumXWidget : ModuleWidget {
 			p->l = l;
 			addParam(p);
 			addInput(createInputCentered<PJ301MPort>(jiant::at(L::TRIG[l]), module, DrumX::TRIG_INPUT + l));
-			addParam(createParamCentered<Trimpot>(jiant::at(L::LEVEL[l]), module, DrumX::LEVEL_PARAM + l));
+			addParam(createParamCentered<GTrimpot>(jiant::at(L::LEVEL[l]), module, DrumX::LEVEL_PARAM + l));
 			addOutput(createOutputCentered<PJ301MPort>(jiant::at(L::LANE_OUT[l]), module, DrumX::LANE_OUTPUT + l));
 		}
 
 		addInput(createInputCentered<PJ301MPort>(jiant::at(L::ACC), module, DrumX::ACC_INPUT));
-		addParam(createParamCentered<Trimpot>(jiant::at(L::DLY), module, DrumX::DLY_PARAM));
-		addParam(createParamCentered<Trimpot>(jiant::at(L::REV), module, DrumX::REV_PARAM));
-		addParam(createParamCentered<Trimpot>(jiant::at(L::MASTER), module, DrumX::MASTER_PARAM));
+		addInput(createInputCentered<PJ301MPort>(jiant::at(L::GENRA_IN), module, DrumX::GENRA_INPUT));
+		addParam(createParamCentered<GTrimpot>(jiant::at(L::DLY), module, DrumX::DLY_PARAM));
+		addParam(createParamCentered<GTrimpot>(jiant::at(L::REV), module, DrumX::REV_PARAM));
+		addParam(createParamCentered<GTrimpot>(jiant::at(L::MASTER), module, DrumX::MASTER_PARAM));
 		addOutput(createOutputCentered<PJ301MPort>(jiant::at(L::OUT_L), module, DrumX::L_OUTPUT));
 		addOutput(createOutputCentered<PJ301MPort>(jiant::at(L::OUT_R), module, DrumX::R_OUTPUT));
 	}

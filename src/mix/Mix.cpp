@@ -196,8 +196,8 @@ struct MixWidget : ModuleWidget {
 		addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
 		using M = Mix;
-		auto small = [&](const float* p, int id) { addParam(createParamCentered<RoundSmallBlackKnob>(ui::mm(p), module, id)); };
-		auto large = [&](const float* p, int id) { addParam(createParamCentered<RoundLargeBlackKnob>(ui::mm(p), module, id)); };
+		auto small = [&](const float* p, int id) { addParam(createParamCentered<GSmallKnob>(ui::mm(p), module, id)); };
+		auto large = [&](const float* p, int id) { addParam(createParamCentered<GLargeKnob>(ui::mm(p), module, id)); };
 		auto meter = [&](const float* a, int ch, NVGcolor c) {
 			MeterWidget* w = new MeterWidget;
 			w->module = module;

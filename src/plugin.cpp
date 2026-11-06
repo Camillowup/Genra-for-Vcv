@@ -2,6 +2,11 @@
 
 Plugin* pluginInstance;
 
+void GenraKnob::load(const char* n) {
+	setSvg(Svg::load(asset::plugin(pluginInstance, std::string("res/knob/") + n + ".svg")));
+	bg->setSvg(Svg::load(asset::plugin(pluginInstance, std::string("res/knob/") + n + "_bg.svg")));
+}
+
 void init(Plugin* p) {
 	pluginInstance = p;
 	p->addModel(modelGenra);

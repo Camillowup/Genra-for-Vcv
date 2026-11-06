@@ -29,6 +29,7 @@ struct Schmelz : Module {
 		STR_VOCT_INPUT, STR_GATE_INPUT, STR_VEL_INPUT, SOLO_VOCT_INPUT, SOLO_GATE_INPUT, SOLO_VEL_INPUT,
 		REG_INPUT, CRESC_INPUT, REL_INPUT, TONE_INPUT, ENS_INPUT, OCT_INPUT,
 		SOUND_INPUT, DECAY_INPUT, TREM_INPUT, BAL_INPUT, ANIM_INPUT, VERB_INPUT,
+		MOD_INPUT, // 2.13: GENRA's pad MOD (or any 0–10 V), onto crescendo / animate / tone
 		NUM_INPUTS
 	};
 	enum OutputId { ENV_OUTPUT, STR_OUTPUT, SOLO_OUTPUT, L_OUTPUT, R_OUTPUT, NUM_OUTPUTS };
@@ -145,6 +146,7 @@ struct Schmelz : Module {
 		configInput(TREM_INPUT, "Tremolo CV");
 		configInput(BAL_INPUT, "Balance CV");
 		configInput(ANIM_INPUT, "Animate CV");
+		configInput(MOD_INPUT, "Mod (0–10 V, e.g. GENRA's pad MOD; target in the context menu)");
 		configInput(VERB_INPUT, "Reverb CV");
 		configOutput(ENV_OUTPUT, "Strings envelope (0–10 V, polyphonic)");
 		configOutput(STR_OUTPUT, "Strings (with ensemble, no phaser or reverb)");
@@ -174,6 +176,18 @@ struct Schmelz : Module {
 			so[i].stage = 0;
 			gate[i] = soloGate[i] = held[i] = soloOwnGate[i] = false;
 		}
+	}
+
+	int modTarget = 0; // MOD onto: 0 crescendo, 1 animate, 2 tone
+
+	json_t* dataToJson() override {
+		json_t* root = json_object();
+		json_object_set_new(root, "modTarget", json_integer(modTarget));
+		return root;
+	}
+	void dataFromJson(json_t* root) override {
+		if (json_t* j = json_object_get(root, "modTarget"))
+			modTarget = clamp((int) json_integer_value(j), 0, 2);
 	}
 
 	float kv(int param, int input, int c = 0) {
@@ -207,6 +221,15 @@ struct Schmelz : Module {
 			bp.verb = kv(VERB_PARAM, VERB_INPUT);
 			bp.size = params[SIZE_PARAM].getValue();
 			bp.trem = kv(TREM_PARAM, TREM_INPUT);
+			if (inputs[MOD_INPUT].isConnected()) {
+				float m = clamp(inputs[MOD_INPUT].getVoltage() * 0.1f, 0.f, 1.f);
+				if (modTarget == 0)
+					sp.cresc = clamp(sp.cresc + m, 0.f, 1.f);
+				else if (modTarget == 1)
+					bp.anim = clamp(bp.anim + m, 0.f, 1.f);
+				else
+					sp.tone = clamp(sp.tone + m, 0.f, 1.f);
+			}
 			bp.tremRate = params[TRATE_PARAM].getValue();
 			bp.bal = kv(BAL_PARAM, BAL_INPUT);
 			bp.vol = params[VOLUME_PARAM].getValue();
@@ -380,9 +403,9 @@ struct SchmelzWidget : ModuleWidget {
 		addChild(d);
 
 		using M = Schmelz;
-		auto large = [&](const float* p, int id) { addParam(createParamCentered<RoundLargeBlackKnob>(ui::mm(p), module, id)); };
-		auto knob = [&](const float* p, int id) { addParam(createParamCentered<RoundBlackKnob>(ui::mm(p), module, id)); };
-		auto small = [&](const float* p, int id) { addParam(createParamCentered<RoundSmallBlackKnob>(ui::mm(p), module, id)); };
+		auto large = [&](const float* p, int id) { addParam(createParamCentered<GLargeKnob>(ui::mm(p), module, id)); };
+		auto knob = [&](const float* p, int id) { addParam(createParamCentered<GKnob>(ui::mm(p), module, id)); };
+		auto small = [&](const float* p, int id) { addParam(createParamCentered<GSmallKnob>(ui::mm(p), module, id)); };
 		auto lamps = [&](const float* p, int id, int n) {
 			ui::LampRow* w = createParam<ui::LampRow>(Vec(0, 0), module, id);
 			w->place(p, n);
@@ -421,7 +444,7 @@ struct SchmelzWidget : ModuleWidget {
 		const float* ins[M::NUM_INPUTS] = {L::STR_VOCT, L::STR_GATE, L::STR_VEL, L::SOLO_VOCT, L::SOLO_GATE,
 		                                   L::SOLO_VEL, L::IN_REG,   L::IN_CRESC, L::IN_REL,   L::IN_TONE,
 		                                   L::IN_ENS,   L::IN_OCT,   L::IN_SOUND, L::IN_DECAY, L::IN_TREM,
-		                                   L::IN_BAL,   L::IN_ANIM,  L::IN_VERB};
+		                                   L::IN_BAL,   L::IN_ANIM,  L::IN_VERB,  L::IN_MOD};
 		for (int i = 0; i < M::NUM_INPUTS; i++)
 			addInput(createInputCentered<PJ301MPort>(ui::mm(ins[i]), module, i));
 		const float* outs[M::NUM_OUTPUTS] = {L::OUT_ENV, L::OUT_STR, L::OUT_SOLO, L::OUT_L, L::OUT_R};
@@ -433,6 +456,11 @@ struct SchmelzWidget : ModuleWidget {
 		menu->addChild(new MenuSeparator);
 		menu->addChild(createMenuLabel("String machine: strings + solo, up to 16 voices each"));
 		menu->addChild(createMenuLabel("SOLO GATE unplugged: the solo plays the strings notes (SPLIT at C4)"));
+		Schmelz* m = dynamic_cast<Schmelz*>(module);
+		if (m)
+			menu->addChild(createIndexSubmenuItem("MOD input goes to", {"Crescendo", "Animate", "Tone"},
+			                                      [=]() { return (size_t) m->modTarget; },
+			                                      [=](size_t v) { m->modTarget = (int) v; }));
 	}
 };
 

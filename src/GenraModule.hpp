@@ -144,6 +144,8 @@ struct Genra : Module {
 		FILL_OUTPUT,
 		ROOT_OUTPUT,
 		CHORD_OUTPUT,
+		// 2.13
+		DRUMS_OUTPUT, // all 8 drum tracks on one poly cable (GENRA's order)
 		OUTPUTS_LEN
 	};
 	enum LightId {
@@ -411,6 +413,7 @@ struct Genra : Module {
 	int padPrev[4] = {60, 64, 67, 72};
 	bool padHasPrev = false;
 	float modTarget = 0.f, modValue = 0.f;
+	float drumOut[NUM_DRUMS] = {};
 	float newFlash = 0.f;
 	dsp::ClockDivider lightDivider;
 
@@ -504,6 +507,7 @@ struct Genra : Module {
 		configOutput(FILL_OUTPUT, "Fill / Drop (Gate)");
 		configOutput(ROOT_OUTPUT, "Grundton des aktuellen Akkords (V/Oct)");
 		configOutput(CHORD_OUTPUT, "Aktueller Akkord (polyphon, V/Oct)");
+		configOutput(DRUMS_OUTPUT, "All 8 drum tracks (polyphonic, GENRA's order: kick, snare, clap, rim, closed hat, open hat, tom, perc; height = velocity)");
 		for (int v = 0; v < NUM_DRUMS; v++)
 			configOutput(DRUM_OUTPUT + v, std::string(DRUM_NAMES[v]) + " Trigger (Höhe = Velocity)");
 		configOutput(BASS_VOCT_OUTPUT, "Bass V/Oct");
@@ -1133,6 +1137,12 @@ struct Genra : Module {
 				out = 10.f * d.vel;
 			}
 			outputs[DRUM_OUTPUT + v].setVoltage(out);
+			drumOut[v] = out;
+		}
+		if (outputs[DRUMS_OUTPUT].isConnected()) {
+			outputs[DRUMS_OUTPUT].setChannels(NUM_DRUMS);
+			for (int v = 0; v < NUM_DRUMS; v++)
+				outputs[DRUMS_OUTPUT].setVoltage(drumOut[v], v);
 		}
 		auto mono = [&](MonoVoice& m, int voct, int gate, int vel, int acc, int slide) {
 			bool g = m.gate > 0.f && m.retrig <= 0.f;

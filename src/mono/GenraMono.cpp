@@ -240,8 +240,8 @@ struct GenraMono : Module {
 		configInput(EXT_INPUT, "External audio into the filter");
 		configInput(ACC_INPUT, "Accent (gate, taken at the start of a note)");
 		configInput(SLIDE_INPUT, "Slide (glides while high; patched: glide only on slides)");
-		configInput(RETRIG_INPUT, "LFO retrigger");
-		configInput(SYNC_INPUT, "LFO sync (clock; RATE then picks the note value)");
+		configInput(RETRIG_INPUT, "Reset (restarts the LFO)");
+		configInput(SYNC_INPUT, "Clock (the LFO follows the tempo; RATE then picks the note value)");
 		configOutput(OLD_LFO_OUTPUT, "(unused)");
 		configOutput(L_OUTPUT, "Left (mono when R is not patched)");
 		configOutput(R_OUTPUT, "Right");
@@ -531,8 +531,8 @@ struct GenraMonoWidget : ModuleWidget {
 		addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
 		using M = GenraMono;
-		auto knob = [&](const float* p, int id) { addParam(createParamCentered<RoundBlackKnob>(P(p), module, id)); };
-		auto small = [&](const float* p, int id) { addParam(createParamCentered<RoundSmallBlackKnob>(P(p), module, id)); };
+		auto knob = [&](const float* p, int id) { addParam(createParamCentered<GKnob>(P(p), module, id)); };
+		auto small = [&](const float* p, int id) { addParam(createParamCentered<GSmallKnob>(P(p), module, id)); };
 		knob(L::WAVE1, M::WAVE1_PARAM);
 		knob(L::TUNE1, M::TUNE1_PARAM);
 		knob(L::LEVEL1, M::LEVEL1_PARAM);
@@ -551,7 +551,7 @@ struct GenraMonoWidget : ModuleWidget {
 		pf->box.size = mm2px(Vec(L::PFIELD[2], L::PFIELD[3]));
 		pf->module = module;
 		addChild(pf);
-		addParam(createParamCentered<RoundLargeBlackKnob>(P(L::CUTOFF), module, M::CUTOFF_PARAM));
+		addParam(createParamCentered<GLargeKnob>(P(L::CUTOFF), module, M::CUTOFF_PARAM));
 		knob(L::RES, M::RES_PARAM);
 		knob(L::EGAMT, M::EGAMT_PARAM);
 		small(L::DRIVE, M::DRIVE_PARAM);

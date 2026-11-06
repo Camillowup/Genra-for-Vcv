@@ -403,12 +403,12 @@ struct MonkWidget : ModuleWidget {
 		route->place(L::ROUTE, 4);
 		route->accent = ACCENT;
 		addParam(route);
-		addParam(createParamCentered<Trimpot>(jiant::at(L::PDEPTH), module, Monk::PDEPTH_PARAM));
-		addParam(createParamCentered<Trimpot>(jiant::at(L::VELSENS), module, Monk::VELSENS_PARAM));
-		addParam(createParamCentered<RoundSmallBlackKnob>(jiant::at(L::LEVEL), module, Monk::LEVEL_PARAM));
+		addParam(createParamCentered<GTrimpot>(jiant::at(L::PDEPTH), module, Monk::PDEPTH_PARAM));
+		addParam(createParamCentered<GTrimpot>(jiant::at(L::VELSENS), module, Monk::VELSENS_PARAM));
+		addParam(createParamCentered<GSmallKnob>(jiant::at(L::LEVEL), module, Monk::LEVEL_PARAM));
 
 		for (int k = 0; k < NK; k++) {
-			addParam(createParamCentered<RoundSmallBlackKnob>(jiant::at(L::K[k]), module, Monk::K_PARAM + k));
+			addParam(createParamCentered<GSmallKnob>(jiant::at(L::K[k]), module, Monk::K_PARAM + k));
 			addInput(createInputCentered<PJ301MPort>(jiant::at(L::K_IN[k]), module, Monk::K_INPUT + k));
 			jiant::KnobText* t = new jiant::KnobText;
 			t->box = jiant::area(L::K_TEXT[k]);
@@ -434,7 +434,7 @@ struct MonkWidget : ModuleWidget {
 		}
 		const float* small[9] = {L::ATK, L::DEC, L::SUS, L::REL, L::VIBD, L::VIBR, L::ECHO, L::TIME, L::FB};
 		for (int i = 0; i < 9; i++)
-			addParam(createParamCentered<Trimpot>(jiant::at(small[i]), module, Monk::ATK_PARAM + i));
+			addParam(createParamCentered<GTrimpot>(jiant::at(small[i]), module, Monk::ATK_PARAM + i));
 
 		addInput(createInputCentered<PJ301MPort>(jiant::at(L::VOCT), module, Monk::VOCT_INPUT));
 		addInput(createInputCentered<PJ301MPort>(jiant::at(L::GATE), module, Monk::GATE_INPUT));

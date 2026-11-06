@@ -536,11 +536,11 @@ struct VoiceWidget : ModuleWidget {
 		vs->place(L::VOICE, 3);
 		vs->accent = ACCENT;
 		addParam(vs);
-		addParam(createParamCentered<RoundSmallBlackKnob>(jiant::at(L::LEVEL), module, Voice::LEVEL_PARAM));
+		addParam(createParamCentered<GSmallKnob>(jiant::at(L::LEVEL), module, Voice::LEVEL_PARAM));
 
 		static const char* defLab[NE] = {"VOWEL", "VOWEL2", "TALK", "SHIFT", "BUZZ", "BREATH", "Q", "RAND"};
 		for (int k = 0; k < NE; k++) {
-			addParam(createParamCentered<RoundSmallBlackKnob>(jiant::at(L::E[k]), module, Voice::E_PARAM + k));
+			addParam(createParamCentered<GSmallKnob>(jiant::at(L::E[k]), module, Voice::E_PARAM + k));
 			addInput(createInputCentered<PJ301MPort>(jiant::at(L::E_IN[k]), module, Voice::E_INPUT + k));
 			jiant::KnobText* t = new jiant::KnobText;
 			t->box = jiant::area(L::E_TEXT[k]);
@@ -556,8 +556,8 @@ struct VoiceWidget : ModuleWidget {
 		const float* env[4] = {L::ATK, L::DEC, L::SUS, L::REL};
 		const float* fx[4] = {L::DIST, L::CHOR, L::DLY, L::REV};
 		for (int i = 0; i < 4; i++) {
-			addParam(createParamCentered<Trimpot>(jiant::at(env[i]), module, Voice::ATK_PARAM + i));
-			addParam(createParamCentered<Trimpot>(jiant::at(fx[i]), module, Voice::DIST_PARAM + i));
+			addParam(createParamCentered<GTrimpot>(jiant::at(env[i]), module, Voice::ATK_PARAM + i));
+			addParam(createParamCentered<GTrimpot>(jiant::at(fx[i]), module, Voice::DIST_PARAM + i));
 		}
 		addInput(createInputCentered<PJ301MPort>(jiant::at(L::VOCT), module, Voice::VOCT_INPUT));
 		addInput(createInputCentered<PJ301MPort>(jiant::at(L::GATE), module, Voice::GATE_INPUT));

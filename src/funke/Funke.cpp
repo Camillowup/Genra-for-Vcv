@@ -32,6 +32,7 @@ struct Funke : Module {
 		VOCT_INPUT, GATE_INPUT, VEL_INPUT, ACC_INPUT, SLIDE_INPUT, CLOCK_INPUT,
 		MODEL_INPUT, TIMBRE_INPUT, BITE_INPUT, CUT_INPUT, RES_INPUT,
 		VIB_INPUT, ECHO_INPUT, LOFI_INPUT, ATK_INPUT, REL_INPUT,
+		RESET_INPUT, // 2.13 (GENRA strip)
 		NUM_INPUTS
 	};
 	enum OutputId { ENV_OUTPUT, L_OUTPUT, R_OUTPUT, NUM_OUTPUTS };
@@ -75,7 +76,7 @@ struct Funke : Module {
 	Channel ch[MAXCH];
 	int ctl = 0;
 	int ppqn = 4;  // GENRA's CLOCK: 16ths
-	dsp::SchmittTrigger clockTrig;
+	dsp::SchmittTrigger clockTrig, resetTrig;
 	float sinceClock = 0.f, bpm = 120.f;
 	bool clockSeen = false;
 
@@ -139,7 +140,8 @@ struct Funke : Module {
 		configInput(BITE_INPUT, "Bite CV");
 		configInput(CUT_INPUT, "Cutoff CV (1 V/oct)");
 		configInput(RES_INPUT, "Resonance CV");
-		configInput(VIB_INPUT, "Vibrato depth CV (like a mod wheel)");
+		configInput(VIB_INPUT, "Mod: vibrato depth (like a mod wheel; GENRA's MOD)");
+		configInput(RESET_INPUT, "Reset (the tempo is measured anew from the next clock)");
 		configInput(ECHO_INPUT, "Echo level CV");
 		configInput(LOFI_INPUT, "Lo-fi CV");
 		configInput(ATK_INPUT, "Attack CV");
@@ -161,6 +163,11 @@ struct Funke : Module {
 	void process(const ProcessArgs& args) override {
 		// the clock: BPM from the time between pulses
 		sinceClock += args.sampleTime;
+		if (resetTrig.process(inputs[RESET_INPUT].getVoltage(), 0.1f, 1.f)) {
+			// a restart: the pause before it is no clock interval
+			clockSeen = false;
+			sinceClock = 0.f;
+		}
 		if (clockTrig.process(inputs[CLOCK_INPUT].getVoltage(), 0.1f, 1.f)) {
 			if (clockSeen && sinceClock > 0.005f && sinceClock < 4.f)
 				bpm = clamp(60.f / (sinceClock * ppqn), 20.f, 400.f);
@@ -403,9 +410,9 @@ struct FunkeWidget : ModuleWidget {
 		field(L::FTYPEF, M::FTYPE_PARAM, gmono::FILTER_NAMES, gmono::FILTER_INFO, gmono::NUM_FILTERS, "Filter type",
 		      "change filter type");
 
-		auto large = [&](const float* p, int id) { addParam(createParamCentered<RoundLargeBlackKnob>(ui::mm(p), module, id)); };
-		auto knob = [&](const float* p, int id) { addParam(createParamCentered<RoundBlackKnob>(ui::mm(p), module, id)); };
-		auto small = [&](const float* p, int id) { addParam(createParamCentered<RoundSmallBlackKnob>(ui::mm(p), module, id)); };
+		auto large = [&](const float* p, int id) { addParam(createParamCentered<GLargeKnob>(ui::mm(p), module, id)); };
+		auto knob = [&](const float* p, int id) { addParam(createParamCentered<GKnob>(ui::mm(p), module, id)); };
+		auto small = [&](const float* p, int id) { addParam(createParamCentered<GSmallKnob>(ui::mm(p), module, id)); };
 		auto lamps = [&](const float* p, int id, int n) {
 			ui::LampRow* w = createParam<ui::LampRow>(Vec(0, 0), module, id);
 			w->place(p, n);
@@ -445,7 +452,7 @@ struct FunkeWidget : ModuleWidget {
 
 		const float* ins[M::NUM_INPUTS] = {L::VOCT,    L::GATE,      L::VEL,     L::ACC,    L::SLIDE,  L::CLOCK,
 		                                   L::IN_MODEL, L::IN_TIMBRE, L::IN_BITE, L::IN_CUT, L::IN_RES, L::IN_VIB,
-		                                   L::IN_ECHO, L::IN_LOFI,   L::IN_ATK,  L::IN_REL};
+		                                   L::IN_ECHO, L::IN_LOFI,   L::IN_ATK,  L::IN_REL,  L::IN_RESET};
 		for (int i = 0; i < M::NUM_INPUTS; i++)
 			addInput(createInputCentered<PJ301MPort>(ui::mm(ins[i]), module, i));
 		const float* outs[M::NUM_OUTPUTS] = {L::OUT_ENV, L::OUT_L, L::OUT_R};
