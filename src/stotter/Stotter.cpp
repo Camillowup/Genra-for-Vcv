@@ -376,8 +376,8 @@ struct PadButton : app::Switch {
 		PadCfg c = st ? st->e.pads[st->e.slot(pad)] : defaultPad(pad);
 		int row = FX_ROW[c.fx];
 		NVGcolor col = ROW_COL[row];
-		int st = st ? st->e.padState(pad) : (pad == 2 ? 1 : 0);
-		bool on = st == 1 || (st == 2 && std::fmod(system::getTime(), 0.25) < 0.125);
+		int state = st ? st->e.padState(pad) : (pad == 2 ? 1 : 0);
+		bool on = state == 1 || (state == 2 && std::fmod(system::getTime(), 0.25) < 0.125);
 		bool down = st && st->down[pad];
 		bool edit = st && st->params[Stotter::EDIT_PARAM].getValue() > 0.5f && st->editPad == pad;
 		nvgBeginPath(vg);
@@ -390,7 +390,7 @@ struct PadButton : app::Switch {
 		ui::text(vg, font, w / 2, h * 0.38f, ROW_NAMES[row], 6.f, on ? DARK : col, NVG_ALIGN_CENTER, 0.6f);
 		std::string lab = padLabel(c);
 		ui::text(vg, font, w / 2, h * 0.68f, lab, lab.size() > 5 ? 7.4f : 9.5f, on ? DARK : ui::TXT, NVG_ALIGN_CENTER, 0.4f);
-		if (st == 1 && st) {
+		if (state == 1 && st) {
 			float p = st->e.progress();
 			if (p >= 0.f) {
 				nvgBeginPath(vg);
