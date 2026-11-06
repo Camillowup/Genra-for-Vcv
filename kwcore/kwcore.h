@@ -10,7 +10,7 @@
 extern "C" {
 #endif
 
-#define KW_API_VERSION 1u
+#define KW_API_VERSION 2u
 enum { KW_FRAMES = 256 };                           /* frames per render call */
 enum { KW_EQ_TYPE, KW_EQ_FREQ, KW_EQ_GAIN, KW_EQ_Q }; /* eq_get / eq_set */
 
@@ -47,6 +47,8 @@ typedef struct kw_api {
     uint32_t (*voices)(void);
     /* the LFO 1 cycle's position (0..1), for the display */
     float (*lfo_phase)(void);
+    /* the music a factory sound is for ("DUBSTEP"), to sort the presets (API 2) */
+    const char *(*preset_style)(uint32_t i);
 } kw_api;
 
 typedef const kw_api *(*kw_get_fn)(void);

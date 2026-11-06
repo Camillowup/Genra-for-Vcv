@@ -11,6 +11,8 @@
 #include "KwLayout.hpp"
 #include "KwasubFx.hpp"
 #include <cstring>
+#include <algorithm>
+#include <atomic>
 #include <mutex>
 
 namespace genra_kwasub {
@@ -87,6 +89,34 @@ struct Kwasub : Module {
 	bool fxWasThere = false, pushFx = false, pushMain = false;
 	int pushFxTicks = 0;  // a saved patch: the expander's saved knobs win if it is there within these blocks
 	int presetIdx = 0;
+	std::atomic<int> presetReq{-1};  // a preset picked in the UI, loaded by the engine thread
+	// the presets sorted by style, then name (the list, the wheel and PREV / NEXT go in this order)
+	std::vector<int> order;
+	std::vector<std::string> styleOf;
+	std::once_flag orderOnce;
+	const std::vector<int>& sorted() {
+		if (core.api)
+			std::call_once(orderOnce, [&]() {
+				int n = (int) core.api->npresets();
+				for (int i = 0; i < n; i++) {
+					order.push_back(i);
+					styleOf.push_back(core.api->preset_style(i));
+				}
+				std::stable_sort(order.begin(), order.end(), [&](int x, int y) {
+					if (styleOf[x] != styleOf[y]) return styleOf[x] < styleOf[y];
+					return std::string(core.api->preset_name(x)) < core.api->preset_name(y);
+				});
+			});
+		return order;
+	}
+	/** The preset d steps away from the current one in the sorted order. */
+	int stepPreset(int d) {
+		const std::vector<int>& o = sorted();
+		if (o.empty()) return presetIdx;
+		int pos = (int) (std::find(o.begin(), o.end(), presetIdx) - o.begin());
+		int n = (int) o.size();
+		return o[((pos + d) % n + n) % n];
+	}
 	dsp::BooleanTrigger prevTrig, nextTrig;
 	int ppqn = 4;  // clock pulses a beat (GENRA's CLOCK: 16ths)
 
@@ -587,10 +617,14 @@ struct Kwasub : Module {
 		const kw_api* a = core.api;
 		if (!a)
 			return;
+		int req = presetReq.exchange(-1);
+		if (req >= 0)
+			loadPreset(req);
+		// PREV / NEXT have no buttons any more (the preset field took their place), but MIDI-Map can still use them
 		if (prevTrig.process(params[PREV_PARAM].getValue() > 0.f))
-			loadPreset(presetIdx - 1);
+			loadPreset(stepPreset(-1));
 		if (nextTrig.process(params[NEXT_PARAM].getValue() > 0.f))
-			loadPreset(presetIdx + 1);
+			loadPreset(stepPreset(1));
 		notes(args);
 
 		// resample: read the core's frames at 44100 / sampleRate per sample (cubic)
@@ -739,8 +773,97 @@ struct Field : app::ParamWidget {
 	}
 };
 
+/** The presets by style (a submenu each, names A–Z), the one playing ticked; picking one asks the engine to load it. */
+static void appendPresets(Menu* menu, Kwasub* m) {
+	const std::vector<int>& o = m->sorted();
+	for (size_t i = 0; i < o.size();) {
+		std::string st = m->styleOf[o[i]];
+		size_t j = i;
+		bool here = false;
+		while (j < o.size() && m->styleOf[o[j]] == st) here |= o[j++] == m->presetIdx;
+		std::vector<int> group(o.begin() + i, o.begin() + j);
+		menu->addChild(createSubmenuItem(st, string::f("%s%d", here ? "✔ " : "", (int) group.size()), [=](Menu* sub) {
+			for (int k : group)
+				sub->addChild(createCheckMenuItem(m->core.api->preset_name(k), "", [=]() { return m->presetIdx == k; },
+				                                  [=]() { m->presetReq = k; }));
+		}));
+		i = j;
+	}
+}
+static void presetMenu(Kwasub* m) {
+	if (!m || !m->core.api)
+		return;
+	Menu* menu = createMenu();
+	menu->addChild(createMenuLabel("Preset"));
+	appendPresets(menu, m);
+}
+
+/** The preset selector: number and name, a click opens the list, the wheel steps through it. */
+struct PresetField : OpaqueWidget {
+	Kwasub* module = nullptr;
+	void onButton(const ButtonEvent& e) override {
+		if (e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_LEFT && module) {
+			presetMenu(module);
+			e.consume(this);
+			return;
+		}
+		OpaqueWidget::onButton(e);
+	}
+	void onHoverScroll(const HoverScrollEvent& e) override {
+		if (module && module->core.api && e.scrollDelta.y != 0.f) {
+			module->presetReq = module->stepPreset(e.scrollDelta.y < 0.f ? 1 : -1);
+			e.consume(this);
+			return;
+		}
+		OpaqueWidget::onHoverScroll(e);
+	}
+	void draw(const DrawArgs& args) override {}
+	void drawLayer(const DrawArgs& args, int layer) override {
+		if (layer == 1) {
+			auto f = ui::boldFont();
+			std::string name = "NEURO GROWL", style = "NEUROFUNK";
+			if (module && module->core.api) {
+				std::lock_guard<std::mutex> lock(module->dispMutex);
+				name = module->disp.preset;
+				int idx = module->disp.idx;
+				const std::vector<int>& o = module->sorted();
+				if (idx >= 0 && idx < (int) o.size()) style = module->styleOf[idx];
+			}
+			float x = mm2px(1.6f);
+			ui::text(args.vg, f, x, mm2px(3.6f), style, 5.0f, ACCENT, NVG_ALIGN_LEFT, 0.8f);
+			// the name on two lines, split at the space nearest the middle
+			std::string l1 = name, l2;
+			if (name.size() > 7) {
+				size_t best = std::string::npos;
+				for (size_t i = 0; i < name.size(); i++)
+					if (name[i] == ' ' && (best == std::string::npos ||
+					                       std::abs((int) i - (int) name.size() / 2) < std::abs((int) best - (int) name.size() / 2)))
+						best = i;
+				if (best != std::string::npos) {
+					l1 = name.substr(0, best);
+					l2 = name.substr(best + 1);
+				}
+			}
+			float size = std::max(l1.size(), l2.size()) > 9 ? 5.6f : 6.8f;
+			ui::text(args.vg, f, x, mm2px(l2.empty() ? 9.f : 7.4f), l1, size, ui::WHITE, NVG_ALIGN_LEFT, 0.6f);
+			if (!l2.empty())
+				ui::text(args.vg, f, x, mm2px(10.4f), l2, size, ui::WHITE, NVG_ALIGN_LEFT, 0.6f);
+		}
+		OpaqueWidget::drawLayer(args, layer);
+	}
+};
+
 struct Display : Widget {
 	Kwasub* module = nullptr;
+	/** A click on the preset name (the left part) opens the preset list too. */
+	void onButton(const ButtonEvent& e) override {
+		if (e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_LEFT && module && e.pos.x < mm2px(55.f)) {
+			presetMenu(module);
+			e.consume(this);
+			return;
+		}
+		Widget::onButton(e);
+	}
 	void drawLayer(const DrawArgs& args, int layer) override {
 		if (layer != 1) {
 			Widget::drawLayer(args, layer);
@@ -895,8 +1018,11 @@ struct KwasubWidget : ModuleWidget {
 		small(L::FX_DLY, M::DLY_PARAM);
 		small(L::FX_VERB, M::VERB_PARAM);
 		small(L::FX_GLUE, M::GLUE_PARAM);
-		addParam(createParamCentered<VCVBezel>(ui::mm(L::PREV), module, M::PREV_PARAM));
-		addParam(createParamCentered<VCVBezel>(ui::mm(L::NEXT), module, M::NEXT_PARAM));
+		PresetField* pf = new PresetField;
+		pf->module = module;
+		pf->box.pos = mm2px(Vec(L::PRESET_FIELD[0], L::PRESET_FIELD[1]));
+		pf->box.size = mm2px(Vec(L::PRESET_FIELD[2], L::PRESET_FIELD[3]));
+		addChild(pf);
 
 		const float* ins[M::NUM_INPUTS] = {L::IN_VOCT, L::IN_GATE,  L::IN_VEL,   L::IN_CLOCK, L::IN_RESET, L::IN_CUT,
 		                                   L::IN_RES,  L::IN_DRV,   L::IN_FENV,  L::IN_ASHP,  L::IN_ACOL,  L::IN_BSHP,
@@ -915,11 +1041,8 @@ struct KwasubWidget : ModuleWidget {
 		if (!m || !m->core.api)
 			return;
 		menu->addChild(new MenuSeparator);
-		menu->addChild(createSubmenuItem("Preset", m->core.api->preset_name(m->presetIdx), [=](Menu* sub) {
-			for (int i = 0; i < (int) m->core.api->npresets(); i++)
-				sub->addChild(createCheckMenuItem(string::f("%02d  %s", i + 1, m->core.api->preset_name(i)), "",
-				                                  [=]() { return m->presetIdx == i; }, [=]() { m->loadPreset(i); }));
-		}));
+		menu->addChild(createSubmenuItem("Preset", m->core.api->preset_name(m->presetIdx),
+		                                 [=](Menu* sub) { appendPresets(sub, m); }));
 		menu->addChild(createIndexSubmenuItem(
 		    "Voices", {"Mono", "Legato", "Poly (4)"}, [=]() { return (size_t) m->core.api->get(V_MODE); },
 		    [=](size_t i) { m->core.api->set(V_MODE, (int32_t) i); }));
