@@ -1,6 +1,9 @@
 # GENRA – Projektstand
 
 **Stand:** 6. November 2026 · **Plugin 2.15.2: 16 Module** (GENRA, GRID, ABLAUF, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, SCHMELZ, MIX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `CamilloGF/genra-v3`
+
+> Design-Leitfaden für neue Module (Aussehen, GENRA-Leiste, Leuchtsegmente, Follow, englische UI): **docs/DESIGN.md**
+
 Vorgänger: v1 `CamilloGF/vcv-sequenzer-Genra` (2.0.0), v2 `CamilloGF/Genra-v2` (2.1.0, läuft in Rack)
 Plattform: VCV Rack Pro 2.6.6 unter Windows · Build: GitHub Actions (`.github/workflows/main.yml`)
 
