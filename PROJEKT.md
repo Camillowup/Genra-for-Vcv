@@ -202,15 +202,16 @@ GENRA MONO: `g++ -std=c++17 -O2 test/test_mono.cpp -o tm && ./tm`
 - [ ] Klangtest in Rack, Feinschliff nach Gehör (Registrationen, Pegel zwischen den Klängen, Ensemble-Tiefe).
 
 ### MIX
-- 4-Kanal-Stereomixer, 32 HP, Modul-Slug `GenraMix`. Kanäle in den GENRA-Spurfarben, Master dunkel (Balken
+- 4-Kanal-Stereomixer, 28 HP (bis 2.9.0: 32 HP), Modul-Slug `GenraMix`. Kanäle in den GENRA-Spurfarben, Master dunkel (Balken
   `#4a4c57`), Ausgänge grün getönt wie die Pegelanzeigen. Panel: `tools/mix_panel.py` → `res/Mix.svg` +
   `src/mix/MixLayout.hpp`.
 - Engine `src/mix/MixDsp.hpp`: RBJ-Kuhschwänze 120 Hz / 6 kHz (±12 dB, übersprungen wenn flach), Balance (Gegenseite
   fällt mit Viertelsinus), Pegelkurve quadratisch (0,75 = 0 dB), Gain-Glättung ~10 ms (Mute/Solo klickfrei), Send nach
-  dem Fader, Ducking: Trigger ≥ 1 V startet eine Kosinus-Erholung über TIME (Tiefe max. −26 dB), Width über M/S,
+  dem Fader – zwei Sends A/B mit je eigenem Return (Send B, Return B und ihre Buchsen hinten an die
+  Parameter-/Port-Listen gehängt, alte Patches laden unverändert), Ducking: Trigger ≥ 1 V startet eine Kosinus-Erholung über TIME (Tiefe max. −26 dB), Width über M/S,
   Drive mit Padé-Sättigung und Lautheitsausgleich, Limiter ab 8 V weich gegen 10 V, Spitzenpegel-Anzeigen
   (12 Segmente, −36 … +3 dB, 5 V = 0 dB).
-- Test `test/test_mix.cpp`: Einheitsverstärkung, Pegelkurve, EQ ±12 dB, Balance, Mute/Solo, Send/Return, Ducking,
+- Test `test/test_mix.cpp`: Einheitsverstärkung, Pegelkurve, EQ ±12 dB, Balance, Mute/Solo, Send/Return A und B, Ducking,
   Width 0 = Mono, alles voll aufgedreht begrenzt, Anzeige.
 - [ ] Test in Rack mit GENRA (Ducking-Gefühl, EQ-Frequenzen nach Gehör).
 

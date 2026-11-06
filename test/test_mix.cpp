@@ -1,4 +1,4 @@
-// MIX engine: unity path, level curve, EQ shelves, balance, mute/solo, send/return, ducking, width, limiter.
+// MIX engine: unity path, level curve, EQ shelves, balance, mute/solo, sends/returns A and B, ducking, width, limiter.
 // g++ -O2 -std=c++17 test/test_mix.cpp -o /tmp/test_mix && /tmp/test_mix
 #include "../src/mix/MixDsp.hpp"
 #include <cstdio>
@@ -25,9 +25,9 @@ struct Run {
 	Run() { mx->setSampleRate(FS); }
 	/** Sine (amplitude a, frequency f) into the channels in `mask`; returns the RMS of L and R over the last half. */
 	void sine(int mask, float f, float a, float& rl, float& rr, float duckEvery = 0.f, std::vector<float>* outL = nullptr,
-	          float* sendRms = nullptr, float retA = 0.f) {
+	          float* sendRms = nullptr, float retA = 0.f, float* sendBRms = nullptr, float retB = 0.f) {
 		int n = (int) FS;
-		double sl = 0, sr = 0, ss = 0;
+		double sl = 0, sr = 0, ss = 0, sb = 0;
 		for (int i = 0; i < n; i++) {
 			float x = a * std::sin(2.f * PI * f * i / FS);
 			float in[NCH][2] = {};
@@ -35,17 +35,19 @@ struct Run {
 				if (mask & (1 << c))
 					in[c][0] = in[c][1] = x;
 			float duckIn = duckEvery > 0.f && std::fmod(i / FS, duckEvery) < 0.005f ? 10.f : 0.f;
-			float L, R, SL, SR;
-			mx->process(p, m, in, duckIn, retA * x, retA * x, L, R, SL, SR);
+			float L, R, SL, SR, SBL, SBR;
+			mx->process(p, m, in, duckIn, retA * x, retA * x, retB * x, retB * x, L, R, SL, SR, SBL, SBR);
 			if (outL)
 				outL->push_back(L);
 			if (i >= n / 2)
-				sl += L * L, sr += R * R, ss += SL * SL;
+				sl += L * L, sr += R * R, ss += SL * SL, sb += SBL * SBL;
 		}
 		rl = (float) std::sqrt(sl / (n - n / 2));
 		rr = (float) std::sqrt(sr / (n - n / 2));
 		if (sendRms)
 			*sendRms = (float) std::sqrt(ss / (n - n / 2));
+		if (sendBRms)
+			*sendBRms = (float) std::sqrt(sb / (n - n / 2));
 	}
 };
 static float db(float x, float ref) { return 20.f * std::log10(x / ref); }
@@ -110,6 +112,23 @@ int main() {
 		q.sine(0, 440.f, 5.f, l, rr, 0.f, nullptr, nullptr, 1.f);
 		CHECK(std::fabs(db(l, ref)) < 0.05f, "return: %.2f dB", db(l, ref));
 	}
+	// 6b. send B is independent of send A, return B adds like return A
+	{
+		Run r;
+		r.p[0].sendB = 1.f;
+		float l, rr, s, sb;
+		r.sine(1, 440.f, 5.f, l, rr, 0.f, nullptr, &s, 0.f, &sb);
+		CHECK(s < 1e-4f && std::fabs(db(sb, ref)) < 0.05f, "send B: A %.5f, B %.2f dB", s, db(sb, ref));
+		Run q;
+		q.p[0].send = 1.f;
+		q.p[0].sendB = 0.5f;
+		q.m.sendB = 0.f;
+		q.sine(1, 440.f, 5.f, l, rr, 0.f, nullptr, &s, 0.f, &sb);
+		CHECK(std::fabs(db(s, ref)) < 0.05f && sb < 1e-4f, "send B level 0: A %.2f dB, B %.5f", db(s, ref), sb);
+		Run t;
+		t.sine(0, 440.f, 5.f, l, rr, 0.f, nullptr, nullptr, 0.f, nullptr, 1.f);
+		CHECK(std::fabs(db(l, ref)) < 0.05f, "return B: %.2f dB", db(l, ref));
+	}
 	// 7. ducking: a channel with DUCK 1 drops by the depth right after the trigger and recovers within TIME
 	{
 		Run r;
@@ -145,11 +164,11 @@ int main() {
 	{
 		Run r;
 		for (auto& p : r.p)
-			p.level = 1.f, p.high = p.low = 1.f, p.send = 1.f;
-		r.m.drive = 1.f, r.m.master = 1.f, r.m.width = 1.f, r.m.ret = 1.f;
+			p.level = 1.f, p.high = p.low = 1.f, p.send = 1.f, p.sendB = 1.f;
+		r.m.drive = 1.f, r.m.master = 1.f, r.m.width = 1.f, r.m.ret = 1.f, r.m.retB = 1.f;
 		std::vector<float> out;
 		float l, rr;
-		r.sine(15, 80.f, 10.f, l, rr, 0.25f, &out, nullptr, 1.f);
+		r.sine(15, 80.f, 10.f, l, rr, 0.25f, &out, nullptr, 1.f, nullptr, 1.f);
 		float mx = 0.f;
 		bool ok = true;
 		for (float x : out)

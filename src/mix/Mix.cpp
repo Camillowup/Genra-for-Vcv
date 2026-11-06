@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // MIX – 4-track stereo mixer in the GENRA look: one strip per GENRA track (DRUMS, BASS, MELODY, PADS) in its colour,
-// a dark master with send/return, ducking (GENRA's KICK into DUCK), width and drive.
+// a dark master with two send/return loops (A, B), ducking (GENRA's KICK into DUCK), width and drive.
 // Engine: MixDsp.hpp. Panel: tools/mix_panel.py (res/Mix.svg + MixLayout.hpp).
 #include "../plugin.hpp"
 #include "../ui/GenraUI.hpp"
@@ -25,12 +25,14 @@ struct Mix : Module {
 	enum ChParam { HIGH, LOW, SEND, DUCK, PAN, LEVEL, MUTE, SOLO, NCP };
 	enum ParamId {
 		M_DUCK_PARAM = NCH * NCP, M_TIME_PARAM, M_WIDTH_PARAM, M_RETURN_PARAM, M_DRIVE_PARAM, M_SEND_PARAM,
-		M_MASTER_PARAM, NUM_PARAMS
+		M_MASTER_PARAM,
+		// added with the second send (kept at the end, so older patches load unchanged)
+		SENDB_PARAM, M_SENDB_PARAM = SENDB_PARAM + NCH, M_RETURNB_PARAM, NUM_PARAMS
 	};
 	// per channel: IN L, IN R, LVL, PAN
 	enum ChInput { IN_L, IN_R, IN_LVL, IN_PAN, NCI };
-	enum InputId { DUCK_INPUT = NCH * NCI, RET_L_INPUT, RET_R_INPUT, NUM_INPUTS };
-	enum OutputId { SEND_L_OUTPUT, SEND_R_OUTPUT, OUT_L_OUTPUT, OUT_R_OUTPUT, NUM_OUTPUTS };
+	enum InputId { DUCK_INPUT = NCH * NCI, RET_L_INPUT, RET_R_INPUT, RETB_L_INPUT, RETB_R_INPUT, NUM_INPUTS };
+	enum OutputId { SEND_L_OUTPUT, SEND_R_OUTPUT, OUT_L_OUTPUT, OUT_R_OUTPUT, SENDB_L_OUTPUT, SENDB_R_OUTPUT, NUM_OUTPUTS };
 	enum LightId { MUTE_LIGHT, SOLO_LIGHT = MUTE_LIGHT + NCH, NUM_LIGHTS = SOLO_LIGHT + NCH };
 
 	static int pid(int ch, int k) { return ch * NCP + k; }
@@ -63,7 +65,8 @@ struct Mix : Module {
 			std::string n = TRACK_NAMES[c];
 			configParam<EqQuantity>(pid(c, HIGH), -1.f, 1.f, 0.f, n + " high (6 kHz shelf)");
 			configParam<EqQuantity>(pid(c, LOW), -1.f, 1.f, 0.f, n + " low (120 Hz shelf)");
-			configParam(pid(c, SEND), 0.f, 1.f, 0.f, n + " send (post-fader)", "%", 0.f, 100.f);
+			configParam(pid(c, SEND), 0.f, 1.f, 0.f, n + " send A (post-fader)", "%", 0.f, 100.f);
+			configParam(SENDB_PARAM + c, 0.f, 1.f, 0.f, n + " send B (post-fader)", "%", 0.f, 100.f);
 			configParam(pid(c, DUCK), 0.f, 1.f, c == 0 ? 0.f : 0.5f, n + " ducking", "%", 0.f, 100.f);
 			paramQuantities[pid(c, DUCK)]->description = "How much this channel dips on a trigger at the DUCK input";
 			configParam(pid(c, PAN), -1.f, 1.f, 0.f, n + " pan", "%", 0.f, 100.f);
@@ -78,15 +81,21 @@ struct Mix : Module {
 		configParam(M_DUCK_PARAM, 0.f, 1.f, 0.6f, "Ducking depth", "%", 0.f, 100.f);
 		configParam<TimeQuantity>(M_TIME_PARAM, 0.f, 1.f, 0.55f, "Ducking time");
 		configParam(M_WIDTH_PARAM, 0.f, 1.f, 0.5f, "Stereo width", "%", 0.f, 200.f);
-		configParam<LevelQuantity>(M_RETURN_PARAM, 0.f, 1.f, 0.75f, "Return level");
+		configParam<LevelQuantity>(M_RETURN_PARAM, 0.f, 1.f, 0.75f, "Return A level");
 		configParam(M_DRIVE_PARAM, 0.f, 1.f, 0.f, "Drive", "%", 0.f, 100.f);
-		configParam<LevelQuantity>(M_SEND_PARAM, 0.f, 1.f, 0.75f, "Send level");
+		configParam<LevelQuantity>(M_SEND_PARAM, 0.f, 1.f, 0.75f, "Send A level");
+		configParam<LevelQuantity>(M_SENDB_PARAM, 0.f, 1.f, 0.75f, "Send B level");
+		configParam<LevelQuantity>(M_RETURNB_PARAM, 0.f, 1.f, 0.75f, "Return B level");
 		configParam<LevelQuantity>(M_MASTER_PARAM, 0.f, 1.f, 0.75f, "Master level");
 		configInput(DUCK_INPUT, "Duck trigger (e.g. GENRA's KICK)");
-		configInput(RET_L_INPUT, "Return left (or mono)");
-		configInput(RET_R_INPUT, "Return right (unplugged: the left)");
-		configOutput(SEND_L_OUTPUT, "Send left");
-		configOutput(SEND_R_OUTPUT, "Send right");
+		configInput(RET_L_INPUT, "Return A left (or mono)");
+		configInput(RET_R_INPUT, "Return A right (unplugged: the left)");
+		configInput(RETB_L_INPUT, "Return B left (or mono)");
+		configInput(RETB_R_INPUT, "Return B right (unplugged: the left)");
+		configOutput(SEND_L_OUTPUT, "Send A left");
+		configOutput(SEND_R_OUTPUT, "Send A right");
+		configOutput(SENDB_L_OUTPUT, "Send B left");
+		configOutput(SENDB_R_OUTPUT, "Send B right");
 		configOutput(OUT_L_OUTPUT, "Left");
 		configOutput(OUT_R_OUTPUT, "Right");
 	}
@@ -102,6 +111,7 @@ struct Mix : Module {
 				p.high = params[pid(c, HIGH)].getValue();
 				p.low = params[pid(c, LOW)].getValue();
 				p.send = params[pid(c, SEND)].getValue();
+				p.sendB = params[SENDB_PARAM + c].getValue();
 				p.duck = params[pid(c, DUCK)].getValue();
 				p.level = params[pid(c, LEVEL)].getValue();
 				p.mute = params[pid(c, MUTE)].getValue() > 0.5f;
@@ -116,6 +126,8 @@ struct Mix : Module {
 			mp.drive = params[M_DRIVE_PARAM].getValue();
 			mp.send = params[M_SEND_PARAM].getValue();
 			mp.master = params[M_MASTER_PARAM].getValue();
+			mp.sendB = params[M_SENDB_PARAM].getValue();
+			mp.retB = params[M_RETURNB_PARAM].getValue();
 		}
 		float in[NCH][2];
 		for (int c = 0; c < NCH; c++) {
@@ -128,12 +140,16 @@ struct Mix : Module {
 		}
 		float rl = inputs[RET_L_INPUT].getVoltageSum();
 		float rr = inputs[RET_R_INPUT].isConnected() ? inputs[RET_R_INPUT].getVoltageSum() : rl;
-		float ol, orr, sl, sr;
-		mx->process(cp, mp, in, inputs[DUCK_INPUT].getVoltage(), rl, rr, ol, orr, sl, sr);
+		float rbl = inputs[RETB_L_INPUT].getVoltageSum();
+		float rbr = inputs[RETB_R_INPUT].isConnected() ? inputs[RETB_R_INPUT].getVoltageSum() : rbl;
+		float ol, orr, sl, sr, sbl, sbr;
+		mx->process(cp, mp, in, inputs[DUCK_INPUT].getVoltage(), rl, rr, rbl, rbr, ol, orr, sl, sr, sbl, sbr);
 		outputs[OUT_L_OUTPUT].setVoltage(ol);
 		outputs[OUT_R_OUTPUT].setVoltage(orr);
 		outputs[SEND_L_OUTPUT].setVoltage(sl);
 		outputs[SEND_R_OUTPUT].setVoltage(sr);
+		outputs[SENDB_L_OUTPUT].setVoltage(sbl);
+		outputs[SENDB_R_OUTPUT].setVoltage(sbr);
 	}
 };
 
@@ -181,7 +197,6 @@ struct MixWidget : ModuleWidget {
 
 		using M = Mix;
 		auto small = [&](const float* p, int id) { addParam(createParamCentered<RoundSmallBlackKnob>(ui::mm(p), module, id)); };
-		auto knob = [&](const float* p, int id) { addParam(createParamCentered<RoundBlackKnob>(ui::mm(p), module, id)); };
 		auto large = [&](const float* p, int id) { addParam(createParamCentered<RoundLargeBlackKnob>(ui::mm(p), module, id)); };
 		auto meter = [&](const float* a, int ch, NVGcolor c) {
 			MeterWidget* w = new MeterWidget;
@@ -196,6 +211,7 @@ struct MixWidget : ModuleWidget {
 		const float* high[NCH] = {L::HIGH1, L::HIGH2, L::HIGH3, L::HIGH4};
 		const float* low[NCH] = {L::LOW1, L::LOW2, L::LOW3, L::LOW4};
 		const float* send[NCH] = {L::SEND1, L::SEND2, L::SEND3, L::SEND4};
+		const float* sendb[NCH] = {L::SENDB1, L::SENDB2, L::SENDB3, L::SENDB4};
 		const float* duck[NCH] = {L::DUCK1, L::DUCK2, L::DUCK3, L::DUCK4};
 		const float* pan[NCH] = {L::PAN1, L::PAN2, L::PAN3, L::PAN4};
 		const float* level[NCH] = {L::LEVEL1, L::LEVEL2, L::LEVEL3, L::LEVEL4};
@@ -210,8 +226,9 @@ struct MixWidget : ModuleWidget {
 			small(high[c], M::pid(c, M::HIGH));
 			small(low[c], M::pid(c, M::LOW));
 			small(send[c], M::pid(c, M::SEND));
+			small(sendb[c], M::SENDB_PARAM + c);
 			small(duck[c], M::pid(c, M::DUCK));
-			knob(pan[c], M::pid(c, M::PAN));
+			small(pan[c], M::pid(c, M::PAN));
 			large(level[c], M::pid(c, M::LEVEL));
 			meter(vu[c], c, TRACK[c]);
 			addParam(createLightParamCentered<Lit<0xff, 0x4f, 0x4f>>(ui::mm(mute[c]), module, M::pid(c, M::MUTE),
@@ -235,13 +252,19 @@ struct MixWidget : ModuleWidget {
 		small(L::RETURN, M::M_RETURN_PARAM);
 		small(L::DRIVE, M::M_DRIVE_PARAM);
 		small(L::SENDM, M::M_SEND_PARAM);
+		small(L::SENDMB, M::M_SENDB_PARAM);
+		small(L::RETURNB, M::M_RETURNB_PARAM);
 		large(L::MASTER, M::M_MASTER_PARAM);
 		meter(L::VUM, -1, METER_GREEN);
 		addInput(createInputCentered<PJ301MPort>(ui::mm(L::IN_DUCK), module, M::DUCK_INPUT));
 		addInput(createInputCentered<PJ301MPort>(ui::mm(L::RET_L), module, M::RET_L_INPUT));
 		addInput(createInputCentered<PJ301MPort>(ui::mm(L::RET_R), module, M::RET_R_INPUT));
+		addInput(createInputCentered<PJ301MPort>(ui::mm(L::RETB_L), module, M::RETB_L_INPUT));
+		addInput(createInputCentered<PJ301MPort>(ui::mm(L::RETB_R), module, M::RETB_R_INPUT));
 		addOutput(createOutputCentered<PJ301MPort>(ui::mm(L::SEND_L), module, M::SEND_L_OUTPUT));
 		addOutput(createOutputCentered<PJ301MPort>(ui::mm(L::SEND_R), module, M::SEND_R_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(ui::mm(L::SENDB_L), module, M::SENDB_L_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(ui::mm(L::SENDB_R), module, M::SENDB_R_OUTPUT));
 		addOutput(createOutputCentered<PJ301MPort>(ui::mm(L::OUT_L), module, M::OUT_L_OUTPUT));
 		addOutput(createOutputCentered<PJ301MPort>(ui::mm(L::OUT_R), module, M::OUT_R_OUTPUT));
 	}

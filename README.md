@@ -16,7 +16,7 @@ Ein generativer, genreabhängiger 4-Spur-Sequencer mit MIDI-Grid, Performance-Ef
 | **JIANT ANIMAL** | 26 HP | grün | Tierrufe aus physikalischen Modellen (JIANT FM) |
 | **MONK** | 26 HP | safran | Vokal-Synth aus der FM-1-Firmware MONK-1 |
 | **UMLAUF** + **FX** | 54 / 36 HP | Sith-Rot | Orbit-Vektor-Synth mit der Engine von VADER, mit Expander |
-| **MIX** | 32 HP | Spurfarben | 4-Kanal-Stereomixer für die GENRA-Spuren |
+| **MIX** | 28 HP | Spurfarben | 4-Kanal-Stereomixer für die GENRA-Spuren |
 
 Die Farben folgen GENRAs Spuren: **Drums blau-violett**, **Bass säuregrün**, **Melodie cyan**, **Pads rosa**.
 
@@ -302,15 +302,16 @@ CV-Eingänge. Beim Andocken übernehmen die Regler den aktuellen Klang; ohne Exp
 
 ![MIX](docs/entwuerfe/mix.png)
 
-Mixer für die vier GENRA-Spuren, 32 HP. Jeder Kanal in der Farbe seiner Spur (DRUMS blau-violett, BASS säuregrün, MELODY
+Mixer für die vier GENRA-Spuren, 28 HP. Jeder Kanal in der Farbe seiner Spur (DRUMS blau-violett, BASS säuregrün, MELODY
 cyan, PADS rosa), der Master dunkel.
 
 - **Pro Kanal:** IN L/R (R unbelegt = L; polyphone Eingänge werden summiert), HIGH/LOW (Kuhschwanz-EQ bei 6 kHz /
-  120 Hz, ±12 dB), SEND (nach dem Fader), DUCK (wie stark der Kanal beim Duck-Trigger zurückgeht), PAN (Balance),
+  120 Hz, ±12 dB), SEND A und SEND B (beide nach dem Fader), DUCK (wie stark der Kanal beim Duck-Trigger zurückgeht), PAN (Balance),
   LEVEL (0,75 = 0 dB, voll = +5 dB) mit Pegelanzeige, MUTE und SOLO (beleuchtet). CV: LVL (0–10 V, wie ein VCA),
   PAN (±5 V).
 - **Master:** DUCK (Tiefe) und TIME (20 ms … 1 s, Erholzeit) – den KICK-Ausgang von GENRA in die DUCK-Buchse stecken,
-  dann pumpen die anderen Spuren mit. RETURN (Pegel des Effekt-Rückwegs RET L/R), SEND (Pegel von SEND L/R), WIDTH
+  dann pumpen die anderen Spuren mit. zwei Effektwege A und B: SEND A/B (Pegel der Ausgänge SND A L/R bzw. SND B L/R) und RET A/B (Pegel der Rückwege
+  RET A L/R bzw. RET B L/R, R unbelegt = L), z. B. A für Hall, B für Delay. WIDTH
   (Mono … doppelt breit), DRIVE (Sättigung), MASTER mit Stereo-Pegelanzeige, OUT L/R (weicher Limiter ab 8 V).
 
 ---

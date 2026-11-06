@@ -5,7 +5,7 @@ Usage:  mix_panel.py real                   -> res/Mix.svg (text as paths) + src
         mix_panel.py preview OUT.png [RACK] -> preview with Rack components and mock meters
                                                (RACK: a Rack source tree, for res/ComponentLibrary; default ../ext/Rack)
 
-Coordinates in mm (32 HP, height 128.5 mm). The C++ side converts with mm2px().
+Coordinates in mm (28 HP, height 128.5 mm). The C++ side converts with mm2px().
 """
 import os
 import re
@@ -22,7 +22,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RACK = sys.argv[3] if PREVIEW and len(sys.argv) > 3 else os.path.join(ROOT, "..", "ext", "Rack")
 CL = os.path.join(RACK, "res", "ComponentLibrary")
 
-HP = 32
+HP = 28
 W, H = HP * 5.08, 128.5
 BG, PLATE, LINE, TXT, DIM, DARK = "#17181d", "#212329", "#34363f", "#d9dbe2", "#8a8d99", "#07080a"
 TITLE, RING = "#e6e7ec", "#4a4c57"
@@ -157,57 +157,67 @@ e(f'<rect width="{W:.2f}" height="{H}" fill="{BG}"/>')
 text(12.9, 7.6, "MIX", 5.1, TITLE, 800, "start", 1.08)
 text(12.9 + width("MIX", 5.1, 800, 1.08) + 3.4, 7.45, "GENRA · 4-TRACK STEREO MIXER", 1.76, DIM, 600, "start", 0.47)
 for i, (_, c) in enumerate(TRACKS):
-    e(f'<rect x="{W - 50 + i * 9:.2f}" y="5.55" width="7.2" height="1.08" rx="0.54" fill="{c}"/>')
+    e(f'<rect x="{W - 42 + i * 8:.2f}" y="5.55" width="6.4" height="1.08" rx="0.54" fill="{c}"/>')
 
 # ---------------------------------------------------------------- four channel strips
+SW, SP = 23, 24  # strip width, strip pitch
 for i, (nm, col) in enumerate(TRACKS):
     n = i + 1
-    x0 = 3 + i * 29
-    cx = x0 + 14
-    e(f'<rect x="{x0}" y="11" width="28" height="114.5" rx="1.2" fill="{PLATE}"/>')
-    e(f'<rect x="{x0}" y="11" width="28" height="0.88" rx="0.44" fill="{col}"/>')
+    x0 = 3 + i * SP
+    cx = x0 + SW / 2
+    e(f'<rect x="{x0}" y="11" width="{SW}" height="114.5" rx="1.2" fill="{PLATE}"/>')
+    e(f'<rect x="{x0}" y="11" width="{SW}" height="0.88" rx="0.44" fill="{col}"/>')
     text(cx, 16.6, nm, 2.03, col, 800, "middle", 0.6)
     text(cx, 20.2, f"CH {n}", 1.45, DIM, 600, "middle", 0.4)
-    rknob(f"HIGH{n}", cx - 6.5, 29, "HIGH")
-    rknob(f"LOW{n}", cx + 6.5, 29, "LOW")
-    rknob(f"SEND{n}", cx - 6.5, 43, "SEND")
-    rknob(f"DUCK{n}", cx + 6.5, 43, "DUCK")
-    rknob(f"PAN{n}", cx, 57, "PAN", "knob")
+    rknob(f"HIGH{n}", cx - 5.5, 29, "HIGH")
+    rknob(f"LOW{n}", cx + 5.5, 29, "LOW")
+    rknob(f"SEND{n}", cx - 5.5, 43, "SEND A")
+    rknob(f"SENDB{n}", cx + 5.5, 43, "SEND B")
+    rknob(f"DUCK{n}", cx - 5.5, 57, "DUCK")
+    rknob(f"PAN{n}", cx + 5.5, 57, "PAN")
     rknob(f"LEVEL{n}", cx - 3, 75, "LEVEL", "large", col)
-    meter(f"VU{n}", cx + 9.5, 67, 83.5)
-    button(f"MUTE{n}", cx - 6.5, 92, "MUTE")
-    button(f"SOLO{n}", cx + 6.5, 92, "SOLO")
-    ljack(f"IN_L{n}", cx - 6.5, 105, "IN L")
-    ljack(f"IN_R{n}", cx + 6.5, 105, "IN R")
-    ljack(f"IN_LVL{n}", cx - 6.5, 117.5, "LVL")
-    ljack(f"IN_PAN{n}", cx + 6.5, 117.5, "PAN")
+    meter(f"VU{n}", cx + 8, 67, 83.5)
+    button(f"MUTE{n}", cx - 5.5, 92, "MUTE")
+    button(f"SOLO{n}", cx + 5.5, 92, "SOLO")
+    ljack(f"IN_L{n}", cx - 5.5, 105, "IN L")
+    ljack(f"IN_R{n}", cx + 5.5, 105, "IN R")
+    ljack(f"IN_LVL{n}", cx - 5.5, 117.5, "LVL")
+    ljack(f"IN_PAN{n}", cx + 5.5, 117.5, "PAN")
 
 # ---------------------------------------------------------------- master (dark)
-mx = 119
+mx = 3 + 4 * SP
 mw = W - 3 - mx
 mc = mx + mw / 2
+c4 = [mc - 14.25, mc - 4.75, mc + 4.75, mc + 14.25]  # four columns
 e(f'<rect x="{mx}" y="11" width="{mw:.2f}" height="114.5" rx="1.2" fill="{PLATE}"/>')
 e(f'<rect x="{mx}" y="11" width="{mw:.2f}" height="0.88" rx="0.44" fill="{MASTER_BAR}"/>')
 text(mc, 16.6, "MASTER", 2.03, MASTER_TXT, 800, "middle", 0.6)
 text(mc, 20.2, "STEREO", 1.45, DIM, 600, "middle", 0.4)
-rknob("DUCK", mc - 11, 29, "DUCK")
-rknob("TIME", mc, 29, "TIME")
-rknob("WIDTH", mc + 11, 29, "WIDTH")
-rknob("RETURN", mc - 11, 43, "RETURN")
-rknob("DRIVE", mc, 43, "DRIVE")
-rknob("SENDM", mc + 11, 43, "SEND")
-rknob("MASTER", mc - 5, 67, "MASTER", "large")
-meter("VUM", mc + 8, 58, 80, 2)
-text(mc + 8, 83, "L", 1.4, DIM, 600, "middle", 0.2)
-text(mc + 11, 83, "R", 1.4, DIM, 600, "middle", 0.2)
-ljack("IN_DUCK", mc - 11, 92, "DUCK")
-ljack("RET_L", mc, 92, "RET L")
-ljack("RET_R", mc + 11, 92, "RET R")
+rknob("DUCK", c4[0], 29, "DUCK")
+rknob("TIME", c4[1], 29, "TIME")
+rknob("WIDTH", c4[2], 29, "WIDTH")
+rknob("DRIVE", c4[3], 29, "DRIVE")
+rknob("SENDM", c4[0], 43, "SEND A")
+rknob("RETURN", c4[1], 43, "RET A")
+rknob("SENDMB", c4[2], 43, "SEND B")
+rknob("RETURNB", c4[3], 43, "RET B")
+rknob("MASTER", mc - 5, 66, "MASTER", "large")
+meter("VUM", mc + 8, 57, 78, 2)
+text(mc + 8, 81, "L", 1.4, DIM, 600, "middle", 0.2)
+text(mc + 11, 81, "R", 1.4, DIM, 600, "middle", 0.2)
+ljack("RET_L", c4[0], 92, "RET A L")
+ljack("RET_R", c4[1], 92, "RET A R")
+ljack("RETB_L", c4[2], 92, "RET B L")
+ljack("RETB_R", c4[3], 92, "RET B R")
 e(f'<line x1="{mx + 3}" y1="98.6" x2="{mx + mw - 3:.2f}" y2="98.6" stroke="{LINE}" stroke-width="0.3"/>')
-ljack("SEND_L", mc - 5.5, 105, "SEND L", True, mixc("#8a8d99", 0.25))
-ljack("SEND_R", mc + 5.5, 105, "SEND R", True, mixc("#8a8d99", 0.25))
-ljack("OUT_L", mc - 5.5, 117.5, "OUT L", True, OUT_TINT)
-ljack("OUT_R", mc + 5.5, 117.5, "OUT R", True, OUT_TINT)
+ST = mixc("#8a8d99", 0.25)
+ljack("SEND_L", c4[0], 105, "SND A L", True, ST)
+ljack("SEND_R", c4[1], 105, "SND A R", True, ST)
+ljack("SENDB_L", c4[2], 105, "SND B L", True, ST)
+ljack("SENDB_R", c4[3], 105, "SND B R", True, ST)
+ljack("IN_DUCK", c4[0], 117.5, "DUCK")
+ljack("OUT_L", c4[2], 117.5, "OUT L", True, OUT_TINT)
+ljack("OUT_R", c4[3], 117.5, "OUT R", True, OUT_TINT)
 
 e("</svg>")
 
@@ -254,8 +264,25 @@ def ptext(*a, **k):
     out.insert(-1, out.pop(n))
 
 
-for kind, n, x, y in comps:
+def fake(kind, x, y):
+    """Stand-ins for the Rack components when no Rack source tree is at hand."""
     if kind in KIND:
+        r = R[kind]
+        out.insert(-1, f'<circle cx="{x:.2f}" cy="{y}" r="{r:.2f}" fill="#141417" stroke="#2c2d33" stroke-width="0.4"/>'
+                       f'<line x1="{x:.2f}" y1="{y - r * 0.9:.2f}" x2="{x:.2f}" y2="{y - r * 0.35:.2f}" stroke="#eee" '
+                       f'stroke-width="0.6" stroke-linecap="round"/>')
+    elif kind == "button":
+        out.insert(-1, f'<circle cx="{x:.2f}" cy="{y}" r="3.2" fill="#0d0e11"/><circle cx="{x:.2f}" cy="{y}" r="2.4" fill="#555"/>')
+    else:
+        out.insert(-1, f'<circle cx="{x:.2f}" cy="{y}" r="3.1" fill="#c9cbd1"/><circle cx="{x:.2f}" cy="{y}" r="2.2" '
+                       f'fill="#8d9097"/><circle cx="{x:.2f}" cy="{y}" r="1.45" fill="#050505"/>')
+
+
+HAVE_CL = os.path.isdir(CL)
+for kind, n, x, y in comps:
+    if not HAVE_CL:
+        fake(kind, x, y)
+    elif kind in KIND:
         img(KIND[kind] + "_bg", x, y)
         img(KIND[kind], x, y)
     elif kind == "button":
@@ -264,7 +291,10 @@ for kind, n, x, y in comps:
         img("PJ301M", x, y)
 for sx_ in (7.62, W - 7.62):
     for sy in (2.54, H - 2.54):
-        img("ScrewBlack", sx_, sy)
+        if HAVE_CL:
+            img("ScrewBlack", sx_, sy)
+        else:
+            out.insert(-1, f'<circle cx="{sx_}" cy="{sy}" r="1.6" fill="#3a3b42"/>')
 LVLS = [9, 7, 6, 8]
 for i, (_, col) in enumerate(TRACKS):
     x, y, w, h = areas[f"VU{i + 1}"]

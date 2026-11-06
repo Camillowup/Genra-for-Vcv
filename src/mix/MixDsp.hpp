@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // MIX – the engine of the 4-track stereo mixer: per channel low/high shelf EQ, balance, level, mute/solo (smoothed),
-// a post-fader send and ducking; on the master a send/return loop, stereo width (mid/side), drive and a soft limiter
+// two post-fader sends (A, B) and ducking; on the master two send/return loops, stereo width (mid/side), drive and a soft limiter
 // above 8 V. Peak meters for the panel. Plain C++ without Rack, so test/test_mix.cpp can run it.
 #pragma once
 #include <algorithm>
@@ -94,7 +94,7 @@ struct Meter {
 
 struct ChannelParams {
 	float high = 0.f, low = 0.f;  // −1 .. 1
-	float send = 0.f, duck = 0.f;
+	float send = 0.f, sendB = 0.f, duck = 0.f;  // send: SEND A
 	float pan = 0.f;  // −1 .. 1 (knob + CV)
 	float level = 0.75f;
 	float vca = 1.f;  // LVL CV, 0..1 (1 when unplugged)
@@ -103,6 +103,7 @@ struct ChannelParams {
 
 struct MasterParams {
 	float duck = 0.6f, time = 0.4f, width = 0.5f, ret = 0.75f, drive = 0.f, send = 0.75f, master = 0.75f;
+	float sendB = 0.75f, retB = 0.75f;  // the second loop
 };
 
 struct Channel {
@@ -121,9 +122,9 @@ struct Channel {
 			hi[c].set(true, 6000.f, hi[c].lastDb, sr);
 		}
 	}
-	/** One sample: in L/R (R normalled to L by the caller), out L/R and the send (post-fader). */
+	/** One sample: in L/R (R normalled to L by the caller), out L/R and the sends A and B (post-fader). */
 	void process(const ChannelParams& p, bool audible, float duckGain, float inL, float inR, float& l, float& r,
-	             float& sl, float& sr) {
+	             float& sl, float& sr, float& sbl, float& sbr) {
 		if (--ctl <= 0) {
 			ctl = 32;
 			float dl = eqDb(p.low), dh = eqDb(p.high);
@@ -152,6 +153,8 @@ struct Channel {
 		r = x[1] * g * pr * d;
 		float s = clampf(p.send, 0.f, 1.f);
 		sl = l * s, sr = r * s;
+		float sb = clampf(p.sendB, 0.f, 1.f);
+		sbl = l * sb, sbr = r * sb;
 		meter.feed(std::max(std::fabs(l), std::fabs(r)));
 	}
 };
@@ -183,24 +186,27 @@ struct Mixer {
 		return 1.f - clampf(m.duck, 0.f, 1.f) * 0.95f * duckSm;
 	}
 
-	/** in: 4 × L/R; ret: return L/R. Outputs L/R (limited) and send L/R. */
+	/** in: 4 × L/R; ret: return A L/R, retB: return B L/R. Outputs L/R (limited), send A L/R and send B L/R. */
 	void process(const ChannelParams* p, const MasterParams& m, const float (*in)[2], float duckIn, float retL,
-	             float retR, float& outL, float& outR, float& sendL, float& sendR) {
+	             float retR, float retBL, float retBR, float& outL, float& outR, float& sendL, float& sendR,
+	             float& sendBL, float& sendBR) {
 		bool anySolo = false;
 		for (int i = 0; i < NCH; i++)
 			anySolo |= p[i].solo;
 		float dg = duck(m, duckIn);
-		float L = 0.f, R = 0.f, SL = 0.f, SR = 0.f;
+		float L = 0.f, R = 0.f, SL = 0.f, SR = 0.f, SBL = 0.f, SBR = 0.f;
 		for (int i = 0; i < NCH; i++) {
 			bool audible = !p[i].mute && (!anySolo || p[i].solo);
-			float l, r, sl, sr;
-			ch[i].process(p[i], audible, dg, in[i][0], in[i][1], l, r, sl, sr);
-			L += l, R += r, SL += sl, SR += sr;
+			float l, r, sl, sr, sbl, sbr;
+			ch[i].process(p[i], audible, dg, in[i][0], in[i][1], l, r, sl, sr, sbl, sbr);
+			L += l, R += r, SL += sl, SR += sr, SBL += sbl, SBR += sbr;
 		}
 		float sg = levelGain(m.send);
 		sendL = SL * sg, sendR = SR * sg;
-		float rg = levelGain(m.ret);
-		L += retL * rg, R += retR * rg;
+		float sgb = levelGain(m.sendB);
+		sendBL = SBL * sgb, sendBR = SBR * sgb;
+		float rg = levelGain(m.ret), rgb = levelGain(m.retB);
+		L += retL * rg + retBL * rgb, R += retR * rg + retBR * rgb;
 		// width: mid/side, 0.5 = as is, 0 = mono, 1 = double side
 		float mid = 0.5f * (L + R), side = 0.5f * (L - R) * 2.f * clampf(m.width, 0.f, 1.f);
 		L = mid + side, R = mid - side;
