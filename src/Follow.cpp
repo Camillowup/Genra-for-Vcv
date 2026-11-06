@@ -335,7 +335,71 @@ void StripLight::drawLayer(const DrawArgs& args, int layer) {
 	}
 }
 
+NVGcolor mixColor(int ch) { return trackColor(ch == 0 ? T_DRUMS : ch == 1 ? T_BASS : ch == 2 ? T_MEL : T_PAD); }
+
+void ring(NVGcontext* vg, Vec c, NVGcolor col, float a) {
+	float r = mm2px(4.3f);
+	NVGpaint glow = nvgRadialGradient(vg, c.x, c.y, r * 0.75f, r * 1.45f, nvgTransRGBAf(col, 0.55f * a), nvgTransRGBAf(col, 0.f));
+	nvgBeginPath(vg);
+	nvgCircle(vg, c.x, c.y, r * 1.5f);
+	nvgFillPaint(vg, glow);
+	nvgFill(vg);
+	nvgBeginPath(vg);
+	nvgCircle(vg, c.x, c.y, r);
+	nvgStrokeColor(vg, nvgTransRGBAf(col, a));
+	nvgStrokeWidth(vg, 1.4f);
+	nvgStroke(vg);
+}
+
+void OutLight::step() {
+	Widget::step();
+	Host* h = host(module);
+	if (found || !h)
+		return;
+	ModuleWidget* mw = getAncestorOfType<ModuleWidget>();
+	if (!mw)
+		return;
+	PortWidget* pl = h->audioL >= 0 ? mw->getOutput(h->audioL) : nullptr;
+	PortWidget* pr = h->audioR >= 0 ? mw->getOutput(h->audioR) : nullptr;
+	if (!pl)
+		return;
+	l = pl->box.getCenter();
+	r = pr ? pr->box.getCenter() : l;
+	found = true;
+}
+
+void OutLight::drawLayer(const DrawArgs& args, int layer) {
+	Widget::drawLayer(args, layer);
+	Host* h = host(module);
+	if (layer != 1 || !h || !found || !h->pulled(APP->engine->getFrame()))
+		return;
+	int ch = clamp(h->pulledBy.load(), 0, 3);
+	NVGcolor c = mixColor(ch);
+	ring(args.vg, l, c);
+	if (r.x != l.x || r.y != l.y)
+		ring(args.vg, r, c);
+	auto font = APP->window->loadFont(asset::system("res/fonts/Nunito-Bold.ttf"));
+	if (font && font->handle >= 0) {
+		nvgFontFaceId(args.vg, font->handle);
+		nvgFontSize(args.vg, 8.f);
+		nvgTextLetterSpacing(args.vg, 0.4f);
+		nvgTextAlign(args.vg, NVG_ALIGN_CENTER | NVG_ALIGN_BASELINE);
+		nvgFillColor(args.vg, c);
+		std::string t = string::f("\xe2\x80\xba MIX CH %d", ch + 1);
+		nvgText(args.vg, (l.x + r.x) / 2, std::min(l.y, r.y) - mm2px(6.2f), t.c_str(), nullptr);
+	}
+}
+
+OutLight* addOutLight(ModuleWidget* mw, Module* module) {
+	OutLight* o = new OutLight;
+	o->module = module;
+	o->box.size = mw->box.size;
+	mw->addChild(o);
+	return o;
+}
+
 StripLight* addStrip(ModuleWidget* mw, Module* module, const std::vector<Vec>& pos) {
+	addOutLight(mw, module);
 	StripLight* s = new StripLight; // (transparent: clicks go to the jacks below)
 	s->module = module;
 	s->box.pos = Vec(0, 0);

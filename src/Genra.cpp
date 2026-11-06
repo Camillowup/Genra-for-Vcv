@@ -382,6 +382,102 @@ struct GenraDisplay : Widget {
 };
 
 // ================================================================= widget
+// ---------------------------------------------------------------- outputs read without cables (Follow.hpp)
+/** The outputs instruments take without a cable glow in the track's colour (CLOCK / RESET white); over the group's
+ *  "OUT" stands who takes it. */
+struct LinkLights : widget::TransparentWidget {
+	Genra* module = nullptr;
+	std::vector<Vec> pos = std::vector<Vec>(Genra::OUTPUTS_LEN);
+	int lit[Genra::OUTPUTS_LEN] = {}; // 0: no, 1..4: a track's colour, 5: white
+	std::string names[follow::NUM_TRACKS];
+	float timer = 0.f;
+	// the group's header ("OUT", tools/panel.py y 102.6 mm): centre of its first row
+	Vec header(int t) const {
+		int ids[follow::NUM_TRACKS][4] = {{Genra::BASS_VOCT_OUTPUT, Genra::BASS_GATE_OUTPUT, Genra::BASS_VEL_OUTPUT, -1},
+		                                   {Genra::MEL_VOCT_OUTPUT, Genra::MEL_GATE_OUTPUT, Genra::MEL_VEL_OUTPUT, -1},
+		                                   {Genra::PAD_VOCT_OUTPUT, Genra::PAD_GATE_OUTPUT, Genra::PAD_VEL_OUTPUT, -1},
+		                                   {Genra::DRUM_OUTPUT, Genra::DRUM_OUTPUT + 1, Genra::DRUM_OUTPUT + 2, Genra::DRUM_OUTPUT + 3}};
+		float x = 0.f;
+		int n = 0;
+		for (int id : ids[t])
+			if (id >= 0)
+				x += pos[id].x, n++;
+		return Vec(x / std::max(n, 1), mm2px(102.6f));
+	}
+	void step() override {
+		Widget::step();
+		if (!module)
+			return;
+		timer -= APP->window->getLastFrameDuration();
+		if (timer > 0.f)
+			return;
+		timer = 0.25f;
+		for (int& l : lit)
+			l = 0;
+		for (auto& s : names)
+			s.clear();
+		for (int64_t id : APP->engine->getModuleIds()) {
+			follow::Host* h = follow::host(APP->engine->getModule(id));
+			if (!h || !h->follows || h->fol.genra.to.load() != module)
+				continue;
+			int t = h->fol.track.load();
+			if (t < 0)
+				continue;
+			bool any = false;
+			for (size_t i = 0; i < h->fol.binds.size() && i < h->fol.drv.size(); i++) {
+				if (!h->fol.drv[i].owned)
+					continue;
+				int sig = h->fol.binds[i].sig;
+				follow::Src s = follow::genraOut(t, sig);
+				if (s.id < 0)
+					continue;
+				any = true;
+				int n = sig == follow::DRUMS ? s.channels : 1;
+				for (int k = 0; k < n && s.id + k < Genra::OUTPUTS_LEN; k++)
+					lit[s.id + k] = (sig == follow::CLOCK || sig == follow::RESET) ? 5 : t + 1;
+			}
+			if (any)
+				names[t] += (names[t].empty() ? "" : ", ") + std::string(h->srcName);
+		}
+	}
+	// the header's dark field belongs to the panel; the name and the rings are lights
+	void draw(const DrawArgs& args) override {
+		Widget::draw(args);
+		for (int t = 0; t < follow::NUM_TRACKS; t++) {
+			if (names[t].empty())
+				continue;
+			Vec c = header(t);
+			float w = mm2px(t == follow::T_DRUMS ? 34.f : 26.f), hh = mm2px(3.2f);
+			nvgBeginPath(args.vg);
+			nvgRoundedRect(args.vg, c.x - w / 2, c.y - hh * 0.78f, w, hh, hh / 3);
+			nvgFillColor(args.vg, nvgRGB(0x16, 0x17, 0x1b));
+			nvgFill(args.vg);
+		}
+	}
+	void drawLayer(const DrawArgs& args, int layer) override {
+		Widget::drawLayer(args, layer);
+		if (layer != 1 || !module)
+			return;
+		for (int id = 0; id < Genra::OUTPUTS_LEN; id++)
+			if (lit[id])
+				follow::ring(args.vg, pos[id], lit[id] == 5 ? nvgRGB(0xe6, 0xe7, 0xec) : follow::trackColor(lit[id] - 1));
+		auto font = APP->window->loadFont(asset::system("res/fonts/Nunito-Bold.ttf"));
+		if (!font || font->handle < 0)
+			return;
+		nvgFontFaceId(args.vg, font->handle);
+		nvgFontSize(args.vg, 7.5f);
+		nvgTextLetterSpacing(args.vg, 0.4f);
+		nvgTextAlign(args.vg, NVG_ALIGN_CENTER | NVG_ALIGN_BASELINE);
+		for (int t = 0; t < follow::NUM_TRACKS; t++) {
+			if (names[t].empty())
+				continue;
+			std::string txt = "OUT  \xe2\x80\xba " + names[t];
+			nvgFillColor(args.vg, follow::trackColor(t));
+			nvgText(args.vg, header(t).x, header(t).y, txt.c_str(), nullptr);
+		}
+	}
+};
+
 struct GenraWidget : ModuleWidget {
 	GenraWidget(Genra* module) {
 		setModule(module);
@@ -395,7 +491,12 @@ struct GenraWidget : ModuleWidget {
 		auto P = [](const float* p) { return mm2px(Vec(p[0], p[1])); };
 		auto knob = [&](const float* p, int id) { addParam(createParamCentered<GSmallKnob>(P(p), module, id)); };
 		auto in = [&](const float* p, int id) { addInput(createInputCentered<PJ301MPort>(P(p), module, id)); };
-		auto out = [&](const float* p, int id) { addOutput(createOutputCentered<PJ301MPort>(P(p), module, id)); };
+		LinkLights* links = new LinkLights;
+		links->module = module;
+		auto out = [&](const float* p, int id) {
+			addOutput(createOutputCentered<PJ301MPort>(P(p), module, id));
+			links->pos[id] = P(p);
+		};
 
 		GenraDisplay* disp = createWidget<GenraDisplay>(mm2px(Vec(layout::DISPLAY[0], layout::DISPLAY[1])));
 		disp->box.size = mm2px(Vec(layout::DISPLAY[2], layout::DISPLAY[3]));
@@ -505,6 +606,8 @@ struct GenraWidget : ModuleWidget {
 		out(layout::PAD_GATE, Genra::PAD_GATE_OUTPUT);
 		out(layout::PAD_VEL, Genra::PAD_VEL_OUTPUT);
 		out(layout::PAD_MOD, Genra::PAD_MOD_OUTPUT);
+		links->box.size = box.size;
+		addChild(links); // (outputs read without cables glow)
 	}
 
 	void appendContextMenu(Menu* menu) override {

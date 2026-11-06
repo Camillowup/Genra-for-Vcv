@@ -93,8 +93,10 @@ struct Mix : Module {
 				continue;
 			}
 			// it plays in stereo, as with two cables (written now and then: the source reads it on another thread)
-			if (frame - h->pulledAt.load(std::memory_order_relaxed) > 1024)
+			if (frame - h->pulledAt.load(std::memory_order_relaxed) > 1024) {
 				h->pulledAt.store(frame, std::memory_order_relaxed);
+				h->pulledBy.store(c, std::memory_order_relaxed);
+			}
 			Output& oL = m->outputs[ol];
 			s.dl.feed(il, oL.voltages, std::max(1, (int) oL.channels));
 			if (orr >= 0) {
@@ -316,6 +318,26 @@ struct Mix : Module {
 struct SourceTags : widget::TransparentWidget {
 	Mix* module = nullptr;
 	Vec duck;
+	static Rect field(int c) {
+		float cx = mm2px(3.f + c * 24.f + 11.5f), cy = mm2px(19.7f); // (tools/mix_panel.py: strips at 3 + i·24, 23 wide)
+		float w = mm2px(20.f), hh = mm2px(3.6f);
+		return Rect(Vec(cx - w / 2, cy - hh / 2), Vec(w, hh));
+	}
+	// the dark field over "CH n" belongs to the panel (a light cannot darken anything)
+	void draw(const DrawArgs& args) override {
+		Widget::draw(args);
+		if (!module)
+			return;
+		for (int c = 0; c < NCH; c++) {
+			if (!follow::host(module->src[c].ref.to.load()))
+				continue;
+			Rect f = field(c);
+			nvgBeginPath(args.vg);
+			nvgRoundedRect(args.vg, f.pos.x, f.pos.y, f.size.x, f.size.y, f.size.y / 3);
+			nvgFillColor(args.vg, nvgRGB(0x07, 0x08, 0x0a));
+			nvgFill(args.vg);
+		}
+	}
 	void drawLayer(const DrawArgs& args, int layer) override {
 		Widget::drawLayer(args, layer);
 		if (layer != 1 || !module)
@@ -341,8 +363,6 @@ struct SourceTags : widget::TransparentWidget {
 			}
 			nvgBeginPath(vg);
 			nvgRoundedRect(vg, cx - w / 2, cy - hh / 2, w, hh, hh / 3);
-			nvgFillColor(vg, nvgRGB(0x07, 0x08, 0x0a));
-			nvgFill(vg);
 			nvgStrokeColor(vg, col);
 			nvgStrokeWidth(vg, 1.2f);
 			nvgStroke(vg);

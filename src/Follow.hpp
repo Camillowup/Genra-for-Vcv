@@ -94,6 +94,7 @@ struct Host {
 	int audioL = -1, audioR = -1; // the stereo out MIX takes
 	const char* srcName = "";
 	std::atomic<int64_t> pulledAt{-1000000}; // MIX takes the stereo out (engine frame of the last time)
+	std::atomic<int> pulledBy{-1};           // … on this channel (0..3), for the panel
 	/** The R out counts as patched while MIX takes it (the module then plays in stereo, as with two cables). */
 	bool pulled(int64_t frame) const { return frame - pulledAt.load(std::memory_order_relaxed) < 4096; }
 	virtual ~Host() {}
@@ -110,7 +111,21 @@ struct StripLight : widget::TransparentWidget {
 	void step() override;
 	void drawLayer(const DrawArgs& args, int layer) override;
 };
-/** Add the lit strip to a module widget. pos: jack centres in px, in the order of fol.binds. */
+/** Add the lit strip to a module widget. pos: jack centres in px, in the order of fol.binds. (Adds OutLight too.) */
 StripLight* addStrip(ModuleWidget* mw, Module* module, const std::vector<Vec>& pos);
+
+/** OUT L/R glow in the MIX channel's colour while MIX takes them without a cable; "› MIX CH n" above. */
+struct OutLight : widget::TransparentWidget {
+	Module* module = nullptr;
+	Vec l, r;
+	bool found = false;
+	void step() override;
+	void drawLayer(const DrawArgs& args, int layer) override;
+};
+OutLight* addOutLight(ModuleWidget* mw, Module* module);
+/** The MIX channel colours (CH 1..4). */
+NVGcolor mixColor(int ch);
+/** A glowing ring around a jack (layer 1). */
+void ring(NVGcontext* vg, Vec c, NVGcolor col, float a = 1.f);
 
 } // namespace follow
