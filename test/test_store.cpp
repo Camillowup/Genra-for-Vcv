@@ -18,7 +18,7 @@ int main(){
     else if(!same(pat,r)){ fails++; printf("v2 content %d\n",g); }
     // truncated / garbage data must not crash or load half
     auto blob=savePattern(pat);
-    for(size_t cut : {0ul,3ul,10ul,blob.size()/2}){ std::vector<uint8_t> b(blob.begin(),blob.begin()+cut); Pattern x; if(loadPattern(b,x) && cut<blob.size()/2){ fails++; printf("truncated %zu loaded\n",cut);} }
+    for(size_t cut : {(size_t)0,(size_t)3,(size_t)10,blob.size()/2}){ std::vector<uint8_t> b(blob.begin(),blob.begin()+cut); Pattern x; if(loadPattern(b,x) && cut<blob.size()/2){ fails++; printf("truncated %zu loaded\n",cut);} }
     // a newer GENRA appends an unknown record: must still load the known part
     { auto fut=blob; uint8_t rec[]={99,3,0,0,0,1,2,3}; fut.insert(fut.end(),rec,rec+8); Pattern y; if(!loadPattern(fut,y)||!same(pat,y)){ fails++; printf("future record %d\n",g);} }
     std::vector<uint8_t> junk(500); for(auto&c:junk) c=(uint8_t)rand(); Pattern x; loadPattern(junk,x);
