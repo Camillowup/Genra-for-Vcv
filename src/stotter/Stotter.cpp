@@ -88,7 +88,7 @@ struct Stotter : Module {
 		}
 	};
 
-	Engine e;
+	gstot::Engine e;
 	dsp::SchmittTrigger clockT, resetT;
 	bool down[NPADS] = {};       // pad held (button, PADS input or MIDI)
 	bool btn[NPADS] = {}, gate[NPADS] = {}, note[NPADS] = {};
@@ -299,9 +299,9 @@ struct Stotter : Module {
 			lights[EDIT_LIGHT].setBrightness(params[EDIT_PARAM].getValue() > 0.5f ? 1.f : 0.f);
 			float frac = (float) (e.beat - std::floor(e.beat));
 			float rec = 0.f;
-			if (e.cap == Engine::CAP_ARMED) rec = frac < 0.5f ? 1.f : 0.f;
-			else if (e.cap == Engine::CAP_REC) rec = 1.f;
-			else if (e.cap == Engine::CAP_PLAY) rec = 0.45f;
+			if (e.cap == gstot::Engine::CAP_ARMED) rec = frac < 0.5f ? 1.f : 0.f;
+			else if (e.cap == gstot::Engine::CAP_REC) rec = 1.f;
+			else if (e.cap == gstot::Engine::CAP_PLAY) rec = 0.45f;
 			lights[REC_LIGHT].setBrightness(rec);
 			lights[TAP_LIGHT].setBrightness(frac < 0.12f ? 1.f : 0.f);
 		}
@@ -425,7 +425,7 @@ struct Display : TransparentWidget {
 		NVGcontext* vg = args.vg;
 		float w = box.size.x, h = box.size.y;
 		bool editing = module && module->params[Stotter::EDIT_PARAM].getValue() > 0.5f;
-		Engine* e = module ? &module->e : nullptr;
+		gstot::Engine* e = module ? &module->e : nullptr;
 		int shown = e ? (e->act >= 0 ? e->act : module->target) : 2;
 		PadCfg c = e ? e->pads[shown] : defaultPad(2);
 		NVGcolor col = ROW_COL[FX_ROW[c.fx]];
@@ -449,9 +449,9 @@ struct Display : TransparentWidget {
 			info = string::f("%s · BANK %c · QUANT %s · %s%.0f BPM · EQ %s", MODE_NAMES[e->c.mode], 'A' + e->bank,
 			                 QUANT_NAMES[clamp(e->c.quant, 0, NQUANT - 1)], e->ext ? "EXT " : "", e->bpm,
 			                 e->c.pre ? "PRE" : "POST");
-			if (e->cap == Engine::CAP_ARMED) info = "REC WAITS FOR THE BAR · " + info;
-			else if (e->cap == Engine::CAP_REC) info = "RECORDING · " + info;
-			else if (e->cap == Engine::CAP_PLAY) info = "LOOP PLAYS · " + info;
+			if (e->cap == gstot::Engine::CAP_ARMED) info = "REC WAITS FOR THE BAR · " + info;
+			else if (e->cap == gstot::Engine::CAP_REC) info = "RECORDING · " + info;
+			else if (e->cap == gstot::Engine::CAP_PLAY) info = "LOOP PLAYS · " + info;
 		}
 		ui::text(vg, bold, w - 10, 14, info, 6.8f, ui::DIM, NVG_ALIGN_RIGHT, 0.3f);
 		// the pattern of one bar
@@ -611,7 +611,7 @@ struct StotterWidget : ModuleWidget {
 		menu->addChild(new MenuSeparator);
 		menu->addChild(createIndexSubmenuItem(
 		    "Clock resolution", std::vector<std::string>(CLOCK_MODES, CLOCK_MODES + 4),
-		    [=]() { return m->e.c.clockMode; }, [=](size_t i) { m->e.c.clockMode = (int) i; }));
+		    [=]() -> size_t { return (size_t) m->e.c.clockMode; }, [=](size_t i) { m->e.c.clockMode = (int) i; }));
 		menu->addChild(new MenuSeparator);
 		menu->addChild(createMenuLabel("MIDI: notes play the pads"));
 		app::appendMidiMenu(menu, &m->midiIn);
