@@ -1,7 +1,7 @@
 {
   "slug": "Genra",
   "name": "GENRA",
-  "version": "2.7.0",
+  "version": "2.8.0",
   "license": "GPL-3.0-only",
   "brand": "Genra",
   "author": "Bastian Ofner",
@@ -164,6 +164,18 @@
         "Arpeggiator",
         "Effect",
         "Reverb"
+      ]
+    },
+    {
+      "slug": "GenraStotter",
+      "name": "STOTTER Performance FX",
+      "description": "DJ-style performance effects: 16 pads (stutter, halftime, reverse, tape stop, scratch, gates, echo out, freeze, bitcrush, rearrange) launched on the beat, isolator EQ with kills, DJ filter, MIDI",
+      "tags": [
+        "Effect",
+        "Equalizer",
+        "Filter",
+        "Delay",
+        "Distortion"
       ]
     }
   ]

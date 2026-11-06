@@ -30,7 +30,7 @@ jobs:
 
       - name: Tests (engines, without Rack)
         run: |
-          for t in test/test_mono.cpp test/test_schmelz.cpp test/test_mix.cpp test/test_funke.cpp; do
+          for t in test/test_mono.cpp test/test_schmelz.cpp test/test_mix.cpp test/test_funke.cpp test/test_stotter.cpp; do
             g++ -std=gnu++17 -O2 "$t" -o t.exe && ./t.exe || exit 1
           done
           gcc -std=gnu11 -O2 -w -ffreestanding -fno-builtin -fno-tree-loop-distribute-patterns -Ikwasub/firmware/src -Ikwasub/firmware/gen -Ikwasub/firmware/hal test/kwcore_test.c -o kt.exe -lm
@@ -54,6 +54,7 @@ jobs:
           for c in voicecore drumcore animalcore kwcore; do test -f dist/Genra/res/$c.dll; done
           test -f dist/Genra/res/Umlauf.svg
           test -f dist/Genra/res/Funke.svg
+          test -f dist/Genra/res/Stotter.svg
           ls dist/Genra/res/umlauf/shapes
           objdump -p dist/Genra/plugin.dll | grep "DLL Name"
           ! objdump -p dist/Genra/plugin.dll | grep -iE "libwinpthread|libstdc"
