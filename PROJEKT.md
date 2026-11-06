@@ -1,6 +1,6 @@
 # GENRA – Projektstand
 
-**Stand:** 6. November 2026 · **Plugin 2.8.1: 15 Module** (GENRA, GRID, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, SCHMELZ, MIX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `CamilloGF/genra-v3`
+**Stand:** 6. November 2026 · **Plugin 2.10.0: 15 Module** (GENRA, GRID, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, SCHMELZ, MIX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `CamilloGF/genra-v3`
 Vorgänger: v1 `CamilloGF/vcv-sequenzer-Genra` (2.0.0), v2 `CamilloGF/Genra-v2` (2.1.0, läuft in Rack)
 Plattform: VCV Rack Pro 2.6.6 unter Windows · Build: GitHub Actions (`.github/workflows/main.yml`)
 
@@ -202,7 +202,7 @@ GENRA MONO: `g++ -std=c++17 -O2 test/test_mono.cpp -o tm && ./tm`
 - [ ] Klangtest in Rack, Feinschliff nach Gehör (Registrationen, Pegel zwischen den Klängen, Ensemble-Tiefe).
 
 ### MIX
-- 4-Kanal-Stereomixer, 28 HP (bis 2.9.0: 32 HP), Modul-Slug `GenraMix`. Kanäle in den GENRA-Spurfarben, Master dunkel (Balken
+- 4-Kanal-Stereomixer, 28 HP (ab 2.10.0, vorher 32 HP), Modul-Slug `GenraMix`. Kanäle in den GENRA-Spurfarben, Master dunkel (Balken
   `#4a4c57`), Ausgänge grün getönt wie die Pegelanzeigen. Panel: `tools/mix_panel.py` → `res/Mix.svg` +
   `src/mix/MixLayout.hpp`.
 - Engine `src/mix/MixDsp.hpp`: RBJ-Kuhschwänze 120 Hz / 6 kHz (±12 dB, übersprungen wenn flach), Balance (Gegenseite

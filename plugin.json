@@ -1,7 +1,7 @@
 {
   "slug": "Genra",
   "name": "GENRA",
-  "version": "2.9.0",
+  "version": "2.10.0",
   "license": "GPL-3.0-only",
   "brand": "Genra",
   "author": "Bastian Ofner",
@@ -115,7 +115,7 @@
     {
       "slug": "GenraMix",
       "name": "MIX",
-      "description": "4-track stereo mixer for GENRA's tracks: shelf EQ, pan, level, mute/solo, send/return, ducking from the kick, width, drive",
+      "description": "4-track stereo mixer for GENRA's tracks: shelf EQ, pan, level, mute/solo, two send/return loops, ducking from the kick, width, drive",
       "tags": [
         "Mixer",
         "Utility",
