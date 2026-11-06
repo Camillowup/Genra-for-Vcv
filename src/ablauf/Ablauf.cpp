@@ -206,13 +206,13 @@ struct Ablauf : Module {
 		configButton(FILL_PARAM, "Fill at the end of the row on / off");
 		configSwitch(MODE_PARAM, 0.f, 1.f, 0.f, "Mode", {"Pattern (play pads live)", "Song (play the list)"});
 		configButton(PLAY_PARAM, "Play (song from the selected row)");
-		configButton(STOP_PARAM, "Stop");
+		configButton(STOP_PARAM, "Stop (press again: back to the start)");
 		configSwitch(LOOP_PARAM, 0.f, 1.f, 1.f, "Loop song", {"Off (stop at the end)", "On"});
 		configSwitch(BANK_PARAM, 0.f, 3.f, 0.f, "Bank", {"A", "B", "C", "D"});
 		static const char* PN[NUM_SECTIONS] = {"Intro", "Verse", "Build", "Drop", "Break", "Outro"};
 		for (int k = 0; k < NUM_SECTIONS; k++)
 			configButton(PART_PARAM + k, std::string(PN[k]) + " from the playing pattern (again: re-roll)");
-		configButton(STORE_PARAM, "STORE: then a pad – saves what GENRA is playing");
+		configButton(STORE_PARAM, "STORE: then a pad – saves what GENRA is playing (overwrites; an empty pad stores on a tap)");
 		configButton(COPY_PARAM, "COPY: tap source, then target");
 		configButton(CLEAR_PARAM, "CLEAR: then a pad – clears the slot");
 		for (int i = 0; i < PARAMS_LEN; i++)
@@ -542,8 +542,20 @@ struct Ablauf : Module {
 			armed = 0;
 			return;
 		}
+		if (!slots[i].used) { // empty pad: takes what GENRA is playing right now (no STORE needed)
+			if (!g) {
+				say("No GENRA connected");
+				return;
+			}
+			if (pendingStore >= 0 || pendingPart >= 0)
+				return; // a snapshot is already on its way
+			selSlot = i;
+			pendingStore = i;
+			requestSnap(g);
+			return;
+		}
 		selSlot = i;
-		if (!songMode() && slots[i].used && g)
+		if (!songMode() && g)
 			cuePattern(i, g);
 	}
 	void setTag(int i, int tag) {
@@ -911,6 +923,22 @@ struct Ablauf : Module {
 			runSeen = rq;
 			bool on = songMode() ? song.playing : (g && g->running);
 			(on ? stop : play) = true;
+		}
+		if (stop) {
+			// STOP: the marker stays on the row that was playing; STOP again (already stopped): back to the start
+			bool was = song.playing || (g && g->running);
+			int at = song.playing ? song.row : -1;
+			if (g)
+				stopSong(g);
+			else
+				song.playing = false, song.row = -1;
+			if (!was) {
+				setRow(0);
+				say("Back to the start");
+			}
+			else if (at >= 0)
+				setRow(at);
+			stop = false;
 		}
 		if (g) {
 			if (play) {
@@ -1817,7 +1845,7 @@ struct AblaufWidget : ModuleWidget {
 			m->setRow(0);
 			m->endChange(a);
 		}));
-		menu->addChild(createMenuLabel("Store a pattern: STORE, then a pad · Song: tap a pad, then EINF."));
+		menu->addChild(createMenuLabel("Store: tap an empty pad (or STORE, then any pad) · Song: tap a pad, then EINF."));
 		menu->addChild(createMenuLabel("Variations: pattern playing, then INTRO … OUTRO (again = re-roll)"));
 	}
 };
