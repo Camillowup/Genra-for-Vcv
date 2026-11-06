@@ -124,6 +124,7 @@ struct Voice {
 	void setSampleRate(float sr) {
 		fs = sr;
 		fsOs = sr * OS;
+		declickK = std::exp(-1.f / (0.003f * sr));
 		float f = std::min(0.45f * sr, 20000.f);
 		d1.lowpass(f, fsOs, 0.5412f);
 		d2.lowpass(f, fsOs, 1.3066f);
@@ -148,6 +149,8 @@ struct Voice {
 		if (!strike)
 			return;
 		bool wasActive = active;
+		if (wasActive)
+			restrike = true; // (process() smooths the jump)
 		active = true;
 		model = p.model;
 		vel = v;
@@ -404,7 +407,29 @@ struct Voice {
 
 	/** One output sample (stereo, about ±1 at full level). vib: the vibrato in semitones before the delay fade. */
 	bool gliding = false;
+	// declick: a sounding voice struck again restarts its phases / string / envelopes; the step in the waveform that
+	// this makes is taken out by an offset that fades within ~3 ms (no click, the attack stays sharp)
+	bool restrike = false;
+	float prevL = 0.f, prevR = 0.f, jumpL = 0.f, jumpR = 0.f, declickK = 0.9931f;
 	void process(const Params& p, float vibSemis, float glideCoef, bool glideOn, float& L, float& R) {
+		processRaw(p, vibSemis, glideCoef, glideOn, L, R);
+		if (restrike) {
+			restrike = false;
+			jumpL = prevL - L;
+			jumpR = prevR - R;
+		}
+		L += jumpL;
+		R += jumpR;
+		jumpL *= declickK;
+		jumpR *= declickK;
+		if (std::fabs(jumpL) < 1e-7f)
+			jumpL = 0.f;
+		if (std::fabs(jumpR) < 1e-7f)
+			jumpR = 0.f;
+		prevL = L;
+		prevR = R;
+	}
+	void processRaw(const Params& p, float vibSemis, float glideCoef, bool glideOn, float& L, float& R) {
 		if (!active) {
 			L = R = 0.f;
 			lastEnv = 0.f;

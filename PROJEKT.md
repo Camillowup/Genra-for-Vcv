@@ -1,6 +1,6 @@
 # GENRA – Projektstand
 
-**Stand:** 6. November 2026 · **Plugin 2.14.0: 16 Module** (GENRA, GRID, ABLAUF, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, SCHMELZ, MIX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `CamilloGF/genra-v3`
+**Stand:** 6. November 2026 · **Plugin 2.14.1: 16 Module** (GENRA, GRID, ABLAUF, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, SCHMELZ, MIX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `CamilloGF/genra-v3`
 Vorgänger: v1 `CamilloGF/vcv-sequenzer-Genra` (2.0.0), v2 `CamilloGF/Genra-v2` (2.1.0, läuft in Rack)
 Plattform: VCV Rack Pro 2.6.6 unter Windows · Build: GitHub Actions (`.github/workflows/main.yml`)
 
@@ -301,3 +301,6 @@ GENRA MONO: `g++ -std=c++17 -O2 test/test_mono.cpp -o tm && ./tm`
 - GENRA-Ausgänge: Pad-V/OCT/GATE werden immer als 4 Kanäle gelesen, Drums aus den 8 Einzelausgängen (DRUMS poly schreibt GENRA nur, wenn gesteckt).
 - MIX: `ChSrc` pro Kanal (Off/Auto/fest, JSON `inputFrom`, `duckFrom`), setzt bei der Quelle `Host::pulledAt`; die Instrumente rechnen stereo, wenn R gesteckt ist oder `pulled()` (statt fremde `channels` zu verändern). Fehlt ein gewähltes Modul (z. B. eingefügte Kopie), gilt Auto. `SourceTags` zeichnet Namen/„CABLE“ über „CH n“ und den Ring an DUCK.
 - Panels: Leistenlinie gedimmt (`panellib.dim()`, 35 % auf der Ablage), auch JIANT/MONK.
+
+### 2.14.1 – FUNKE ohne Knacksen beim Neuanschlag
+- Eine klingende Stimme, die neu angeschlagen wird (Mono-Retrigger, Voice-Stealing in POLY), setzte Phasen, Saite (PLUCK) und Anregung hart zurück: Sprung in der Wellenform. `Voice::process` misst den Sprung im ersten Sample und blendet ihn über ~3 ms aus (Offset), der Anschlag bleibt scharf.
