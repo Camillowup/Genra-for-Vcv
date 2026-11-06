@@ -1,6 +1,6 @@
 # GENRA – Projektstand
 
-**Stand:** 6. November 2026 · **Plugin 2.13.4: 16 Module** (GENRA, GRID, ABLAUF, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, SCHMELZ, MIX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `CamilloGF/genra-v3`
+**Stand:** 6. November 2026 · **Plugin 2.14.0: 16 Module** (GENRA, GRID, ABLAUF, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, SCHMELZ, MIX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `CamilloGF/genra-v3`
 Vorgänger: v1 `CamilloGF/vcv-sequenzer-Genra` (2.0.0), v2 `CamilloGF/Genra-v2` (2.1.0, läuft in Rack)
 Plattform: VCV Rack Pro 2.6.6 unter Windows · Build: GitHub Actions (`.github/workflows/main.yml`)
 
@@ -292,3 +292,11 @@ GENRA MONO: `g++ -std=c++17 -O2 test/test_mono.cpp -o tm && ./tm`
 
 ### 2.13.4 – ABLAUF CLR ALL
 - Taster CLR ALL (zweimal drücken, 3 s): leert alle 64 Pads als ein Undo-Schritt (`clearSlots`, history::ComplexAction aus AblaufActions). Rechtsklick: Clear bank A–D. Song-Liste bleibt. `CLEARALL_PARAM`/`CLEARALL_LIGHT` hinten angehängt.
+
+### 2.14.0 – Follow GENRA (verbinden ohne Kabel)
+- `src/Follow.hpp/.cpp`: „virtuelles Kabel“. Solange kein echtes Kabel steckt, schreibt das Modul die Quellspannungen am Anfang von `process()` selbst in seinen Input (`channels`/`voltages` direkt, `setChannels()` würde nicht verbinden). Ein Kabel erkennt `Drive::cableIn()` daran, dass der Input nicht mehr enthält, was zuletzt geschrieben wurde (die Engine kopiert Kabel nach jedem Sample, `removeCable` setzt channels = 0).
+- Quellen über `follow::Ref` (atomarer Zeiger, Registry mit Mutex); `follow::gone(this)` in `onRemove` jedes beteiligten Moduls (GENRA, Instrumente, STOTTER, MIX) nullt alle Zeiger auf das Modul (Rack hält dabei den Engine-Lock).
+- Instrumente: `struct X : Module, follow::Host` mit `fol.bind(input, Sig)`, `audioL/audioR`, `srcName`; `fol.process(this)` als erste Zeile in `process()`; JSON-Schlüssel `followGenra`; Menü `fol.appendMenu`; `follow::addStrip()` zeichnet die Segmente (Layer 1) und sucht das GENRA (UI-Thread, alle 0,5 s).
+- GENRA-Ausgänge: Pad-V/OCT/GATE werden immer als 4 Kanäle gelesen, Drums aus den 8 Einzelausgängen (DRUMS poly schreibt GENRA nur, wenn gesteckt).
+- MIX: `ChSrc` pro Kanal (Off/Auto/fest, JSON `inputFrom`, `duckFrom`), setzt bei der Quelle `outputs[L/R].channels = 1`, damit sie stereo spielt wie mit zwei Kabeln. `SourceTags` zeichnet Namen/„CABLE“ über „CH n“ und den Ring an DUCK.
+- Panels: Leistenlinie gedimmt (`panellib.dim()`, 35 % auf der Ablage), auch JIANT/MONK.

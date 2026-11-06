@@ -151,6 +151,15 @@ Stereo-Effekt: z. B. GENRAs Drums oder MIX-Ausgang hinein, CLOCK von GENRA.
 
 ---
 
+## Follow GENRA: verbinden ohne Kabel
+
+Alle Instrumente mit GENRA-Leiste (MONO, K-WASUB, FUNKE, SCHMELZ, UMLAUF, MONK, VOICE, ANIMAL, DRUM-X) können eine GENRA-Spur ohne Kabel übernehmen: **Rechtsklick › Follow GENRA** › Bass, Melody oder Pad (DRUM-X: Drums). Darunter wählst du, welches GENRA („Automatic“ nimmt das einzige bzw. erste im Patch). Dann kommen V/OCT, GATE, VEL, ACC, SLIDE, MOD sowie CLOCK und RESET direkt von GENRA, soweit das Instrument die Buchse hat und die Spur das Signal liefert (MOD nur bei Pad, ACC/SLIDE nur bei Bass und Melody).
+
+- **Die Leiste zeigt es an:** Die Linie über den Buchsen ist gedimmt gedruckt. Kommt ein Signal von GENRA, leuchtet das Segment über dieser Buchse in der Spurfarbe (CLOCK/RESET weiss) und flackert bei jeder Note kurz auf.
+- **Ein Kabel hat immer Vorrang:** Steckt ein Kabel in einer Buchse, gilt das Kabel, das Segment darüber geht aus. Alle Buchsen bleiben, andere Sequenzer und Module funktionieren wie bisher.
+
+**MIX:** **Rechtsklick › CH 1–4 input from** › Off, **Auto** oder ein Instrument aus dem Patch (auch STOTTER). „Auto“ nimmt das Instrument, das der Spur des Kanals folgt (CH 1 Drums, CH 2 Bass, CH 3 Melody, CH 4 Pad). Der Name der Quelle steht dann im Kanal statt „CH n“; steckt ein Kabel in IN L/R, wird er dunkel mit „CABLE“. **DUCK from › GENRA KICK** lässt DUCK ohne Kabel der Kick folgen. Die Verbindung klingt wie ein Kabel (auch ein Kabel verzögert in Rack um ein Sample); Effekte dazwischen (z. B. STOTTER) werden wie gewohnt verkabelt oder im MIX als Quelle gewählt.
+
 ## Instrumente
 
 Das passende Set zu GENRA: **GENRA MONO** oder **K-WASUB** für den Bass, **FUNKE** für die Melodie, **SCHMELZ** für die Pads, **DRUM-X** für die Drums – zusammengeführt im **MIX**. Dazu weitere Stimmen: VOICE, ANIMAL, MONK und UMLAUF.
