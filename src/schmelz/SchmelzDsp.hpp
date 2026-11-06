@@ -196,10 +196,18 @@ struct StringsVoice {
 	int ctl = 0;
 	float hpA = 0.f;
 	Reg r;
+	// coefficients cached by the value they come from (recomputed only when it changes: bit-exact)
+	float cCresc = -1e30f, kAtt = 0.f, cRel = -1e30f, kRel = 1.f, kSweep = 1.f;
+	float cReg = -1e30f, cTone = -1e30f, toneSc = 1.f, detMul = 1.f;
 
+	StringsVoice() { setSampleRate(48000.f); }
 	void setSampleRate(float sr) {
 		fs = sr;
 		ctl = 0;
+		cCresc = cRel = cReg = cTone = -1e30f;
+		kSweep = std::exp(-1.f / (0.25f * fs));
+		f1.set(730.f, 5.f, fs);  // fixed vowel formants
+		f2.set(1150.f, 6.f, fs);
 	}
 	/** Free-running oscillators: every voice starts at its own phases. */
 	void seed(uint32_t s) {
@@ -208,34 +216,55 @@ struct StringsVoice {
 		ph.p = 0.5f + 0.5f * g.uni(), phSub.p = 0.5f + 0.5f * g.uni();
 		phUp.p = 0.5f + 0.5f * g.uni(), ph2.p = 0.5f + 0.5f * g.uni();
 		detune = g.uni();
+		cReg = -1e30f;
 	}
 	/** One sample. f: note frequency; trig: the gate's rising edge. */
 	float process(const StringsParams& p, float f, bool gateNow, bool trig, float velocity) {
+		if (!envStep(p, gateNow, trig, velocity))
+			return 0.f;
+		return render(p, f);
+	}
+	/** The envelope part of process(); false: the voice is silent (render() is not needed, its output is 0). */
+	bool envStep(const StringsParams& p, bool gateNow, bool trig, float velocity) {
 		gate = gateNow;
 		if (trig) {
 			vel = velocity;
 			sweep = 1.f;
 		}
-		float t = gate ? crescSeconds(p.cresc) : releaseSeconds(p.rel);
-		if (gate)
-			env += (1.f - env) * (1.f - std::exp(-2.2f / (t * fs)));  // ~90 % after the crescendo time
-		else
-			env *= std::exp(-6.9f / (t * fs));
-		sweep *= std::exp(-1.f / (0.25f * fs));
-		if (env < 1e-5f && !gate)
-			return 0.f;
-
+		if (gate) {
+			if (p.cresc != cCresc) {
+				cCresc = p.cresc;
+				kAtt = 1.f - std::exp(-2.2f / (crescSeconds(p.cresc) * fs));  // ~90 % after the crescendo time
+			}
+			env += (1.f - env) * kAtt;
+		} else {
+			if (p.rel != cRel) {
+				cRel = p.rel;
+				kRel = std::exp(-6.9f / (releaseSeconds(p.rel) * fs));
+			}
+			env *= kRel;
+		}
+		sweep *= kSweep;
+		return !(env < 1e-5f && !gate);
+	}
+	/** The sound part of process(), after envStep() returned true. */
+	float render(const StringsParams& p, float f) {
 		if (--ctl <= 0) {
 			ctl = 16;
-			r = regAt(p.reg);
-			float toneSc = std::pow(2.f, (clampf(p.tone, 0.f, 1.f) - 0.5f) * 3.f);
-			float cut = r.lp * toneSc * std::pow(2.f, r.sweep * sweep);
+			if (p.reg != cReg) {
+				cReg = p.reg;
+				r = regAt(p.reg);
+				hpA = std::exp(-2.f * PI * r.hp / fs);
+				detMul = std::pow(2.f, detune * r.detune / 1200.f);
+			}
+			if (p.tone != cTone) {
+				cTone = p.tone;
+				toneSc = std::pow(2.f, (clampf(p.tone, 0.f, 1.f) - 0.5f) * 3.f);
+			}
+			float cut = r.lp * toneSc * (r.sweep != 0.f ? std::pow(2.f, r.sweep * sweep) : 1.f);
 			lpf.set(cut, 0.75f, fs);
-			f1.set(730.f, 5.f, fs);
-			f2.set(1150.f, 6.f, fs);
-			hpA = std::exp(-2.f * PI * r.hp / fs);
 		}
-		float fr = f * std::pow(2.f, detune * r.detune / 1200.f);
+		float fr = f * detMul;
 		float base = p.oct == OCT_8VA ? 2.f * fr : fr;
 		float dt = base / fs;
 		float t0 = ph.tick(dt);
@@ -278,10 +307,13 @@ struct SoloVoice {
 	float fs = 48000.f;
 	int ctl = 0;
 	Snd s;
+	// coefficients cached by the value they come from (bit-exact)
+	float cAtk = -1e30f, kAtk = 0.f, cDec = -1e30f, kSus = 0.f, kRel = 1.f, cSound = -1e30f, kF = 1.f, kI = 1.f;
 
 	void setSampleRate(float sr) {
 		fs = sr;
 		ctl = 0;
+		cAtk = cDec = cSound = -1e30f;
 	}
 	void seed(uint32_t sd) {
 		Rng g;
@@ -289,6 +321,20 @@ struct SoloVoice {
 		ph.p = 0.5f + 0.5f * g.uni(), phM.p = 0.5f + 0.5f * g.uni(), phSub.p = 0.5f + 0.5f * g.uni();
 	}
 	float process(const SoloParams& p, float f, bool gateNow, bool trig, float velocity) {
+		if (!envStep(p, gateNow, trig, velocity))
+			return 0.f;
+		return render(p, f);
+	}
+	void decay(float k) {
+		if (k != cDec) {
+			cDec = k;
+			float dec = decaySeconds(k);
+			kSus = 1.f - std::exp(-4.6f / (dec * fs));
+			kRel = std::exp(-6.9f / (dec * fs));
+		}
+	}
+	/** The envelope part of process(); false: the voice is idle (its output is 0, render() is not needed). */
+	bool envStep(const SoloParams& p, bool gateNow, bool trig, float velocity) {
 		if (trig) {
 			vel = velocity;
 			stage = 1;
@@ -298,26 +344,38 @@ struct SoloVoice {
 			stage = env > 0.f ? 3 : 0;
 		gate = gateNow;
 		// ADSR (RC curves); release time = DECAY
-		float dec = decaySeconds(p.dec);
 		if (stage == 1) {
-			env += (1.25f - env) * (1.f - std::exp(-1.5f / (attackSeconds(p.atk) * fs)));
+			if (p.atk != cAtk) {
+				cAtk = p.atk;
+				kAtk = 1.f - std::exp(-1.5f / (attackSeconds(p.atk) * fs));
+			}
+			env += (1.25f - env) * kAtk;
 			if (env >= 1.f)
 				env = 1.f, stage = 2;
 		} else if (stage == 2) {
-			env += (clampf(p.sus, 0.f, 1.f) - env) * (1.f - std::exp(-4.6f / (dec * fs)));
+			decay(p.dec);
+			env += (clampf(p.sus, 0.f, 1.f) - env) * kSus;
 		} else if (stage == 3) {
-			env *= std::exp(-6.9f / (dec * fs));
+			decay(p.dec);
+			env *= kRel;
 			if (env < 1e-5f)
 				env = 0.f, stage = 0;
 		}
-		if (stage == 0)
-			return 0.f;
+		return stage != 0;
+	}
+	/** The sound part of process(), after envStep() returned true. */
+	float render(const SoloParams& p, float f) {
 		if (--ctl <= 0) {
 			ctl = 16;
-			s = soundAt(p.sound);
+			if (p.sound != cSound) {
+				cSound = p.sound;
+				s = soundAt(p.sound);
+				kF = std::exp(-1.f / (s.lpDecay * fs));
+				kI = std::exp(-1.f / (s.idxDecay * fs));
+			}
 		}
-		fenv *= std::exp(-1.f / (s.lpDecay * fs));
-		ienv *= std::exp(-1.f / (s.idxDecay * fs));
+		fenv *= kF;
+		ienv *= kI;
 		if ((ctl & 3) == 0)
 			lpf.set(s.lp * std::pow(2.f, s.lpEnv * fenv) * (0.7f + 0.6f * vel), 0.7f + s.res * 4.f, fs);
 
@@ -371,14 +429,26 @@ struct Ensemble {
 		pf += 5.7f / fs;
 		ps -= std::floor(ps);
 		pf -= std::floor(pf);
-		float tap[3];
-		for (int i = 0; i < 3; i++) {
-			float o = i / 3.f;
-			float ms = 0.0016f * std::sin(2.f * PI * (ps + o)) + 0.0004f * std::sin(2.f * PI * (pf + o));
-			tap[i] = d.read((0.0065f + ms * depth) * fs);
-		}
-		l = (tap[0] + 0.6f * tap[1]) * 0.7f + 0.2f * x;
-		r = (tap[2] + 0.6f * tap[1]) * 0.7f + 0.2f * x;
+		// the three taps at 0°, 120° and 240°: sin and cos of both LFOs, rotated (sin(a + o) = sin a cos o + cos a sin o)
+		const float C120 = -0.5f, S120 = 0.866025403784f;
+		float ss = std::sin(2.f * PI * ps), cs = std::cos(2.f * PI * ps);
+		float sf = std::sin(2.f * PI * pf), cf = std::cos(2.f * PI * pf);
+		float m0 = 0.0016f * ss + 0.0004f * sf;
+		float m1 = 0.0016f * (ss * C120 + cs * S120) + 0.0004f * (sf * C120 + cf * S120);
+		float m2 = 0.0016f * (ss * C120 - cs * S120) + 0.0004f * (sf * C120 - cf * S120);
+		float tap0 = d.read((0.0065f + m0 * depth) * fs);
+		float tap1 = d.read((0.0065f + m1 * depth) * fs);
+		float tap2 = d.read((0.0065f + m2 * depth) * fs);
+		l = (tap0 + 0.6f * tap1) * 0.7f + 0.2f * x;
+		r = (tap2 + 0.6f * tap1) * 0.7f + 0.2f * x;
+	}
+	/** Asleep (silence in, silence out): only the LFOs run on. */
+	void idle() {
+		d.push(0.f);
+		ps += 0.63f / fs;
+		pf += 5.7f / fs;
+		ps -= std::floor(ps);
+		pf -= std::floor(pf);
 	}
 };
 
@@ -393,20 +463,55 @@ struct Chorus {
 		float m = 0.003f * depth * std::sin(2.f * PI * (p + offset));
 		return 0.55f * x + 0.6f * d.read((0.012f + m) * fs);
 	}
+	void idle() {
+		d.push(0.f);
+		p += 0.27f / fs;
+		p -= std::floor(p);
+	}
 };
 
-/** Six first-order allpasses swept by an LFO, with feedback. */
+/** Six first-order allpasses swept by an LFO, with feedback. The sweep (sin, pow, tan) is worked out every 16 samples
+ *  and interpolated linearly in between. */
 struct Phaser {
+	static const int SUB = 16;
 	float z[6] = {}, fb = 0.f, p = 0.f, fs = 48000.f, offset = 0.f;
-	float process(float x, float amount, float rate) {
-		if (amount <= 0.001f)
-			return x;
-		p += rate / fs;
-		p -= std::floor(p);
-		float lfo = 0.5f + 0.5f * std::sin(2.f * PI * (p + offset));
+	float a = 0.f, da = 0.f, aEnd = 0.f;
+	int cnt = 0;
+	bool fresh = true;
+	float coef(float ph) const {
+		float lfo = 0.5f + 0.5f * std::sin(2.f * PI * (ph + offset));
 		float fc = 200.f * std::pow(18.f, lfo);
 		float t = std::tan(PI * std::min(fc, fs * 0.45f) / fs);
-		float a = (t - 1.f) / (t + 1.f);
+		return (t - 1.f) / (t + 1.f);
+	}
+	void idle(float amount, float rate) {
+		if (amount <= 0.001f) {
+			fresh = true;
+			return;
+		}
+		p += rate / fs;
+		p -= std::floor(p);
+		fresh = true;
+	}
+	float process(float x, float amount, float rate) {
+		if (amount <= 0.001f) {
+			fresh = true;
+			return x;
+		}
+		float inc = rate / fs;
+		p += inc;
+		p -= std::floor(p);
+		if (fresh || cnt <= 0) {
+			float a0 = fresh ? coef(p) : aEnd;
+			aEnd = coef(p + SUB * inc);
+			da = (aEnd - a0) * (1.f / SUB);
+			a = a0;
+			cnt = SUB;
+			fresh = false;
+		} else {
+			a += da;
+		}
+		cnt--;
 		float y = x + fb * 0.55f;
 		for (int i = 0; i < 6; i++) {
 			float o = a * y + z[i];
@@ -462,19 +567,41 @@ struct Reverb {
 				float y = L.b[L.i];
 				L.z = y * (1.f - damp) + L.z * damp;
 				L.b[L.i] = x + L.z * fb;
-				L.i = (L.i + 1) % L.n;
+				if (++L.i >= L.n)
+					L.i = 0;
 				s += y;
 			}
 			for (int i = 0; i < 2; i++) {
 				Line& A = ap[c][i];
 				float y = A.b[A.i];
 				A.b[A.i] = s + y * 0.5f;
-				A.i = (A.i + 1) % A.n;
+				if (++A.i >= A.n)
+					A.i = 0;
 				s = y - s * 0.5f;
 			}
 			o[c] = s;
 		}
 		l = o[0], r = o[1];
+	}
+	/** Every value in the combs and allpasses below eps: the tail has died away. */
+	bool quiet(float eps) const {
+		for (int c = 0; c < 2; c++) {
+			for (int i = 0; i < 4; i++) {
+				const Line& L = comb[c][i];
+				if (!(std::fabs(L.z) < eps))
+					return false;
+				for (int k = 0; k < L.n; k++)
+					if (!(std::fabs(L.b[k]) < eps))
+						return false;
+			}
+			for (int i = 0; i < 2; i++) {
+				const Line& A = ap[c][i];
+				for (int k = 0; k < A.n; k++)
+					if (!(std::fabs(A.b[k]) < eps))
+						return false;
+			}
+		}
+		return true;
 	}
 };
 
@@ -504,6 +631,12 @@ struct Bus {
 	float fs = 48000.f;
 	float animPh = 0.f, tremPh = 0.f;
 	float dcx[2] = {}, dcy[2] = {}, dcR = 0.9987f;
+	// rates cached by the knob value they come from (bit-exact)
+	float cAnimRate = -1e30f, animInc = 0.f, cTremRate = -1e30f, tremInc = 0.f, cPhRate = -1e30f, phRate = 0.f;
+	// sleep: after a long enough silence in and out (and every tail below the noise floor) the effects stop until the
+	// next input
+	bool asleep = false;
+	int quietN = 0, quietNeed = 4800;
 
 	void setSampleRate(float sr) {
 		fs = sr;
@@ -512,15 +645,74 @@ struct Bus {
 		phR.offset = 0.25f;
 		verb.setSampleRate(sr);
 		dcR = 1.f - 2.f * PI * 8.f / sr;
+		cAnimRate = cTremRate = cPhRate = -1e30f;
+		asleep = false;
+		quietN = 0;
+		quietNeed = (int) (0.1f * sr);  // longer than the ensemble and chorus taps and twice the longest comb
 	}
 	/** ANIMATE: the offset (registration units) to add for this sample. */
 	float animate(const BusParams& p) {
-		animPh += animRate(p.animRate) / fs;
+		if (p.animRate != cAnimRate) {
+			cAnimRate = p.animRate;
+			animInc = animRate(p.animRate) / fs;
+		}
+		animPh += animInc;
 		animPh -= std::floor(animPh);
-		return clampf(p.anim, 0.f, 1.f) * 0.45f * std::sin(2.f * PI * animPh);
+		float a = clampf(p.anim, 0.f, 1.f);
+		return a > 0.f ? a * 0.45f * std::sin(2.f * PI * animPh) : 0.f;
+	}
+	/** Everything inside the effects below eps (the delays have had silence for longer than their taps reach). */
+	bool tailsQuiet(float eps) const {
+		for (int c = 0; c < 2; c++)
+			if (!(std::fabs(dcx[c]) < eps && std::fabs(dcy[c]) < eps))
+				return false;
+		for (const Phaser* ph : {&phL, &phR}) {
+			if (!(std::fabs(ph->fb) < eps))
+				return false;
+			for (int i = 0; i < 6; i++)
+				if (!(std::fabs(ph->z[i]) < eps))
+					return false;
+		}
+		return verb.quiet(eps);
 	}
 	/** str, solo: the summed voices. Returns L/R (about ±5 V at full use) and the dry STR and SOLO outputs. */
 	void process(const BusParams& p, float str, float solo, float& L, float& R, float& strOut, float& soloOut) {
+		if (p.phaserRate != cPhRate) {
+			cPhRate = p.phaserRate;
+			phRate = phaserRate(p.phaserRate);
+		}
+		if (p.tremRate != cTremRate) {
+			cTremRate = p.tremRate;
+			tremInc = tremRate(p.tremRate) / fs;
+		}
+		bool inQuiet = std::fabs(str) < 1e-7f && std::fabs(solo) < 1e-7f;
+		if (asleep) {
+			if (inQuiet) {
+				ens.idle();
+				chL.idle();
+				chR.idle();
+				phL.idle(p.phaser, phRate);
+				phR.idle(p.phaser, phRate);
+				tremPh += tremInc;
+				tremPh -= std::floor(tremPh);
+				L = R = strOut = 0.f;
+				soloOut = solo * 5.f;
+				return;
+			}
+			asleep = false;  // the first input wakes it
+			quietN = 0;
+		}
+		processAwake(p, str, solo, L, R, strOut, soloOut);
+		if (inQuiet && std::fabs(L) < 1e-6f && std::fabs(R) < 1e-6f) {
+			if (++quietN >= quietNeed) {
+				quietN = 0;
+				asleep = tailsQuiet(1e-7f);
+			}
+		} else {
+			quietN = 0;
+		}
+	}
+	void processAwake(const BusParams& p, float str, float solo, float& L, float& R, float& strOut, float& soloOut) {
 		float sl = str, sr = str;
 		float d = clampf(p.ensDepth, 0.f, 1.f);
 		switch (p.ens) {
@@ -538,15 +730,18 @@ struct Bus {
 			default: ens.process(str, d, L, R); break;  // keep the delay filled
 		}
 		strOut = 0.5f * (sl + sr);
-		float pr = phaserRate(p.phaserRate);
-		sl = phL.process(sl, p.phaser, pr);
-		sr = phR.process(sr, p.phaser, pr);
+		sl = phL.process(sl, p.phaser, phRate);
+		sr = phR.process(sr, p.phaser, phRate);
 
-		tremPh += tremRate(p.tremRate) / fs;
+		tremPh += tremInc;
 		tremPh -= std::floor(tremPh);
-		float tw = std::sin(2.f * PI * tremPh), t = clampf(p.trem, 0.f, 1.f);
+		float t = clampf(p.trem, 0.f, 1.f);
 		soloOut = solo;
-		float ol = solo * (1.f - t * (0.5f + 0.5f * tw)), orr = solo * (1.f - t * (0.5f - 0.5f * tw));
+		float ol = solo, orr = solo;
+		if (t > 0.f) {
+			float tw = std::sin(2.f * PI * tremPh);
+			ol = solo * (1.f - t * (0.5f + 0.5f * tw)), orr = solo * (1.f - t * (0.5f - 0.5f * tw));
+		}
 
 		float b = clampf(p.bal, 0.f, 1.f);
 		float gs = std::min(1.f, 2.f * (1.f - b)), go = std::min(1.f, 2.f * b);

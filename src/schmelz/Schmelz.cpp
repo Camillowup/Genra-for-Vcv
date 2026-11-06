@@ -209,6 +209,22 @@ struct Schmelz : Module, follow::Host {
 	}
 	static bool schmitt(bool was, float v) { return v >= 1.f ? true : (v <= 0.1f ? false : was); }
 
+	/** C4 * 2^voct, worked out again only when the channel's V/OCT changes. */
+	struct Hz {
+		float voct[MAXV], hz[MAXV];
+		Hz() {
+			for (int i = 0; i < MAXV; i++)
+				voct[i] = 0.f, hz[i] = C4;
+		}
+	} strHz, soloHz;
+	static float freq(Hz& h, int c, float voct) {
+		if (voct != h.voct[c]) {
+			h.voct[c] = voct;
+			h.hz[c] = C4 * std::pow(2.f, voct);
+		}
+		return h.hz[c];
+	}
+
 	void onRemove(const RemoveEvent& e) override { follow::gone(this); }
 
 	void onPortChange(const PortChangeEvent& e) override { fol.portChange(e); } // a real cable wins (Follow.hpp)
@@ -274,14 +290,15 @@ struct Schmelz : Module, follow::Host {
 				strSide[c] = soloOwn || stringsTakes(split, voct);
 				soloSide[c] = !soloOwn && soloTakes(split, voct);
 			}
-			float f = C4 * std::pow(2.f, voct);
 			float vel = sVel ? clamp(inputs[STR_VEL_INPUT].getPolyVoltage(c) * 0.1f, 0.f, 1.f) : 1.f;
 			StringsParams p = sp;
 			p.reg = clamp(params[REG_PARAM].getValue() + inputs[REG_INPUT].getPolyVoltage(c) * 0.1f + anim, 0.f, 1.f);
 			if (c == 0)
 				dispReg = p.reg;
 			bool sg = gate[c] && strSide[c];
-			str += sv[c].process(p, f, sg, rise && strSide[c], vel);
+			// silent voices: the envelope only (no pitch, no oscillators)
+			if (sv[c].envStep(p, sg, rise && strSide[c], vel))
+				str += sv[c].render(p, freq(strHz, c, voct));
 			outputs[ENV_OUTPUT].setVoltage(sv[c].env * 10.f, c);
 			voiceOn[c] = sv[c].env > 0.002f;
 			on += voiceOn[c];
@@ -292,7 +309,8 @@ struct Schmelz : Module, follow::Host {
 				if (!hold)
 					held[c] = false;
 				bool g = (gate[c] && soloSide[c]) || (hold && held[c]);
-				solo += so[c].process(op, f, g, trig, vel);
+				if (so[c].envStep(op, g, trig, vel))
+					solo += so[c].render(op, freq(strHz, c, voct));
 			}
 		}
 		for (int c = sch; c < MAXV; c++)
@@ -308,9 +326,9 @@ struct Schmelz : Module, follow::Host {
 					held[c] = true;
 				if (!hold)
 					held[c] = false;
-				float f = C4 * std::pow(2.f, inputs[SOLO_VOCT_INPUT].getPolyVoltage(c));
 				float vel = oVel ? clamp(inputs[SOLO_VEL_INPUT].getPolyVoltage(c) * 0.1f, 0.f, 1.f) : 1.f;
-				solo += so[c].process(op, f, soloOwnGate[c] || (hold && held[c]), trig, vel);
+				if (so[c].envStep(op, soloOwnGate[c] || (hold && held[c]), trig, vel))
+					solo += so[c].render(op, freq(soloHz, c, inputs[SOLO_VOCT_INPUT].getPolyVoltage(c)));
 			}
 		}
 		voicesOn = on;

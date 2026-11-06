@@ -26,6 +26,7 @@
 // breath, the five vowels on Catmull-Rom splines, the 32-steps-a-semitone period, the vibrato with its jitter, the two
 // glides, the ADSR, the unison detune and spread, the stereo echo's taps, pressure into the vowel or the pitch.
 #pragma once
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -126,6 +127,14 @@ struct Tables {
 
 enum { ENV_IDLE, ENV_ATTACK, ENV_DECAY, ENV_SUSTAIN, ENV_RELEASE };
 
+/** The last grain made, shared by the unison voices: a voice that needs the same grain (same vowel, head and breath,
+ *  so always when SPREAD is 0) copies it instead of working it out again. Bit-exact: the grain depends on nothing else. */
+struct GrainCache {
+	bool valid = false;
+	float vowel = 0.f, voice = 0.f, asp = 0.f;
+	std::vector<float> g;
+};
+
 struct Voice {
 	const Tables* T = nullptr;
 	bool active = false;
@@ -150,9 +159,11 @@ struct Voice {
 	int env_stage = ENV_IDLE;
 	float env_level = 0.f, env_attack = 0.f, env_decay = 0.f, env_sustain = 1.f, env_release = 0.f;
 	std::vector<float> olap, grain;
+	GrainCache* gc = nullptr;
 
-	void init(const Tables* t, int i, uint32_t block) {
+	void init(const Tables* t, int i, uint32_t block, GrainCache* cache = nullptr) {
 		T = t;
+		gc = cache;
 		uint32_t need = (uint32_t) t->grainLen + block + 2u, n = 1;
 		while (n < need)
 			n <<= 1;
@@ -286,6 +297,15 @@ struct Voice {
 	}
 
 	void computeGrain() {
+		if (gc && gc->valid && gc->vowel == current_vowel && gc->voice == current_voice && gc->asp == aspiration_amp &&
+		    gc->g.size() == grain.size()) {
+			std::memcpy(grain.data(), gc->g.data(), grain.size() * sizeof(float));
+			g_vowel = current_vowel;
+			g_voice = current_voice;
+			g_asp = aspiration_amp;
+			grain_dirty = false;
+			return;
+		}
 		float fsc = current_voice * 0.5f + 0.75f, k[NUM_FORMANTS], a = aspiration_amp;
 		const float *e0 = T->env[0].data(), *e1 = T->env[1].data(), *e2 = T->env[2].data(), *as = T->asp.data();
 		for (int f = 0; f < NUM_FORMANTS; f++)   // sine-table steps per sample
@@ -300,6 +320,13 @@ struct Voice {
 		g_voice = current_voice;
 		g_asp = a;
 		grain_dirty = false;
+		if (gc) {
+			gc->g.assign(grain.begin(), grain.end());
+			gc->vowel = current_vowel;
+			gc->voice = current_voice;
+			gc->asp = a;
+			gc->valid = true;
+		}
 	}
 
 	void overlapAdd() {
@@ -396,6 +423,12 @@ struct Delay {
 	uint32_t n = 1, w = 0;
 	float fs = 44100.f, target_l = 0, target_r = 0, cur_l = 0, cur_r = 0, coeff = 0, rate = 0.5f, feedback = 0.5f,
 	      mix = 0.5f;
+	// silence: once nothing above QUIET has been written for a whole buffer length (and no input comes), the lines
+	// are cleared and the echo rests (out = in = 0) until the next input
+	static constexpr float QUIET = 1e-7f;
+	float peak = 0.f;     // the largest value written in this block
+	uint32_t quietRun = 0;
+	bool silent = true;
 
 	void init(float sr) {
 		fs = sr;
@@ -403,6 +436,8 @@ struct Delay {
 		l.assign(n, 0.f);
 		r.assign(n, 0.f);
 		w = 0;
+		quietRun = 0;
+		silent = true;
 		coeff = 1.0f / (0.05f * sr);   // ~50 ms smoothing
 		taps();
 		cur_l = target_l;
@@ -419,19 +454,54 @@ struct Delay {
 			rd += (float) n;
 		int i = (int) rd;
 		float fr = rd - (float) i;
-		return b[i % n] * (1.0f - fr) + b[(uint32_t) (i + 1) % n] * fr;
+		uint32_t i0 = (uint32_t) i;  // 0 .. n (rd may round up to n): a conditional wrap instead of %
+		if (i0 >= n)
+			i0 -= n;
+		uint32_t i1 = i0 + 1u;
+		if (i1 >= n)
+			i1 -= n;
+		return b[i0] * (1.0f - fr) + b[i1] * fr;
 	}
-	void process(const float* in, float* ol, float* orr, uint32_t len) {
+	/** inSilent: every in[] is 0. Returns false when the echo rests: ol, orr are then left alone (they would equal in). */
+	bool process(const float* in, float* ol, float* orr, uint32_t len, bool inSilent = false) {
+		if (silent && inSilent) {
+			for (uint32_t i = 0; i < len; i++) {
+				cur_l += coeff * (target_l - cur_l);
+				cur_r += coeff * (target_r - cur_r);
+			}
+			w += len;
+			while (w >= n)
+				w -= n;
+			return false;
+		}
+		silent = false;
+		float pk = 0.f;
 		for (uint32_t i = 0; i < len; i++) {
 			cur_l += coeff * (target_l - cur_l);
 			cur_r += coeff * (target_r - cur_r);
 			float tl = read(l, cur_l), tr = read(r, cur_r);
-			l[w] = clampf((tl * feedback + in[i]) * mix, -32.f, 32.f);
-			r[w] = clampf((tr * feedback + in[i]) * mix, -32.f, 32.f);
-			w = (w + 1u) % n;
+			float a = clampf((tl * feedback + in[i]) * mix, -32.f, 32.f);
+			float b = clampf((tr * feedback + in[i]) * mix, -32.f, 32.f);
+			l[w] = a;
+			r[w] = b;
+			pk = std::max(pk, std::max(std::fabs(a), std::fabs(b)));
+			if (++w >= n)
+				w = 0;
 			ol[i] = in[i] + tl;
 			orr[i] = in[i] + tr;
 		}
+		if (pk < QUIET) {
+			quietRun += len;
+			if (quietRun >= n && inSilent) {  // every value in the lines is below QUIET: let it rest
+				std::fill(l.begin(), l.end(), 0.f);
+				std::fill(r.begin(), r.end(), 0.f);
+				silent = true;
+				quietRun = 0;
+			}
+		} else {
+			quietRun = 0;
+		}
+		return true;
 	}
 };
 
@@ -439,6 +509,7 @@ struct Delay {
 struct Monk {
 	static const uint32_t BLOCK = 64;
 	Tables T;
+	GrainCache gcache;
 	Voice v[MAX_UNISON];
 	Delay D;
 	int unison_count = 1;
@@ -467,8 +538,9 @@ struct Monk {
 		static const float DEF[NPARAM] = {   // upstream's defaults (processor.h), FEEDBACK as upstream's fixed 0.5
 		    0.5f, 0.5f, 0.8f, 0.5f, 0.0f, 0.5f, 0.5f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.5f, 1.0f, 0.0f, 0.5f, 0.5f};
 		T.build(sr);
+		gcache.valid = false;
 		for (int i = 0; i < MAX_UNISON; i++)
-			v[i].init(&T, i, BLOCK);
+			v[i].init(&T, i, BLOCK, &gcache);
 		unison_count = 1;
 		unison_detune = 0.0f;
 		cur_gain = target_gain = 1.0f;
@@ -659,8 +731,9 @@ struct Monk {
 		vel_gain += (vel_target - vel_gain) * velSlew;
 	}
 
-	/** BLOCK frames: L, R (with the echo) and DRY (without), each about +-1. */
-	void render(float* outL, float* outR, float* outDry) {
+	/** BLOCK frames: L, R (with the echo) and DRY (without), each about +-1. dry false: DRY is not wanted (its jack is
+	 *  free), outDry is then all 0. */
+	void render(float* outL, float* outR, float* outDry, bool dry = true) {
 		const uint32_t n = BLOCK;
 		slewBlock();
 		std::memset(mono, 0, sizeof(mono));
@@ -670,17 +743,32 @@ struct Monk {
 			v[k].process(mono, n);
 		}
 		float gstep = (target_gain - cur_gain) / (float) n;
+		bool monoSilent = true;
 		for (uint32_t i = 0; i < n; i++) {
 			mono[i] *= cur_gain;
 			cur_gain += gstep;
+			monoSilent &= mono[i] == 0.f;
 		}
 		cur_gain = target_gain;
-		D.process(mono, wl, wr, n);
+		bool echo = D.process(mono, wl, wr, n, monoSilent);
 		float gain = v[0].amplitude() * cc_volume * level * vel_gain;
-		for (uint32_t i = 0; i < n; i++) {
-			outL[i] = clampf(std::tanh(wl[i] * gain), -0.999f, 0.999f);
-			outR[i] = clampf(std::tanh(wr[i] * gain), -0.999f, 0.999f);
-			outDry[i] = clampf(std::tanh(mono[i] * gain), -0.999f, 0.999f);
+		if (echo) {
+			for (uint32_t i = 0; i < n; i++) {
+				outL[i] = clampf(std::tanh(wl[i] * gain), -0.999f, 0.999f);
+				outR[i] = clampf(std::tanh(wr[i] * gain), -0.999f, 0.999f);
+			}
+		} else {  // the echo rests and the voices are silent: tanh(0) = 0
+			std::memset(outL, 0, n * sizeof(float));
+			std::memset(outR, 0, n * sizeof(float));
+		}
+		if (dry) {
+			if (monoSilent)  // tanh(0) = 0
+				std::memset(outDry, 0, n * sizeof(float));
+			else
+				for (uint32_t i = 0; i < n; i++)
+					outDry[i] = clampf(std::tanh(mono[i] * gain), -0.999f, 0.999f);
+		} else {
+			std::memset(outDry, 0, n * sizeof(float));
 		}
 		uiVowel = v[0].current_vowel;
 		uiAmp = clamp01(v[0].amplitude());

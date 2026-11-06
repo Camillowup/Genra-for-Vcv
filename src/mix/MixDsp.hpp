@@ -165,9 +165,11 @@ struct Mixer {
 	float fs = 48000.f;
 	float duckPh = 1.f, duckSm = 0.f;  // duckPh: 0 at the trigger … 1 recovered
 	bool duckGate = false;
+	float duckTime = -1e30f, duckInc = 0.f;  // 1 / (duckSeconds(TIME) * fs), worked out again only when TIME changes
 
 	void setSampleRate(float sr) {
 		fs = sr;
+		duckTime = -1e30f;
 		for (auto& c : ch)
 			c.setSampleRate(sr);
 		mL.setSampleRate(sr);
@@ -180,9 +182,18 @@ struct Mixer {
 		if (g && !duckGate)
 			duckPh = 0.f;
 		duckGate = g;
-		duckPh = std::min(1.f, duckPh + 1.f / (duckSeconds(m.time) * fs));
+		if (duckPh >= 1.f && duckSm == 0.f)  // recovered and settled: nothing moves until the next trigger
+			return 1.f;
+		if (m.time != duckTime) {
+			duckTime = m.time;
+			duckInc = 1.f / (duckSeconds(m.time) * fs);
+		}
+		duckPh = std::min(1.f, duckPh + duckInc);
 		float env = 0.5f + 0.5f * std::cos(PI * duckPh);  // stays down, then comes back smoothly within TIME
 		duckSm += (env - duckSm) * std::min(1.f, 1.f / (0.0005f * fs));  // 0.5 ms: no click on the kick
+		// settled: below 1e-8 the gain rounds to 1.f anyway (half an ulp below 1 is 3e-8)
+		if (duckPh >= 1.f && std::fabs(duckSm) < 1e-8f)
+			duckSm = 0.f;
 		return 1.f - clampf(m.duck, 0.f, 1.f) * 0.95f * duckSm;
 	}
 
