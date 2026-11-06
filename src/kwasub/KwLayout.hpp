@@ -39,8 +39,6 @@ static const float FX_SAT[2] = {139.700f, 88.500f};
 static const float FX_DLY[2] = {149.900f, 88.500f};
 static const float FX_VERB[2] = {160.100f, 88.500f};
 static const float FX_GLUE[2] = {170.300f, 88.500f};
-static const float PREV[2] = {184.500f, 88.500f};
-static const float NEXT[2] = {195.000f, 88.500f};
 static const float IN_VOCT[2] = {15.100f, 106.800f};
 static const float IN_GATE[2] = {25.900f, 106.800f};
 static const float IN_VEL[2] = {36.700f, 106.800f};
@@ -77,5 +75,6 @@ static const float DISPLAY[4] = {3.000f, 10.500f, 197.200f, 16.000f};
 static const float ENG_A[4] = {6.000f, 35.000f, 52.000f, 5.400f};
 static const float ENG_B[4] = {66.000f, 35.000f, 52.000f, 5.400f};
 static const float FTYPE[4] = {126.000f, 35.000f, 71.200f, 5.400f};
+static const float PRESET_FIELD[4] = {181.000f, 84.000f, 17.200f, 12.000f};
 static const int HP = 40;
 }

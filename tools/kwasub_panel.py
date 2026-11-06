@@ -233,10 +233,12 @@ def build_main():
     section(133, 77.5, 44, 23, "FX")
     row([("FX_SAT", "SAT"), ("FX_DLY", "DELAY"), ("FX_VERB", "VERB"), ("FX_GLUE", "GLUE")], 139.7, 10.2, 88.5, "small")
     section(179, 77.5, W - 182, 23, "PRESET")
-    button("PREV", 184.5, 88.5, "")
-    button("NEXT", 195, 88.5, "")
-    text(184.5, 95.6, "◀", 1.9, TXT, 700)
-    text(195, 95.6, "▶", 1.9, TXT, 700)
+    # the preset selector: the module writes the number and the name, a click opens the list, the wheel steps
+    px, py, pw, ph = 181.0, 84.0, W - 186.0, 12.0
+    rects["PRESET_FIELD"] = (px, py, pw, ph)
+    e(f'<rect x="{px}" y="{py}" width="{pw:.2f}" height="{ph}" rx="0.9" fill="{DARK}" stroke="{LINE}" stroke-width="0.4"/>')
+    e(f'<polyline points="{px + pw - 4.2:.2f},{py + 2.1} {px + pw - 3:.2f},{py + 3.4} {px + pw - 1.8:.2f},{py + 2.1}" '
+      f'fill="none" stroke="{ACC}" stroke-width="0.4" stroke-linecap="round" stroke-linejoin="round"/>')
     e(f'<rect x="3" y="102.2" width="{W - 6:.2f}" height="25" rx="1.2" fill="{PLATE}"/>')
     jack_groups([[("IN_VOCT", "V/OCT", 0), ("IN_GATE", "GATE", 0), ("IN_VEL", "VEL", 0)],
                  [("IN_CLOCK", "CLOCK", 0), ("IN_RESET", "RESET", 0)],
