@@ -28,17 +28,34 @@ jobs:
             make zip tar zstd sed
             mingw-w64-x86_64-gcc
 
+      - name: Tests (engines, without Rack)
+        run: |
+          for t in test/test_mono.cpp test/test_schmelz.cpp test/test_mix.cpp; do
+            g++ -std=gnu++17 -O2 "$t" -o t.exe && ./t.exe || exit 1
+          done
+          gcc -std=gnu11 -O2 -w -ffreestanding -fno-builtin -fno-tree-loop-distribute-patterns -Ikwasub/firmware/src -Ikwasub/firmware/gen -Ikwasub/firmware/hal test/kwcore_test.c -o kt.exe -lm
+          ./kt.exe
+
       - name: Build plugin
         run: |
           VER=$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' plugin.json)
           echo "Version $VER"
           make RACK_DIR=sdk/Rack-SDK SLUG=Genra VERSION=$VER -j4 dist
 
+      - name: Test the VADER engine (UMLAUF, without Rack)
+        run: |
+          gcc -std=gnu11 -O2 -Ivader/src -Ivader/third_party/mpc-vst-plugins/wrapper test/vader_test.c build/vader/libvader.a -lstdc++ -lm -lpthread -o vt.exe
+          ./vt.exe vader/shapes
+
       - name: Check the package
         run: |
           ls -la dist/Genra dist/Genra/res
           test -f dist/Genra/plugin.dll
-          for c in voicecore drumcore animalcore; do test -f dist/Genra/res/$c.dll; done
+          for c in voicecore drumcore animalcore kwcore; do test -f dist/Genra/res/$c.dll; done
+          test -f dist/Genra/res/Umlauf.svg
+          ls dist/Genra/res/umlauf/shapes
+          objdump -p dist/Genra/plugin.dll | grep "DLL Name"
+          ! objdump -p dist/Genra/plugin.dll | grep -iE "libwinpthread|libstdc"
 
       - uses: actions/upload-artifact@v4
         with:

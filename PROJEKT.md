@@ -1,6 +1,6 @@
 # GENRA – Projektstand
 
-**Stand:** 5. November 2026 · **Plugin 2.5.0: 7 Module** (GENRA, GRID, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO) · Repo: `CamilloGF/genra-v3`
+**Stand:** 6. November 2026 · **Plugin 2.6.0: 13 Module** (GENRA, GRID, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, SCHMELZ, MIX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX) · Repo: `CamilloGF/genra-v3`
 Vorgänger: v1 `CamilloGF/vcv-sequenzer-Genra` (2.0.0), v2 `CamilloGF/Genra-v2` (2.1.0, läuft in Rack)
 Plattform: VCV Rack Pro 2.6.6 unter Windows · Build: GitHub Actions (`.github/workflows/main.yml`)
 
@@ -149,3 +149,77 @@ GENRA MONO: `g++ -std=c++17 -O2 test/test_mono.cpp -o tm && ./tm`
 - Filtertyp als Parameter `FTYPE` (speicherbar, Undo), Auswahl über das Feld (Klick = Liste, Mausrad) oder Rechtsklick-Menü.
 - Test `test/test_mono.cpp`: Tonhöhe, TUNE, alle Filter bei voller Resonanz/Drive stabil, Selbstoszillation (Ladder, Diode, MS-20; SEM nicht), Bassausgleich, Hüllkurvenzeiten.
 - [ ] Klangtest in Rack, Feinschliff nach Gehör (Lautstärke-Ausgleich zwischen den Filtertypen, Kurven von DRIVE und EG AMT).
+
+## GENRA SYNTHIS übernommen (2.6.0) – Stand 6. November 2026
+- SCHMELZ, MIX, K-WASUB, K-WASUB FX, UMLAUF und UMLAUF FX aus `CamilloGF/vcv-synthis` (Stand 958ee81) übernommen,
+  mit Panels-Generatoren, Tests, `kwcore/` + `kwasub/` (K-WASUB-Kern, eigene DLL wie die JIANT-Kerne) und `vader/`
+  (in plugin.dll gelinkt). Modul-Slugs unverändert; nur der Plugin-Slug ist jetzt `Genra`.
+- Benutzerordner: K-WASUB-Kopien unter `Genra/run/kwcore`; UMLAUF-Formen/-Samples unter `Genra/Umlauf` (ein schon
+  vorhandener Ordner `GenraSynthis/Umlauf` wird weiter benutzt, solange es den neuen nicht gibt).
+- Build: Tests von MONO, SCHMELZ, MIX, K-WASUB-Kern und VADER laufen im Workflow; geprüft wird auch, dass plugin.dll
+  keine MinGW-Laufzeit (winpthread, libstdc++) nachlädt.
+- STRANG wurde verworfen (Branch und PR #2 gelöscht bzw. geschlossen).
+
+### SCHMELZ
+- String Machine nach dem Vorbild Waldorf Streichfett, 32 HP, Akzent rosa `#e0779e` (in `tools/schmelz_panel.py` und
+  `src/schmelz/Schmelz.cpp`).
+- Engine `src/schmelz/SchmelzDsp.hpp`: Strings pro Stimme Säge, Puls, Sub, Oktave hoch (PolyBLEP), Registration als
+  Tabelle (Mischung, Tief-/Hochpass, Vokal-Formant, Verstimmung, Brass-Filterhub) mit linearer/logarithmischer
+  Überblendung; OCT BASE/BOTH/8VA; Ensemble (3 Abgriffe, LFO 0,63 Hz + 5,7 Hz, 120°), Chorus, 6-stufiger Phaser,
+  ANIMATE. Solo: FM-Sinus + Säge/Puls/Sub durch resonanten SVF mit Filterhüllkurve, 5 Klänge überblendet, ADSR,
+  Tremolo als Stereo-Autopan. Reverb: 4 Kamm- + 2 Allpassfilter pro Kanal. DC-Filter, Soft-Limit ±10 V.
+  16 + 16 Stimmen mit allen Effekten ≈ 6 % eines Kerns.
+- Solo ohne eigenes GATE: spielt die Strings-Noten, SPLIT (Layer / unter C4 / ab C4) wird beim Anschlag pro Note
+  festgelegt. SUSTAIN-Taster hält die Solo-Noten bis zum Ausschalten.
+- Test `test/test_schmelz.cpp`: Stimmung aller 8 Registrationen × 3 Oktavlagen und aller 5 Solo-Klänge (±3 Cent),
+  8VA ohne Grundton, Crescendo-/Release-Zeiten, Split, Pegel (Akkord ≈ 1,5 V RMS), Stabilität der ganzen Kette bei
+  44,1/96/192 kHz und Extremwerten.
+- [ ] Klangtest in Rack, Feinschliff nach Gehör (Registrationen, Pegel zwischen den Klängen, Ensemble-Tiefe).
+
+### MIX
+- 4-Kanal-Stereomixer, 32 HP, Modul-Slug `GenraMix`. Kanäle in den GENRA-Spurfarben, Master dunkel (Balken
+  `#4a4c57`), Ausgänge grün getönt wie die Pegelanzeigen. Panel: `tools/mix_panel.py` → `res/Mix.svg` +
+  `src/mix/MixLayout.hpp`.
+- Engine `src/mix/MixDsp.hpp`: RBJ-Kuhschwänze 120 Hz / 6 kHz (±12 dB, übersprungen wenn flach), Balance (Gegenseite
+  fällt mit Viertelsinus), Pegelkurve quadratisch (0,75 = 0 dB), Gain-Glättung ~10 ms (Mute/Solo klickfrei), Send nach
+  dem Fader, Ducking: Trigger ≥ 1 V startet eine Kosinus-Erholung über TIME (Tiefe max. −26 dB), Width über M/S,
+  Drive mit Padé-Sättigung und Lautheitsausgleich, Limiter ab 8 V weich gegen 10 V, Spitzenpegel-Anzeigen
+  (12 Segmente, −36 … +3 dB, 5 V = 0 dB).
+- Test `test/test_mix.cpp`: Einheitsverstärkung, Pegelkurve, EQ ±12 dB, Balance, Mute/Solo, Send/Return, Ducking,
+  Width 0 = Mono, alles voll aufgedreht begrenzt, Anzeige.
+- [ ] Test in Rack mit GENRA (Ducking-Gefühl, EQ-Frequenzen nach Gehör).
+
+### K-WASUB + K-WASUB FX
+- Port der FM-1-Firmware K-WASUB 1.0.52 (Omnipotard/Guizmoh, GPL-3.0, github.com/Guizmoh/K-WASUB_Firmware_for_FM1).
+  Quellen unverändert in `kwasub/` (firmware/src, gen, hal, web/wasm_host.c). 40 HP je Modul, Akzent `#b8f23a`.
+- Kern: `kwcore/kwcore.c` übersetzt die Firmware wie für ihren Browser-Emulator (`KAWA_WASM`) und legt eine
+  Schnittstelle darüber (`kw_get`: render 256 Frames, MIDI, Patch-Parameter mit Bereich/Name/Text der Firmware,
+  Presets, EQ, Tempo, Sync, Hüllkurve, LFO). Gebaut vom Makefile als `res/kwcore.{dll,so,dylib}`, pro Instanz eine
+  Kopie nach `GenraSynthis/run/kwcore` im Rack-Benutzerordner (wie die JIANT-Kerne in genra-v3). ≈ 1 % eines Kerns.
+- Modul (`src/kwasub/Kwasub.cpp`): eine Tabelle bindet Regler (beider Panels) und CV an Firmware-Parameter; ein
+  bewegter Regler setzt den Wert, andere Regler auf demselben Parameter folgen; CV wird in Firmware-Einheiten addiert
+  (10 V = ganzer Bereich). Gates → MIDI-Noten (C4 = 0 V, auf Halbtöne gerundet, Tonhöhenwechsel unter dem Gate =
+  legato), CLOCK → Tempo (BPM aus der Periode, PPQN im Menü), RESET → EV_SYNC. Ausgang kubisch von 44,1 kHz auf die
+  Rack-Rate umgerechnet. Patch speichert alle 140 Parameter und den EQ.
+- Test `test/kwcore_test.c` (läuft im Build): alle 97 Presets klingen, enden, bleiben in −1..1; Clamping, EQ, Tempo,
+  4 Stimmen.
+- [ ] Test in Rack (Regler-Gefühl, Tooltips, Expander-Kopplung, Pegel 5 V).
+- [ ] Ideen: FX LIVE (DJ-Filter, Stutter, Tape-Stop, Freeze) als Taster/Gates; MORPH A/B.
+
+### UMLAUF + UMLAUF FX
+- Engine von VADER 0.9.0 (L'Cronx, MIT, github.com/sunskiefer/VADER) in `vader/`, kopiert mit `tools/vader_vendor.sh`,
+  Änderungen nur per `tools/vader_patch.py` (Thread-lokale Puffer, Corner-Bus, Listen-Funktionen; siehe
+  `vader/README-UMLAUF.md`). LXR02-Wavetables ersetzt durch eigene (`tools/umlauf_wavetables.py`, wegen Lizenz).
+  Gebaut wie VADERs Desktop-Plugin als `build/vader/libvader.a`, ins Plugin gelinkt. 54 HP + 36 HP, Akzent `#ff2e43`.
+- Modul (`src/umlauf/Umlauf.cpp`): Schlüssel-Tabelle Regler/CV → Engine-Parameter (Text-Schlüssel wie im Original),
+  geschrieben nur bei Änderung, 32-Frame-Blöcke mit 44,1 kHz, kubisch auf die Rack-Rate. Eckregler 1–5 wechseln ihre
+  Bedeutung mit der Engine (SYNTH, 14 Stimmen, WAV). Gates → MIDI (16 Stimmen), CLOCK → `host_time` (Tempo + Beat),
+  X/Y → FOCUS. Ausgänge aus dem View-Bus (Orbiter, Gewichte, ENV) und dem Corner-Bus. Zustand der Engine (`state`) im
+  Patch; Menüs laufen über eine Befehlsliste im Audio-Thread.
+- Ordner `Rack2/GenraSynthis/Umlauf/` (Shapes mit den 7 Beispielen, Samples, User Presets).
+- Test `test/vader_test.c` (läuft im Build): alle 15 Engines, 27 Modi, 50 Formen, 22 Presets klingen und bleiben
+  endlich; Orbiter bewegt sich, Gewichte = 1; Corner-Bus; State-Rundreise; Namen; zwei Instanzen in zwei Threads.
+  8 Stimmen ≈ 4 % eines Kerns.
+- [ ] Test in Rack (Pegel, Regler-Gefühl, Expander-Kopplung, Clock/Arp, Samples, eigene Formen).
+- [ ] Ideen: Timbre B als zweites Modul koppeln, IMAGE-Seite (Bild moduliert den Klang), TRAVEL-Seite (Speed-LFO,
+  Stop an Ecken, Kaleidoskop) als zweiter Expander.
