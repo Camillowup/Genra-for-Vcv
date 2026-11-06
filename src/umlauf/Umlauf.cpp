@@ -862,15 +862,18 @@ struct Umlauf : Module {
 		if (json_t* j = json_object_get(r, "delaySync"))
 			delaySync = json_boolean_value(j);
 		if (json_t* j = json_object_get(r, "preset"))
-			presetIdx = (int) json_integer_value(j);
+			presetIdx = clamp((int) json_integer_value(j), 0, 21);
 		if (json_t* j = json_object_get(r, "userShape"))
-			userShape = json_string_value(j);
+			if (const char* v = json_string_value(j))
+				userShape = v;
 		if (json_t* s = json_object_get(r, "samples"))
 			for (int c = 0; c < 4 && c < (int) json_array_size(s); c++)
-				smpPath[c] = json_string_value(json_array_get(s, c));
+				if (const char* v = json_string_value(json_array_get(s, c)))
+					smpPath[c] = v;
 		std::string state;
 		if (json_t* j = json_object_get(r, "state"))
-			state = json_string_value(j);
+			if (const char* v = json_string_value(j))
+				state = v;
 		post([=]() {
 			if (!state.empty())
 				E->set_param(inst, "state", state.c_str());

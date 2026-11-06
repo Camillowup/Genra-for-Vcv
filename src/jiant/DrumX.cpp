@@ -76,6 +76,7 @@ struct DrumX : Module {
 	Voice mix;
 	std::unique_ptr<Voice> lane[NL];
 	std::string status;
+	bool laneFailed[NL] = {};
 	uint32_t seed = 1;
 
 	// settings, kept with the patch
@@ -194,6 +195,10 @@ struct DrumX : Module {
 		mix.reset();
 		for (int& s : sent)
 			s = INT32_MIN;
+		{ // a patch from a version with more (or fewer) kits: stay in range
+			int n = std::max(1, (int) mix.api()->nkits());
+			kit = ((kit % n) + n) % n;
+		}
 		if (!fromPatch) {
 			applyKit(kit);
 		} else {
@@ -209,7 +214,8 @@ struct DrumX : Module {
 	void laneOn(int l, float sampleRate) {
 		std::unique_ptr<Voice> e(new Voice);
 		if (!e->core.load()) {
-			status = e->core.error;
+			laneFailed[l] = true; // not again every sample; retried after unplugging (status stays the UI's: no string write here)
+			WARN("JIANT DRUM-X: lane core: %s", e->core.error.c_str());
 			return;
 		}
 		const jdx_api* a = e->api();
@@ -298,6 +304,19 @@ struct DrumX : Module {
 			}
 		}
 		fromPatch = true;
+		if (mix.api()) { // a preset loaded onto (or pasted into) a running module: Rack holds the engine lock here
+			int n = std::max(1, (int) mix.api()->nkits());
+			kit = ((kit % n) + n) % n;
+			mix.api()->load_kit((uint32_t) kit);
+			if (kitData.size() == mix.api()->kit_size())
+				mix.api()->kit_import(kitData.data());
+			for (auto& e : lane) // the lanes are copies of the mix: made anew
+				e.reset();
+			for (int& s : sent)
+				s = INT32_MIN;   // the knobs' values follow in the next block
+			sndLane = sndPatch = -1;
+			shownKit = kit;
+		}
 	}
 
 	// ---------------------------------------------------------------------------------- the engine
@@ -354,6 +373,7 @@ struct DrumX : Module {
 
 	void processHits() {
 		uint32_t pads = padHits.exchange(0);
+		int cvHit[NL] = {}; // TRIG jack and GENRA's DRUMS cable on the same lane in the same sample: one hit (the louder)
 		for (int l = 0; l < NL; l++) {
 			bool down = params[PAD_PARAM + l].getValue() > 0.5f;
 			bool hit = (down && !padDown[l]) || ((pads >> l) & 1u);
@@ -363,10 +383,8 @@ struct DrumX : Module {
 				forAll([&](const jdx_api* a) { a->hit(l, v); });
 			}
 			float g = inputs[TRIG_INPUT + l].getVoltage();    // (0 V when unpatched: the trigger sees it low)
-			if (trig[l].process(g, 0.1f, 1.f)) {
-				int v = accent(clamp((int) std::round(g * 12.7f), 1, 127));
-				forAll([&](const jdx_api* a) { a->hit(l, v); });
-			}
+			if (trig[l].process(g, 0.1f, 0.5f))
+				cvHit[l] = std::max(cvHit[l], clamp((int) std::round(g * 12.7f), 1, 127));
 		}
 		// GENRA's DRUMS cable: its 8 tracks in GENRA's order onto the lanes (rim and the hats sit elsewhere here)
 		if (inputs[GENRA_INPUT].isConnected()) {
@@ -374,13 +392,17 @@ struct DrumX : Module {
 			int gc = std::min(8, inputs[GENRA_INPUT].getChannels());
 			for (int c = 0; c < gc; c++) {
 				float g = inputs[GENRA_INPUT].getPolyVoltage(c);
-				if (gtrig[c].process(g, 0.1f, 1.f)) {
+				if (gtrig[c].process(g, 0.1f, 0.5f)) {
 					int l = TO_LANE[c];
-					int v = accent(clamp((int) std::round(g * 12.7f), 1, 127));
-					forAll([&](const jdx_api* a) { a->hit(l, v); });
+					cvHit[l] = std::max(cvHit[l], clamp((int) std::round(g * 12.7f), 1, 127));
 				}
 			}
 		}
+		for (int l = 0; l < NL; l++)
+			if (cvHit[l]) {
+				int v = accent(cvHit[l]);
+				forAll([&](const jdx_api* a) { a->hit(l, v); });
+			}
 		int n = inputs[GATE_INPUT].isConnected() ? std::max(1, inputs[GATE_INPUT].getChannels()) : 0;
 		for (int c = 0; c < 16; c++) {
 			bool on = false;
@@ -424,10 +446,13 @@ struct DrumX : Module {
 		// the lane outputs' cores: on when patched, off when not
 		for (int l = 0; l < NL; l++) {
 			bool on = outputs[LANE_OUTPUT + l].isConnected();
-			if (on && !lane[l])
+			if (on && !lane[l] && !laneFailed[l])
 				laneOn(l, args.sampleRate);
-			else if (!on && lane[l])
-				lane[l].reset();
+			else if (!on) {
+				laneFailed[l] = false;
+				if (lane[l])
+					lane[l].reset();
+			}
 		}
 		processHits();
 		if (mix.outBuf.empty()) {

@@ -151,6 +151,10 @@ struct Voice : Module {
 			std::lock_guard<std::mutex> lock(textMutex);
 			core.api->set_text(text.c_str());
 		}
+		{ // a patch from a version with more (or fewer) presets: stay in range
+			int n = std::max(1, (int) core.api->npresets());
+			preset = ((preset % n) + n) % n;
+		}
 		if (!fromPatch)
 			applyPreset(preset);
 		else
@@ -222,6 +226,14 @@ struct Voice : Module {
 		}
 		textSeq++;
 		fromPatch = true;
+		if (core.api) { // a preset loaded onto (or pasted into) a running module: Rack holds the engine lock here
+			int n = std::max(1, (int) core.api->npresets());
+			preset = ((preset % n) + n) % n;
+			core.api->load_preset(preset);
+			for (int& s : sent)
+				s = INT32_MIN; // the knobs' values follow in the next block
+			shownPreset = preset;
+		}
 	}
 
 	// ---------------------------------------------------------------------------------- the engine

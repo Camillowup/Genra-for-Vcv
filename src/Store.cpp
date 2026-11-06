@@ -465,6 +465,9 @@ static bool loadV2Raw(const std::vector<uint8_t>& data, Pattern& out) {
 	pat.nEvents = (uint8_t)std::min<int>(o.nEvents, MAX_EVENTS);
 	pat.layoutLen = o.layoutLen;
 	std::memcpy(pat.chop, o.chop, sizeof(o.chop));
+	for (auto& bar : pat.chop) // (as in the v3 path: a source step inside the bar, even from damaged data)
+		for (auto& c : bar)
+			c = (uint8_t)(c % 16);
 	std::memcpy(pat.chopR, o.chopR, sizeof(o.chopR));
 	for (int i = 0; i < 8; i++) {
 		const v2::ChordSpec& a = o.prog[i];

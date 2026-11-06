@@ -403,7 +403,7 @@ int importSmf(const std::vector<uint8_t>& d, Pattern& pat, const Params& P, std:
 			int nData = (type == 0xC0 || type == 0xD0) ? 1 : 2;
 			if (q + nData > end)
 				break;
-			int d1 = d[q], d2 = nData > 1 ? d[q + 1] : 0;
+			int d1 = d[q] & 0x7f, d2 = nData > 1 ? d[q + 1] & 0x7f : 0; // (data bytes are 7 bit, even in a damaged file)
 			q += nData;
 			if (type == 0x90 && d2 > 0) {
 				if (onStart[ch][d1 & 0x7f] >= 0) {

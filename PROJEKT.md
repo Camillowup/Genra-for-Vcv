@@ -1,6 +1,6 @@
 # GENRA – Projektstand
 
-**Stand:** 6. November 2026 · **Plugin 2.13.2: 16 Module** (GENRA, GRID, ABLAUF, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, SCHMELZ, MIX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `CamilloGF/genra-v3`
+**Stand:** 6. November 2026 · **Plugin 2.13.3: 16 Module** (GENRA, GRID, ABLAUF, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, SCHMELZ, MIX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `CamilloGF/genra-v3`
 Vorgänger: v1 `CamilloGF/vcv-sequenzer-Genra` (2.0.0), v2 `CamilloGF/Genra-v2` (2.1.0, läuft in Rack)
 Plattform: VCV Rack Pro 2.6.6 unter Windows · Build: GitHub Actions (`.github/workflows/main.yml`)
 
@@ -279,3 +279,13 @@ GENRA MONO: `g++ -std=c++17 -O2 test/test_mono.cpp -o tm && ./tm`
 
 ### 2.13.2 – ABLAUF-Panel englisch
 - Beschriftung wie die anderen Module: ROW, BARS, PART, TRACKS ON / OFF, INSERT, DELETE, RE-ROLL, ROW CV, INPUTS/OUTPUTS, END, ROW. Param-Namen im Code unverändert (Patches laden weiter).
+
+### 2.13.3 – Fehlerprüfung aller Module
+- GENRA: CV an GENRE/Spur-Genre würfelt das gespeicherte Pattern beim Laden nicht mehr neu (`adoptGenre`, 0,1 s nach dem Laden bzw. 1 Sample nach einem Cue); Spur-Genre-CV regeneriert nur bei echtem Zielwechsel (`lastTarget`) und nicht bei LOCK. `initGenres()` in `init()` (ABLAUF vor GENRA im Patch). MIDI-Import maskiert Datenbytes, v2-Format klemmt `chop`.
+- GENRA/ABLAUF: `cueCancel` wartet den Prüf-Moment des Audio-Threads ab; ein wartender Cue wird beim Loslassen (ABLAUF gelöscht/umgelinkt) verworfen; ein ABLAUF pro GENRA (`arrOwner`); Snapshot-Anfrage nimmt einen liegengebliebenen Snapshot nicht mehr; Stop auf GENRA selbst wird erkannt; NEXT in der letzten Zeile beachtet LOOP und END; `cuedRow` folgt Einfügen/Löschen; Ausgänge halten ihre Werte über ein Undo; JSON-Klemmen.
+- GRID: Wechsel des GENRA leert Undo/Redo; noch nicht übernommene Edits gehen nicht verloren.
+- DRUM-X: Lane-Core wird nach Fehler nicht jedes Sample neu geladen; Trigger-Schwelle 0,5 V; TRIG + DRUMS gleichzeitig = ein Schlag; Kit aus Patch begrenzt; Preset auf laufendes Modul wirkt (auch VOICE, ANIMAL).
+- K-WASUB: Effekte gehen nach dem Laden nicht von selbst an; SLIDE/GLIDE-CV wird nicht mitgespeichert; RESET verfälscht das Tempo nicht; ACC auch bei Legato.
+- MONO: Chorus-Puffer reicht bis 192 kHz; RESET verfälscht das Tempo nicht.
+- STOTTER: Samplerate-Wechsel setzt Pads zurück; HOLD-Pad hängt nicht bei Bank-/Moduswechsel; externes Tempo 48–300 BPM.
+- UMLAUF: JSON-Strings und Preset-Index geprüft.

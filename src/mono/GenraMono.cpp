@@ -331,6 +331,8 @@ struct GenraMono : Module {
 		in.slideConnected = inputs[SLIDE_INPUT].isConnected();
 		in.slide = inputs[SLIDE_INPUT].getVoltage() >= 1.f;
 		in.retrig = retrigT.process(inputs[RETRIG_INPUT].getVoltage(), 0.1f, 1.f);
+		if (in.retrig && sinceClock > 0)
+			sinceClock = -1; // RESET: the gap before it is not a clock period
 
 		// SYNC: the clock period → one beat; no clock for 2 s → free again
 		if (inputs[SYNC_INPUT].isConnected()) {

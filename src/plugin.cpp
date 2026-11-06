@@ -1,4 +1,5 @@
 #include "plugin.hpp"
+#include "Engine.hpp"
 
 Plugin* pluginInstance;
 
@@ -9,6 +10,7 @@ void GenraKnob::load(const char* n) {
 
 void init(Plugin* p) {
 	pluginInstance = p;
+	genra::initGenres(); // before any module loads: ABLAUF's stored slots need the genre list, even ahead of GENRA
 	p->addModel(modelGenra);
 	p->addModel(modelGenraGrid);
 	p->addModel(modelVoice);

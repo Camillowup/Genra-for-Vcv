@@ -159,7 +159,7 @@ struct Ablauf : Module {
 		int64_t rowStart = 0;  // GENRA's bar index where it began
 		uint32_t waitId = 0;   // cue handed over, not applied yet
 		int cuedRow = -1;
-		bool cuedStop = false, cuedWrap = false;
+		bool cuedStop = false, cuedWrap = false, cuedJump = false;
 		uint64_t cuedSig = 0;
 		int jumpRow = -1;      // NEXT / ZEILE CV: this row at the next bar line
 		int rowBars = 0;       // length of the playing row when it began
@@ -273,7 +273,8 @@ struct Ablauf : Module {
 	}
 
 	// ------------------------------------------------------------ UI thread
-	Genra* genra() {
+	bool genraBusy = false; // the GENRA found is driven by another ABLAUF
+	Genra* findGenra() {
 		if (linkedId >= 0) {
 			Module* m = APP->engine->getModule(linkedId);
 			if (m && m->model == modelGenra)
@@ -283,6 +284,27 @@ struct Ablauf : Module {
 		for (Module* m : side)
 			if (m && m->model == modelGenra)
 				return static_cast<Genra*>(m);
+		return nullptr;
+	}
+	// UI thread. One ABLAUF per GENRA: two would take each other's cues and snapshots
+	Genra* genra() {
+		genraBusy = false;
+		Genra* g = findGenra();
+		if (!g)
+			return nullptr;
+		int64_t own = g->arrOwner.load();
+		if (own == id)
+			return g;
+		if (own >= 0) {
+			Module* o = APP->engine->getModule(own);
+			if (o && o->model == modelAblauf) {
+				genraBusy = true;
+				return nullptr;
+			}
+		}
+		if (g->arrOwner.compare_exchange_strong(own, id))
+			return g;
+		genraBusy = true;
 		return nullptr;
 	}
 
@@ -457,6 +479,8 @@ struct Ablauf : Module {
 			song.row++;
 		if (song.playing && song.jumpRow >= at)
 			song.jumpRow++;
+		if (song.playing && song.waitId && !song.cuedStop && song.cuedRow >= at)
+			song.cuedRow++;
 		setRow(at);
 		endChange(a);
 		say("Row " + std::to_string(at + 1) + ": " + slotName(s));
@@ -477,6 +501,8 @@ struct Ablauf : Module {
 				song.row--;
 			if (song.jumpRow > at)
 				song.jumpRow--;
+			if (song.waitId && !song.cuedStop && song.cuedRow > at)
+				song.cuedRow--;
 		}
 		setRow(std::min(at, (int)rows.size() - 1));
 		endChange(a);
@@ -571,7 +597,10 @@ struct Ablauf : Module {
 
 	void requestSnap(Genra* g) {
 		int e = 0;
-		g->snapState.compare_exchange_strong(e, 1);
+		if (!g->snapState.compare_exchange_strong(e, 1) && e == 2) {
+			e = 2; // a finished snapshot nobody took: ask for a fresh one
+			g->snapState.compare_exchange_strong(e, 1);
+		}
 	}
 
 	// pattern mode: the pad plays from the next bar line (at once if GENRA is stopped)
@@ -721,8 +750,12 @@ struct Ablauf : Module {
 	void songStep(Genra* g) {
 		if (!song.playing)
 			return;
-		if (!g->running && !song.waitId) {
-			song.playing = false; // stopped on GENRA
+		if (!g->running && song.row >= 0) { // stopped on GENRA itself: the marker stays on the row that played
+			if (song.waitId)
+				g->cueCancel();
+			setRow(song.row);
+			song.playing = false;
+			song.waitId = 0;
 			song.row = -1;
 			return;
 		}
@@ -746,7 +779,13 @@ struct Ablauf : Module {
 			song.row = song.cuedRow;
 			song.rowStart = g->rowStartPub.load();
 			song.rowBars = song.cuedBars;
-			song.jumpRow = -1;
+			if (song.cuedJump)
+				song.jumpRow = -1; // (a regular next row does not cancel a NEXT / ROW CV jump asked for meanwhile)
+			if (song.row >= (int)rows.size()) { // rows deleted while it waited: go on after it
+				song.row = -1;
+				song.jumpRow = (int)rows.size();
+				song.jumpAt = song.rowStart + song.rowBars;
+			}
 			rowTrig++;
 		}
 		// what comes next, and when
@@ -771,18 +810,24 @@ struct Ablauf : Module {
 		uint64_t sig = rowSig(stop ? -1 : nr, at);
 		if (song.waitId && sig == song.cuedSig)
 			return; // already handed over
+		bool jump = song.jumpRow >= 0;
 		if (cueRow(g, nr, at, false, stop))
-			song.cuedWrap = wrap;
+			song.cuedWrap = wrap, song.cuedJump = jump;
 	}
 
 	// the GENRA this ABLAUF holds offsets / mutes in; let go when the link changes or ABLAUF is removed
 	Genra* attached = nullptr;
-	static void letGo(Genra* g) {
+	static void letGo(Genra* g, int64_t me) {
 		if (!g)
 			return;
 		std::lock_guard<std::mutex> lk(genraRegMutex());
-		if (genraRegistry().count(g))
-			g->arrAlive.store(1e-6f);
+		if (!genraRegistry().count(g))
+			return;
+		int64_t own = me;
+		if (!g->arrOwner.compare_exchange_strong(own, -1) && own >= 0)
+			return; // another ABLAUF's GENRA: leave it alone
+		g->cueCancel(); // a cue left waiting would still mute tracks or stop GENRA at its bar line
+		g->arrAlive.store(1e-6f);
 	}
 
 	// what the widgets show (refreshed every frame)
@@ -823,11 +868,12 @@ struct Ablauf : Module {
 	void uiFrame(float dt) {
 		Genra* g = genra();
 		if (g != attached) {
-			letGo(attached);
+			letGo(attached, id);
 			attached = g;
 			if (song.playing) // another GENRA: the song starts over there with PLAY
 				song = Song();
 			pendingPadCue = -1;
+			pendingStore = pendingPart = -1; // a snapshot asked of the old GENRA
 		}
 		genraLinked = g != nullptr;
 		genraRunning = g && g->running;
@@ -964,7 +1010,7 @@ struct Ablauf : Module {
 			if (nx != nextSeen) {
 				nextSeen = nx;
 				if (song.playing && song.row >= 0) {
-					song.jumpRow = song.row + 1 < (int)rows.size() ? song.row + 1 : 0;
+					song.jumpRow = song.row + 1; // past the last row: the end (LOOP decides, END fires)
 					song.jumpAt = g->barPub.load() + 1;
 				}
 				else if (!songMode()) {
@@ -1027,12 +1073,17 @@ struct Ablauf : Module {
 		song.row = -1;
 	}
 
+	float heldPos = 0.f, heldA = 0.f, heldB = 0.f;
+	bool heldOut = false;
 	void publish(Genra* g) {
 		bool run = g && g->running;
 		outRunning.store(run);
 		outSec.store(g ? g->arrSecPub.load() : -1);
 		float pos = 0.f, a = 0.f, b = 0.f;
-		if (g && song.playing && song.row >= 0 && song.row < (int)rows.size()) {
+		if (g && song.playing && song.row < 0 && heldOut) { // between an undo and the next row: keep what played
+			pos = heldPos, a = heldA, b = heldB;
+		}
+		else if (g && song.playing && song.row >= 0 && song.row < (int)rows.size()) {
 			int total = 0, before = 0;
 			for (int r = 0; r < (int)rows.size(); r++)
 				if (playable(r)) {
@@ -1048,7 +1099,10 @@ struct Ablauf : Module {
 				pos = 10.f * (before + (float)into) / total;
 			a = rows[song.row].cvA;
 			b = rows[song.row].cvB;
+			heldPos = pos, heldA = a, heldB = b, heldOut = true;
 		}
+		if (!song.playing)
+			heldOut = false;
 		outPos.store(pos);
 		outCvA.store(a);
 		outCvB.store(b);
@@ -1179,9 +1233,9 @@ struct Ablauf : Module {
 			if ((j = json_object_get(o, "fill")))
 				w.fill = json_boolean_value(j);
 			if ((j = json_object_get(o, "cvA")))
-				w.cvA = (float)json_number_value(j);
+				w.cvA = clamp((float)json_number_value(j), -10.f, 10.f);
 			if ((j = json_object_get(o, "cvB")))
-				w.cvB = (float)json_number_value(j);
+				w.cvB = clamp((float)json_number_value(j), -10.f, 10.f);
 			rows.push_back(w);
 		}
 		session.clear();
@@ -1190,13 +1244,13 @@ struct Ablauf : Module {
 			selSlot = clamp((int)json_integer_value(j), -1, NUM_SLOTS - 1);
 		curRow = 0;
 		if ((j = json_object_get(root, "curRow")))
-			curRow = (int)json_integer_value(j);
+			curRow = clamp((int)json_integer_value(j), 0, std::max(0, (int)rows.size() - 1));
 		lastZ = -1; // the knobs follow the row at the next frame
 	}
 
 	// removed from the rack: GENRA drops the offsets and mutes of the pattern it got from here
 	void onRemove(const RemoveEvent& e) override {
-		letGo(attached); // no engine calls here: Rack holds its lock while removing
+		letGo(attached, id); // no engine calls here: Rack holds its lock while removing
 		attached = nullptr;
 		Module::onRemove(e);
 	}
@@ -1612,7 +1666,9 @@ struct InfoLine : AbWidget {
 			if (m->msgTime > 0.f)
 				ui::text(vg, bold, 1.6f * u, 3.7f * u, m->msg, 1.45f * u, ACC, NVG_ALIGN_LEFT, 0.25f * u);
 			else if (!m->genraLinked)
-				ui::text(vg, bold, 1.6f * u, 3.7f * u, "Place next to GENRA or right-click › Connect", 1.3f * u, ui::DIM, NVG_ALIGN_LEFT, 0.15f * u);
+				ui::text(vg, bold, 1.6f * u, 3.7f * u,
+				         m->genraBusy ? "This GENRA is driven by another ABLAUF" : "Place next to GENRA or right-click › Connect",
+				         1.3f * u, ui::DIM, NVG_ALIGN_LEFT, 0.15f * u);
 			else {
 				int p = m->playingSlot;
 				if (p >= 0) {

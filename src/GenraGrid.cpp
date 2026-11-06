@@ -240,7 +240,18 @@ struct GridDisplay : Widget {
 		Widget::step();
 		if (!module)
 			return;
+		Genra* was = g;
 		g = module->genra();
+		if (g != was && was) { // another GENRA (docked or linked): this one's undo and unsent edits are not its
+			undo.clear();
+			redo.clear();
+			dirty = false;
+			editing = false;
+			drag = D_NONE;
+			showWork = 0;
+			for (bool& c : centerSet)
+				c = false;
+		}
 		if (!g) {
 			editing = false;
 			drag = D_NONE;
@@ -284,8 +295,11 @@ struct GridDisplay : Widget {
 	bool begin() {
 		if (!g)
 			return false;
-		work = g->pat;
-		before = g->pat;
+		// an edit not yet taken by GENRA (or just handed over) is the base, not GENRA's older pattern
+		bool pending = dirty || showWork > 0 || g->gridState.load() != 0;
+		if (!pending)
+			work = g->pat;
+		before = work;
 		freezeTrack(work, P, module->track, L);
 		editing = true;
 		changed = false;

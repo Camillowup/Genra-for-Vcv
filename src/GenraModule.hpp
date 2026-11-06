@@ -1,5 +1,6 @@
 // GENRA – module definition (shared by the GENRA module and the grid editor)
 #pragma once
+#include <thread>
 #include "plugin.hpp"
 #include "Engine.hpp"
 #include "Arranger.hpp"
@@ -168,6 +169,8 @@ struct Genra : Module {
 	bool fillActive = false;
 	bool fillCarry = false; // FILL trigger in the last beat: also fill the next pass
 	bool pendingGenre = false;
+	int adoptGenre = 0;      // samples left in which the genres are taken as they are (after load / cue)
+	int lastTarget[4] = {-1, -1, -1, -1};
 	int lastGenre = -1;
 	int clockMode = 0;
 	int chordMode = CM_MIXED;
@@ -269,6 +272,7 @@ struct Genra : Module {
 	std::atomic<uint32_t> patChanges{0};    // counts changes of the pattern (generate, mutate, edits)
 	std::atomic<uint32_t> patChangesAtCue{0};
 	std::atomic<float> arrAlive{0.f};       // > 0 while ABLAUF is attached (it sets a huge value, a tiny one to let go)
+	std::atomic<int64_t> arrOwner{-1};      // module id of the ABLAUF that drives this GENRA (one at a time)
 	ArrMods arrMods;
 	uint8_t arrMute = 0;
 	bool arrFill = false;
@@ -285,11 +289,20 @@ struct Genra : Module {
 		return cueState.compare_exchange_strong(e, 2);
 	}
 	void cueCommit() { cueState.store(1, std::memory_order_release); }
-	// drop a waiting cue (returns false if it is being applied right now)
+	// drop a waiting cue (UI thread). The audio thread holds a waiting cue (3) for a moment every sample to check it:
+	// wait that out instead of giving up, or a cancelled cue could still play later. False only while another
+	// writer holds it (2).
 	bool cueCancel() {
-		int e = 1;
-		if (cueState.compare_exchange_strong(e, 0))
-			return true;
+		for (int i = 0; i < 200000; i++) {
+			int e = 1;
+			if (cueState.compare_exchange_strong(e, 0))
+				return true;
+			if (e == 0)
+				return true;
+			if (e == 2)
+				return false;
+			std::this_thread::yield();
+		}
 		return cueState.load() == 0;
 	}
 
@@ -305,6 +318,7 @@ struct Genra : Module {
 			arrFill = false;
 			arrRowEnd = -1;
 			arrFillEnd = -1;
+			arrSlotPub = -1;
 		}
 		else {
 			const Slot& s = cue.slot;
@@ -318,6 +332,7 @@ struct Genra : Module {
 			params[LENGTH_PARAM].setValue((float)clamp((int)s.lengthIdx, 0, 3));
 			pendingGenre = false;
 			lastGenre = curGenre; // the stored pattern stands, even if the GENRE knob differs
+			adoptGenre = 1;       // and its track genres as well (no re-roll at the next bar)
 			padHasPrev = false;
 			arrMods = s.mods;
 			arrMute = cue.mute;
@@ -657,16 +672,32 @@ struct Genra : Module {
 
 	void readGenre() {
 		curGenre = knobProfile();
+		// just loaded (or a pattern just cued): the stored pattern stands. CVs at GENRE / track genre inputs only
+		// arrive with the cables and a sample later, so for a moment the genres are taken as they are
+		bool adopting = adoptGenre > 0;
+		if (adopting) {
+			adoptGenre--;
+			lastGenre = curGenre;
+		}
 		if (lastGenre >= 0 && curGenre != lastGenre && !pendingGenre)
 			pendingGenre = true;
 		for (int t = 0; t < 4; t++) {
 			bool own = ownGenre(t);
-			if (trackSelChanged[t].exchange(false))
+			int tgt = trackTarget(t);
+			bool sel = trackSelChanged[t].exchange(false);
+			if (adopting) {
+				ownPrev[t] = own;
+				lastTarget[t] = tgt;
+				continue;
+			}
+			bool locked = params[LOCK_PARAM + t].getValue() > 0.5f;
+			if (sel)
 				pendingTrack[t] = true; // new choice in the genre field (also back to Global)
-			if (ownPrev[t] && !own)
+			if (ownPrev[t] && !own && !locked)
 				pendingTrack[t] = true; // CV unplugged -> back to the global genre
-			if (own && trackTarget(t) != pat.trackGenre[t])
-				pendingTrack[t] = true;
+			if (own && tgt != lastTarget[t] && !locked)
+				pendingTrack[t] = true; // the track's genre CV moved to another genre
+			lastTarget[t] = tgt;
 			ownPrev[t] = own;
 		}
 	}
@@ -987,7 +1018,9 @@ struct Genra : Module {
 			if (alive > 0.f) {
 				alive -= args.sampleTime;
 				arrAlive.store(alive, std::memory_order_relaxed);
-				if (alive <= 0.f) { // ABLAUF is gone: its offsets and mutes go too
+				if (alive <= 0.f) { // ABLAUF is gone: its offsets and mutes go too, and a cue it left waiting
+					int e = 1;
+					cueState.compare_exchange_strong(e, 0);
 					arrMods = ArrMods();
 					arrMute = 0;
 					arrFill = false;
@@ -1279,6 +1312,7 @@ struct Genra : Module {
 				lastGenre = curGenre = knobProfile();
 				pendingGenre = false;
 				padHasPrev = false;
+				adoptGenre = 4800; // ~0.1 s: until the cables (and their CVs) are there
 			}
 		}
 		int8_t sel[4];

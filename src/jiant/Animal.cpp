@@ -135,6 +135,10 @@ struct Animal : Module {
 		for (auto& v : cv)
 			v.gate = false;
 		callOn = false;
+		{ // a patch from a version with more (or fewer) presets: stay in range
+			int n = std::max(1, (int) core.api->npresets());
+			preset = ((preset % n) + n) % n;
+		}
 		if (!fromPatch)
 			applyPreset(preset);
 		else
@@ -187,6 +191,14 @@ struct Animal : Module {
 		if (json_t* j = json_object_get(r, "preset"))
 			preset = (int) json_integer_value(j);
 		fromPatch = true;
+		if (core.api) { // a preset loaded onto (or pasted into) a running module: Rack holds the engine lock here
+			int n = std::max(1, (int) core.api->npresets());
+			preset = ((preset % n) + n) % n;
+			core.api->load_preset(preset);
+			for (int& s : sent)
+				s = INT32_MIN; // the knobs' values follow in the next block
+			shownPreset = preset;
+		}
 	}
 
 	// ---------------------------------------------------------------------------------- the engine

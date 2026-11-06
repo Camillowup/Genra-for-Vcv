@@ -279,7 +279,7 @@ struct Stereo {
 	float fs = 48000.f;
 	Biquad hp1, hp2, ch1, ch2;
 	float lfo = 0.f;
-	static const int N = 2048;
+	static const int N = 4096; // 11 ms of delay at 192 kHz fits
 	float buf[N] = {};
 	int w = 0;
 	void setSampleRate(float sr) {

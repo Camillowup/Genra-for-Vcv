@@ -447,12 +447,13 @@ struct Kwasub : Module {
 				continue;
 			float v = m->params[b.param].getValue();
 			if (v != last[i]) {
+				bool forced = std::isnan(last[i]); // pushed after loading a patch: not a turn of the knob
 				last[i] = v;
 				base[b.key()] = v;
 				moved[b.key()] = true;
 				mover[b.key()] = (int) i;
 				// the main panel's FX knobs switch their effect on
-				if (b.panel == MAIN && v > 0.f) {
+				if (b.panel == MAIN && v > 0.f && !forced) {
 					int on = b.fw == DR_AMT ? (int) DR_ON : b.fw == DL_MIX ? (int) DL_ON : b.fw == RV_MIX ? (int) RV_ON : -1;
 					if (on >= 0 && base[on] < 0.5f) {
 						base[on] = 1.f;
@@ -522,7 +523,7 @@ struct Kwasub : Module {
 			}
 			int n = clamp((int) std::lround(60.f + 12.f * inputs[VOCT_INPUT].getPolyVoltage(c)), 0, 127);
 			int vel = velOn ? clamp((int) std::lround(inputs[VEL_INPUT].getPolyVoltage(c) * 12.7f), 1, 127) : 100;
-			if (g && !gate[c] && inputs[ACC_INPUT].getPolyVoltage(c) >= 1.f)
+			if (g && (!gate[c] || n != note[c]) && inputs[ACC_INPUT].getPolyVoltage(c) >= 1.f)
 				vel = std::min(127, vel + 30); // accent: velocity up (louder, the filter envelope opens further)
 			if (g && !gate[c]) {
 				a->midi(0x90, n, vel);
@@ -552,8 +553,10 @@ struct Kwasub : Module {
 		clkHigh = h;
 		float rs = inputs[RESET_INPUT].getVoltage();
 		bool rh = rs >= 1.f ? true : (rs <= 0.1f ? false : rstHigh);
-		if (rh && !rstHigh)
+		if (rh && !rstHigh) {
 			a->sync();
+			clkSamples = 1e9; // the gap before a reset is not a clock period
+		}
 		rstHigh = rh;
 	}
 	void controllers() {
@@ -685,8 +688,15 @@ struct Kwasub : Module {
 		json_object_set_new(r, "ppqn", json_integer(ppqn));
 		if (core.api) {
 			json_t* p = json_array();
+			// knob-bound values from the knobs (base), not the firmware's knob + CV (SLIDE, GLIDE CV …): a save while
+			// a CV is up must not bake it into the sound
+			std::vector<char> fromKnob(core.api->np(), 0);
+			for (const Bind& b : binds)
+				if (b.kind == PATCH && b.fw >= 0 && b.fw < (int) fromKnob.size())
+					fromKnob[b.fw] = 1;
 			for (uint32_t id = 0; id < core.api->np(); id++)
-				json_array_append_new(p, json_integer(core.api->get(id)));
+				json_array_append_new(p, json_integer(fromKnob[id] && std::isfinite(base[id]) ? (int) std::lround(base[id])
+				                                                                          : core.api->get(id)));
 			json_object_set_new(r, "patch", p);
 			json_t* eq = json_array();
 			for (int k = 0; k < 4; k++)
@@ -698,7 +708,7 @@ struct Kwasub : Module {
 	}
 	void dataFromJson(json_t* r) override {
 		if (json_t* j = json_object_get(r, "preset"))
-			presetIdx = (int) json_integer_value(j);
+			presetIdx = std::max(0, (int) json_integer_value(j));
 		if (json_t* j = json_object_get(r, "ppqn"))
 			ppqn = clamp((int) json_integer_value(j), 1, 24);
 		if (!core.api)

@@ -397,6 +397,7 @@ struct Engine {
 	bool pendingOne = false;
 	int retSlot = -1, retPad = -1;  // after a one-shot: back to this loop
 	int held = -1;            // pad held in HOLD mode
+	int heldSlot = -1;        // its slot when pressed (the bank may change while it is held)
 	float env = 0.f;          // effect fade (3 ms)
 	int64_t pStart = 0;       // start of the current pattern bar
 	int patterns = 0;
@@ -453,6 +454,20 @@ struct Engine {
 		dW = 0;
 		spb = fs * 60.0 / bpm;
 		cap = CAP_OFF;
+		// every sample position above counted on the old clock: start the pads and the tempo measurement fresh
+		act = actPad = -1;
+		actOne = false;
+		want = -2;
+		wantPad = -1;
+		wantW = 0;
+		pending = pendingPad = -1;
+		retSlot = retPad = -1;
+		held = heldSlot = -1;
+		env = 0.f;
+		pStart = 0;
+		freezeEnd = 0;
+		lastPulse = lastTap = -1;
+		ntaps = 0;
 	}
 
 	// ---------------------------------------------------------------- time
@@ -469,6 +484,7 @@ struct Engine {
 			if (iv > 16 && iv < fs * 2.0) {
 				double s = iv * ppb;
 				spb = clockCount <= 1 ? s : spb + (s - spb) * 0.5;
+				spb = std::min(std::max(spb, fs * 60.0 / 300.0), fs * 60.0 / 48.0); // the same range as TAP
 				bpm = (float) (fs * 60.0 / spb);
 			}
 		}
@@ -525,7 +541,7 @@ struct Engine {
 		pending = pendingPad = -1;
 		retSlot = retPad = -1;
 		want = -1;
-		held = -1;
+		held = heldSlot = -1;
 	}
 	void press(int pad) {
 		int s = slot(pad);
@@ -534,6 +550,7 @@ struct Engine {
 			case 2:  // HOLD
 				if (c.latch && (playing || pending == s)) { stop(); return; }
 				held = pad;
+				heldSlot = s;
 				request(pad, false);
 				return;
 			case 1: request(pad, true); return;  // ONE SHOT
@@ -543,9 +560,11 @@ struct Engine {
 		}
 	}
 	void release(int pad) {
-		if (c.mode != 2 || c.latch || held != pad) return;
+		// (no mode check: switched from HOLD to LOOP while held, the release still ends it)
+		if (held < 0 || c.latch || held != pad) return;
 		held = -1;
-		int s = slot(pad);
+		int s = heldSlot;
+		heldSlot = -1;
 		if (pending == s) pending = pendingPad = -1;
 		if (act == s || want == s) want = -1;
 	}
