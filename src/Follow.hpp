@@ -127,5 +127,7 @@ OutLight* addOutLight(ModuleWidget* mw, Module* module);
 NVGcolor mixColor(int ch);
 /** A glowing ring around a jack (layer 1). */
 void ring(NVGcontext* vg, Vec c, NVGcolor col, float a = 1.f);
+/** The lit segment over a jack, as on the GENRA strip (layer 1). */
+void segment(NVGcontext* vg, Vec jack, NVGcolor col, float a = 0.85f);
 
 } // namespace follow

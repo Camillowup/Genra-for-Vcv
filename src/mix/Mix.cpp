@@ -318,6 +318,25 @@ struct Mix : Module {
 struct SourceTags : widget::TransparentWidget {
 	Mix* module = nullptr;
 	Vec duck;
+	Vec inL[NCH], inR[NCH];
+	bool found = false;
+	void step() override {
+		Widget::step();
+		if (found)
+			return;
+		ModuleWidget* mw = getAncestorOfType<ModuleWidget>();
+		if (!mw)
+			return;
+		for (int c = 0; c < NCH; c++) {
+			PortWidget* l = mw->getInput(Mix::iid(c, Mix::IN_L));
+			PortWidget* r = mw->getInput(Mix::iid(c, Mix::IN_R));
+			if (!l || !r)
+				return;
+			inL[c] = l->box.getCenter();
+			inR[c] = r->box.getCenter();
+		}
+		found = true;
+	}
 	static Rect field(int c) {
 		float cx = mm2px(3.f + c * 24.f + 11.5f), cy = mm2px(19.7f); // (tools/mix_panel.py: strips at 3 + i·24, 23 wide)
 		float w = mm2px(20.f), hh = mm2px(3.6f);
@@ -366,17 +385,19 @@ struct SourceTags : widget::TransparentWidget {
 			nvgStrokeColor(vg, col);
 			nvgStrokeWidth(vg, 1.2f);
 			nvgStroke(vg);
+			// over IN L / IN R: the lit segment, as on the instruments' strip (not where a cable is in)
+			if (found) {
+				if (s.dl.owned)
+					follow::segment(vg, inL[c], TRACK[c]);
+				if (s.dr.owned)
+					follow::segment(vg, inR[c], TRACK[c]);
+			}
 			std::string t = std::string("\xe2\x80\xb9 ") + h->srcName + (cable ? " \xc2\xb7 CABLE" : "");
 			ui::text(vg, font, cx, cy + hh * 0.22f, t, cable ? 6.5f : 7.5f, col, NVG_ALIGN_CENTER, 0.4f);
 		}
 		if (module->duckMode.load() && module->duckRef.to.load() && module->dd.owned) {
 			NVGcolor k = TRACK[0];
-			float r = mm2px(4.6f);
-			NVGpaint glow = nvgRadialGradient(vg, duck.x, duck.y, r * 0.8f, r * 1.5f, nvgTransRGBAf(k, 0.5f), nvgTransRGBAf(k, 0.f));
-			nvgBeginPath(vg);
-			nvgCircle(vg, duck.x, duck.y, r * 1.5f);
-			nvgFillPaint(vg, glow);
-			nvgFill(vg);
+			follow::segment(vg, duck, k); // (as over the channel inputs)
 			ui::text(vg, font, duck.x + mm2px(5.4f), duck.y + mm2px(0.7f), "\xe2\x80\xb9 KICK", 7.f, k, NVG_ALIGN_LEFT, 0.4f);
 		}
 	}

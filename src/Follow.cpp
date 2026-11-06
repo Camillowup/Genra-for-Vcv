@@ -351,6 +351,20 @@ void ring(NVGcontext* vg, Vec c, NVGcolor col, float a) {
 	nvgStroke(vg);
 }
 
+void segment(NVGcontext* vg, Vec jack, NVGcolor c, float a) {
+	float w = mm2px(7.6f), hh = std::max(1.5f, mm2px(0.55f)), dy = mm2px(-4.6f + 0.275f);
+	float x = jack.x - w / 2, y = jack.y + dy - hh / 2;
+	NVGpaint glow = nvgBoxGradient(vg, x, y, w, hh, hh / 2, mm2px(1.6f), nvgTransRGBAf(c, 0.45f * a), nvgTransRGBAf(c, 0.f));
+	nvgBeginPath(vg);
+	nvgRect(vg, x - 10, y - 10, w + 20, hh + 20);
+	nvgFillPaint(vg, glow);
+	nvgFill(vg);
+	nvgBeginPath(vg);
+	nvgRoundedRect(vg, x, y, w, hh, hh / 2);
+	nvgFillColor(vg, nvgTransRGBAf(c, a));
+	nvgFill(vg);
+}
+
 void OutLight::step() {
 	Widget::step();
 	Host* h = host(module);
