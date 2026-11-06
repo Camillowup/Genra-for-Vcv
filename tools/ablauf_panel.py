@@ -175,9 +175,9 @@ for k, (nm, col) in enumerate(SECS):
     comps.append(("button", f"PART{k}", x, vy))
     text(x, vy + 5.2, nm, 1.1, col, 800, "middle", 0.15)
 sy_ = vy + 10.5
-for k, nm in enumerate(["STORE", "COPY", "CLEAR"]):
-    button(nm, bc - 12 + k * 12, sy_)
-    text(bc - 12 + k * 12, sy_ + 5.0, nm, 1.25, TXT, 600, "middle", 0.25)
+for k, (nm, lab) in enumerate([("STORE", "STORE"), ("COPY", "COPY"), ("CLEAR", "CLEAR"), ("CLEARALL", "CLR ALL")]):
+    button(nm, bc - 18 + k * 12, sy_)
+    text(bc - 18 + k * 12, sy_ + 5.0, lab, 1.25, TXT, 600, "middle", 0.25)
 
 # ---------------------------------------------------------------- jacks
 section(3, 104, W - 6, 21.5, None, RING)

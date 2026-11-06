@@ -1,6 +1,6 @@
 # GENRA – Projektstand
 
-**Stand:** 6. November 2026 · **Plugin 2.13.3: 16 Module** (GENRA, GRID, ABLAUF, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, SCHMELZ, MIX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `CamilloGF/genra-v3`
+**Stand:** 6. November 2026 · **Plugin 2.13.4: 16 Module** (GENRA, GRID, ABLAUF, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, SCHMELZ, MIX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `CamilloGF/genra-v3`
 Vorgänger: v1 `CamilloGF/vcv-sequenzer-Genra` (2.0.0), v2 `CamilloGF/Genra-v2` (2.1.0, läuft in Rack)
 Plattform: VCV Rack Pro 2.6.6 unter Windows · Build: GitHub Actions (`.github/workflows/main.yml`)
 
@@ -289,3 +289,6 @@ GENRA MONO: `g++ -std=c++17 -O2 test/test_mono.cpp -o tm && ./tm`
 - MONO: Chorus-Puffer reicht bis 192 kHz; RESET verfälscht das Tempo nicht.
 - STOTTER: Samplerate-Wechsel setzt Pads zurück; HOLD-Pad hängt nicht bei Bank-/Moduswechsel; externes Tempo 48–300 BPM.
 - UMLAUF: JSON-Strings und Preset-Index geprüft.
+
+### 2.13.4 – ABLAUF CLR ALL
+- Taster CLR ALL (zweimal drücken, 3 s): leert alle 64 Pads als ein Undo-Schritt (`clearSlots`, history::ComplexAction aus AblaufActions). Rechtsklick: Clear bank A–D. Song-Liste bleibt. `CLEARALL_PARAM`/`CLEARALL_LIGHT` hinten angehängt.

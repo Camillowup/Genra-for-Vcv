@@ -79,6 +79,7 @@ struct Ablauf : Module {
 		STORE_PARAM,
 		COPY_PARAM,
 		CLEAR_PARAM,
+		CLEARALL_PARAM, // (appended: saved patches keep their ids)
 		PARAMS_LEN
 	};
 	enum InputId { RUN_INPUT, RESET_INPUT, NEXT_INPUT, PATT_INPUT, ROW_INPUT, INPUTS_LEN };
@@ -97,6 +98,7 @@ struct Ablauf : Module {
 		STORE_LIGHT,
 		COPY_LIGHT,
 		CLEAR_LIGHT,
+		CLEARALL_LIGHT,
 		LIGHTS_LEN
 	};
 	// momentary buttons: the audio thread counts presses, the UI thread acts on them
@@ -215,6 +217,7 @@ struct Ablauf : Module {
 		configButton(STORE_PARAM, "STORE: then a pad – saves what GENRA is playing (overwrites; an empty pad stores on a tap)");
 		configButton(COPY_PARAM, "COPY: tap source, then target");
 		configButton(CLEAR_PARAM, "CLEAR: then a pad – clears the slot");
+		configButton(CLEARALL_PARAM, "CLR ALL: press twice – clears all 64 pads (UNDO brings them back)");
 		for (int i = 0; i < PARAMS_LEN; i++)
 			paramQuantities[i]->randomizeEnabled = false;
 		configInput(RUN_INPUT, "Run (trigger: play / stop)");
@@ -234,7 +237,7 @@ struct Ablauf : Module {
 	// ------------------------------------------------------------ audio thread
 	void process(const ProcessArgs& args) override {
 		for (int p : {(int)INS_PARAM, (int)DEL_PARAM, (int)UNDO_PARAM, (int)FILL_PARAM, (int)PLAY_PARAM, (int)STOP_PARAM,
-		              (int)STORE_PARAM, (int)COPY_PARAM, (int)CLEAR_PARAM})
+		              (int)STORE_PARAM, (int)COPY_PARAM, (int)CLEAR_PARAM, (int)CLEARALL_PARAM})
 			if (btn[p].process(params[p].getValue() > 0.5f))
 				presses[p]++;
 		for (int t = 0; t < 4; t++)
@@ -391,10 +394,46 @@ struct Ablauf : Module {
 		song.row = -1;
 	}
 
+	// empty the pads [from, to) as one undo step; the song list stays (rows on empty pads are skipped)
+	float clrAllArm = 0.f; // CLR ALL pressed once: a second press within this time clears
+	void clearSlots(int from, int to, const char* name) {
+		history::ComplexAction* ca = new history::ComplexAction;
+		ca->name = std::string("ABLAUF: ") + name;
+		for (int i = std::max(0, from); i < std::min(to, (int)NUM_SLOTS); i++) {
+			if (!slots[i].used)
+				continue;
+			AblaufAction* a = new AblaufAction;
+			a->name = ca->name;
+			a->moduleId = id;
+			a->rowsBefore = a->rowsAfter = rows;
+			a->curBefore = a->curAfter = curRow;
+			a->slot = i;
+			a->slotBefore = std::make_shared<Slot>(slots[i]);
+			slots[i] = Slot();
+			a->slotAfter = std::make_shared<Slot>(slots[i]);
+			slotVer[i]++;
+			ca->push(a);
+		}
+		if (ca->actions.empty()) {
+			delete ca;
+			say("No pads to clear");
+			return;
+		}
+		if (selSlot >= from && selSlot < to)
+			selSlot = -1;
+		session.clear();
+		APP->history->push(ca);
+		say(std::to_string(ca->actions.size()) + " pads cleared – UNDO brings them back");
+	}
+
 	void undoButton() {
 		history::State* h = APP->history;
 		if (h->actionIndex > 0) {
-			AblaufAction* a = dynamic_cast<AblaufAction*>(h->actions[h->actionIndex - 1]);
+			history::Action* last = h->actions[h->actionIndex - 1];
+			if (history::ComplexAction* ca = dynamic_cast<history::ComplexAction*>(last))
+				if (!ca->actions.empty())
+					last = ca->actions.front();
+			AblaufAction* a = dynamic_cast<AblaufAction*>(last);
 			if (a && a->moduleId == id) {
 				h->undo();
 				say("Undo");
@@ -946,6 +985,19 @@ struct Ablauf : Module {
 			armed = armed == 2 ? 0 : 2, copySrc = -1;
 		if (pressed(CLEAR_PARAM))
 			armed = armed == 3 ? 0 : 3, copySrc = -1;
+		if (clrAllArm > 0.f)
+			clrAllArm -= dt;
+		if (pressed(CLEARALL_PARAM)) {
+			if (clrAllArm > 0.f) {
+				clrAllArm = 0.f;
+				clearSlots(0, NUM_SLOTS, "clear all pads");
+			}
+			else {
+				clrAllArm = 3.f;
+				armed = 0, copySrc = -1;
+				say("CLR ALL: press again");
+			}
+		}
 		for (int k = 0; k < NUM_SECTIONS; k++)
 			if (pressed(PART_PARAM + k))
 				part(k, g);
@@ -1119,6 +1171,7 @@ struct Ablauf : Module {
 		lights[STORE_LIGHT].setBrightness(armed == 1 ? bl : (pendingStore >= 0 ? 1.f : 0.f));
 		lights[COPY_LIGHT].setBrightness(armed == 2 ? bl : 0.f);
 		lights[CLEAR_LIGHT].setBrightness(armed == 3 ? bl : 0.f);
+		lights[CLEARALL_LIGHT].setBrightness(clrAllArm > 0.f ? bl : 0.f);
 		int sec = hasRow ? rows[curRow].sec : -1;
 		for (int k = 0; k < NUM_SECTIONS; k++) {
 			bool mine = session.active && session.result[k] >= 0;
@@ -1855,6 +1908,7 @@ struct AblaufWidget : ModuleWidget {
 		addParam(createLightParamCentered<VCVLightBezel<RedLight>>(ui::mm(L::STORE), module, A::STORE_PARAM, A::STORE_LIGHT));
 		addParam(createLightParamCentered<VCVLightBezel<WhiteLight>>(ui::mm(L::COPY), module, A::COPY_PARAM, A::COPY_LIGHT));
 		addParam(createLightParamCentered<VCVLightBezel<WhiteLight>>(ui::mm(L::CLEAR), module, A::CLEAR_PARAM, A::CLEAR_LIGHT));
+		addParam(createLightParamCentered<VCVLightBezel<RedLight>>(ui::mm(L::CLEARALL), module, A::CLEARALL_PARAM, A::CLEARALL_LIGHT));
 		addChild(createLightCentered<SmallLight<ALight<0x5d, 0xff, 0x8a>>>(ui::mm(L::LINKLED), module, A::LINK_LIGHT));
 
 		addInput(createInputCentered<PJ301MPort>(ui::mm(L::IN_RUN), module, A::RUN_INPUT));
@@ -1894,6 +1948,10 @@ struct AblaufWidget : ModuleWidget {
 			menu->addChild(createCheckMenuItem(label, "", [=]() { return m->linkedId == id; }, [=]() { m->linkedId = id; }));
 		}
 		menu->addChild(new MenuSeparator);
+		for (int b = 0; b < 4; b++)
+			menu->addChild(createMenuItem(string::f("Clear bank %c", 'A' + b), "", [=]() {
+				m->clearSlots(b * PADS_PER_BANK, (b + 1) * PADS_PER_BANK, string::f("clear bank %c", 'A' + b).c_str());
+			}));
 		menu->addChild(createMenuItem("Clear song", "", [=]() {
 			AblaufAction* a = m->beginChange("clear song");
 			m->rows.clear();
