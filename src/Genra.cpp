@@ -10,7 +10,7 @@ std::string VariantQuantity::getDisplayValueString() {
 	int n = numVariants(g);
 	std::string name = prof(profileOf(g, v)).variant;
 	if (v >= n)
-		name += " (nur " + std::to_string(n) + ")";
+		name += " (only " + std::to_string(n) + ")";
 	return name;
 }
 
@@ -119,10 +119,10 @@ struct GenreField : Widget {
 		Genra* m = module;
 		int t = track;
 		ui::Menu* menu = createMenu();
-		menu->addChild(createMenuLabel(std::string("Genre der Spur ") + TRACK_NAMES[t]));
+		menu->addChild(createMenuLabel(std::string(TRACK_NAMES[t]) + " track genre"));
 		if (m->trackHasCv(t))
-			menu->addChild(createMenuLabel("CV-Eingang verbunden: die Spannung wählt das Genre"));
-		menu->addChild(createCheckMenuItem("Global (folgt GENRE)", "", [=]() { return m->trackSel[t] < 0; }, [=]() { m->setTrackSel(t, -1); }));
+			menu->addChild(createMenuLabel("CV input connected: the voltage selects the genre"));
+		menu->addChild(createCheckMenuItem("Global (follows GENRE)", "", [=]() { return m->trackSel[t] < 0; }, [=]() { m->setTrackSel(t, -1); }));
 		menu->addChild(new ui::MenuSeparator);
 		for (int f = 0; f < (int)(sizeof(FAMILIES) / sizeof(FAMILIES[0])); f++) {
 			const Family& fam = FAMILIES[f];
@@ -365,19 +365,19 @@ struct GenraDisplay : Widget {
 	void openChordMenu(int i) {
 		Genra* m = module;
 		ui::Menu* menu = createMenu();
-		menu->addChild(createMenuLabel(string::f("Akkord %d ändern", i + 1)));
+		menu->addChild(createMenuLabel(string::f("Change chord %d", i + 1)));
 		Params P = m->buildParams();
 		float color = effColor(P, m->pat.chordGenre);
 		int cur = currentAlternative(m->pat.prog[i], P);
 		for (int a = 0; a < numAlternatives(); a++) {
 			std::string name = alternativeName(a, P, color);
-			std::string roman = a < 7 ? string::f("Stufe %d", a + 1) : "geborgt";
+			std::string roman = a < 7 ? string::f("Degree %d", a + 1) : "borrowed";
 			menu->addChild(createCheckMenuItem(name, roman, [=]() { return a == cur; }, [=]() { m->pushChordEdit(Genra::CE_SET, i, a); }));
 		}
 		menu->addChild(new ui::MenuSeparator);
-		menu->addChild(createMenuItem("Mehr Farbe (Mausrad hoch)", "", [=]() { m->pushChordEdit(Genra::CE_COLOR, i, 1); }));
-		menu->addChild(createMenuItem("Weniger Farbe (Mausrad runter)", "", [=]() { m->pushChordEdit(Genra::CE_COLOR, i, -1); }));
-		menu->addChild(createMenuItem("Farbe zurücksetzen", "", [=]() { m->pushChordEdit(Genra::CE_COLOR_RESET, i); }));
+		menu->addChild(createMenuItem("More color (scroll up)", "", [=]() { m->pushChordEdit(Genra::CE_COLOR, i, 1); }));
+		menu->addChild(createMenuItem("Less color (scroll down)", "", [=]() { m->pushChordEdit(Genra::CE_COLOR, i, -1); }));
+		menu->addChild(createMenuItem("Reset color", "", [=]() { m->pushChordEdit(Genra::CE_COLOR_RESET, i); }));
 	}
 };
 
@@ -513,15 +513,15 @@ struct GenraWidget : ModuleWidget {
 			return;
 		menu->addChild(new MenuSeparator);
 		menu->addChild(createMenuLabel("GENRA"));
-		menu->addChild(createMenuItem("Als MIDI-Datei exportieren…", "", [=]() { m->exportMidi(); }));
-		menu->addChild(createMenuItem("MIDI-Datei importieren…", "", [=]() { m->importMidi(); }));
+		menu->addChild(createMenuItem("Export as MIDI file…", "", [=]() { m->exportMidi(); }));
+		menu->addChild(createMenuItem("Import MIDI file…", "", [=]() { m->importMidi(); }));
 		menu->addChild(new MenuSeparator);
-		menu->addChild(createIndexSubmenuItem("Akkord-Modus", {CHORD_MODES[0], CHORD_MODES[1], CHORD_MODES[2]},
+		menu->addChild(createIndexSubmenuItem("Chord mode", {CHORD_MODES[0], CHORD_MODES[1], CHORD_MODES[2]},
 		                                      [=]() { return (size_t)m->chordMode; },
 		                                      [=](size_t v) { m->chordMode = (int)v; }));
-		menu->addChild(createSubmenuItem("Akkord-Vorlage", "", [=](Menu* sub) {
+		menu->addChild(createSubmenuItem("Chord template", "", [=](Menu* sub) {
 			const Genre& G = prof(m->curGenre);
-			sub->addChild(createCheckMenuItem("Zufällig", "", [=]() { return m->templateSel < 0; }, [=]() {
+			sub->addChild(createCheckMenuItem("Random", "", [=]() { return m->templateSel < 0; }, [=]() {
 				m->templateSel = -1;
 				m->chordRegenRequested = true;
 			}));
@@ -532,14 +532,14 @@ struct GenraWidget : ModuleWidget {
 				}));
 			}
 		}));
-		menu->addChild(createMenuItem("Nur Akkorde neu würfeln", "", [=]() { m->chordRegenRequested = true; }));
+		menu->addChild(createMenuItem("Re-roll chords only", "", [=]() { m->chordRegenRequested = true; }));
 		menu->addChild(new MenuSeparator);
-		menu->addChild(createIndexSubmenuItem("Genre-CV-Eingänge", {GENRE_CV_MODES[0], GENRE_CV_MODES[1]},
+		menu->addChild(createIndexSubmenuItem("Genre CV inputs", {GENRE_CV_MODES[0], GENRE_CV_MODES[1]},
 		                                      [=]() { return (size_t)m->genreCvMode; },
 		                                      [=](size_t v) { m->genreCvMode = (int)v; }));
-		menu->addChild(createMenuItem("Alle Spuren auf Global (folgen GENRE)", "", [=]() { m->resetTracksRequested = true; }));
+		menu->addChild(createMenuItem("All tracks to global (follow GENRE)", "", [=]() { m->resetTracksRequested = true; }));
 		menu->addChild(new MenuSeparator);
-		menu->addChild(createIndexSubmenuItem("Clock-Eingang", {CLOCK_MODES[0], CLOCK_MODES[1], CLOCK_MODES[2], CLOCK_MODES[3]},
+		menu->addChild(createIndexSubmenuItem("Clock input", {CLOCK_MODES[0], CLOCK_MODES[1], CLOCK_MODES[2], CLOCK_MODES[3]},
 		                                      [=]() { return (size_t)m->clockMode; },
 		                                      [=](size_t v) { m->clockMode = (int)v; }));
 	}

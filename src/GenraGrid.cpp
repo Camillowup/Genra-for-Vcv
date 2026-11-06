@@ -56,27 +56,27 @@ struct GenraGrid : Module {
 
 	GenraGrid() {
 		config(PARAMS_LEN, 0, 0, LIGHTS_LEN);
-		static const char* TN[4] = {"Drums", "Bass", "Melodie", "Pads"};
+		static const char* TN[4] = {"Drums", "Bass", "Melody", "Pads"};
 		for (int t = 0; t < 4; t++)
-			configButton(TRACK_PARAM + t, std::string("Spur ") + TN[t] + " bearbeiten");
-		configSwitch(BAR_PARAM, 0.f, 7.f, 0.f, "Erster sichtbarer Takt", {"1", "2", "3", "4", "5", "6", "7", "8"});
-		configSwitch(ZOOM_PARAM, 0.f, 3.f, 1.f, "Sichtbare Takte", {"1 Takt", "2 Takte", "4 Takte", "8 Takte"});
-		configParam(PITCH_PARAM, -36.f, 36.f, 0.f, "Tonbereich verschieben", " Halbtöne");
+			configButton(TRACK_PARAM + t, std::string("Edit ") + TN[t] + " track");
+		configSwitch(BAR_PARAM, 0.f, 7.f, 0.f, "First visible bar", {"1", "2", "3", "4", "5", "6", "7", "8"});
+		configSwitch(ZOOM_PARAM, 0.f, 3.f, 1.f, "Visible bars", {"1 bar", "2 bars", "4 bars", "8 bars"});
+		configParam(PITCH_PARAM, -36.f, 36.f, 0.f, "Shift pitch range", " semitones");
 		paramQuantities[PITCH_PARAM]->snapEnabled = true;
-		configSwitch(AUTO_PARAM, 0.f, 1.f, 1.f, "Ansicht läuft beim Abspielen mit (AUTO SCROLL)", {"Aus", "An"});
-		configParam(VEL_PARAM, 1.f, 127.f, 100.f, "Velocity neuer Noten");
+		configSwitch(AUTO_PARAM, 0.f, 1.f, 1.f, "View follows playback (AUTO SCROLL)", {"Off", "On"});
+		configParam(VEL_PARAM, 1.f, 127.f, 100.f, "Velocity of new notes");
 		paramQuantities[VEL_PARAM]->snapEnabled = true;
-		configParam(LEN_PARAM, 1.f, 16.f, 2.f, "Länge neuer Noten", " 16tel");
+		configParam(LEN_PARAM, 1.f, 16.f, 2.f, "Length of new notes", " 16ths");
 		paramQuantities[LEN_PARAM]->snapEnabled = true;
-		configButton(SNAP_PARAM, "SNAP: Aus / Tonleiter / Akkordtöne (Shift: alle Noten einrasten)");
-		configButton(FOLLOW_PARAM, "CHORD FOLLOW: bearbeitete Noten folgen den Akkorden");
-		configButton(UNDO_PARAM, "Rückgängig");
-		configButton(REDO_PARAM, "Wiederholen");
-		configButton(COPY_PARAM, "Takt kopieren (erster sichtbarer Takt)");
-		configButton(PASTE_PARAM, "Takt einfügen (erster sichtbarer Takt)");
-		configButton(CLEAR_PARAM, "Spur leeren");
-		configButton(GEN_PARAM, "Spur wieder generieren (GEN)");
-		configParam(CHANCE_PARAM, 5.f, 100.f, 100.f, "Wahrscheinlichkeit neuer Noten", " %");
+		configButton(SNAP_PARAM, "SNAP: off / scale / chord tones (Shift: snap all notes)");
+		configButton(FOLLOW_PARAM, "CHORD FOLLOW: edited notes follow the chords");
+		configButton(UNDO_PARAM, "Undo");
+		configButton(REDO_PARAM, "Redo");
+		configButton(COPY_PARAM, "Copy bar (first visible bar)");
+		configButton(PASTE_PARAM, "Paste bar (first visible bar)");
+		configButton(CLEAR_PARAM, "Clear track");
+		configButton(GEN_PARAM, "Regenerate track (GEN)");
+		configParam(CHANCE_PARAM, 5.f, 100.f, 100.f, "Chance of new notes", " %");
 		paramQuantities[CHANCE_PARAM]->snapEnabled = true;
 		for (int i = 0; i < PARAMS_LEN; i++)
 			paramQuantities[i]->randomizeEnabled = false;
@@ -982,7 +982,7 @@ struct GridDisplay : Widget {
 			for (int c : {100, 75, 50, 25, 10})
 				sub->addChild(createCheckMenuItem(string::f("%d %%", c), "", [=]() { return curChance == c; }, [=]() { set(c, curCond); }));
 		}));
-		menu->addChild(createCheckMenuItem("Nur jeden 2. Durchlauf", "", [=]() { return curCond == NC_EVERY2; },
+		menu->addChild(createCheckMenuItem("Only every 2nd loop", "", [=]() { return curCond == NC_EVERY2; },
 		                                   [=]() { set(curChance, curCond == NC_EVERY2 ? NC_ALWAYS : NC_EVERY2); }));
 	}
 
@@ -1011,9 +1011,9 @@ struct GridDisplay : Widget {
 			int v = clamp(r, 0, NUM_DRUMS - 1);
 			Hit h = drumHit(g->pat, Q, v, s, L, false);
 			bool selected = isSel(v, s) && sel.size() > 1;
-			menu->addChild(createMenuLabel(selected ? string::f("%d Schläge ausgewählt", (int)sel.size()) : string::f("%s · Step %d", DRUM_SHORT[v], s + 1)));
+			menu->addChild(createMenuLabel(selected ? string::f("%d hits selected", (int)sel.size()) : string::f("%s · Step %d", DRUM_SHORT[v], s + 1)));
 			if (!h.on) {
-				menu->addChild(createMenuItem("Schlag setzen", "", [=]() {
+				menu->addChild(createMenuItem("Set hit", "", [=]() {
 					edit([=]() {
 						setDrum(self->work, v, s, self->newVel(), 1);
 						setDrumChance(self->work, v, s, self->newChance(), NC_ALWAYS);
@@ -1032,7 +1032,7 @@ struct GridDisplay : Widget {
 					f(v, s);
 			};
 			for (int rat = 1; rat <= 4; rat++)
-				menu->addChild(createCheckMenuItem(rat == 1 ? "Einzelschlag" : string::f("Roll %d×", rat), "", [=]() { return h.ratchet == rat; }, [=]() {
+				menu->addChild(createCheckMenuItem(rat == 1 ? "Single hit" : string::f("Roll %d×", rat), "", [=]() { return h.ratchet == rat; }, [=]() {
 					edit([=]() { each([=](int vv, int ss) { setDrum(self->work, vv, ss, std::max<int>(1, self->work.drums[vv][ss].fv), rat); }); });
 				}));
 			menu->addChild(new ui::MenuSeparator);
@@ -1045,7 +1045,7 @@ struct GridDisplay : Widget {
 			menu->addChild(new ui::MenuSeparator);
 			chanceMenu(menu, cc, cd, [=](int c, int cond) { edit([=]() { each([=](int a, int b) { setDrumChance(self->work, a, b, c, cond); }); }); });
 			menu->addChild(new ui::MenuSeparator);
-			menu->addChild(createMenuItem(selected ? "Auswahl löschen" : "Löschen", "", [=]() {
+			menu->addChild(createMenuItem(selected ? "Delete selection" : "Delete", "", [=]() {
 				edit([=]() { each([=](int a, int b) { setDrum(self->work, a, b, 0, 1); }); });
 				if (selected)
 					self->clearSel();
@@ -1059,9 +1059,9 @@ struct GridDisplay : Widget {
 			if (ns[i].pitch == pitch && s >= ns[i].start && s < ns[i].start + ns[i].len)
 				idx = i;
 		if (idx < 0) {
-			menu->addChild(createMenuLabel("Keine Note"));
+			menu->addChild(createMenuLabel("No note"));
 			if (hasSel())
-				menu->addChild(createMenuItem("Auswahl aufheben", "Esc", [=]() { self->clearSel(); }));
+				menu->addChild(createMenuItem("Deselect", "Esc", [=]() { self->clearSel(); }));
 			return;
 		}
 		GridNote n = ns[idx];
@@ -1073,11 +1073,11 @@ struct GridDisplay : Widget {
 					f(x);
 		};
 		bool sharp = sharpKey(P.key + P.transp, P.scale);
-		menu->addChild(createMenuLabel(selected ? string::f("%d Noten ausgewählt", (int)sel.size())
-		                                        : string::f("%s%d · Step %d · Länge %d", (sharp ? NOTE_SHARP : NOTE_FLAT)[n.pitch % 12], n.pitch / 12 - 1, n.start + 1, n.len)));
+		menu->addChild(createMenuLabel(selected ? string::f("%d notes selected", (int)sel.size())
+		                                        : string::f("%s%d · Step %d · Length %d", (sharp ? NOTE_SHARP : NOTE_FLAT)[n.pitch % 12], n.pitch / 12 - 1, n.start + 1, n.len)));
 		if (t != T_PADS) {
-			menu->addChild(createCheckMenuItem("Akzent", "", [=]() { return n.acc; }, [=]() { edit([=]() { each([=](GridNote& x) { x.acc = !n.acc; }); }); }));
-			menu->addChild(createCheckMenuItem("Slide zur nächsten Note", "", [=]() { return n.slide; }, [=]() {
+			menu->addChild(createCheckMenuItem("Accent", "", [=]() { return n.acc; }, [=]() { edit([=]() { each([=](GridNote& x) { x.acc = !n.acc; }); }); }));
+			menu->addChild(createCheckMenuItem("Slide to next note", "", [=]() { return n.slide; }, [=]() {
 				edit([=]() { each([=](GridNote& x) { x.slide = !n.slide; }); });
 			}));
 			menu->addChild(new ui::MenuSeparator);
@@ -1087,7 +1087,7 @@ struct GridDisplay : Widget {
 		menu->addChild(new ui::MenuSeparator);
 		chanceMenu(menu, n.chance, n.cond, [=](int c, int cond) { edit([=]() { each([=](GridNote& x) { x.chance = c; x.cond = cond; }); }); });
 		menu->addChild(new ui::MenuSeparator);
-		menu->addChild(createMenuItem(selected ? "Auswahl löschen" : "Löschen", selected ? "Entf" : "Doppelklick", [=]() {
+		menu->addChild(createMenuItem(selected ? "Delete selection" : "Delete", selected ? "Del" : "Double-click", [=]() {
 			edit([=]() {
 				for (int i = (int)self->notes.size() - 1; i >= 0; i--) {
 					const GridNote& x = self->notes[i];
@@ -1241,9 +1241,9 @@ struct GridDisplay : Widget {
 			nvgStroke(vg);
 		};
 		if (!module || !g) {
-			txt(bold, wmm / 2.f, hmm / 2.f - 2.f, 3.4f, dim, module ? "NICHT VERBUNDEN" : "GENRA GRID EDITOR", NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 0.4f);
+			txt(bold, wmm / 2.f, hmm / 2.f - 2.f, 3.4f, dim, module ? "NOT CONNECTED" : "GENRA GRID EDITOR", NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 0.4f);
 			if (module)
-				txt(bold, wmm / 2.f, hmm / 2.f + 3.5f, 2.2f, dim, "Editor links oder rechts neben GENRA setzen – oder per Rechtsklick › Verbinden mit…",
+				txt(bold, wmm / 2.f, hmm / 2.f + 3.5f, 2.2f, dim, "Place the editor left or right of GENRA – or right-click › Connect to…",
 				    NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
 			Widget::drawLayer(args, layer);
 			return;
@@ -1268,10 +1268,10 @@ struct GridDisplay : Widget {
 		if (g->trackSel[t] < 0 && !g->trackHasCv(t))
 			gl += "  · GLOBAL";
 		if (hasSel())
-			gl += string::f("  ·  %d AUSGEWÄHLT", (int)sel.size());
+			gl += string::f("  ·  %d SELECTED", (int)sel.size());
 		txt(bold, 3.5f + (b4[2] - b4[0]) / mm2px(1.f) + 2.f, 5.2f, 2.2f, dim, gl, NVG_ALIGN_LEFT | NVG_ALIGN_BASELINE, 0.3f);
 		static const char* SNAPS[3] = {"SNAP OFF", "SNAP SCALE", "SNAP CHORD"};
-		std::string right = pat.fixed[t] ? "BEARBEITET" : "GENERIERT";
+		std::string right = pat.fixed[t] ? "EDITED" : "GENERATED";
 		if (t != T_DRUMS)
 			right += std::string("  ·  ") + SNAPS[module->snapMode];
 		if (t != T_DRUMS && pat.fixed[t] && pat.chordFollow[t])
@@ -1607,8 +1607,8 @@ struct GenraGridWidget : ModuleWidget {
 		if (!m)
 			return;
 		menu->addChild(new MenuSeparator);
-		menu->addChild(createMenuLabel("Verbinden mit…"));
-		menu->addChild(createCheckMenuItem("Automatisch (angedocktes GENRA)", "", [=]() { return m->linkedId < 0; }, [=]() { m->linkedId = -1; }));
+		menu->addChild(createMenuLabel("Connect to…"));
+		menu->addChild(createCheckMenuItem("Automatic (docked GENRA)", "", [=]() { return m->linkedId < 0; }, [=]() { m->linkedId = -1; }));
 		for (int64_t id : APP->engine->getModuleIds()) {
 			Module* mm = APP->engine->getModule(id);
 			if (!mm || mm->model != modelGenra)
@@ -1618,12 +1618,12 @@ struct GenraGridWidget : ModuleWidget {
 			menu->addChild(createCheckMenuItem(label, "", [=]() { return m->linkedId == id; }, [=]() { m->linkedId = id; }));
 		}
 		menu->addChild(new MenuSeparator);
-		menu->addChild(createMenuLabel("Bedienung"));
-		menu->addChild(createMenuLabel("Klick: Note / Schlag setzen · Ziehen: verschieben, Länge am rechten Rand"));
-		menu->addChild(createMenuLabel("Doppelklick: löschen · Mausrad: Velocity · Rechtsklick: Akzent, Slide, Roll, Chance"));
-		menu->addChild(createMenuLabel("Shift + Ziehen: Rahmen-Auswahl · Strg + Klick: Note an-/abwählen"));
-		menu->addChild(createMenuLabel("Auswahl: ziehen = verschieben · Pfeile = Tonhöhe / Position (Shift: Oktave / Takt)"));
-		menu->addChild(createMenuLabel("Entf = löschen · Strg+A alles · Strg+C/V kopieren/einfügen · Strg+D duplizieren · Esc"));
+		menu->addChild(createMenuLabel("Controls"));
+		menu->addChild(createMenuLabel("Click: set note / hit · Drag: move, length at the right edge"));
+		menu->addChild(createMenuLabel("Double-click: delete · Scroll: velocity · Right-click: accent, slide, roll, chance"));
+		menu->addChild(createMenuLabel("Shift + drag: box select · Ctrl + click: toggle note selection"));
+		menu->addChild(createMenuLabel("Selection: drag = move · Arrows = pitch / position (Shift: octave / bar)"));
+		menu->addChild(createMenuLabel("Del = delete · Ctrl+A all · Ctrl+C/V copy/paste · Ctrl+D duplicate · Esc"));
 	}
 };
 

@@ -315,14 +315,14 @@ static void copyChords(const Pattern& from, Pattern& to) {
 
 int importSmf(const std::vector<uint8_t>& d, Pattern& pat, const Params& P, std::string& err) {
 	if (d.size() < 14 || std::memcmp(d.data(), "MThd", 4) != 0) {
-		err = "Keine gültige MIDI-Datei.";
+		err = "Not a valid MIDI file.";
 		return 0;
 	}
 	uint32_t hl = rd32(d, 4);
 	int ntrks = (d[10] << 8) | d[11];
 	int division = (d[12] << 8) | d[13];
 	if (division & 0x8000 || division == 0) {
-		err = "SMPTE-Zeitbasis wird nicht unterstützt.";
+		err = "SMPTE time division is not supported.";
 		return 0;
 	}
 	size_t p = 8 + hl;
@@ -427,7 +427,7 @@ int importSmf(const std::vector<uint8_t>& d, Pattern& pat, const Params& P, std:
 				groups[i].name = name;
 	}
 	if (notes.empty()) {
-		err = "Die MIDI-Datei enthält keine Noten.";
+		err = "The MIDI file contains no notes.";
 		return 0;
 	}
 	int tps = std::max(1, division / 4);

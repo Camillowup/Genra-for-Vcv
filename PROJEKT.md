@@ -261,3 +261,4 @@ GENRA MONO: `g++ -std=c++17 -O2 test/test_mono.cpp -o tm && ./tm`
 - Test `test/test_ablauf.cpp` (im Workflow): alle Genres × Längen × Teile – behaltene Spuren byte-genau, Intro ohne Snare/Bass/Melodie in der ersten Hälfte, Build-Wirbel wird dichter, Lücke ohne Kick und Bass, 32tel am Ende, Break ohne Kick mit Grundtönen, Outro-Schlusstakt nur Kick, Drop mit Bass auf der Eins, Speichern.
 - [ ] Test in Rack: Song mit GENRA (Taktgenauigkeit bei interner und externer Clock, 1-Takt-Zeilen), Varianten nach Gehör (Build-Länge, Intro-Dichte je Genre), Undo, Laden/Speichern grosser Bänke.
 
+- Tooltips, Menüs und Meldungen von GENRA, GRID und ABLAUF auf Englisch (wie die übrigen Module).
