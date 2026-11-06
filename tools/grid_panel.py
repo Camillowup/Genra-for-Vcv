@@ -21,7 +21,7 @@ W = HP * 5.08
 H = 128.5
 BG, PLATE, LINE, TXT, DIM = "#17181d", "#212329", "#34363f", "#d9dbe2", "#8a8d99"
 HARM = "#2f9e8f"
-TRACKS = [("DRUMS", "#ff8a3d"), ("BASS", "#ff4f6d"), ("MELODY", "#3dc9ff"), ("PADS", "#a98bff")]
+TRACKS = [("DRUMS", "#7b6cff"), ("BASS", "#b8f23a"), ("MELODY", "#3dc9ff"), ("PADS", "#e0779e")]
 CUR = 0 if VIEW == "drums" else 1
 
 out = []
@@ -168,7 +168,7 @@ for r in range(nrows):
         black = nm[1:2] in ("#", "b")
         e(f'<rect x="{gx0-13.2:.2f}" y="{y+0.1:.2f}" width="{12.6 if not black else 8:.2f}" height="{rh-0.2:.2f}" rx="0.3" fill="{"#2a2b33" if black else "#c9ccd6"}"/>')
         if root or not black:
-            text(gx0 - 1.4, y + rh / 2 + 0.7, nm, 1.6, "#ff4f6d" if root else "#3a3c46", 800, "end", 0.1)
+            text(gx0 - 1.4, y + rh / 2 + 0.7, nm, 1.6, "#b8f23a" if root else "#3a3c46", 800, "end", 0.1)
 # vertical lines
 for s in range(steps + 1):
     x = gx0 + s * sw

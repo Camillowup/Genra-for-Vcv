@@ -27,7 +27,7 @@ H = 380
 
 BG, PLATE, LINE, TXT, DIM = "#17181d", "#212329", "#34363f", "#d9dbe2", "#8a8d99"
 # keep in step with src/jiant/JiantUI.hpp
-COLORS = {"Voice": "#ff4f5a", "DrumX": "#a98bff", "Animal": "#4fe08a"}
+COLORS = {"Voice": "#ff4f5a", "DrumX": "#7b6cff", "Animal": "#4fe08a"}
 
 # component radii (px)
 R_SMALL, R_TRIM, R_JACK, R_BEZEL = 11.3, 8.9, 11.8, 10.6

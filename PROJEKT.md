@@ -1,6 +1,6 @@
 # GENRA – Projektstand
 
-**Stand:** 6. November 2026 · **Plugin 2.8.0: 15 Module** (GENRA, GRID, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, SCHMELZ, MIX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `CamilloGF/genra-v3`
+**Stand:** 6. November 2026 · **Plugin 2.8.1: 15 Module** (GENRA, GRID, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, SCHMELZ, MIX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `CamilloGF/genra-v3`
 Vorgänger: v1 `CamilloGF/vcv-sequenzer-Genra` (2.0.0), v2 `CamilloGF/Genra-v2` (2.1.0, läuft in Rack)
 Plattform: VCV Rack Pro 2.6.6 unter Windows · Build: GitHub Actions (`.github/workflows/main.yml`)
 
@@ -24,6 +24,7 @@ DJ-Effektpad nach Polyend Play (Perform) und Akai Flex Beat: 16 Pads in 4 Bänke
 - Effekte: Stutter, Halftime, Reverse, Tape Stop, Scratch, Gate, Trance, Pump, Echo Out, Freeze, Bitcrush, Rearrange – je 3 Parameter P1–P3, mit < > umbelegbar, INIT
 - EQ wie DJ-Isolator (LR4, −∞ … +6 dB, Kills, FREQ verschiebt die Mitte, PRE/POST), DJ-Filter (LP links/HP rechts), Drive, Intensity, Mix
 - REC 1 BAR (Loop statt Eingang), TAP, CLOCK/RESET wie GENRA, PADS (poly Gates), KILLS (poly), MIDI-Noten C1–D#2 mit MIDI learn
+- Farben (2.8.1): Jede Spur hat die Farbe ihrer Instrumente – DRUMS blau-violett `#7b6cff` (= DRUM-X), BASS säuregrün `#b8f23a` (= K-WASUB und MONO), MELODY cyan `#3dc9ff` (= FUNKE), PADS rosa `#e0779e` (= SCHMELZ); SCENES gelb `#ffd23d`. Gilt auch für GRID, MIX und die STOTTER-Pads.
 - K-WASUB (2.8.0): PRESET-Feld statt ◀ ▶, Liste nach Stil sortiert (Kern-API 2: `preset_style`)
 - Dateien: `src/stotter/StotterDsp.hpp` (Engine, Test `test/test_stotter.cpp`), `src/stotter/Stotter.cpp`, `tools/stotter_panel.py` → `res/Stotter.svg` + `src/stotter/StotterLayout.hpp` (30 HP)
 
@@ -51,7 +52,7 @@ DJ-Effektpad nach Polyend Play (Perform) und Akai Flex Beat: 16 Pads in 4 Bänke
 | `src/jiant/` | JIANT-Stimmen VOICE, DRUM-X, ANIMAL: je ein Modul (`Voice.cpp`, `DrumX.cpp`, `Animal.cpp`, jedes in eigenem Namespace), ein Kern-Lader (`*Core.cpp`: lädt pro Modul-Instanz eine eigene Kopie der Kern-Bibliothek nach `Genra/run/` im Rack-Benutzerordner) und der gemeinsame Look `JiantUI.hpp` |
 | `jiantcore/` | die Firmware-Kerne als C-Bibliotheken (`res/voicecore.*`, `drumcore.*`, `animalcore.*`), gebaut vom Makefile aus `jiant.tar.gz` |
 | `tools/jiant_panel.py` | erzeugt `res/JiantVoice.svg`, `res/JiantDrumX.svg`, `res/JiantAnimal.svg` + `src/jiant/JiantLayout.hpp` (`python3 tools/jiant_panel.py real`), Vorschau mit `preview <ordner> <Rack-Quellen>` |
-| `src/mono/` | GENRA MONO: Modul `GenraMono.cpp` (Filter-Dropdown, türkise Knopfzeiger) und Klang-Engine `MonoDsp.hpp` (rein C++, Test `test/test_mono.cpp`) |
+| `src/mono/` | GENRA MONO: Modul `GenraMono.cpp` (Filter-Dropdown, säuregrüne Knopfzeiger) und Klang-Engine `MonoDsp.hpp` (rein C++, Test `test/test_mono.cpp`) |
 | `tools/mono_panel.py` | erzeugt `res/GenraMono.svg` + `src/mono/MonoLayout.hpp` (`python3 tools/mono_panel.py real`), Vorschau mit `preview <datei.png> <Rack-Quellen> [menu]` |
 | `tools/panel.py` | erzeugt `res/Genra.svg` + `src/Layout.hpp` (`python3 tools/panel.py real`) und Vorschau (`preview`) |
 | `test/` | Engine- und MIDI-Rundlauf-Tests (g++, ohne Rack) |
@@ -152,7 +153,7 @@ GENRA MONO: `g++ -std=c++17 -O2 test/test_mono.cpp -o tm && ./tm`
 - Offen: Klangtest in Rack (Windows-Build über Actions).
 
 ## GENRA MONO (2.5.0) – Stand 5. November 2026
-- Monophoner Bass-Synth nach dem Moog Minitaur als siebtes Modul (Branch `mono`, aufbauend auf `monk`). 28 HP, Farbe türkis `#1fb3a3` (in `tools/mono_panel.py` und `src/mono/GenraMono.cpp`). Look wie MONK/JIANT: dunkle Kopfleiste mit Titel MONO und Farbbalken, zentrierte Sektionstitel, getönte Ausgänge, normale Rack-Knöpfe. Pro VCO WAVE, TUNE (±12 Halbtöne, fein um die Mitte), LEVEL; GLIDE.
+- Monophoner Bass-Synth nach dem Moog Minitaur als siebtes Modul (Branch `mono`, aufbauend auf `monk`). 28 HP, Farbe säuregrün `#b8f23a` wie K-WASUB (bis 2.8.0 türkis `#1fb3a3`) (in `tools/mono_panel.py` und `src/mono/GenraMono.cpp`). Look wie MONK/JIANT: dunkle Kopfleiste mit Titel MONO und Farbbalken, zentrierte Sektionstitel, getönte Ausgänge, normale Rack-Knöpfe. Pro VCO WAVE, TUNE (±12 Halbtöne, fein um die Mitte), LEVEL; GLIDE.
 - Engine (`src/mono/MonoDsp.hpp`): 2 BLEP-Oszillatoren mit Wellenform-Morph, Mixer → DRIVE → Filter, 2-fache Überabtastung, 8 Filtermodelle (ZDF-Ladder mit Bassausgleich, Ladder 12, Diode/303, MS-20 mit sättigender Resonanz, SEM-SVF LP/BP/HP, OTA), 2 ADSR mit RC-Kurven, LFO TRI/SQR, VCA mit Sättigung, DC-Filter.
 - Filtertyp als Parameter `FTYPE` (speicherbar, Undo), Auswahl über das Feld (Klick = Liste, Mausrad) oder Rechtsklick-Menü.
 - Test `test/test_mono.cpp`: Tonhöhe, TUNE, alle Filter bei voller Resonanz/Drive stabil, Selbstoszillation (Ladder, Diode, MS-20; SEM nicht), Bassausgleich, Hüllkurvenzeiten.

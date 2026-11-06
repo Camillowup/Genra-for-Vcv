@@ -14,8 +14,8 @@ namespace ui = genra_ui;
 using namespace gmix;
 
 // the GENRA track colours (keep in step with tools/mix_panel.py)
-static const NVGcolor TRACK[NCH] = {nvgRGB(0xff, 0x8a, 0x3d), nvgRGB(0xff, 0x4f, 0x6d), nvgRGB(0x3d, 0xc9, 0xff),
-                                    nvgRGB(0xa9, 0x8b, 0xff)};
+static const NVGcolor TRACK[NCH] = {nvgRGB(0x7b, 0x6c, 0xff), nvgRGB(0xb8, 0xf2, 0x3a), nvgRGB(0x3d, 0xc9, 0xff),
+                                    nvgRGB(0xe0, 0x77, 0x9e)};
 static const NVGcolor METER_GREEN = nvgRGB(0x5d, 0xff, 0x8a), METER_YELLOW = nvgRGB(0xff, 0xc2, 0x4d),
                       METER_RED = nvgRGB(0xff, 0x4f, 0x4f);
 static const char* const TRACK_NAMES[NCH] = {"Drums", "Bass", "Melody", "Pads"};
@@ -218,10 +218,10 @@ struct MixWidget : ModuleWidget {
 			                                                          M::MUTE_LIGHT + c));
 			Vec sp = ui::mm(solo[c]);
 			switch (c) {
-				case 0: addParam(createLightParamCentered<Lit<0xff, 0x8a, 0x3d>>(sp, module, M::pid(c, M::SOLO), M::SOLO_LIGHT + c)); break;
-				case 1: addParam(createLightParamCentered<Lit<0xff, 0x4f, 0x6d>>(sp, module, M::pid(c, M::SOLO), M::SOLO_LIGHT + c)); break;
+				case 0: addParam(createLightParamCentered<Lit<0x7b, 0x6c, 0xff>>(sp, module, M::pid(c, M::SOLO), M::SOLO_LIGHT + c)); break;
+				case 1: addParam(createLightParamCentered<Lit<0xb8, 0xf2, 0x3a>>(sp, module, M::pid(c, M::SOLO), M::SOLO_LIGHT + c)); break;
 				case 2: addParam(createLightParamCentered<Lit<0x3d, 0xc9, 0xff>>(sp, module, M::pid(c, M::SOLO), M::SOLO_LIGHT + c)); break;
-				default: addParam(createLightParamCentered<Lit<0xa9, 0x8b, 0xff>>(sp, module, M::pid(c, M::SOLO), M::SOLO_LIGHT + c)); break;
+				default: addParam(createLightParamCentered<Lit<0xe0, 0x77, 0x9e>>(sp, module, M::pid(c, M::SOLO), M::SOLO_LIGHT + c)); break;
 			}
 			addInput(createInputCentered<PJ301MPort>(ui::mm(inl[c]), module, M::iid(c, M::IN_L)));
 			addInput(createInputCentered<PJ301MPort>(ui::mm(inr[c]), module, M::iid(c, M::IN_R)));

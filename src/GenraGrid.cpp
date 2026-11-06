@@ -125,10 +125,10 @@ template <int R, int G, int B>
 struct GridColorLight : GrayModuleLightWidget {
 	GridColorLight() { addBaseColor(nvgRGB(R, G, B)); }
 };
-using GOrange = GridColorLight<0xff, 0x8a, 0x3d>;
-using GPink = GridColorLight<0xff, 0x4f, 0x6d>;
+using GOrange = GridColorLight<0x7b, 0x6c, 0xff>;
+using GPink = GridColorLight<0xb8, 0xf2, 0x3a>;
 using GCyan = GridColorLight<0x3d, 0xc9, 0xff>;
-using GPurple = GridColorLight<0xa9, 0x8b, 0xff>;
+using GPurple = GridColorLight<0xe0, 0x77, 0x9e>;
 using GTeal = GridColorLight<0x4f, 0xd1, 0xbd>;
 using GMint = GridColorLight<0x5d, 0xff, 0x8a>;
 

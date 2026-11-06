@@ -25,7 +25,7 @@ Ein zweites Modul im selben Plugin (50 HP) zum vollständigen Bearbeiten des Loo
 |---|---|---|
 | ![VOICE](docs/entwuerfe/jiant_voice.png) | ![DRUM-X](docs/entwuerfe/jiant_drumx.png) | ![ANIMAL](docs/entwuerfe/jiant_animal.png) |
 
-Drei Klangerzeuger aus der Firmware von [JIANT FM](https://github.com/juanjiant-bit/JIANT) (Juan Jiant, ein Fork von [Felucca](https://github.com/hugelton/Felucca), GPL-3.0), im GENRA-Look und jeweils in einer eigenen Farbe: **VOICE rot**, **DRUM-X lila**, **ANIMAL grün**. Das Display zeigt links die Zeichnung der Firmware (Vokaltrakt, Kit-Kolonie, Kreatur), rechts Preset bzw. Kit und die Einstellungen.
+Drei Klangerzeuger aus der Firmware von [JIANT FM](https://github.com/juanjiant-bit/JIANT) (Juan Jiant, ein Fork von [Felucca](https://github.com/hugelton/Felucca), GPL-3.0), im GENRA-Look und jeweils in einer eigenen Farbe: **VOICE rot**, **DRUM-X blau-violett** (GENRAs Drum-Farbe), **ANIMAL grün**. Das Display zeigt links die Zeichnung der Firmware (Vokaltrakt, Kit-Kolonie, Kreatur), rechts Preset bzw. Kit und die Einstellungen.
 
 - **VOICE** (26 HP): Formant-Sänger. ◀ PRE ▶ (15 Presets), LANG im Display (OFF singt Vokale, ES/EN/JA singen Wörter), ◀ LYR ▶ wählt TEXT, W1–W16 oder S1–S8, das Textfeld im Display nimmt einen eigenen Text (bis 63 Zeichen). Jede neue Note singt die nächste Silbe, WORD ↺ startet den Text neu. 8 Klangregler mit CV, ihre Namen wechseln mit LANG.
 - **DRUM-X** (32 HP): 8 synthetische Drum-Spuren mit Varianten A/B und MORPH, 9 Kits (◀ KIT ▶). Klick auf Spurname, Pad oder Spur-Chip im Display wählt die Spur für SOUND (PITCH … COLOR, A | B). 7 Kit-Makros mit CV, pro Spur TRIG, LEVEL und Einzelausgang (OUT), V/OCT + GATE nach General MIDI, ACC, DLY, REV, LVL, Mix L/R.
@@ -53,7 +53,7 @@ Der Vokal-Synthesizer aus der FM-1-Firmware [MONK-1](https://github.com/charlesv
 |---|---|
 | ![GENRA MONO](docs/entwuerfe/genra_mono.png) | ![Filter-Menü](docs/entwuerfe/genra_mono_menu.png) |
 
-Monophoner Synth (28 HP) im Look von MONK und den JIANT-Stimmen, Farbe **türkis**.
+Monophoner Synth (28 HP) im Look von MONK und den JIANT-Stimmen, Farbe **säuregrün** (GENRAs Bass-Farbe, wie K-WASUB).
 
 - **Oszillatoren:** pro VCO WAVE (stufenlos Dreieck → Sägezahn → Rechteck → schmaler Puls), TUNE (±12 Halbtöne, fein um die Mitte – zum leichten Verstimmen) und LEVEL (hohe Pegel übersteuern das Filter); GLIDE.
 - **Filter:** Klick auf das Feld öffnet die Liste, das Mausrad blättert: LADDER 24 (Moog, Standard, Bass bleibt bei Resonanz erhalten), LADDER 12, DIODE (303), MS-20, SVF LP/BP/HP (Oberheim SEM), OTA (Juno). CUTOFF, RES, EG AMT (bipolar), DRIVE, KEY TRK.
@@ -117,7 +117,7 @@ müssen sie neu einsetzen. Das GENRA-SYNTHIS-Plugin am besten deinstallieren, so
 
 ![SCHMELZ](docs/entwuerfe/schmelz.png)
 
-String Machine im Geist der 70er/80er (Vorbild: Waldorf Streichfett), 32 HP, Farbe **rosa**. Zwei Klangteile, je bis
+String Machine im Geist der 70er/80er (Vorbild: Waldorf Streichfett), 32 HP, Farbe **rosa** (GENRAs Pad-Farbe). Zwei Klangteile, je bis
 16 Stimmen, dazu Effekte.
 
 - **Strings:** REGISTRATION überblendet stufenlos VIOLIN · VIOLA · CELLO · BASS · BRASS · ORGAN · CHOIR · SYNTH.
@@ -140,8 +140,8 @@ String Machine im Geist der 70er/80er (Vorbild: Waldorf Streichfett), 32 HP, Far
 
 ![MIX](docs/entwuerfe/mix.png)
 
-Mixer für die vier GENRA-Spuren, 32 HP. Jeder Kanal in der Farbe seiner Spur (DRUMS orange, BASS rot, MELODY blau,
-PADS lila), der Master dunkel.
+Mixer für die vier GENRA-Spuren, 32 HP. Jeder Kanal in der Farbe seiner Spur (DRUMS blau-violett, BASS säuregrün, MELODY
+cyan, PADS rosa), der Master dunkel.
 
 - **Pro Kanal:** IN L/R (R unbelegt = L; polyphone Eingänge werden summiert), HIGH/LOW (Kuhschwanz-EQ bei 6 kHz /
   120 Hz, ±12 dB), SEND (nach dem Fader), DUCK (wie stark der Kanal beim Duck-Trigger zurückgeht), PAN (Balance),
@@ -236,7 +236,7 @@ CV-Eingänge. Beim Andocken übernehmen die Regler den aktuellen Klang; ohne Exp
 - **Neue CV-Eingänge:** FILL (Trigger: Fill/Drop am Loop-Ende), VARIANT, COMPLEX, COLOR (0–10 V, zum Regler addiert), DENS-CV pro Spur.
 - **HARMONY** (früher CHORDS, jetzt blaugrün): NEW, LOCK, TRIG für die gemeinsame Akkordfolge, der Bass, Melodie und Pads folgen.
 - **Ein- und Ausgänge (v3.1):** neue CV-Eingänge SWING (0–10 V addiert), BPM (interne Clock, 10 BPM pro Volt), LENGTH. Spalte **OUT**: CLOCK (16tel), RESET (Loop-Anfang), RUN (Gate), BAR (pro Takt), END (letzter Step), FILL (Gate während Fill/Drop), ROOT (Grundton des aktuellen Akkords, V/Oct zwischen C4 und B4), CHORD (ganzer Akkord, polyphon).
-- **Szenen (8 Plätze):** Taster-Farbe: dunkel = leer, rot = Pattern gespeichert, grün = aktiv (blinkt bis zum Wechsel). Leerer Platz drücken = aktuellen Loop speichern (alle Spuren, Akkorde, Spur-Genres, Länge). Belegter Platz = abrufen, beim Spielen am nächsten Taktanfang (blinkt bis dahin). Überschreiben: STORE drücken (blinkt), dann den Platz. NEXT-Trigger = nächste belegte Szene, CV 0–10 V = Szene 1–8. Rechtsklick-Menü: *Alle Szenen löschen*. Szenen werden im Patch gespeichert.
+- **Szenen (8 Plätze):** Taster-Farbe: dunkel = leer, rot = Pattern gespeichert, gelb = aktiv (blinkt bis zum Wechsel). Leerer Platz drücken = aktuellen Loop speichern (alle Spuren, Akkorde, Spur-Genres, Länge). Belegter Platz = abrufen, beim Spielen am nächsten Taktanfang (blinkt bis dahin). Überschreiben: STORE drücken (blinkt), dann den Platz. NEXT-Trigger = nächste belegte Szene, CV 0–10 V = Szene 1–8. Rechtsklick-Menü: *Alle Szenen löschen*. Szenen werden im Patch gespeichert.
 - **Display:** Genre jeder Spur neben ihren Lauflichtern, aktive Szene, Akkordnamen mit # oder b passend zur Tonart.
 - **Fehlerkorrekturen:** MIDI-Export/-Import mit exakter Länge und Akkordfolge, threadsichere Akkord-Bearbeitung, neues Speicherformat (v2-Patches werden übernommen; Spuren stehen dann auf *Global*).
 

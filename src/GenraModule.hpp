@@ -19,7 +19,7 @@ static const char* const GENRE_CV_MODES[2] = {"0–10 V über alle Genres", "1/1
 static const char* const TRACK_NAMES[4] = {"Drums", "Bass", "Melodie", "Pads"};
 
 static const NVGcolor TRACK_COLORS[4] = {
-	nvgRGB(0xff, 0x8a, 0x3d), nvgRGB(0xff, 0x4f, 0x6d), nvgRGB(0x3d, 0xc9, 0xff), nvgRGB(0xa9, 0x8b, 0xff)};
+	nvgRGB(0x7b, 0x6c, 0xff), nvgRGB(0xb8, 0xf2, 0x3a), nvgRGB(0x3d, 0xc9, 0xff), nvgRGB(0xe0, 0x77, 0x9e)};
 static const NVGcolor HARMONY_COLOR = nvgRGB(0x2f, 0x9e, 0x8f);
 
 // genre families in GENRE knob order (for the menus)

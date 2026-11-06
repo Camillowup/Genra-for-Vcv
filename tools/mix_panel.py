@@ -116,7 +116,7 @@ def jack(name, x, y, label, out_=False):
 
 
 # ---------------------------------------------------------------- helpers for the strips
-TRACKS = [("DRUMS", "#ff8a3d"), ("BASS", "#ff4f6d"), ("MELODY", "#3dc9ff"), ("PADS", "#a98bff")]
+TRACKS = [("DRUMS", "#7b6cff"), ("BASS", "#b8f23a"), ("MELODY", "#3dc9ff"), ("PADS", "#e0779e")]
 MASTER_BAR, MASTER_TXT = "#4a4c57", "#b4b7c2"  # the master strip stays dark
 OUT_TINT = "#2c4a37"                              # green, as the meters
 

@@ -18,8 +18,8 @@ namespace ui = genra_ui;
 using namespace gstot;
 
 // the pad rows in the GENRA track colours, the global green (keep in step with tools/stotter_panel.py)
-static const NVGcolor ROW_COL[4] = {nvgRGB(0xff, 0x8a, 0x3d), nvgRGB(0xff, 0x4f, 0x6d), nvgRGB(0x3d, 0xc9, 0xff),
-                                    nvgRGB(0xa9, 0x8b, 0xff)};
+static const NVGcolor ROW_COL[4] = {nvgRGB(0x7b, 0x6c, 0xff), nvgRGB(0xb8, 0xf2, 0x3a), nvgRGB(0x3d, 0xc9, 0xff),
+                                    nvgRGB(0xe0, 0x77, 0x9e)};
 static const NVGcolor DARK = nvgRGB(0x07, 0x08, 0x0a), PLATE = nvgRGB(0x21, 0x23, 0x29);
 static const char* const CLOCK_MODES[4] = {"16tel (4 PPQN)", "8tel (2 PPQN)", "Viertel (1 PPQN)", "24 PPQN"};
 static const int FIRST_NOTE = 36;  // C1 (MIDI note 36) plays pad 1

@@ -24,8 +24,8 @@ HP = 30
 W, H = HP * 5.08, 128.5
 BG, PLATE, LINE, TXT, DIM, DARK = "#17181d", "#212329", "#34363f", "#d9dbe2", "#8a8d99", "#07080a"
 TITLE, RING = "#e6e7ec", "#4a4c57"
-GREEN, ORANGE, RED, BLUE, VIOLET, TEAL = "#5dff8a", "#ff8a3d", "#ff4f6d", "#3dc9ff", "#a98bff", "#2f9e8f"
-ROWS = [ORANGE, RED, BLUE, VIOLET]  # pad rows: stutter, time, gate, fx (the four GENRA track colours)
+GREEN, ORANGE, RED, BLUE, VIOLET, TEAL = "#5dff8a", "#ff8a3d", "#ff4f6d", "#3dc9ff", "#7b6cff", "#2f9e8f"
+ROWS = ["#7b6cff", "#b8f23a", BLUE, "#e0779e"]  # pad rows: stutter, time, gate, fx (the four GENRA track colours)
 
 R = {"small": 3.84, "knob": 4.8, "large": 6.1, "jack": 4.0, "button": 3.6, "sbutton": 2.6}
 

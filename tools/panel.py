@@ -30,8 +30,8 @@ LINE = "#34363f"
 TXT = "#d9dbe2"
 DIM = "#8a8d99"
 CHORDCOL = "#2f9e8f"  # harmony: dark teal
-SCENECOL = "#5dff8a"
-TRACKS = [("DRUMS", "#ff8a3d"), ("BASS", "#ff4f6d"), ("MELODY", "#3dc9ff"), ("PADS", "#a98bff")]
+SCENECOL = "#ffd23d"
+TRACKS = [("DRUMS", "#7b6cff"), ("BASS", "#b8f23a"), ("MELODY", "#3dc9ff"), ("PADS", "#e0779e")]
 
 # real component radii (mm)
 R_LARGE, R_KNOB, R_SMALL, R_TRIM, R_JACK, R_BEZEL = 6.1, 4.8, 3.84, 3.0, 4.0, 3.6
@@ -289,7 +289,7 @@ if PREVIEW:
         out.insert(-1, f'<svg x="{x-sw/2:.3f}" y="{y-sh/2:.3f}" width="{sw:.3f}" height="{sh:.3f}" viewBox="{vbs}">{body}</svg>')
 
     STORED = "#ff2a1a"  # scene slot holds a pattern (red)
-    lit = {"RUN": "#5dff8a", "LOCK_1": "#ff4f6d", "SCENE_0": SCENECOL, "SCENE_1": STORED, "SCENE_2": STORED, "SCENE_5": STORED}
+    lit = {"RUN": "#5dff8a", "LOCK_1": "#b8f23a", "SCENE_0": SCENECOL, "SCENE_1": STORED, "SCENE_2": STORED, "SCENE_5": STORED}
     # mock content of the genre fields: (text, follows global?)
     FIELDS = {0: ("GLOBAL", True), 1: ("DUB · STEPPERS", False), 2: ("LO-FI · JAZZY", False), 3: ("AMBIENT · BRIGHT", False)}
     for c in components:

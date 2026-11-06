@@ -10,7 +10,7 @@ namespace genra_mono {
 namespace L = mlayout;
 
 // keep in step with tools/mono_panel.py (ACC)
-static const NVGcolor ACCENT = nvgRGB(0x1f, 0xb3, 0xa3);
+static const NVGcolor ACCENT = nvgRGB(0xb8, 0xf2, 0x3a);
 static const NVGcolor TXT = nvgRGB(0xd9, 0xdb, 0xe2), DIM = nvgRGB(0x8a, 0x8d, 0x99);
 
 inline Vec P(const float* p) { return mm2px(Vec(p[0], p[1])); }

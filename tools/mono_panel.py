@@ -30,7 +30,7 @@ W, H = HP * 5.08, 128.5
 BG, PLATE, LINE, TXT, DIM, DARK = "#17181d", "#212329", "#34363f", "#d9dbe2", "#8a8d99", "#07080a"
 TITLE, RING = "#e6e7ec", "#4a4c57"
 # keep in step with src/mono/GenraMono.cpp (ACCENT)
-ACC, ACC2, INK = "#1fb3a3", "#0e7a70", "#06302b"
+ACC, ACC2, INK = "#b8f23a", "#7da11f", "#2c3a0c"
 
 # component radii (mm)
 R = {"small": 3.84, "knob": 4.8, "large": 6.1, "jack": 4.0}

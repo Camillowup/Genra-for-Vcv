@@ -19,16 +19,16 @@ template <int R, int G, int B>
 struct ColorLight : GrayModuleLightWidget {
 	ColorLight() { addBaseColor(nvgRGB(R, G, B)); }
 };
-using OrangeLight = ColorLight<0xff, 0x8a, 0x3d>;
-using PinkLight = ColorLight<0xff, 0x4f, 0x6d>;
+using OrangeLight = ColorLight<0x7b, 0x6c, 0xff>;
+using PinkLight = ColorLight<0xb8, 0xf2, 0x3a>;
 using CyanLight = ColorLight<0x3d, 0xc9, 0xff>;
-using PurpleLight = ColorLight<0xa9, 0x8b, 0xff>;
+using PurpleLight = ColorLight<0xe0, 0x77, 0x9e>;
 using MintLight = ColorLight<0x5d, 0xff, 0x8a>;
 using TealLight = ColorLight<0x4f, 0xd1, 0xbd>;
-// scene slots: green = active, red = pattern stored
+// scene slots: yellow = active, red = pattern stored
 struct SceneLight : GrayModuleLightWidget {
 	SceneLight() {
-		addBaseColor(nvgRGB(0x5d, 0xff, 0x8a));
+		addBaseColor(nvgRGB(0xff, 0xd2, 0x3d));
 		addBaseColor(nvgRGB(0xff, 0x2a, 0x1a));
 	}
 };
