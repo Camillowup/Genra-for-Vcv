@@ -217,6 +217,9 @@ struct GenraDisplay : Widget {
 			int s = std::max(0, m->step);
 			snprintf(buf, sizeof(buf), "BAR %d/%d", s / 16 + 1, L / 16);
 			bar = buf;
+			int sec = m->arrSecPub.load();
+			if (m->arrAlive.load() > 0.f && sec >= 0 && sec < NUM_SECTIONS)
+				bar += std::string("   ") + SECTION_NAMES[sec]; // the song part ABLAUF plays
 			std::vector<std::string> st;
 			if (!m->running)
 				st.push_back("STOP");

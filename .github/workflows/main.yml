@@ -35,6 +35,7 @@ jobs:
           done
           gcc -std=gnu11 -O2 -w -ffreestanding -fno-builtin -fno-tree-loop-distribute-patterns -Ikwasub/firmware/src -Ikwasub/firmware/gen -Ikwasub/firmware/hal test/kwcore_test.c -o kt.exe -lm
           ./kt.exe
+          g++ -std=gnu++17 -O2 -Isrc test/test_ablauf.cpp src/Arranger.cpp src/Engine.cpp src/Genres.cpp src/Edit.cpp src/Store.cpp src/Midi.cpp -o ta.exe && ./ta.exe
 
       - name: Build plugin
         run: |

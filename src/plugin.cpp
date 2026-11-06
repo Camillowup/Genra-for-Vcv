@@ -19,4 +19,5 @@ void init(Plugin* p) {
 	p->addModel(modelUmlauf);
 	p->addModel(modelUmlaufFx);
 	p->addModel(modelStotter);
+	p->addModel(modelAblauf);
 }

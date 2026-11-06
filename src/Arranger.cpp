@@ -1,0 +1,449 @@
+// GENRA – song parts for the arranger ABLAUF (see Arranger.hpp).
+//
+// VERSE and DROP stay generated: they keep following GENRA's knobs and only carry density offsets. INTRO, BUILD,
+// BREAK and OUTRO are arranged over the loop (a snare roll, thinning bar by bar, long roots), which needs exact notes:
+// the re-rolled track is generated, frozen with the part's settings and then shaped step by step.
+#include "Arranger.hpp"
+#include <algorithm>
+#include <cmath>
+#include <cstring>
+
+namespace genra {
+
+const char* const SECTION_NAMES[NUM_SECTIONS] = {"INTRO", "VERSE", "BUILD", "DROP", "BREAK", "OUTRO"};
+
+static inline int clampi(int x, int a, int b) { return x < a ? a : (x > b ? b : x); }
+static inline float clampf(float x, float a, float b) { return x < a ? a : (x > b ? b : x); }
+static inline int mod12(int x) { return ((x % 12) + 12) % 12; }
+
+Params withMods(const Params& P0, const ArrMods& m) {
+	Params P = P0;
+	for (int t = 0; t < NUM_TRACKS; t++)
+		P.density[t] = clampf(P0.density[t] + m.dens[t], 0.f, 1.f);
+	P.ghost = clampf(P0.ghost + m.ghost, 0.f, 1.f);
+	P.fill = clampf(P0.fill + m.fill, 0.f, 1.f);
+	return P;
+}
+
+// ================================================================= helpers on exact (frozen) notes
+// steps 0..L-1 repeated over the rest of the pattern (as freezeTrack leaves it)
+static void tile(Pattern& pat, int track, int L) {
+	for (int s = L; s < MAX_STEPS; s++) {
+		int src = s % L;
+		switch (track) {
+			case T_DRUMS:
+				for (int v = 0; v < NUM_DRUMS; v++)
+					pat.drums[v][s] = pat.drums[v][src];
+				break;
+			case T_BASS: pat.bass[s] = pat.bass[src]; break;
+			case T_MELODY: pat.mel[s] = pat.mel[src]; break;
+			default: pat.pads[s] = pat.pads[src]; break;
+		}
+	}
+}
+
+static void hit(Pattern& p, int v, int s, int vel, int ratchet = 1) {
+	DrumStep& d = p.drums[v][s];
+	d.fv = (uint8_t)clampi(vel, 0, 127);
+	d.frat = (d.fv && ratchet > 1) ? (uint8_t)clampi(ratchet, 2, 4) : 0;
+	d.fchance = d.fcond = 0;
+}
+static void kill(Pattern& p, int v, int s) { hit(p, v, s, 0); }
+static void scaleHit(Pattern& p, int v, int s, float k) {
+	DrumStep& d = p.drums[v][s];
+	if (d.fv)
+		d.fv = (uint8_t)clampi((int)std::lround(d.fv * k), 1, 127);
+}
+
+static void noteOff(NoteStep& n) {
+	n.force = 2;
+	n.absNote = NO_ABS;
+	n.flen = n.fvel = n.fflags = n.fgate = 0;
+	n.froot = -1;
+	n.fchance = n.fcond = 0;
+}
+static void scaleNote(NoteStep& n, float k) {
+	if (n.force == 1 && n.fvel)
+		n.fvel = (uint8_t)clampi((int)std::lround(n.fvel * k), 1, 127);
+}
+static bool noteOn(const NoteStep& n) { return n.force == 1 && n.absNote != NO_ABS; }
+
+// the bass root of the chord at step s as an exact note of len steps
+static void bassRoot(Pattern& pat, const Params& P, int s, int len, int vel) {
+	Chord ch = chordAt(pat, P, s);
+	int keyPc = mod12(P.key + P.transp);
+	int base = 36 + keyPc;
+	if (base > 41)
+		base -= 12;
+	int n = base + ch.root;
+	while (n > 55)
+		n -= 12;
+	while (n < 28)
+		n += 12;
+	NoteStep& b = pat.bass[s];
+	b.force = 1;
+	b.absNote = (int8_t)clampi(n - P.key - P.transp, -127, 127);
+	b.flen = (uint8_t)clampi(len, 1, 64);
+	b.fvel = (uint8_t)clampi(vel, 1, 127);
+	b.fflags = FF_SET;
+	b.fgate = 92;
+	b.froot = (int8_t)mod12(ch.root);
+	b.fchance = b.fcond = 0;
+}
+
+// exact notes: each kept note lasts until the next one (at most cap steps), without slides
+static void legato(NoteStep* arr, int L, int cap) {
+	for (int s = 0; s < L; s++) {
+		if (!noteOn(arr[s]))
+			continue;
+		int k = 1;
+		while (s + k < L && k < cap && !noteOn(arr[s + k]))
+			k++;
+		arr[s].flen = (uint8_t)k;
+		arr[s].fgate = 92;
+		arr[s].fflags = (uint8_t)((arr[s].fflags | FF_SET) & ~FF_SLIDE);
+	}
+}
+
+static int countNotes(const NoteStep* arr, int from, int to) {
+	int c = 0;
+	for (int s = from; s < to; s++)
+		c += noteOn(arr[s]);
+	return c;
+}
+
+// the settings a track is frozen with
+static Params partP(const Params& P, int t, float densOff, float densMin, float ghostK = 1.f, float cxOff = 0.f) {
+	Params Q = P;
+	Q.density[t] = clampf(P.density[t] + densOff, densMin, 1.f);
+	Q.ghost = clampf(P.ghost * ghostK, 0.f, 1.f);
+	Q.complexK = clampf(P.complexK + cxOff, 0.f, 1.f);
+	Q.fillActive = false;
+	return Q;
+}
+
+// last bar of the loop (the second half of a one-bar loop)
+static int lastBar(int L) { return L >= 32 ? L - 16 : L / 2; }
+
+// ================================================================= INTRO
+// sparse drums that come in over the loop, the bass enters halfway on the chords, a thin melody, pads in front
+static void introDrums(Pattern& p, const Params& P, int L) {
+	freezeTrack(p, partP(P, T_DRUMS, -0.18f, 0.18f, 0.3f, -0.15f), T_DRUMS, L);
+	bool lng = L >= 32;
+	for (int s = 0; s < L; s++) {
+		float x = (float)s / L;
+		int gs = s % 16;
+		kill(p, TOM, s);
+		kill(p, PERC, s);
+		if (lng && x < 0.5f) {
+			kill(p, SNARE, s);
+			kill(p, CLAP, s);
+			kill(p, RIM, s);
+		}
+		else {
+			scaleHit(p, SNARE, s, 0.8f);
+			scaleHit(p, CLAP, s, 0.8f);
+		}
+		if (gs % 4 != 2)
+			kill(p, OHAT, s);
+		if (s % 2)
+			kill(p, CHAT, s);
+		if (L >= 64 && x < 0.25f && gs != 0)
+			kill(p, KICK, s);
+		for (int v = 0; v < NUM_DRUMS; v++)
+			scaleHit(p, v, s, (v == OHAT ? 0.8f : (v == CHAT ? 0.85f : 1.f)) * (0.72f + 0.28f * x));
+	}
+	// never an empty intro: at least the downbeats
+	bool any = false;
+	for (int s = 0; s < L && !any; s++)
+		any = p.drums[KICK][s].fv > 0;
+	if (!any)
+		for (int s = 0; s < L; s += 16)
+			hit(p, KICK, s, 100);
+	tile(p, T_DRUMS, L);
+}
+
+static void introBass(Pattern& p, const Params& P, int L) {
+	freezeTrack(p, partP(P, T_BASS, -0.25f, 0.12f), T_BASS, L);
+	int from = L >= 32 ? L / 2 : 0;
+	for (int s = 0; s < L; s++)
+		if (s < from || !(s % 8 == 0 || isEventStart(p, s)))
+			noteOff(p.bass[s]);
+	// every bar from the entry on has at least its root on the one
+	for (int b = from; b < L; b += 16)
+		if (countNotes(p.bass, b, std::min(L, b + 16)) == 0 || !noteOn(p.bass[b]))
+			bassRoot(p, P, b, 8, 92);
+	legato(p.bass, L, 8);
+	for (int s = 0; s < L; s++)
+		scaleNote(p.bass[s], 0.9f);
+	tile(p, T_BASS, L);
+}
+
+static void introMelody(Pattern& p, const Params& P, int L) {
+	freezeTrack(p, partP(P, T_MELODY, -0.15f, 0.15f), T_MELODY, L);
+	for (int s = 0; s < L; s++) {
+		if ((L >= 32 && s < L / 2) || s % 2)
+			noteOff(p.mel[s]);
+		else
+			scaleNote(p.mel[s], 0.85f);
+	}
+	tile(p, T_MELODY, L);
+}
+
+// ================================================================= BUILD
+// a snare roll from quarters to 32nds getting louder, 16th hats in the second half, in the last bar the kick
+// goes to quarters and stops on the last beat, the bass drops out: the drop lands in the gap
+static void buildDrums(Pattern& p, const Params& P, int L) {
+	freezeTrack(p, partP(P, T_DRUMS, -0.08f, 0.2f, 0.5f), T_DRUMS, L);
+	int lb = lastBar(L);
+	// where the roll moves on: none / quarters / 8ths / 16ths (the last beat is 32nds)
+	float q0, q1, e1, s1;
+	if (L >= 128)
+		q0 = 0.25f, q1 = 0.5f, e1 = 0.75f;
+	else if (L >= 64)
+		q0 = 0.f, q1 = 0.5f, e1 = 0.75f;
+	else if (L >= 32)
+		q0 = 0.f, q1 = 0.25f, e1 = 0.5f;
+	else
+		q0 = 0.f, q1 = 0.f, e1 = 0.5f;
+	s1 = (float)(L - 4) / L;
+	for (int s = 0; s < L; s++) {
+		float x = (float)s / L;
+		kill(p, SNARE, s);
+		kill(p, CLAP, s);
+		kill(p, RIM, s);
+		kill(p, TOM, s);
+		if (s >= lb) {
+			kill(p, OHAT, s);
+			kill(p, PERC, s);
+			if (s % 4 == 0 && s < L - 4)
+				hit(p, KICK, s, 118);
+			else
+				kill(p, KICK, s);
+		}
+		if (x >= 0.5f)
+			hit(p, CHAT, s, (int)(42 + 58 * x));
+		if (s >= L - 2)
+			kill(p, CHAT, s);
+		// the roll
+		bool on = false;
+		if (x >= q0) {
+			if (x < q1)
+				on = s % 4 == 0;
+			else if (x < e1)
+				on = s % 2 == 0;
+			else
+				on = true;
+		}
+		if (on) {
+			int vel = (int)(36 + 91 * std::pow(x, 1.4f));
+			hit(p, SNARE, s, vel, s >= L - 4 ? 2 : 1);
+			if (x >= s1 - 0.0001f)
+				hit(p, CLAP, s, vel * 3 / 4);
+		}
+	}
+	tile(p, T_DRUMS, L);
+}
+
+static void buildBass(Pattern& p, const Params& P, int L) {
+	freezeTrack(p, partP(P, T_BASS, 0.f, 0.15f), T_BASS, L);
+	int lb = L >= 32 ? L - 16 : L - 4;
+	for (int s = lb; s < L; s++)
+		noteOff(p.bass[s]);
+	// a note held into the gap is cut at its start
+	for (int s = 0; s < lb; s++)
+		if (noteOn(p.bass[s]) && s + p.bass[s].flen > lb) {
+			p.bass[s].flen = (uint8_t)std::max(1, lb - s);
+			p.bass[s].fflags = (uint8_t)((p.bass[s].fflags | FF_SET) & ~FF_SLIDE);
+		}
+	tile(p, T_BASS, L);
+}
+
+static void buildMelody(Pattern& p, const Params& P, int L) {
+	freezeTrack(p, partP(P, T_MELODY, 0.1f, 0.2f), T_MELODY, L);
+	for (int s = 0; s < L; s++) {
+		NoteStep& n = p.mel[s];
+		if (!noteOn(n))
+			continue;
+		float x = (float)s / L;
+		if (L >= 32 && x >= 0.75f && n.absNote <= 115)
+			n.absNote = (int8_t)(n.absNote + 12); // the last quarter an octave up
+		scaleNote(n, 0.8f + 0.25f * x);
+	}
+	tile(p, T_MELODY, L);
+}
+
+// ================================================================= BREAK
+// no kick, hats only on 8ths and quiet, long bass roots on the chords, pads in front; a short snare pickup at the end
+static void breakDrums(Pattern& p, const Params& P, int L) {
+	freezeTrack(p, partP(P, T_DRUMS, -0.25f, 0.12f, 0.6f, -0.1f), T_DRUMS, L);
+	for (int s = 0; s < L; s++) {
+		float x = (float)s / L;
+		kill(p, KICK, s);
+		kill(p, OHAT, s);
+		kill(p, TOM, s);
+		kill(p, SNARE, s);
+		kill(p, CLAP, s);
+		if (s % 2 || (L >= 64 && x < 0.25f))
+			kill(p, CHAT, s);
+		else
+			scaleHit(p, CHAT, s, 0.7f);
+		scaleHit(p, RIM, s, 0.8f);
+		scaleHit(p, PERC, s, 0.8f);
+	}
+	if (L >= 32)
+		for (int k = 0; k < 4; k++)
+			hit(p, SNARE, L - 4 + k, 50 + k * 20);
+	tile(p, T_DRUMS, L);
+}
+
+static void breakBass(Pattern& p, const Params& P, int L) {
+	freezeTrack(p, partP(P, T_BASS, 0.f, 0.1f), T_BASS, L);
+	for (int s = 0; s < L; s++)
+		noteOff(p.bass[s]);
+	for (int s = 0; s < L; s++) {
+		if (!isEventStart(p, s) && s != 0)
+			continue;
+		int e = s + 1;
+		while (e < L && !isEventStart(p, e))
+			e++;
+		bassRoot(p, P, s, std::min(e - s, 32), 84);
+	}
+	tile(p, T_BASS, L);
+}
+
+static void breakMelody(Pattern& p, const Params& P, int L) {
+	freezeTrack(p, partP(P, T_MELODY, -0.15f, 0.12f), T_MELODY, L);
+	for (int s = 0; s < L; s++)
+		scaleNote(p.mel[s], 0.8f);
+	tile(p, T_MELODY, L);
+}
+
+// ================================================================= OUTRO
+// thins out bar by bar: toms/perc/open hat go first, then claps and ghosts, then the snare; the last bar is the kick
+static void outroDrums(Pattern& p, const Params& P, int L) {
+	freezeTrack(p, partP(P, T_DRUMS, -0.05f, 0.2f, 0.6f), T_DRUMS, L);
+	int lb = L >= 32 ? L - 16 : L;
+	for (int s = 0; s < L; s++) {
+		float x = (float)s / L;
+		if (x >= 0.25f) {
+			kill(p, TOM, s);
+			kill(p, PERC, s);
+			kill(p, OHAT, s);
+		}
+		if (x >= 0.5f) {
+			kill(p, CLAP, s);
+			kill(p, RIM, s);
+			for (int v = 0; v < NUM_DRUMS; v++)
+				if (v != KICK && p.drums[v][s].fv && p.drums[v][s].fv < 55)
+					kill(p, v, s);
+		}
+		if (x >= 0.75f) {
+			kill(p, SNARE, s);
+			if (s % 2)
+				kill(p, CHAT, s);
+		}
+		if (s >= lb) {
+			for (int v = 0; v < NUM_DRUMS; v++)
+				if (v != KICK)
+					kill(p, v, s);
+			if (s % 8)
+				kill(p, KICK, s);
+		}
+		for (int v = 0; v < NUM_DRUMS; v++)
+			scaleHit(p, v, s, 1.f - 0.35f * x);
+	}
+	bool any = false;
+	for (int s = lb; s < L && !any; s++)
+		any = p.drums[KICK][s].fv > 0;
+	if (!any && lb < L)
+		hit(p, KICK, lb, 90);
+	tile(p, T_DRUMS, L);
+}
+
+static void outroBass(Pattern& p, const Params& P, int L) {
+	freezeTrack(p, partP(P, T_BASS, -0.1f, 0.12f), T_BASS, L);
+	for (int s = 0; s < L; s++) {
+		float x = (float)s / L;
+		if ((x >= 0.5f && s % 8) || (L >= 32 && s >= L - 16))
+			noteOff(p.bass[s]);
+		else
+			scaleNote(p.bass[s], 1.f - 0.3f * x);
+	}
+	legato(p.bass, L >= 32 ? L - 16 : L, 8);
+	tile(p, T_BASS, L);
+}
+
+static void outroMelody(Pattern& p, const Params& P, int L) {
+	freezeTrack(p, partP(P, T_MELODY, -0.1f, 0.12f), T_MELODY, L);
+	for (int s = 0; s < L; s++) {
+		if (L >= 32 && s >= L / 2)
+			noteOff(p.mel[s]);
+		else
+			scaleNote(p.mel[s], 1.f - 0.4f * (float)s / L);
+	}
+	tile(p, T_MELODY, L);
+}
+
+// ================================================================= the parts
+// density offsets of the generated tracks (drums, bass, melody, pads), the drums' ghost and fill offsets
+struct Live {
+	float dens[NUM_TRACKS];
+	float ghost, fill;
+};
+static const Live LIVE[NUM_SECTIONS] = {
+	/* INTRO */ {{0.f, 0.f, 0.f, 0.12f}, 0.f, -1.f},
+	/* VERSE */ {{-0.06f, -0.05f, -0.2f, -0.08f}, 0.1f, -0.15f},
+	/* BUILD */ {{0.f, 0.f, 0.f, 0.15f}, 0.f, -1.f},
+	/* DROP  */ {{0.12f, 0.12f, 0.05f, -0.05f}, 0.08f, 0.f},
+	/* BREAK */ {{0.f, 0.f, 0.f, 0.3f}, 0.f, -1.f},
+	/* OUTRO */ {{0.f, 0.f, 0.f, 0.1f}, 0.f, -1.f},
+};
+
+// is the track baked into exact notes in this part?
+static bool baked(int sec, int t) {
+	if (t == T_PADS)
+		return false; // pads stay generated: their voicing follows the chords, DENSITY sets their presence
+	return sec == SEC_INTRO || sec == SEC_BUILD || sec == SEC_BREAK || sec == SEC_OUTRO;
+}
+
+void makeSection(const Slot& src, Slot& out, int sec, unsigned reroll, const Params& P0, Rng& rng) {
+	sec = clampi(sec, 0, NUM_SECTIONS - 1);
+	if (&out != &src)
+		out = src;
+	out.used = true;
+	out.tag = (int8_t)sec;
+	int L = LENGTH_BARS[clampi(src.lengthIdx, 0, 3)] * STEPS_PER_BAR;
+	Params P = P0;
+	P.lengthBars = L / STEPS_PER_BAR;
+	P.fillActive = false;
+	P.ignoreChance = false;
+	const Live& lv = LIVE[sec];
+	for (int t = 0; t < NUM_TRACKS; t++) {
+		if (!(reroll & (1u << t)))
+			continue; // kept exactly, its offsets too
+		Pattern& p = out.pat;
+		generateTrack(p, t, p.trackGenre[t], rng, P);
+		if (baked(sec, t)) {
+			out.mods.dens[t] = 0.f;
+			switch (sec) {
+				case SEC_INTRO: t == T_DRUMS ? introDrums(p, P, L) : (t == T_BASS ? introBass(p, P, L) : introMelody(p, P, L)); break;
+				case SEC_BUILD: t == T_DRUMS ? buildDrums(p, P, L) : (t == T_BASS ? buildBass(p, P, L) : buildMelody(p, P, L)); break;
+				case SEC_BREAK: t == T_DRUMS ? breakDrums(p, P, L) : (t == T_BASS ? breakBass(p, P, L) : breakMelody(p, P, L)); break;
+				default: t == T_DRUMS ? outroDrums(p, P, L) : (t == T_BASS ? outroBass(p, P, L) : outroMelody(p, P, L)); break;
+			}
+		}
+		else {
+			out.mods.dens[t] = lv.dens[t];
+			// a drop opens with a bass note on the one
+			if (sec == SEC_DROP && t == T_BASS)
+				p.bass[0].force = 1;
+		}
+		if (t == T_DRUMS) {
+			out.mods.ghost = lv.ghost;
+			out.mods.fill = lv.fill;
+		}
+	}
+}
+
+} // namespace genra

@@ -19,3 +19,4 @@ extern Model* modelKwasubFx;
 extern Model* modelUmlauf;
 extern Model* modelUmlaufFx;
 extern Model* modelStotter;
+extern Model* modelAblauf;

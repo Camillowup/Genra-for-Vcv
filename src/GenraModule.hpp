@@ -2,6 +2,7 @@
 #pragma once
 #include "plugin.hpp"
 #include "Engine.hpp"
+#include "Arranger.hpp"
 #include "Layout.hpp"
 #include <osdialog.h>
 #include <atomic>
@@ -228,6 +229,104 @@ struct Genra : Module {
 		return true;
 	}
 
+	// ---- arranger ABLAUF: it works on its UI thread and hands patterns over through two mailboxes
+	// snapshot (ABLAUF asks for what plays now): 0 idle, 1 asked, 2 ready
+	std::atomic<int> snapState{0};
+	Slot snap;
+	Params snapP;
+	// cue (ABLAUF -> audio thread): 0 free, 1 waiting, 2 being written, 3 being applied
+	struct ArrCue {
+		Slot slot;
+		uint8_t mute = 0;     // bit per track: muted while this pattern plays
+		bool fill = false;    // fill / drop at the end of the row
+		int rowBars = 0;      // length of the row in bars (0: open end)
+		int64_t atBar = 0;    // apply at the bar line where barIndex reaches this
+		bool now = false;     // apply at once (GENRA stopped, or the song starts)
+		bool stop = false;    // no pattern: stop at that bar line (end of the song)
+		int8_t row = -1, tag = -1;
+		int slotIdx = -1;
+		uint32_t id = 0;
+	} cue;
+	std::atomic<int> cueState{0};
+	std::atomic<uint32_t> cueDone{0};       // id of the last cue applied
+	std::atomic<int64_t> barPub{0};         // bar index (counts the bar lines while running)
+	std::atomic<int64_t> rowStartPub{0};    // bar index where the last cue began
+	std::atomic<int> arrRunReq{0};          // 1 start from the top, 2 stop
+	std::atomic<int> arrSecPub{-1}, arrRowPub{-1}, arrSlotPub{-1};
+	std::atomic<uint32_t> patChanges{0};    // counts changes of the pattern (generate, mutate, edits)
+	std::atomic<uint32_t> patChangesAtCue{0};
+	std::atomic<float> arrAlive{0.f};       // seconds left until ABLAUF counts as gone (refreshed by it)
+	ArrMods arrMods;
+	uint8_t arrMute = 0;
+	bool arrFill = false;
+	int64_t arrRowEnd = -1;
+	int64_t barIndex = 0;
+
+	// writer side (ABLAUF): acquire the cue buffer (also replaces a cue still waiting)
+	bool cueBegin() {
+		int e = 0;
+		if (cueState.compare_exchange_strong(e, 2))
+			return true;
+		e = 1;
+		return cueState.compare_exchange_strong(e, 2);
+	}
+	void cueCommit() { cueState.store(1, std::memory_order_release); }
+	// drop a waiting cue (returns false if it is being applied right now)
+	bool cueCancel() {
+		int e = 1;
+		if (cueState.compare_exchange_strong(e, 0))
+			return true;
+		return cueState.load() == 0;
+	}
+
+	void applyCue(bool atBarLine) {
+		if (cue.stop) {
+			running = false;
+			step = -1;
+			firstPass = true;
+			resetArmed = true;
+			arrSecPub = -1;
+			arrRowPub = -1;
+		}
+		else {
+			const Slot& s = cue.slot;
+			pat = s.pat;
+			for (int t = 0; t < 4; t++) {
+				trackSel[t] = s.sel[t];
+				trackSelChanged[t] = false;
+				pendingTrack[t] = false;
+				ownPrev[t] = ownGenre(t);
+			}
+			params[LENGTH_PARAM].setValue((float)clamp((int)s.lengthIdx, 0, 3));
+			pendingGenre = false;
+			lastGenre = curGenre; // the stored pattern stands, even if the GENRE knob differs
+			padHasPrev = false;
+			arrMods = s.mods;
+			arrMute = cue.mute;
+			arrFill = cue.fill;
+			int64_t start = atBarLine ? barIndex : barIndex + 1;
+			arrRowEnd = cue.rowBars > 0 ? start + cue.rowBars : -1;
+			rowStartPub.store(start);
+			arrSecPub = cue.tag;
+			arrRowPub = cue.row;
+			arrSlotPub = cue.slotIdx;
+			patChangesAtCue.store(patChanges.load());
+		}
+		cueDone.store(cue.id, std::memory_order_release);
+	}
+
+	// the cue for this bar line (audio thread); true if a pattern was applied or GENRA stopped
+	bool takeCue(bool atBarLine) {
+		int e = 1;
+		if (!cueState.compare_exchange_strong(e, 3))
+			return false;
+		bool due = cue.now || (atBarLine && cue.atBar <= barIndex);
+		if (due)
+			applyCue(atBarLine);
+		cueState.store(due ? 0 : 1, std::memory_order_release);
+		return due;
+	}
+
 	// ---- clock & triggers
 	dsp::SchmittTrigger clockTrig, resetTrig, runTrig, newTrig, fillTrig;
 	dsp::BooleanTrigger newBtn, runBtn, chordNewBtn;
@@ -404,7 +503,7 @@ struct Genra : Module {
 		return LENGTHS[idx] * STEPS_PER_BAR;
 	}
 
-	Params buildParams() {
+	Params buildParams(bool withArr = true) {
 		Params P;
 		P.genre = curGenre;
 		P.key = clamp((int)std::round(params[KEY_PARAM].getValue()), 0, 11);
@@ -438,7 +537,7 @@ struct Genra : Module {
 		P.templateSel = templateSel;
 		P.fillActive = fillActive;
 		P.pass = passCount;
-		return P;
+		return withArr ? withMods(P, arrMods) : P;
 	}
 
 	void locks(bool out[NUM_TRACKS]) {
@@ -506,6 +605,7 @@ struct Genra : Module {
 		lastGenre = curGenre;
 		padHasPrev = false;
 		newFlash = 1.f;
+		patChanges++;
 	}
 
 	void newTrack(int t) {
@@ -515,6 +615,7 @@ struct Genra : Module {
 		if (t == T_PADS)
 			padHasPrev = false;
 		tnewFlash[t] = 1.f;
+		patChanges++;
 	}
 
 	void readGenre() {
@@ -656,6 +757,17 @@ struct Genra : Module {
 		step++;
 		if (step >= L)
 			step = 0;
+		if (step % STEPS_PER_BAR == 0) {
+			barIndex++;
+			barPub.store(barIndex);
+			if (takeCue(true)) {
+				if (!running)
+					return; // the song ended at this bar line
+				step = 0; // a new pattern starts at its beginning
+				L = lengthSteps();
+				layoutTimeline(pat, L);
+			}
+		}
 		Params P = buildParams();
 		if (step % STEPS_PER_BAR == 0) {
 			bool changed = false;
@@ -686,18 +798,24 @@ struct Genra : Module {
 		if (step == 0) {
 			fillActive = fillCarry || rng.uni() < P.fill;
 			fillCarry = false;
+			// ABLAUF: fill / drop at the end of the row (its last full pass)
+			if (arrFill && arrRowEnd >= 0 && barIndex + L / STEPS_PER_BAR == arrRowEnd)
+				fillActive = true;
 			P.fillActive = fillActive;
 			if (!firstPass) {
 				float m = params[MUTATE_PARAM].getValue() + cv01(inputs[MUTATE_INPUT]);
 				bool lk[NUM_TRACKS];
 				locks(lk);
-				mutate(pat, clamp(m, 0.f, 1.f), rng, lk, chordLocked(), P);
+				if (m > 0.001f) {
+					mutate(pat, clamp(m, 0.f, 1.f), rng, lk, chordLocked(), P);
+					patChanges++;
+				}
 			}
 			firstPass = false;
 		}
 		// compute this step for every track, play it after the track's swing delay
 		drumStep(pat, P, step, L, fillActive, qDrums);
-		if (params[MUTE_PARAM + 0].getValue() < 0.5f) {
+		if (params[MUTE_PARAM + 0].getValue() < 0.5f && !(arrMute & 1)) {
 			float d = swingDelay(P, T_DRUMS);
 			if (d >= 1.f)
 				dDrums = d;
@@ -705,7 +823,7 @@ struct Genra : Module {
 				fireDrums(sr);
 		}
 		qBass = bassAt(pat, P, step, L);
-		if (qBass.on && params[MUTE_PARAM + 1].getValue() < 0.5f) {
+		if (qBass.on && params[MUTE_PARAM + 1].getValue() < 0.5f && !(arrMute & 2)) {
 			float d = swingDelay(P, T_BASS);
 			if (d >= 1.f)
 				dBass = d;
@@ -713,7 +831,7 @@ struct Genra : Module {
 				startMono(bassV, qBass, sr);
 		}
 		qMel = melAt(pat, P, step, L);
-		if (qMel.on && params[MUTE_PARAM + 2].getValue() < 0.5f) {
+		if (qMel.on && params[MUTE_PARAM + 2].getValue() < 0.5f && !(arrMute & 4)) {
 			float d = swingDelay(P, T_MELODY);
 			if (d >= 1.f)
 				dMel = d;
@@ -721,7 +839,7 @@ struct Genra : Module {
 				startMono(melV, qMel, sr);
 		}
 		qPad = padAt(pat, P, step, L, padPrev, padHasPrev);
-		if (qPad.on && params[MUTE_PARAM + 3].getValue() < 0.5f) {
+		if (qPad.on && params[MUTE_PARAM + 3].getValue() < 0.5f && !(arrMute & 8)) {
 			float d = swingDelay(P, T_PADS);
 			if (d >= 1.f)
 				dPad = d;
@@ -793,17 +911,69 @@ struct Genra : Module {
 				fillCarry = true; // too late for this pass: the next one
 		}
 
+		// ---- arranger ABLAUF
+		{
+			int rq = arrRunReq.exchange(0);
+			if (rq == 1) { // the song starts from the top
+				step = -1;
+				phase = 0.f;
+				pulseCount = 0;
+				subTicksLeft = 0;
+				dDrums = dBass = dMel = dPad = -1.f;
+				resetArmed = true;
+				passCount = 0;
+				firstPass = true;
+				running = true;
+			}
+			else if (rq == 2)
+				running = false;
+			if (cueState.load(std::memory_order_acquire) == 1 && cue.now)
+				takeCue(false);
+			if (snapState.load(std::memory_order_acquire) == 1) {
+				snap.pat = pat;
+				for (int t = 0; t < 4; t++)
+					snap.sel[t] = (int8_t)trackSel[t];
+				snap.lengthIdx = (int8_t)clamp((int)std::round(params[LENGTH_PARAM].getValue()), 0, 3);
+				snap.mods = arrMods;
+				snap.tag = -1;
+				snap.used = true;
+				snapP = buildParams(false);
+				snapState.store(2, std::memory_order_release);
+			}
+			float alive = arrAlive.load(std::memory_order_relaxed);
+			if (alive > 0.f) {
+				alive -= args.sampleTime;
+				arrAlive.store(alive, std::memory_order_relaxed);
+				if (alive <= 0.f) { // ABLAUF is gone: its offsets and mutes go too
+					arrMods = ArrMods();
+					arrMute = 0;
+					arrFill = false;
+					arrRowEnd = -1;
+					arrSecPub = -1;
+					arrRowPub = -1;
+					arrSlotPub = -1;
+				}
+			}
+		}
+
+		{
+			uint32_t h0 = editHead.load(std::memory_order_acquire);
+			if (h0 != editTail.load(std::memory_order_relaxed))
+				patChanges++;
+		}
 		applyChordEdits();
 		if (gridState.load(std::memory_order_acquire) == 1) {
 			copyTrack(gridBuf, pat, gridTrack);
 			if (gridTrack == T_PADS)
 				padHasPrev = false;
 			gridState.store(0, std::memory_order_release);
+			patChanges++;
 		}
 		for (int t = 0; t < 4; t++)
 			if (gridGen[t].exchange(false))
 				newTrack(t);
 		if (importReady) {
+			patChanges++;
 			pat = importBuf;
 			params[LENGTH_PARAM].setValue((float)importLengthIndex);
 			importReady = false;
@@ -832,12 +1002,14 @@ struct Genra : Module {
 				generateChords(pat, curGenre, rng, P);
 				layoutTimeline(pat, lengthSteps());
 				chordNewFlash = 1.f;
+				patChanges++;
 			}
 		}
 		if (chordRegenRequested.exchange(false) && !chordLocked()) {
 			Params P = buildParams();
 			generateChords(pat, curGenre, rng, P);
 			layoutTimeline(pat, lengthSteps());
+			patChanges++;
 		}
 
 		// ---- clock
@@ -990,7 +1162,7 @@ struct Genra : Module {
 			for (int t = 0; t < 4; t++) {
 				tnewFlash[t] = std::max(0.f, tnewFlash[t] - dt * 4.f);
 				lights[TNEW_LIGHT + t].setBrightness(std::max(tnewFlash[t], pendingTrack[t] && blink < 0.5f ? 0.4f : 0.f));
-				lights[MUTE_LIGHT + t].setBrightness(params[MUTE_PARAM + t].getValue());
+				lights[MUTE_LIGHT + t].setBrightness(std::max(params[MUTE_PARAM + t].getValue(), (arrMute >> t) & 1 ? 0.35f : 0.f));
 				lights[LOCK_LIGHT + t].setBrightness(params[LOCK_PARAM + t].getValue());
 			}
 		}
@@ -1010,6 +1182,20 @@ struct Genra : Module {
 		for (int t = 0; t < 4; t++)
 			json_array_append_new(sel, json_integer(trackSel[t]));
 		json_object_set_new(root, "trackGenre", sel);
+		if (arrAlive.load() > 0.f) {
+			// the offsets and mutes of the pattern ABLAUF loaded (ABLAUF picks up again after loading)
+			json_t* a = json_object();
+			json_t* d = json_array();
+			for (int t = 0; t < 4; t++)
+				json_array_append_new(d, json_real(arrMods.dens[t]));
+			json_object_set_new(a, "dens", d);
+			json_object_set_new(a, "ghost", json_real(arrMods.ghost));
+			json_object_set_new(a, "fill", json_real(arrMods.fill));
+			json_object_set_new(a, "mute", json_integer(arrMute));
+			json_object_set_new(a, "section", json_integer(arrSecPub.load()));
+			json_object_set_new(a, "slot", json_integer(arrSlotPub.load()));
+			json_object_set_new(root, "arranger", a);
+		}
 		return root;
 	}
 
@@ -1053,6 +1239,25 @@ struct Genra : Module {
 			trackSelChanged[t] = false;
 			pendingTrack[t] = false;
 			ownPrev[t] = sel[t] >= 0;
+		}
+		arrMods = ArrMods();
+		arrMute = 0;
+		if (json_t* a = json_object_get(root, "arranger")) {
+			json_t* d = json_object_get(a, "dens");
+			for (int t = 0; t < 4; t++)
+				if (json_t* v = d ? json_array_get(d, t) : nullptr)
+					arrMods.dens[t] = (float)json_number_value(v);
+			if ((j = json_object_get(a, "ghost")))
+				arrMods.ghost = (float)json_number_value(j);
+			if ((j = json_object_get(a, "fill")))
+				arrMods.fill = (float)json_number_value(j);
+			if ((j = json_object_get(a, "mute")))
+				arrMute = (uint8_t)json_integer_value(j);
+			if ((j = json_object_get(a, "section")))
+				arrSecPub = (int)json_integer_value(j);
+			if ((j = json_object_get(a, "slot")))
+				arrSlotPub = (int)json_integer_value(j);
+			arrAlive = 3.f; // ABLAUF has a few seconds to show up
 		}
 	}
 
