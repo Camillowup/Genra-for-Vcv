@@ -76,7 +76,7 @@ struct Mix : Module {
 		return T[c];
 	}
 
-	void feedSources() {
+	void feedSources(int64_t frame) {
 		for (int c = 0; c < NCH; c++) {
 			ChSrc& s = src[c];
 			Module* m = s.ref.to.load();
@@ -92,7 +92,9 @@ struct Mix : Module {
 					s.dr.release(ir);
 				continue;
 			}
-			h->pulledAt.store(APP->engine->getFrame(), std::memory_order_relaxed); // it plays in stereo, as with two cables
+			// it plays in stereo, as with two cables (written now and then: the source reads it on another thread)
+			if (frame - h->pulledAt.load(std::memory_order_relaxed) > 1024)
+				h->pulledAt.store(frame, std::memory_order_relaxed);
 			Output& oL = m->outputs[ol];
 			s.dl.feed(il, oL.voltages, std::max(1, (int) oL.channels));
 			if (orr >= 0) {
@@ -103,7 +105,7 @@ struct Mix : Module {
 		Module* g = duckMode.load() ? duckRef.to.load() : nullptr;
 		if (g) {
 			follow::Src k = follow::genraOut(follow::T_DRUMS, follow::DRUMS); // output 0 of the 8: the kick
-			dd.feed(inputs[DUCK_INPUT], follow::genraFrame(g, k.id), 1);
+			dd.feed(inputs[DUCK_INPUT], follow::genraFrame(g, k.id, frame), 1);
 		}
 		else if (dd.ch >= 0)
 			dd.release(inputs[DUCK_INPUT]);
@@ -259,7 +261,7 @@ struct Mix : Module {
 	void onSampleRateChange(const SampleRateChangeEvent& e) override { mx->setSampleRate(e.sampleRate); }
 
 	void process(const ProcessArgs& args) override {
-		feedSources();
+		feedSources(args.frame);
 		if (--ctl <= 0) {
 			ctl = 16;
 			for (int c = 0; c < NCH; c++) {

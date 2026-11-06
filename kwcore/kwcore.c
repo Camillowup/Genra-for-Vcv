@@ -23,6 +23,11 @@ static void k_init(void)
 static const float *k_render(void)
 {
     const float *f = ksub_audio();
+    /* Rack never shows the firmware's screen: skip drawing it (~30 frames a second of a 240x240 screen, about
+     * three quarters of the core's time). MIDI was read only between the screen's bands; read it here, every
+     * block (256 frames, ~6 ms instead of ~33 ms). */
+    ui_frame_ms = fm1_ms;
+    app_poll();
     ksub_step();
     return f;
 }

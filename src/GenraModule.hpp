@@ -690,7 +690,7 @@ struct Genra : Module {
 		for (int t = 0; t < 4; t++) {
 			bool own = ownGenre(t);
 			int tgt = trackTarget(t);
-			bool sel = trackSelChanged[t].exchange(false);
+			bool sel = trackSelChanged[t].load(std::memory_order_relaxed) && trackSelChanged[t].exchange(false);
 			if (adopting) {
 				ownPrev[t] = own;
 				lastTarget[t] = tgt;
@@ -994,7 +994,7 @@ struct Genra : Module {
 
 		// ---- arranger ABLAUF
 		{
-			int rq = arrRunReq.exchange(0);
+			int rq = arrRunReq.load(std::memory_order_relaxed) ? arrRunReq.exchange(0) : 0;
 			if (rq == 1) { // the song starts from the top
 				step = -1;
 				phase = 0.f;
@@ -1053,7 +1053,7 @@ struct Genra : Module {
 			patChanges++;
 		}
 		for (int t = 0; t < 4; t++)
-			if (gridGen[t].exchange(false))
+			if (gridGen[t].load(std::memory_order_relaxed) && gridGen[t].exchange(false))
 				newTrack(t);
 		if (importReady) {
 			patChanges++;
@@ -1062,12 +1062,12 @@ struct Genra : Module {
 			importReady = false;
 			padHasPrev = false;
 		}
-		if (resetTracksRequested.exchange(false))
+		if (resetTracksRequested.load(std::memory_order_relaxed) && resetTracksRequested.exchange(false))
 			for (int t = 0; t < 4; t++)
 				setTrackSel(t, -1);
 		readGenre();
 		readChordInput();
-		if (regenRequested.exchange(false)) {
+		if (regenRequested.load(std::memory_order_relaxed) && regenRequested.exchange(false)) {
 			pendingGenre = false;
 			doGenerate(true);
 		}
@@ -1088,7 +1088,7 @@ struct Genra : Module {
 				patChanges++;
 			}
 		}
-		if (chordRegenRequested.exchange(false) && !chordLocked()) {
+		if (chordRegenRequested.load(std::memory_order_relaxed) && chordRegenRequested.exchange(false) && !chordLocked()) {
 			Params P = buildParams();
 			generateChords(pat, curGenre, rng, P);
 			layoutTimeline(pat, lengthSteps());

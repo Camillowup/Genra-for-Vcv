@@ -63,9 +63,9 @@ void gone(Module* m) {
 
 bool isGenra(Module* m) { return m && m->model == modelGenra; }
 
-const float* genraFrame(Module* g, int outputId) {
+const float* genraFrame(Module* g, int outputId, int64_t frame) {
 	Genra* gg = static_cast<Genra*>(g); // (only GENRAs are pointed at as such)
-	return gg->followPub[(APP->engine->getFrame() + 1) & 1][outputId];
+	return gg->followPub[(frame + 1) & 1][outputId];
 }
 
 Src genraOut(int track, int sig) {
@@ -141,9 +141,12 @@ void Drive::release(Input& in) {
 }
 
 // ---------------------------------------------------------------- the follower
-void Follower::process(Module* self) {
+void Follower::process(Module* self, int64_t frame) {
 	Module* g = genra.to.load();
 	int t = track.load();
+	if (!g && t < 0 && !anyDriven)
+		return; // nothing to do (the usual case)
+	anyDriven = false;
 	for (size_t i = 0; i < binds.size(); i++) {
 		Input& in = self->inputs[binds[i].input];
 		Src s = (g && t >= 0) ? genraOut(t, binds[i].sig) : Src();
@@ -152,13 +155,14 @@ void Follower::process(Module* self) {
 				drv[i].release(in);
 			continue;
 		}
+		anyDriven = true;
 		float v[PORT_MAX_CHANNELS];
 		if (binds[i].sig == DRUMS) {
 			for (int c = 0; c < s.channels; c++)
-				v[c] = genraFrame(g, s.id + c)[0];
+				v[c] = genraFrame(g, s.id + c, frame)[0];
 		}
 		else {
-			const float* f = genraFrame(g, s.id);
+			const float* f = genraFrame(g, s.id, frame);
 			for (int c = 0; c < s.channels; c++)
 				v[c] = f[c];
 		}

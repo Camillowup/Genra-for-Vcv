@@ -177,7 +177,7 @@ struct Funke : Module, follow::Host {
 	void onPortChange(const PortChangeEvent& e) override { fol.portChange(e); } // a real cable wins (Follow.hpp)
 
 	void process(const ProcessArgs& args) override {
-		fol.process(this); // FOLLOW GENRA: the jacks without a cable (Follow.hpp)
+		fol.process(this, args.frame); // FOLLOW GENRA: the jacks without a cable (Follow.hpp)
 		// the clock: BPM from the time between pulses
 		sinceClock += args.sampleTime;
 		if (resetTrig.process(inputs[RESET_INPUT].getVoltage(), 0.1f, 1.f)) {
@@ -250,7 +250,7 @@ struct Funke : Module, follow::Host {
 		float echoS = 60.f / bpm * DIV_BEATS[p.div];
 		engine->process(p, ch, n, inputs[SLIDE_INPUT].isConnected(), echoS, l, r, env);
 		// L alone: the mono sum
-		outputs[L_OUTPUT].setVoltage(outputs[R_OUTPUT].isConnected() || pulled() ? l : 0.5f * (l + r));
+		outputs[L_OUTPUT].setVoltage(outputs[R_OUTPUT].isConnected() || pulled(args.frame) ? l : 0.5f * (l + r));
 		outputs[R_OUTPUT].setVoltage(r);
 		outputs[ENV_OUTPUT].setVoltage(10.f * env);
 

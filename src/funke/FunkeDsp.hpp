@@ -469,6 +469,7 @@ struct Voice {
 		float subL = clampf(p.sub, 0.f, 1.f);
 
 		float y = 0.f;
+		float fg = gmono::Filter::coef(fc, fsOs); // (once per sample, not per oversampled step)
 		for (int i = 0; i < OS; i++) {
 			float x = core(p, f);
 			if (subL > 0.f) {
@@ -477,7 +478,7 @@ struct Voice {
 				float se = (model == RHODES || model == BELL || model == MARIMBA) ? ex[0] : 1.f;
 				x += 0.75f * subL * se * sin2pi(ph[9]);
 			}
-			float v = filter.process(x * 0.8f * dg, fc, res, fsOs, p.ftype);
+			float v = filter.processG(x * 0.8f * dg, fg, res, p.ftype);
 			y = d2.process(d1.process(v));
 		}
 		y /= 0.65f + 0.35f * std::sqrt(dg);
@@ -660,7 +661,9 @@ struct Engine {
 	int monoCh = -1;
 	unsigned long count = 0;
 	float vibPh = 0.f;
+	float mk[7] = {-1.f, -1.f, -1.f, -1.f, -1.f, -1.f, -1.f}, mv[7] = {}, mFs = 0.f; // knob -> time / rate, cached
 	int lastVoice = 0;
+	int busQuiet = 0; // samples of silence in and out of the effects
 	int lastMode = -1;
 	// for the display
 	float lastNote = 0.f;
@@ -710,17 +713,30 @@ struct Engine {
 	             float& env) {
 		n = std::min(n, MAXCH);
 		Params q = p;
-		q.tAtk = gmono::knobTime(p.atk), q.tDec = gmono::knobTime(p.dec), q.tRel = gmono::knobTime(p.rel);
-		q.tFatk = gmono::knobTime(p.fatk), q.tFdec = gmono::knobTime(p.fdec);
+		// (pow / exp only when a knob moved, not every sample)
+		auto memo = [](float k, float& last, float& val, float (*f)(float)) {
+			if (k != last)
+				last = k, val = f(k);
+			return val;
+		};
+		q.tAtk = memo(p.atk, mk[0], mv[0], gmono::knobTime);
+		q.tDec = memo(p.dec, mk[1], mv[1], gmono::knobTime);
+		q.tRel = memo(p.rel, mk[2], mv[2], gmono::knobTime);
+		q.tFatk = memo(p.fatk, mk[3], mv[3], gmono::knobTime);
+		q.tFdec = memo(p.fdec, mk[4], mv[4], gmono::knobTime);
 		if (p.mode != lastMode) {
 			if (lastMode >= 0)
 				allOff();
 			lastMode = p.mode;
 		}
 		float dt = 1.f / fs;
-		float gs = glideSeconds(p.glide);
-		float gc = gs > 1e-4f ? 1.f - std::exp(-dt / gs) : 1.f;
-		vibPh = wrap(vibPh + vibRate(p.vrate) * dt);
+		if (p.glide != mk[5] || fs != mFs) {
+			mk[5] = p.glide, mFs = fs;
+			float gs = glideSeconds(p.glide);
+			mv[5] = gs > 1e-4f ? 1.f - std::exp(-dt / gs) : 1.f;
+		}
+		float gc = mv[5];
+		vibPh = wrap(vibPh + memo(p.vrate, mk[6], mv[6], vibRate) * dt);
 		float depth = clampf(p.vdepth + p.vibCv, 0.f, 1.f);
 		float vib = depth * depth * 0.9f * sin2pi(vibPh);  // up to ±0.9 semitone
 
@@ -831,7 +847,15 @@ struct Engine {
 		showGlide = anySlide;
 		env = v[lastVoice < MAXV ? lastVoice : 0].lastEnv;
 		float sc = 1.1f;
+		// the effects sleep once nothing comes in and everything (echo, reverb) has died away for longer than the
+		// echo can hold (3.2 s): then their output is silence anyway; the first sound wakes them
+		bool inQuiet = std::fabs(l) + std::fabs(r) < 1e-7f;
+		if (inQuiet && busQuiet > (int) (3.4f * fs)) {
+			L = R = 0.f;
+			return;
+		}
 		bus->process(p, l * sc, r * sc, echoSeconds, L, R);
+		busQuiet = (inQuiet && std::fabs(L) + std::fabs(R) < 1e-6f) ? busQuiet + 1 : 0;
 		L = 5.f * sat(L * 0.8f);
 		R = 5.f * sat(R * 0.8f);
 	}

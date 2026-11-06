@@ -39,7 +39,7 @@ struct Src {
 Src genraOut(int track, int sig);
 bool isGenra(Module* m);
 /** GENRA's outputs as of the last complete frame (one sample later than a cable, never half a frame). */
-const float* genraFrame(Module* genra, int outputId);
+const float* genraFrame(Module* genra, int outputId, int64_t frame);
 
 // ---------------------------------------------------------------- the virtual cable
 struct Drive {
@@ -67,6 +67,7 @@ struct Follower {
 	std::atomic<int64_t> genraId{-1}; // -1: automatic (the only / first GENRA)
 	Ref genra;
 	float uiTimer = 0.f;
+	bool anyDriven = false; // some jack was fed last sample (then process() still has to let go of it)
 
 	void bind(int input, int sig) {
 		binds.push_back({input, sig});
@@ -74,7 +75,7 @@ struct Follower {
 	}
 	bool active() const { return track.load() >= 0 && genra.to.load() != nullptr; }
 	/** Audio thread, first thing in process(). */
-	void process(Module* self);
+	void process(Module* self, int64_t frame);
 	/** From the module's onPortChange: a cable plugged into / pulled from one of the bound jacks. */
 	void portChange(const Module::PortChangeEvent& e);
 	/** UI thread: find the GENRA. */
@@ -94,7 +95,7 @@ struct Host {
 	const char* srcName = "";
 	std::atomic<int64_t> pulledAt{-1000000}; // MIX takes the stereo out (engine frame of the last time)
 	/** The R out counts as patched while MIX takes it (the module then plays in stereo, as with two cables). */
-	bool pulled() const { return APP->engine->getFrame() - pulledAt.load(std::memory_order_relaxed) < 4096; }
+	bool pulled(int64_t frame) const { return frame - pulledAt.load(std::memory_order_relaxed) < 4096; }
 	virtual ~Host() {}
 };
 Host* host(Module* m);

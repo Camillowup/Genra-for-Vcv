@@ -430,7 +430,7 @@ struct DrumX : Module, follow::Host {
 	void onPortChange(const PortChangeEvent& e) override { fol.portChange(e); } // a real cable wins (Follow.hpp)
 
 	void process(const ProcessArgs& args) override {
-		fol.process(this); // FOLLOW GENRA: the jacks without a cable (Follow.hpp)
+		fol.process(this, args.frame); // FOLLOW GENRA: the jacks without a cable (Follow.hpp)
 		const jdx_api* m = mix.api();
 		if (!m) {
 			for (int o = 0; o < OUTPUTS_LEN; o++)
@@ -488,7 +488,7 @@ struct DrumX : Module, follow::Host {
 		}
 		dsp::Frame<2> f = mix.next();
 		float l = f.samples[0] * 5.f, r = f.samples[1] * 5.f;
-		if (outputs[R_OUTPUT].isConnected() || pulled()) { // (pulled: MIX takes it without a cable)
+		if (outputs[R_OUTPUT].isConnected() || pulled(args.frame)) { // (pulled: MIX takes it without a cable)
 			outputs[L_OUTPUT].setVoltage(l);
 			outputs[R_OUTPUT].setVoltage(r);
 		} else {

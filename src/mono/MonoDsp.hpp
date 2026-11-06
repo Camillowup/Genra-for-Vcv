@@ -78,9 +78,10 @@ struct Filter {
 	void reset() { *this = Filter(); }
 
 	/** One sample at rate fs. fc in Hz, res 0..1. */
-	float process(float x, float fc, float res, float fs, int type) {
-		fc = clampf(fc, 8.f, 0.42f * fs);
-		float g = std::tan(PI * fc / fs);
+	/** The coefficient for fc (the tan, once per sample when the filter runs oversampled). */
+	static float coef(float fc, float fs) { return std::tan(PI * clampf(fc, 8.f, 0.42f * fs) / fs); }
+	float process(float x, float fc, float res, float fs, int type) { return processG(x, coef(fc, fs), res, type); }
+	float processG(float x, float g, float res, int type) {
 		res = clampf(res, 0.f, 1.f);
 		switch (type) {
 			default:
@@ -335,6 +336,9 @@ struct Voice {
 		stereo.setSampleRate(sr);
 	}
 	Biquad decR1, decR2;
+	float mk[10] = {-9, -9, -9, -9, -9, -9, -9, -9, -9, -9}, mv[10] = {}; // knob / CV -> rate, time, ratio (cached)
+	float glideT = -1.f, glideDt = -1.f, glideK = 1.f;
+	int quiet = 0;
 	Voice() { setSampleRate(48000.f); }
 
 	/** One output sample, stereo (±5 V each). */
@@ -343,8 +347,15 @@ struct Voice {
 		// control rate = sample rate
 		if (in.retrig)
 			lfo.restart();
+		// (pow / exp only when a knob or CV moved, not every sample)
+		auto memo = [this](int i, float k, float (*f)(float)) {
+			if (k != mk[i])
+				mk[i] = k, mv[i] = f(k);
+			return mv[i];
+		};
 		float hz = in.beatSec > 0.f ? 1.f / (DIV_BEATS[divIndex(p.rate, in.rateCv)] * in.beatSec)
-		                            : 0.05f * std::pow(1000.f, clampf(p.rate, 0.f, 1.f)) * std::pow(2.f, clampf(in.rateCv, -5.f, 5.f));
+		                            : memo(0, p.rate, [](float k) { return 0.05f * std::pow(1000.f, clampf(k, 0.f, 1.f)); })
+		                                  * memo(1, in.rateCv, [](float k) { return std::pow(2.f, clampf(k, -5.f, 5.f)); });
 		float l = lfo.process(hz, p.lfoSquare, dt);
 		if (!started) {
 			pitch = in.voct;
@@ -360,14 +371,25 @@ struct Voice {
 		if (in.slideConnected)
 			g = in.slide ? std::max(p.glide, 0.25f) : 0.f;
 		float gt = g * g * 1.5f;
-		pitch += (in.voct - pitch) * (gt > 1e-4f ? Env::coef(gt, dt) : 1.f);
-		float fe = fenv.process(in.gate, knobTime(p.fA), knobTime(p.fD), p.fS, knobTime(p.fR), dt);
-		float ae = aenv.process(in.gate, knobTime(p.aA), knobTime(p.aD), p.aS, knobTime(p.aR), dt);
+		if (gt != glideT || dt != glideDt)
+			glideT = gt, glideDt = dt, glideK = gt > 1e-4f ? Env::coef(gt, dt) : 1.f;
+		pitch += (in.voct - pitch) * glideK;
+		float fe = fenv.process(in.gate, memo(2, p.fA, knobTime), memo(3, p.fD, knobTime), p.fS, memo(4, p.fR, knobTime), dt);
+		float ae = aenv.process(in.gate, memo(5, p.aA, knobTime), memo(6, p.aD, knobTime), p.aS, memo(7, p.aR, knobTime), dt);
+		// silent for a while (envelope closed, no gate, the filter rang out): the oscillators and filters rest
+		quiet = (ae <= 0.f && !in.gate) ? quiet + 1 : 0;
+		if (quiet > (int) (0.25f * fs) && clampf(p.res + in.resCv / 10.f, 0.f, 1.f) < 0.9f) {
+			dc += (0.f - dc) * (2.f * PI * 8.f * dt);
+			dcR += (0.f - dcR) * (2.f * PI * 8.f * dt);
+			outL = -5.f * dc;
+			outR = -5.f * dcR;
+			return;
+		}
 
 		float vib = p.lfoPitch * p.lfoPitch * l;  // up to ±1 octave
 		float base = C4 * std::pow(2.f, pitch + vib);
-		float f1 = base * std::pow(2.f, tuneSemis(p.tune1) / 12.f);
-		float f2 = base * std::pow(2.f, tuneSemis(p.tune2) / 12.f);
+		float f1 = base * memo(8, p.tune1, [](float k) { return std::pow(2.f, tuneSemis(k) / 12.f); });
+		float f2 = base * memo(9, p.tune2, [](float k) { return std::pow(2.f, tuneSemis(k) / 12.f); });
 		float fsOs = fs * OS;
 
 		float oct = std::log2(20.f) + clampf(p.cutoff, 0.f, 1.f) * std::log2(1000.f)
@@ -382,16 +404,17 @@ struct Voice {
 		float wd = clampf(p.width, 0.f, 1.f);
 		bool st = wd > 0.001f;
 		float y = 0.f, yR = 0.f;
+		float fg = Filter::coef(fc, fsOs); // (once per sample: fc does not change between the oversampled steps)
 		for (int i = 0; i < OS; i++) {
 			float o1 = p.level1 * osc1.process(f1 / fsOs, p.wave1), o2 = p.level2 * osc2.process(f2 / fsOs, p.wave2);
 			noise = noise * 1664525u + 1013904223u;
 			float n = ((int32_t) noise) * 4.6e-10f * 1e-3f;  // a breath of noise: lets the filter start to self-oscillate
 			float pan = 0.35f * wd;
 			float m = (1.f + pan) * o1 + (1.f - pan) * o2 + in.ext / 5.f + n;
-			y = dec2.process(dec1.process(filter.process(m * 0.7f * driveGain, fc, res, fsOs, p.ftype)));
+			y = dec2.process(dec1.process(filter.processG(m * 0.7f * driveGain, fg, res, p.ftype)));
 			if (st) {
 				float mR = (1.f - pan) * o1 + (1.f + pan) * o2 + in.ext / 5.f - n;
-				yR = decR2.process(decR1.process(filterR.process(mR * 0.7f * driveGain, fc, res, fsOs, p.ftype)));
+				yR = decR2.process(decR1.process(filterR.processG(mR * 0.7f * driveGain, fg, res, p.ftype)));
 			}
 		}
 		if (!st) {
