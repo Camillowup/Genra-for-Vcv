@@ -1,7 +1,7 @@
 {
   "slug": "Genra",
   "name": "GENRA",
-  "version": "2.6.0",
+  "version": "2.7.0",
   "license": "GPL-3.0-only",
   "brand": "Genra",
   "author": "Bastian Ofner",
@@ -97,6 +97,18 @@
         "Polyphonic",
         "Chorus",
         "Phaser",
+        "Reverb"
+      ]
+    },
+    {
+      "slug": "Funke",
+      "name": "FUNKE",
+      "description": "Melody voice for GENRA's melody track: 8 models (Rhodes, organ, bell, marimba, pluck, square, saw lead, flute), the 8 filters of GENRA MONO, glide on SLIDE, accent, delayed vibrato, lo-fi, chorus, clocked echo, reverb",
+      "tags": [
+        "Synth voice",
+        "Polyphonic",
+        "Filter",
+        "Delay",
         "Reverb"
       ]
     },

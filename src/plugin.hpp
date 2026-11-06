@@ -12,6 +12,7 @@ extern Model* modelAnimal;
 extern Model* modelMonk;
 extern Model* modelGenraMono;
 extern Model* modelSchmelz;
+extern Model* modelFunke;
 extern Model* modelMix;
 extern Model* modelKwasub;
 extern Model* modelKwasubFx;
