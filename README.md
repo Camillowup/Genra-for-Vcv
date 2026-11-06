@@ -1,6 +1,6 @@
 # GENRA v3 – Generativer 4-Spur-Sequencer für VCV Rack 2
 
-Breite: **64 HP** (GENRA) und **50 HP** (Grid Editor). Dazu im selben Plugin die drei JIANT-Stimmen **VOICE** (26 HP), **DRUM-X** (32 HP) und **ANIMAL** (26 HP), **MONK** (26 HP) der Bass-Synth **GENRA MONO** (28 HP) und die Klangmodule aus GENRA SYNTHIS: **SCHMELZ** (32 HP), **MIX** (32 HP), **K-WASUB** und **K-WASUB FX** (je 40 HP), **UMLAUF** (54 HP) und **UMLAUF FX** (36 HP). Projektstand und Entscheidungen: `PROJEKT.md`.
+Breite: **64 HP** (GENRA) und **50 HP** (Grid Editor). Dazu im selben Plugin die drei JIANT-Stimmen **VOICE** (26 HP), **DRUM-X** (32 HP) und **ANIMAL** (26 HP), **MONK** (26 HP) der Bass-Synth **GENRA MONO** (28 HP), die Melodiestimme **FUNKE** (30 HP) und die Klangmodule aus GENRA SYNTHIS: **SCHMELZ** (32 HP), **MIX** (32 HP), **K-WASUB** und **K-WASUB FX** (je 40 HP), **UMLAUF** (54 HP) und **UMLAUF FX** (36 HP). Projektstand und Entscheidungen: `PROJEKT.md`.
 
 ## GENRA Grid Editor (zweites Modul)
 
@@ -61,6 +61,30 @@ Monophoner Synth (28 HP) im Look von MONK und den JIANT-Stimmen, Farbe **türkis
 - **LFO:** RATE (0,05–50 Hz), TRI/SQR, Stärke auf Tonhöhe und Filter, eigener LFO-Ausgang.
 - **Eingänge:** V/OCT (0 V = C4), GATE, VEL, CV für CUTOFF (1 V/Okt.), RES, DRIVE, RATE (1 V/Okt.), VCA, EXT (externes Audio durchs Filter). **Ausgänge:** LFO, OUT.
 - Oszillatoren und Filter laufen mit 2-facher Überabtastung.
+
+## FUNKE: Melodiestimme
+
+![FUNKE](docs/entwuerfe/funke.png)
+
+Die Stimme für GENRAs Melodiespur, 30 HP, Farbe **cyan** (GENRAs Melodiefarbe). Die Eingänge passen zu GENRAs
+Melodie-Ausgängen: V/OCT, GATE, VEL, ACC, SLIDE und CLOCK.
+
+- **MODEL** (Feld: Klick öffnet die Liste, Mausrad blättert; CV-Eingang, übernommen bei jeder neuen Note):
+  RHODES (FM-Tine) · ORGAN (Zugriegel, M1) · BELL (FM-Glocke) · MARIMBA · PLUCK (Karplus-Strong) · SQUARE (Puls,
+  Grime) · SAW LEAD (drei verstimmte Sägen) · FLUTE (Sinus mit Atem).
+- **TIMBRE / BITE** je nach Modell, z. B. Rhodes: Helligkeit und Bark der Tine / Hammeranschlag; Square: Pulsbreite /
+  Tonhöhen-Blip im Anschlag; Pluck: Saite hell und lang / Anschlag hell. Der Tooltip nennt die Bedeutung fürs aktuelle Modell.
+- **WIDTH** (Stereobreite), **SUB** (Sinus eine Oktave tiefer), **MONO · LEGATO · POLY** (8 Stimmen; bei POLY
+  klingen auch mit einem einzelnen GENRA-Kabel die Ausklänge übereinander).
+- **GLIDE** auf GENRAs SLIDE (ohne SLIDE-Kabel in MONO/LEGATO auf jeder Note, LEGATO auch zwischen gehaltenen Noten),
+  **ACCENT**: was ACC bewirkt (lauter, mehr Filterhüllkurve, mehr Biss).
+- **FILTER:** die acht Filter von GENRA MONO (LADDER 24/12, DIODE, MS-20, SVF LP/BP/HP, OTA) im Feld wie bei MONO,
+  CUTOFF, RES, ENV (bipolar), KEY, eigene Filterhüllkurve F.ATK/F.DEC, DRIVE.
+- **ENVELOPE** ADSR, **VIBRATO** DEPTH/RATE/DELAY (setzt nach DELAY langsam ein).
+- **FX:** LO-FI (Bandeiern, weniger Bits und Samples), CHORUS, ECHO im Takt (1/16, 1/8, 1/8D, 1/4 von CLOCK; ohne
+  Clock 120 BPM; Pingpong, FDBK), VERB. CLOCK-Auflösung im Kontextmenü (Standard 16tel wie GENRA).
+- **CV:** MODEL, TIMBRE, BITE, CUT (1 V/Okt.), RES, VIB (wie ein Modrad), ECHO, LO-FI, ATK, REL.
+  **Ausgänge:** ENV (Hüllkurve der neuesten Note), L, R (nur L gesteckt: mono).
 
 ## Aus GENRA SYNTHIS
 

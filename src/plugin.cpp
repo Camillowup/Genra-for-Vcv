@@ -12,6 +12,7 @@ void init(Plugin* p) {
 	p->addModel(modelMonk);
 	p->addModel(modelGenraMono);
 	p->addModel(modelSchmelz);
+	p->addModel(modelFunke);
 	p->addModel(modelMix);
 	p->addModel(modelKwasub);
 	p->addModel(modelKwasubFx);

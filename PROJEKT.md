@@ -1,6 +1,6 @@
 # GENRA – Projektstand
 
-**Stand:** 6. November 2026 · **Plugin 2.6.0: 13 Module** (GENRA, GRID, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, SCHMELZ, MIX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX) · Repo: `CamilloGF/genra-v3`
+**Stand:** 6. November 2026 · **Plugin 2.7.0: 14 Module** (GENRA, GRID, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, SCHMELZ, MIX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX) · Repo: `CamilloGF/genra-v3`
 Vorgänger: v1 `CamilloGF/vcv-sequenzer-Genra` (2.0.0), v2 `CamilloGF/Genra-v2` (2.1.0, läuft in Rack)
 Plattform: VCV Rack Pro 2.6.6 unter Windows · Build: GitHub Actions (`.github/workflows/main.yml`)
 
@@ -149,6 +149,20 @@ GENRA MONO: `g++ -std=c++17 -O2 test/test_mono.cpp -o tm && ./tm`
 - Filtertyp als Parameter `FTYPE` (speicherbar, Undo), Auswahl über das Feld (Klick = Liste, Mausrad) oder Rechtsklick-Menü.
 - Test `test/test_mono.cpp`: Tonhöhe, TUNE, alle Filter bei voller Resonanz/Drive stabil, Selbstoszillation (Ladder, Diode, MS-20; SEM nicht), Bassausgleich, Hüllkurvenzeiten.
 - [ ] Klangtest in Rack, Feinschliff nach Gehör (Lautstärke-Ausgleich zwischen den Filtertypen, Kurven von DRIVE und EG AMT).
+
+## FUNKE (2.7.0) – Stand 6. November 2026
+- Melodiestimme für GENRAs Melodiespur, 30 HP, Akzent cyan `#3dc9ff` (in `tools/funke_panel.py` und
+  `src/funke/Funke.cpp`). Set: SCHMELZ Pads, K-WASUB oder GENRA MONO Bass, DRUM-X Drums, FUNKE Melodie.
+- Engine `src/funke/FunkeDsp.hpp` (2-fach überabgetastet wie MONO, nutzt Filter/Hüllkurven aus `MonoDsp.hpp` und den
+  Reverb aus `SchmelzDsp.hpp`): 8 Modelle, Modell wird pro Note festgehalten; Stimmverteilung MONO (neueste Note),
+  LEGATO (kein neuer Anschlag bei gehaltenen Noten), POLY (8 Stimmen, leiseste/älteste wird geklaut). Glide läuft
+  nach GENRAs kurzem SLIDE-Impuls bis zum Ziel weiter.
+- Bus: LO-FI → WIDTH → CHORUS → ECHO (Pingpong, Zeit gleitet bei Tempowechsel) → VERB, DC-Filter, Soft-Limit ±5 V.
+  ≈ 1 % eines Kerns pro Stimme.
+- Test `test/test_funke.cpp`: Stimmung aller Modelle bei 3 Tonhöhen (±6 Cent), Pegel (1,2–1,6 V RMS), TIMBRE/BITE
+  wirken bei allen Modellen, Glide auf SLIDE, POLY/MONO/LEGATO, Echozeit, Stabilität aller Modelle × Filter bei
+  44,1–192 kHz. Mit Ordnerargument schreibt er eine Demo-Phrase pro Modell als WAV.
+- [ ] Klangtest in Rack, Feinschliff nach Gehör.
 
 ## GENRA SYNTHIS übernommen (2.6.0) – Stand 6. November 2026
 - SCHMELZ, MIX, K-WASUB, K-WASUB FX, UMLAUF und UMLAUF FX aus `CamilloGF/vcv-synthis` (Stand 958ee81) übernommen,
