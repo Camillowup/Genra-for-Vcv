@@ -255,7 +255,7 @@ struct Genra : Module {
 	std::atomic<int> arrSecPub{-1}, arrRowPub{-1}, arrSlotPub{-1};
 	std::atomic<uint32_t> patChanges{0};    // counts changes of the pattern (generate, mutate, edits)
 	std::atomic<uint32_t> patChangesAtCue{0};
-	std::atomic<float> arrAlive{0.f};       // seconds left until ABLAUF counts as gone (refreshed by it)
+	std::atomic<float> arrAlive{0.f};       // > 0 while ABLAUF is attached (it sets a huge value, a tiny one on removal)
 	ArrMods arrMods;
 	uint8_t arrMute = 0;
 	bool arrFill = false;

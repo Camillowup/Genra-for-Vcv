@@ -250,6 +250,72 @@ for k, (nm, col) in enumerate(SECS):
     put(f'<circle cx="{cx + 6.6 * math.sin(ang):.2f}" cy="{cy - 6.6 * math.cos(ang):.2f}" r="{0.95 if k == 3 else 0.7}" '
         f'fill="{col}" opacity="{1 if k == 3 else 0.4}"/>')
 ptext(ax, ky + 7.95, "DROP", 1.6, SECC["DROP"], 800, "middle", 0.35)
+# mock song list
+X, Y, WW, HH = areas["SONGLIST"]
+for x_, t_, a_ in [(2.5, "#", "start"), (8.5, "PATT", "start"), (21, "TAKTE", "middle"), (37, "SPUREN", "middle"),
+                   (53, "FILL", "middle"), (60, "ABSCHNITT", "start")]:
+    ptext(X + x_, Y + 3.6, t_, 1.3, DIM, 700, a_, 0.35)
+SONG = [("A1", 8, [1, 0, 0, 0], "INTRO", False), ("A1", 8, [1, 1, 0, 1], "INTRO", True), ("A2", 8, [1, 1, 1, 1], "BUILD", True),
+        ("A3", 16, [1, 1, 1, 1], "DROP", False), ("A5", 8, [0, 0, 1, 1], "BREAK", False), ("A6", 16, [1, 1, 1, 0], "VERSE", True),
+        ("A2", 4, [1, 1, 0, 1], "BUILD", True), ("A3", 16, [1, 1, 1, 1], "DROP", False), ("A8", 8, [1, 0, 0, 1], "OUTRO", False)]
+for i, (pp, bars, m, sec, fill) in enumerate(SONG):
+    y = Y + 7 + i * 4.6
+    if i == 3:
+        put(f'<rect x="{X + 1}" y="{y - 0.2:.2f}" width="{WW - 2}" height="4.4" rx="0.5" fill="#2e2a17"/>'
+            f'<rect x="{X + 1}" y="{y - 0.2:.2f}" width="0.7" height="4.4" rx="0.3" fill="{ACC}"/>'
+            f'<rect x="{X + 1.7}" y="{y + 3.7:.2f}" width="{(WW - 2.7) * 0.4:.2f}" height="0.35" fill="{ACC}"/>')
+    c = ACC if i == 3 else TXT
+    ptext(X + 2.5, y + 3.0, f"{i + 1:02d}", 1.55, ACC if i == 3 else DIM, 700, "start", 0.2)
+    ptext(X + 8.5, y + 3.0, pp, 1.7, c, 800, "start", 0.3)
+    ptext(X + 21, y + 3.0, str(bars), 1.7, c, 700, "middle", 0.2)
+    for k, (n_, col) in enumerate(TR):
+        put(f'<rect x="{X + 30.4 + k * 3.6:.2f}" y="{y + 0.8:.2f}" width="3" height="2.6" rx="0.4" fill="{col if m[k] else "#24252c"}"/>')
+        ptext(X + 31.9 + k * 3.6, y + 2.75, n_, 1.25, "#07080a" if m[k] else "#4a4c57", 800, "middle", 0)
+    if fill:
+        put(f'<circle cx="{X + 53}" cy="{y + 2.1:.2f}" r="0.9" fill="{ACC}"/>')
+    put(f'<rect x="{X + 59.5}" y="{y + 0.8:.2f}" width="1.2" height="2.6" rx="0.3" fill="{SECC[sec]}"/>')
+    ptext(X + 62, y + 3.0, sec, 1.5, SECC[sec] if i == 3 else TXT, 700, "start", 0.3)
+ptext(X + WW - 2.5, Y + HH - 1.2, "TAKT 37 / 92  ·  ZEILE 4 / 9", 1.2, DIM, 700, "end", 0.3)
+# banks, pads, info, reroll
+X, Y, WW, HH = areas["BANKS"]
+for k in range(4):
+    on = k == 0
+    put(f'<rect x="{X + k * 10:.2f}" y="{Y}" width="8" height="4.6" rx="0.7" fill="{"#3a3520" if on else "#1a1b20"}" '
+        f'stroke="{ACC if on else "#2c2d33"}" stroke-width="0.4"/>')
+    ptext(X + 4 + k * 10, Y + 3.25, "ABCD"[k], 2.0, ACC if on else DIM, 800, "middle", 0)
+TAGS = {0: "INTRO", 1: "BUILD", 2: "DROP", 3: "DROP", 4: "BREAK", 5: "VERSE", 7: "OUTRO", 9: "BUILD", 10: "DROP"}
+X, Y, _, _ = areas["PADS"]
+
+
+def tint(col, f):
+    c = [int(col[k:k + 2], 16) for k in (1, 3, 5)]
+    b = [int(PLATE[k:k + 2], 16) for k in (1, 3, 5)]
+    return "#" + "".join(f"{round(b[k] + (c[k] - b[k]) * f):02x}" for k in range(3))
+
+
+for n_ in range(16):
+    x, y = X + (n_ % 4) * 9.7, Y + (n_ // 4) * 9.7
+    used = n_ < 12
+    sec = TAGS.get(n_)
+    fill = "#1a1b20" if not used else (tint(SECC[sec], 0.5 if n_ == 2 else 0.3) if sec else "#2a2b33")
+    st = ' stroke="#ffffff" stroke-width="0.55"' if n_ == 2 else (' stroke="#ffffff" stroke-width="0.4" stroke-dasharray="0.8 0.5"' if n_ == 3 else "")
+    put(f'<rect x="{x:.2f}" y="{y:.2f}" width="8.6" height="8.6" rx="0.8" fill="{fill}"{st}/>')
+    if used and sec:
+        put(f'<rect x="{x + 0.6:.2f}" y="{y + 0.6:.2f}" width="7.4" height="0.8" rx="0.3" fill="{SECC[sec]}"/>')
+        ptext(x + 1, y + 5.6, sec, 1.0, SECC[sec], 800, "start", 0.15)
+    ptext(x + 1, y + 3.6, f"A{n_ + 1}", 1.35, TXT if used else "#4a4c57", 700, "start", 0.15)
+    for t in range(4):
+        on = used and (t != 2 or n_ % 3)
+        put(f'<rect x="{x + 1 + t * 1.65:.2f}" y="{y + 6.7:.2f}" width="1.15" height="0.8" rx="0.3" fill="{TR[t][1] if on else "#2f3038"}"/>')
+X, Y, WW, HH = areas["INFO"]
+ptext(X + 1.6, Y + 3.7, "A3", 1.45, TXT, 800, "start", 0.25)
+ptext(X + 6.0, Y + 3.7, "DROP", 1.45, SECC["DROP"], 800, "start", 0.25)
+ptext(X + WW - 1.6, Y + 3.7, "> A4", 1.45, TXT, 700, "end", 0.25)
+X, Y, WW, HH = areas["REROLL"]
+for t in range(4):
+    on = t != 2
+    put(f'<rect x="{X + t * 4.6:.2f}" y="{Y}" width="3.6" height="3.2" rx="0.5" fill="{TR[t][1] if on else "#24252c"}"/>')
+    ptext(X + t * 4.6 + 1.8, Y + 2.25, TR[t][0], 1.3, "#07080a" if on else "#4a4c57", 800, "middle", 0)
 print("wrote preview (stand-ins only)")
 svg = sys.argv[2].rsplit(".", 1)[0] + ".svg"
 open(svg, "w").write("\n".join(out))

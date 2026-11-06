@@ -1,6 +1,6 @@
 # GENRA – Projektstand
 
-**Stand:** 6. November 2026 · **Plugin 2.11.0: 15 Module** (GENRA, GRID, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, SCHMELZ, MIX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `CamilloGF/genra-v3`
+**Stand:** 6. November 2026 · **Plugin 2.12.0: 16 Module** (GENRA, GRID, ABLAUF, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, SCHMELZ, MIX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `CamilloGF/genra-v3`
 Vorgänger: v1 `CamilloGF/vcv-sequenzer-Genra` (2.0.0), v2 `CamilloGF/Genra-v2` (2.1.0, läuft in Rack)
 Plattform: VCV Rack Pro 2.6.6 unter Windows · Build: GitHub Actions (`.github/workflows/main.yml`)
 
@@ -251,3 +251,13 @@ GENRA MONO: `g++ -std=c++17 -O2 test/test_mono.cpp -o tm && ./tm`
 - [ ] Test in Rack (Pegel, Regler-Gefühl, Expander-Kopplung, Clock/Arp, Samples, eigene Formen).
 - [ ] Ideen: Timbre B als zweites Modul koppeln, IMAGE-Seite (Bild moduliert den Klang), TRAVEL-Seite (Speed-LFO,
   Stop an Ecken, Kaleidoskop) als zweiter Expander.
+
+## ABLAUF (2.12.0) – Stand 6. November 2026
+- Song-Arranger für GENRA, 30 HP, Akzent gelb `#ffd23d`, Modul-Slug `GenraAblauf`. Panel: `tools/ablauf_panel.py` → `res/Ablauf.svg` + `src/ablauf/AblaufLayout.hpp`. Ersetzt die Szenen von GENRA (2.11.0 entfernt).
+- Verbindung wie GRID (angedockt oder Rechtsklick › Verbinden mit…). Alle Bearbeitung auf dem UI-Thread (`AblaufWidget::step` → `uiFrame`); GENRA übernimmt Patterns über zwei Postfächer in `GenraModule.hpp`: `snapState`/`snap` (Abzug dessen, was läuft) und `cueState`/`cue` (CAS-Protokoll 0 frei, 1 wartet, 2 wird geschrieben, 3 wird übernommen). GENRA zählt Taktstriche (`barIndex`/`barPub`) und übernimmt eine Cue am Taktstrich `atBar` (oder sofort bei `now`), startet das Pattern dann bei Schritt 0. Song-Zeile: Mutes (`arrMute`), Fill am Ende der Zeile (`arrFill`, letzte volle Runde), Stop am Song-Ende (`cue.stop`).
+- Dichte-Versätze pro Pattern (`ArrMods`: dens pro Spur, ghost, fill) addiert `buildParams()`; `buildParams(false)` ohne. Gelten, solange ABLAUF angehängt ist (`arrAlive`), werden beim Entfernen von ABLAUF (`onRemove`) verworfen und im Patch von GENRA mitgespeichert.
+- 64 Plätze (Slot = Pattern + Spur-Genres + Länge + Versätze + Abschnitt), Song bis 64 Zeilen (Pattern, Takte 1–32, Abschnitt, Spuren, Fill, CV A/B). Undo: `AblaufAction` in Rack's History (UNDO-Taster nimmt den obersten Schritt, wenn er von diesem ABLAUF ist).
+- Varianten (`src/Arranger.cpp`, `makeSection`): neu gewürfelte Spuren im Stil des Teils, die anderen exakt. VERSE/DROP bleiben generiert (nur Versätze), INTRO/BUILD/BREAK/OUTRO werden eingefroren und Schritt für Schritt geformt (Pads bleiben generiert). Sitzung: solange eine Variante unverändert läuft (`patChanges` = `patChangesAtCue`), kommen weitere Teile aus derselben Quelle, ein zweiter Druck würfelt dasselbe Pad neu.
+- Test `test/test_ablauf.cpp` (im Workflow): alle Genres × Längen × Teile – behaltene Spuren byte-genau, Intro ohne Snare/Bass/Melodie in der ersten Hälfte, Build-Wirbel wird dichter, Lücke ohne Kick und Bass, 32tel am Ende, Break ohne Kick mit Grundtönen, Outro-Schlusstakt nur Kick, Drop mit Bass auf der Eins, Speichern.
+- [ ] Test in Rack: Song mit GENRA (Taktgenauigkeit bei interner und externer Clock, 1-Takt-Zeilen), Varianten nach Gehör (Build-Länge, Intro-Dichte je Genre), Undo, Laden/Speichern grosser Bänke.
+

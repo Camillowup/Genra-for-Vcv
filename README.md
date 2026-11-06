@@ -1,10 +1,11 @@
 # GENRA – Plugin für VCV Rack 2
 
-Ein generativer, genreabhängiger 4-Spur-Sequencer mit MIDI-Grid, Performance-Effekten und passenden Instrumenten, alle im selben Look. Plugin-Version **2.11.0**, 15 Module. Projektstand und Entscheidungen: `PROJEKT.md`.
+Ein generativer, genreabhängiger 4-Spur-Sequencer mit MIDI-Grid, Performance-Effekten und passenden Instrumenten, alle im selben Look. Plugin-Version **2.12.0**, 16 Module. Projektstand und Entscheidungen: `PROJEKT.md`.
 
 | Modul | Breite | Farbe | Was es ist |
 |---|---|---|---|
 | **GENRA** | 58 HP | – | Generativer Sequencer: 8 Drumspuren, Bass, Melodie, Pads, 37 Genres |
+| **ABLAUF** | 30 HP | gelb | Song-Arranger: 64 Pattern-Plätze, Song-Liste, Varianten für Intro, Build, Drop … |
 | **GENRA Grid** | 50 HP | – | MIDI-Grid für GENRA: Drum-Raster, Piano-Roll, Velocity/Chance |
 | **STOTTER** | 30 HP | – | Performance-Effekte: 16 Effekt-Pads, DJ-EQ und -Filter |
 | **GENRA MONO** | 28 HP | säuregrün | Monophoner Bass-Synth nach dem Moog Minitaur, mit Presets |
@@ -67,7 +68,7 @@ GENRA erfindet genretypische Loops (1/2/4/8 Takte) für **8 Drumspuren, Bass, Me
 
 ### Szenen (bis 2.10.0)
 
-Die 8 Szenen-Plätze sind seit 2.11.0 entfernt, das Panel ist dadurch 58 statt 64 HP breit. Patterns speichern und Songs bauen übernimmt ein eigenes Song-Modul (in Planung). In alten Patches gespeicherte Szenen werden beim Laden ignoriert, Kabel an SCENE CV und NEXT fallen weg.
+Die 8 Szenen-Plätze sind seit 2.11.0 entfernt, das Panel ist dadurch 58 statt 64 HP breit. Patterns speichern und Songs bauen übernimmt jetzt **ABLAUF**. In alten Patches gespeicherte Szenen werden beim Laden ignoriert, Kabel an SCENE CV und NEXT fallen weg.
 
 ### NEW, LOCK und Genre-Merkmale
 
@@ -97,6 +98,33 @@ Das MIDI-Grid zu GENRA (50 HP): Hier bearbeitest du den erzeugten Loop Note für
 - **Mehrfachauswahl:** Shift + Ziehen = Rahmen, Strg + Klick = Note an-/abwählen, Strg+A = alles. Ausgewählte Noten zusammen ziehen; Pfeile ↑↓ = Tonhöhe (Shift: Oktave; Drums: Stimme), ←→ = Position (Shift: ein Takt); Entf = löschen; Strg+C / Strg+V = kopieren / an der Mausposition einfügen; Strg+D = dahinter duplizieren; Esc = Auswahl aufheben. Mausrad und Rechtsklick-Menü wirken auf die ganze Auswahl.
 - **EDIT:** UNDO, REDO (64 Schritte), COPY/PASTE BAR (erster sichtbarer Takt), CLEAR TRACK, GEN TRACK (Spur wieder generativ).
 - **Was „bearbeitet“ heisst:** Sobald du etwas änderst, spielt die Spur feste Noten – genau das, was vorher zu hören war, plus deine Änderungen. DENSITY/COMPLEX wirken dann nicht mehr auf diese Spur, FILL (Fills und Drops) und Humanize schon. MUTATE verändert auch bearbeitete Spuren – LOCK schützt sie vor MUTATE und NEW ALL.
+
+---
+
+## ABLAUF: Patterns speichern, Songs bauen
+
+![ABLAUF](docs/entwuerfe/ablauf.png)
+
+Song-Arranger für GENRA, 30 HP. Verbindung wie beim Grid Editor: links oder rechts neben GENRA setzen (LINK-LED leuchtet) oder im Rechtsklick-Menü *Verbinden mit…* ein beliebiges GENRA im Patch wählen.
+
+**Patterns (rechts):** 64 Plätze in den Banks A–D, je 4 × 4 Pads. **STORE**, dann ein Pad: speichert, was GENRA gerade spielt (alle Spuren, Akkorde, Spur-Genres, Länge). **COPY**: erst Quelle, dann Ziel. **CLEAR**, dann ein Pad: löscht den Platz. Im Modus **PATT** spielt ein angetipptes Pad ab dem nächsten Takt (bei gestopptem GENRA sofort). Die Pads haben die Farbe ihres Song-Teils; die kleinen Balken zeigen, welche Spuren etwas spielen. Weisser Rahmen = läuft, gestrichelt = kommt am nächsten Takt. Rechtsklick aufs Pad: Abschnitt setzen, in den Song einfügen, löschen.
+
+**Varianten: „das Pattern ist super – mach mir ein Intro“.** Ein Taster pro Song-Teil (INTRO, VERSE, BUILD, DROP, BREAK, OUTRO) macht aus dem laufenden Pattern eine Variante auf dem nächsten freien Pad und spielt sie zum Anhören ab. Nochmal drücken würfelt dasselbe Pad neu, immer aus dem ursprünglichen Pattern – auch die anderen Teile kommen aus diesem, solange eine seiner Varianten läuft. **NEU WÜRFELN D B M P** wählt, welche Spuren neues Material bekommen; die anderen bleiben exakt (so bleiben die Teile verwandt). Akkorde bleiben immer gleich.
+- **INTRO:** Drums sparsam (Snare/Clap erst ab der Hälfte, Hats auf Achteln, Toms/Perc weg, leise beginnend), Bass setzt zur Hälfte mit Grundtönen ein, Melodie dünn, Pads präsenter.
+- **VERSE:** Groove etwas leichter, Melodie lässt Platz (bleibt generiert, folgt den Reglern).
+- **BUILD:** Snare-Wirbel Viertel → Achtel → 16tel → 32tel, lauter werdend, 16tel-Hats in der zweiten Hälfte; im letzten Takt Kick auf Vierteln und eine Lücke auf dem letzten Schlag, der Bass fällt weg, die Melodie im letzten Viertel eine Oktave höher.
+- **DROP:** dichter, Bass auf der Eins (bleibt generiert, folgt den Reglern).
+- **BREAK:** keine Kick, leise Hats, lange Grundtöne im Bass, Pads im Vordergrund, kurzer Snare-Auftakt am Ende.
+- **OUTRO:** dünnt Takt für Takt aus, im letzten Takt nur noch Kick (und Pads).
+
+INTRO, BUILD, BREAK und OUTRO werden als exakte Noten gebaut (auch im Grid Editor bearbeitbar); VERSE und DROP bleiben generiert und bringen nur Dichte-Versätze mit, die zu GENRAs Reglern addiert werden, solange das Pattern läuft.
+
+**Song (links):** eine Liste von Zeilen: Pattern · Takte · Spuren (D B M P an/aus) · Fill · Abschnitt. Pad antippen, dann **EINF.**: neue Zeile nach der gewählten, mit Länge und Abschnitt des Pads. **ZEILE** wählt die Zeile (oder Klick in die Liste, Mausrad), **PATTERN**, **TAKTE** (1–32) und **ABSCHNITT** (Farbskala um den Regler) ändern sie, die farbigen Taster schalten Spuren der Zeile stumm, **FILL** setzt einen Fill am Ende der Zeile. **LÖSCH.** entfernt die Zeile, **UNDO** macht Schritte rückgängig (auch Strg+Z). Rechtsklick auf eine Zeile: CV A / CV B, duplizieren, löschen. Im Modus **SONG** startet **PLAY** ab der gewählten Zeile, GENRA wechselt taktgenau; **LOOP** wiederholt den Song, sonst stoppt er am Ende.
+
+**Eingänge:** RUN (Trigger: Play/Stop), RESET (Song an den Anfang), NEXT (nächste Zeile bzw. nächstes Pattern am nächsten Takt), PATT CV (0–10 V über die 64 Plätze, Pattern-Modus), ZEILE CV (0–10 V über die Song-Liste, springt am nächsten Takt).
+**Ausgänge:** ENDE (Trigger am Song-Ende und beim Wiederholen), ZEILE (Trigger bei jeder neuen Zeile), BUILD und DROP (Gates, solange ein Build bzw. Drop läuft – auch im Pattern-Modus), POS (Song-Position 0–10 V), CV A / CV B (Werte der laufenden Zeile).
+
+GENRA zeigt im Display den laufenden Song-Teil, seine MUTE-Lampen leuchten gedimmt für Spuren, die ABLAUF stummschaltet.
 
 ---
 
@@ -345,6 +373,8 @@ src/Store.cpp         Speicherformat (pattern3) + Übernahme von v2-Patches
 src/Edit.cpp          Bearbeiten: Einfrieren, Noten schreiben, Chord Follow, Snap, Copy/Paste
 src/GenraModule.hpp   GENRA-Moduldefinition (auch vom Editor genutzt)
 src/GenraGrid.cpp     Grid-Editor-Modul
+src/Arranger.hpp/.cpp Song-Teile für ABLAUF (Intro, Build, … aus einem Pattern), ohne Rack testbar (test/test_ablauf.cpp)
+src/ablauf/           ABLAUF: Modul (Ablauf.cpp), Frontplatte aus tools/ablauf_panel.py (real | preview <datei.png>)
 res/GenraGrid.svg     Frontplatte des Editors (tools/grid_panel.py real)
 src/Genra.cpp         Rack-Modul, Display, Menüs
 res/Genra.svg         Frontplatte (tools/panel.py real), Vorschau: tools/panel.py preview <datei.svg>

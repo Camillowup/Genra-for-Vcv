@@ -797,7 +797,7 @@ struct Ablauf : Module {
 		if (msgTime > 0.f)
 			msgTime -= dt;
 		if (g)
-			g->arrAlive.store(0.5f);
+			g->arrAlive.store(1e9f); // attached; cleared when ABLAUF is removed (onRemove), not by a stalled UI
 
 		// GENRA's snapshot arrived
 		if (g && g->snapState.load(std::memory_order_acquire) == 2) {
@@ -1109,6 +1109,13 @@ struct Ablauf : Module {
 		if ((j = json_object_get(root, "curRow")))
 			curRow = (int)json_integer_value(j);
 		lastZ = -1; // the knobs follow the row at the next frame
+	}
+
+	// removed from the rack: GENRA drops the offsets and mutes of the pattern it got from here
+	void onRemove(const RemoveEvent& e) override {
+		if (Genra* g = genra())
+			g->arrAlive.store(1e-6f);
+		Module::onRemove(e);
 	}
 
 	void onReset(const ResetEvent& e) override {
@@ -1539,7 +1546,7 @@ struct InfoLine : AbWidget {
 				else if (m->armed == 3)
 					ui::text(vg, bold, (w - 1.6f) * u, 3.7f * u, "CLEAR: Pad", 1.4f * u, ACC, NVG_ALIGN_RIGHT, 0.25f * u);
 				else if (m->queuedSlot >= 0)
-					ui::text(vg, bold, (w - 1.6f) * u, 3.7f * u, "▸ " + slotName(m->queuedSlot), 1.45f * u, ui::TXT, NVG_ALIGN_RIGHT, 0.25f * u);
+					ui::text(vg, bold, (w - 1.6f) * u, 3.7f * u, "> " + slotName(m->queuedSlot), 1.45f * u, ui::TXT, NVG_ALIGN_RIGHT, 0.25f * u);
 			}
 		}
 		Widget::drawLayer(args, layer);
