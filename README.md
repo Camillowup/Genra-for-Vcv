@@ -1,6 +1,6 @@
 # GENRA v3 – Generativer 4-Spur-Sequencer für VCV Rack 2
 
-Breite: **64 HP** (GENRA) und **50 HP** (Grid Editor). Dazu im selben Plugin die drei JIANT-Stimmen **VOICE** (26 HP), **DRUM-X** (32 HP) und **ANIMAL** (26 HP), **MONK** (26 HP) sowie der Bass-Synth **GENRA MONO** (28 HP). Projektstand und Entscheidungen: `PROJEKT.md`.
+Breite: **64 HP** (GENRA) und **50 HP** (Grid Editor). Dazu im selben Plugin die drei JIANT-Stimmen **VOICE** (26 HP), **DRUM-X** (32 HP) und **ANIMAL** (26 HP), **MONK** (26 HP) der Bass-Synth **GENRA MONO** (28 HP) und die Klangmodule aus GENRA SYNTHIS: **SCHMELZ** (32 HP), **MIX** (32 HP), **K-WASUB** und **K-WASUB FX** (je 40 HP), **UMLAUF** (54 HP) und **UMLAUF FX** (36 HP). Projektstand und Entscheidungen: `PROJEKT.md`.
 
 ## GENRA Grid Editor (zweites Modul)
 
@@ -61,6 +61,126 @@ Monophoner Synth (28 HP) im Look von MONK und den JIANT-Stimmen, Farbe **türkis
 - **LFO:** RATE (0,05–50 Hz), TRI/SQR, Stärke auf Tonhöhe und Filter, eigener LFO-Ausgang.
 - **Eingänge:** V/OCT (0 V = C4), GATE, VEL, CV für CUTOFF (1 V/Okt.), RES, DRIVE, RATE (1 V/Okt.), VCA, EXT (externes Audio durchs Filter). **Ausgänge:** LFO, OUT.
 - Oszillatoren und Filter laufen mit 2-facher Überabtastung.
+
+## Aus GENRA SYNTHIS
+
+Die folgenden Module entstanden im eigenen Repo `CamilloGF/vcv-synthis` (Plugin GENRA SYNTHIS) und sind seit 2.6.0 Teil
+des GENRA-Plugins. Ihre Modul-Slugs sind gleich geblieben; Patches, die sie aus dem GENRA-SYNTHIS-Plugin geladen haben,
+müssen sie neu einsetzen. Das GENRA-SYNTHIS-Plugin am besten deinstallieren, sonst stehen die Module doppelt im Browser.
+
+### SCHMELZ: String Machine
+
+![SCHMELZ](docs/entwuerfe/schmelz.png)
+
+String Machine im Geist der 70er/80er (Vorbild: Waldorf Streichfett), 32 HP, Farbe **rosa**. Zwei Klangteile, je bis
+16 Stimmen, dazu Effekte.
+
+- **Strings:** REGISTRATION überblendet stufenlos VIOLIN · VIOLA · CELLO · BASS · BRASS · ORGAN · CHOIR · SYNTH.
+  CRESC (Einschwingen 3 ms … 6 s), RELEASE (10 ms … 8 s), TONE (dunkel … hell). OCT: BASE · BOTH · 8VA.
+  ENS: OFF · ENS (Ensemble, drei modulierte Verzögerungen wie bei den String-Ensembles) · E+C (Ensemble + Chorus) ·
+  CHO (Chorus); ENS DEPTH.
+- **Solo:** SOUND überblendet BASS · E-PIANO · CLAVI · SYNTH · BELL. ATTACK, DECAY (zugleich Release), SUSTAIN,
+  TREMOLO mit T.RATE (Stereo), VEL (Anschlagsempfindlichkeit), SUSTAIN-Taster (hält die Solo-Noten wie ein Pedal).
+  SPLIT (LAYER · LOW · HIGH, Splitpunkt C4) gilt, wenn das Solo über die Strings-Eingänge spielt.
+- **Effects · Master:** BALANCE Strings/Solo, ANIMATE (LFO bewegt die Registration) mit A.RATE, PHASER (nur Strings)
+  mit P.RATE, REVERB mit SIZE, VOLUME.
+- **Eingänge:** Strings V/OCT, GATE, VEL · Solo V/OCT, GATE, VEL (alle polyphon; ohne Solo-GATE spielt das Solo die
+  Strings-Noten) · CV für REG (polyphon, pro Stimme), CRESC, REL, TONE, ENS, OCT, SOUND, DECAY, TREM, BAL, ANIM, VERB
+  (0–10 V zum Regler addiert; ENS und OCT schalten in Stufen).
+- **Ausgänge:** ENV (Strings-Hüllkurve, polyphon, 0–10 V), STR (Strings mit Ensemble, ohne Phaser/Hall), SOLO
+  (trocken), L, R.
+- **Mit GENRA:** PADS (V/OCT + GATE, poly) → Strings, MELODY → Solo, MOD → REG oder ANIM.
+
+### MIX: 4-Kanal-Stereomixer
+
+![MIX](docs/entwuerfe/mix.png)
+
+Mixer für die vier GENRA-Spuren, 32 HP. Jeder Kanal in der Farbe seiner Spur (DRUMS orange, BASS rot, MELODY blau,
+PADS lila), der Master dunkel.
+
+- **Pro Kanal:** IN L/R (R unbelegt = L; polyphone Eingänge werden summiert), HIGH/LOW (Kuhschwanz-EQ bei 6 kHz /
+  120 Hz, ±12 dB), SEND (nach dem Fader), DUCK (wie stark der Kanal beim Duck-Trigger zurückgeht), PAN (Balance),
+  LEVEL (0,75 = 0 dB, voll = +5 dB) mit Pegelanzeige, MUTE und SOLO (beleuchtet). CV: LVL (0–10 V, wie ein VCA),
+  PAN (±5 V).
+- **Master:** DUCK (Tiefe) und TIME (20 ms … 1 s, Erholzeit) – den KICK-Ausgang von GENRA in die DUCK-Buchse stecken,
+  dann pumpen die anderen Spuren mit. RETURN (Pegel des Effekt-Rückwegs RET L/R), SEND (Pegel von SEND L/R), WIDTH
+  (Mono … doppelt breit), DRIVE (Sättigung), MASTER mit Stereo-Pegelanzeige, OUT L/R (weicher Limiter ab 8 V).
+
+### K-WASUB: Modern-Bass-Synth (Firmware von Omnipotard)
+
+![K-WASUB](docs/entwuerfe/kwasub.png)
+
+Die Firmware [K-WASUB](https://github.com/Guizmoh/K-WASUB_Firmware_for_FM1) für den M-VAVE FM-1 von Omnipotard (GPL-3.0)
+als Modul, 40 HP, Farbe **säuregrün**. Der Klang ist die Original-Firmware, unverändert (`kwasub/`): Sie läuft als
+eigene kleine Bibliothek (`res/kwcore.*`, eine Kopie pro Modul) mit 44,1 kHz, das Modul rechnet auf die Rack-Rate um.
+
+- **OSC A / OSC B:** ENGINE-Feld (Klick = Liste, Mausrad): ANALOG, 808, CS, WAVETABLE, FM, GROWL, ADDITIVE, PHASE DIST,
+  HARD SYNC. SHAPE, COLOR, EDGE, FOLD sind die vier Klangregler der Engine (was sie bei der gewählten Engine heissen
+  und welchen Wert sie haben, steht im Display und im Tooltip), LEVEL, OCT, SEMI, FINE.
+- **FILTER:** Typ-Feld (LP 24, LP 12, BAND, HIGH, NOTCH, VOWEL, COMB), CUTOFF, RES, DRIVE, ENV, KEY, Filterhüllkurve.
+- **SUB · X:** Sub, Rauschen, X-Mod · **WOBBLE:** LFO 1 im Tempo (RATE = Notenwert), DEPTH, SHAPE, DEST ·
+  **AMP:** ADSR · **FX:** SAT, DELAY, VERB, GLUE (schalten ihren Effekt ein) · **PRESET:** ◀ ▶ durch die 97 Werksklänge
+  (auch im Rechtsklick-Menü).
+- **Eingänge:** V/OCT, GATE, VEL (bis 4 Stimmen, auf Halbtöne gerundet), CLOCK (setzt das Tempo; Standard 16tel wie
+  GENRA, im Menü 8tel, Viertel, 24 PPQN), RESET (Taktanfang), CV für CUT, RES, DRIVE, ENV, A/B SHAPE und COLOR, WOB,
+  DEPTH, PRESET (0–10 V über alle Presets), SUB, NOISE, X-MOD, ATK, REL, SAT, DELAY, VERB, GLIDE; MOD (Modrad),
+  PRESS (Druck), BEND (±5 V). **Ausgänge:** ENV, LFO, L, R.
+- Rechtsklick: Preset-Liste, Stimmen (Mono, Legato, Poly), Clock-Auflösung. Der ganze Klang wird im Patch gespeichert,
+  auch was kein Regler zeigt (LFO 2, Matrix, OSC C …).
+
+### K-WASUB FX: Effekt-Expander
+
+![K-WASUB FX](docs/entwuerfe/kwasub_fx.png)
+
+Rechts neben K-WASUB setzen (LINK leuchtet): alle Einstellungen des Effekt-Racks der Firmware. SATURATE (Typ, Amount,
+Mix), CRUSH, CHORUS, PHASER, DELAY (Typ, Zeit im Tempo, Feedback, Ton, Mix), REVERB (Typ, Grösse, Dämpfung, Mix),
+COMPRESSOR (mit PUMP und PUMP RATE), MULTIBAND, EQ (4 Bänder), MASTER (Glue, Sub-Boost, Mono-Bass). Jeder Block mit
+EIN-Taster; 16 CV-Eingänge, nach Effekt gruppiert. Regler, die es auf beiden Panels gibt (SAT, DELAY, VERB, GLUE),
+folgen einander. Ohne Expander gelten die Effekte des Presets.
+
+### UMLAUF: Orbit-Vektor-Synth (Engine von VADER)
+
+![UMLAUF](docs/entwuerfe/umlauf.png)
+
+Die Engine von [VADER](https://github.com/sunskiefer/VADER) (L'Cronx, MIT) als Modul, 54 HP, Farbe **Sith-Rot**. Ein
+Punkt, der **Orbiter**, läuft auf einer Bahn in einem Quadrat; in den vier Ecken spielt je ein Klang, und wo der
+Orbiter gerade ist, entscheidet, wie viel man von jeder Ecke hört. Die Engine läuft wie im Original mit 44,1 kHz
+(`vader/`, bis auf wenige markierte Änderungen, siehe `vader/README-UMLAUF.md`), das Modul rechnet auf die Rack-Rate um.
+
+- **Display:** das Quadrat mit Bahn, Orbiter, Sub-Orbit-Punkt und den Bällen der Modi; daneben Form, Modus, Clock und
+  die Live-Namen von M1–M8 (sonst die Engines der Ecken), unten der Anteil jeder Ecke.
+- **ORBIT · MODE:** SHAPE (15 eingebaute Formen, USER = eigene Datei, 35 Mathe-Formen), SPEED, SIZE, ROTATE, 3D SPIN,
+  3D TILT (für Würfel, Ikosaeder, OBJ), SUB SIZE, SUB SPEED, ENV>SIZE (die Hüllkurve öffnet oder schliesst die Bahn).
+  MODE: PATH (die Form) oder eine von 26 Simulationen (CHASE, KEPLER, LORENZ, PENDULUM, BOIDS, MEDUSA, THUNDER …);
+  M1–M8 sind ihre Regler, die Namen stehen im Display.
+- **CORNER A–D:** ENGINE: SYNTH (VADERs zwei Oberton-Generatoren mit je 32 Spektren und BLEND: MIX, AM, PM, AM+PM, PD,
+  RING, FOLD), die 14 Stimmen ANALOG, TRIO, WAVE, CHIP, MACRO, WHEEL, VOICE, NOISE, TONE, METAL, BAZZ, DRONE,
+  TEXTURE, FX oder WAV (ein Sample). Die Regler 1–5 wechseln mit der Engine, das Mini-Display zeigt ihre Namen
+  (SYNTH: GEN 1, GEN 2, BLEND, B.MODE, G2 TUNE · Stimmen: ihre vier Klangregler + LIMIT · WAV: START, END, LENGTH,
+  LIMIT). Darunter FILTER (LP12, LP24, BP, HP, LADDER), ON (nach dem Blend, auf GEN 1 oder GEN 2), CUTOFF, RES, OCT,
+  LEVEL. Klick aufs Mini-Display: Engine- und Sample-Auswahl.
+- **Eingänge:** V/OCT, GATE (polyphon, bis 16 Stimmen), VEL, CLOCK (Tempo und Takt für Arpeggiator, synchrone Bahnen,
+  Delay; Standard 16tel wie GENRA), RESET, X/Y (steuern den Orbiter von Hand, ±5 V), CV für SHAPE, MODE, SPEED, SIZE,
+  ROT, SUB, M1–M4, Pegel A–D, VOL, Cutoff A–D und Regler 1 jeder Ecke.
+- **Ausgänge:** X, Y (wo der Orbiter ist, ±5 V), WT A–D (Anteil jeder Ecke, 0–10 V), ENV, A–D (jede Ecke einzeln,
+  trocken), L, R.
+- **Ordner:** Beim ersten Start legt UMLAUF `Rack2/GenraSynthis/Umlauf/` an: `Samples` (eigene WAVs, auch in
+  Unterordnern) und `Shapes` (die 7 Beispiel-Formen von VADER; eigene SVG, OBJ, PNG, JPG dazulegen). Die
+  Beispiel-Samples von VADER sind nicht dabei (sie stammen aus kommerziellen Sample-Packs).
+- **Rechtsklick:** 22 Presets von VADER (die sechs Sample-Presets brauchen eigene WAVs), Formdatei für USER wählen oder
+  laden, pro Ecke Engine, Sample und Abspielart (One Shot, Loop 1–4 Takte), Ordner öffnen, neu einlesen,
+  Clock-Auflösung, Delay im Takt.
+- Pro Modul ein Timbre (VADERs Timbre B, Layer/Split, gibt es hier nicht: für Layer zwei UMLAUF nehmen).
+
+### UMLAUF FX: Expander
+
+![UMLAUF FX](docs/entwuerfe/umlauf_fx.png)
+
+Rechts neben UMLAUF setzen, 36 HP. ENVELOPE (ADSR) · VOICE (UNISON 1/2/4/8, VOICES 8/16, DETUNE, GLIDE, OCTAVE,
+VELOCITY, Vibrato und Tremolo mit Rate) · ARPEGGIATOR (ON, LATCH, Richtung UP/DOWN/U·D/RND/ORDER/CHORD, RATE im
+Takt, OCT, LENGTH, STEPS, HUMAN und 16 Schritt-Taster: Klick schaltet OFF → ON → ACCENT → TIE) · FX · MASTER (DRIVE,
+CHORUS mit Rate, DELAY mit TIME und FEEDBACK, REVERB mit SIZE, M.RES = Resonanz aller Eckfilter, VOLUME) · 20
+CV-Eingänge. Beim Andocken übernehmen die Regler den aktuellen Klang; ohne Expander gelten die Werte des Presets.
 
 ## Neu in v3
 
@@ -153,5 +273,23 @@ jiant.tar.gz          Firmware-Quellen von JIANT FM (beim ersten Build nach jian
 res/Jiant*.svg        Frontplatten (tools/jiant_panel.py real), Vorschau: tools/jiant_panel.py preview <ordner> <Rack>
 src/mono/             GENRA MONO: Modul (GenraMono.cpp) und Klang-Engine (MonoDsp.hpp, ohne Rack testbar)
 res/GenraMono.svg     Frontplatte (tools/mono_panel.py real), Vorschau: tools/mono_panel.py preview <datei.png> <Rack> [menu]
-test/                 Engine- und MIDI-Tests (g++, ohne Rack)
+src/ui/GenraUI.hpp    GENRA-Look für SCHMELZ, MIX, K-WASUB, UMLAUF (Farben, Schriften, Lampenreihe)
+src/schmelz/          SCHMELZ: Modul und Klang-Engine (SchmelzDsp.hpp, ohne Rack testbar)
+src/mix/              MIX: Modul und Engine (MixDsp.hpp, ohne Rack testbar)
+src/kwasub/           K-WASUB und K-WASUB FX: Module, Kern-Lader (KwCore), Parameter-Ids der Firmware
+kwcore/               der K-WASUB-Kern: die Firmware als Bibliothek (res/kwcore.dll beim Build)
+kwasub/               die K-WASUB-Firmware, unverändert (GPL-3.0, Omnipotard)
+src/umlauf/           UMLAUF und UMLAUF FX (Module, Schnittstelle zu VADER)
+vader/                VADER (MIT), gepatcht (tools/vader_vendor.sh, tools/vader_patch.py), in plugin.dll gelinkt
+res/Schmelz.svg …     Frontplatten: tools/schmelz_panel.py, mix_panel.py, kwasub_panel.py, umlauf_panel.py,
+                      umlauf_fx_panel.py (jeweils real | preview <datei.png> <Rack-Quellen>)
+test/                 Engine- und MIDI-Tests (g++, ohne Rack); kwcore_test.c und vader_test.c (gcc), siehe Workflow
 ```
+
+## Lizenzen
+
+Das Plugin steht unter GPL-3.0. Darin enthalten (neben der JIANT- und der MONK-1-Firmware, siehe oben): die K-WASUB-Firmware (GPL-3.0, `kwasub/`) und VADER (MIT, `vader/`)
+mit den LXRXXL-ZYNTH-Stimmen, Code von Mutable Instruments (MIT), stb_image (Public Domain/MIT) und der
+FM-Algorithmus-Tabelle von music-synthesizer-for-android (Apache 2.0). Die Wavetables der LXR02-Firmware, die VADER
+für TONE, METAL und BAZZ nutzt, sind nicht dabei (ihre Lizenz verbietet kommerzielle Nutzung): UMLAUF rechnet
+gleichartige Tabellen selbst (`tools/umlauf_wavetables.py`).
