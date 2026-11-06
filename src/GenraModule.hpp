@@ -12,7 +12,6 @@
 using namespace genra;
 
 static const int LENGTHS[4] = {1, 2, 4, 8};
-static const int NUM_SCENES = 8;
 static const char* const CLOCK_MODES[4] = {"16tel (4 PPQN)", "8tel (2 PPQN)", "Viertel (1 PPQN)", "24 PPQN"};
 static const char* const CHORD_MODES[3] = {"Gemischt (Vorlagen + frei)", "Nur Genre-Vorlagen", "Frei erzeugt"};
 static const char* const GENRE_CV_MODES[2] = {"0–10 V über alle Genres", "1/12 V pro Genre (Halbtöne, 0 V = House)"};
@@ -79,9 +78,7 @@ struct Genra : Module {
 		VARIANT_PARAM,
 		CHORDNEW_PARAM,
 		ENUMS(TNEW_PARAM, 4),
-		// v3
-		ENUMS(SCENE_PARAM, NUM_SCENES),
-		STORE_PARAM,
+		// (v3 had 8 scene buttons and STORE here; removed in 2.11.0 – the song module takes over)
 		PARAMS_LEN
 	};
 	enum InputId {
@@ -102,8 +99,8 @@ struct Genra : Module {
 		COLOR_INPUT,
 		ENUMS(TGENRE_INPUT, 4),
 		ENUMS(DENS_INPUT, 4),
-		SCENE_INPUT,
-		NEXT_INPUT,
+		UNUSED_SCENE_INPUT, // was SCENE CV (until 2.10.0); kept so the inputs after it keep their ids
+		UNUSED_NEXT_INPUT,  // was NEXT (until 2.10.0)
 		// v3.1
 		SWING_INPUT,
 		BPM_INPUT,
@@ -145,9 +142,6 @@ struct Genra : Module {
 		ENUMS(LOCK_LIGHT, 4),
 		ENUMS(TNEW_LIGHT, 4),
 		CHORDNEW_LIGHT,
-		// v3
-		ENUMS(SCENE_LIGHT, NUM_SCENES * 2), // per scene: green (active), red (pattern stored)
-		STORE_LIGHT,
 		LIGHTS_LEN
 	};
 
@@ -172,24 +166,11 @@ struct Genra : Module {
 	bool pendingTrack[4] = {false, false, false, false};
 	bool ownPrev[4] = {false, false, false, false};
 
-	// ---- scenes
-	struct Scene {
-		bool used = false;
-		Pattern pat;
-		int8_t sel[4] = {-1, -1, -1, -1};
-		int8_t lengthIdx = 2;
-	};
-	Scene scenes[NUM_SCENES];
-	int activeScene = -1;
-	int pendingScene = -1;
-	int lastSceneCv = -1;
-
 	// ---- requests from the UI thread
 	std::atomic<bool> regenRequested{false};
 	std::atomic<bool> chordRegenRequested{false};
 	std::atomic<bool> importReady{false};
 	std::atomic<bool> resetTracksRequested{false};
-	std::atomic<bool> clearScenesRequested{false};
 
 	// chord edits from the display (UI thread) -> applied in process() (audio thread)
 	enum ChordOp : uint8_t { CE_NEXT, CE_SET, CE_COLOR, CE_COLOR_RESET };
@@ -248,9 +229,9 @@ struct Genra : Module {
 	}
 
 	// ---- clock & triggers
-	dsp::SchmittTrigger clockTrig, resetTrig, runTrig, newTrig, fillTrig, nextTrig;
+	dsp::SchmittTrigger clockTrig, resetTrig, runTrig, newTrig, fillTrig;
 	dsp::BooleanTrigger newBtn, runBtn, chordNewBtn;
-	dsp::BooleanTrigger tnewBtn[4], sceneBtn[NUM_SCENES];
+	dsp::BooleanTrigger tnewBtn[4];
 	dsp::SchmittTrigger tnewTrig[4], chordNewTrig;
 	float tnewFlash[4] = {0.f, 0.f, 0.f, 0.f};
 	float chordNewFlash = 0.f;
@@ -359,18 +340,13 @@ struct Genra : Module {
 		static const char* ON[3] = {"Bass", "Melodie", "Pads"};
 		for (int i = 0; i < 3; i++)
 			configSwitch(OCT_PARAM + i, -2.f, 2.f, 0.f, std::string(ON[i]) + " Oktave", {"-2", "-1", "0", "+1", "+2"});
-		for (int i = 0; i < NUM_SCENES; i++)
-			configButton(SCENE_PARAM + i, string::f("Szene %d (abrufen; leer oder nach STORE: speichern)", i + 1));
-		configSwitch(STORE_PARAM, 0.f, 1.f, 0.f, "Szene speichern (STORE, dann Szenen-Taster)", {"Aus", "Bereit"});
-		for (int id : std::initializer_list<int>{RUN_PARAM, NEW_PARAM, CHORDLOCK_PARAM, CHORDNEW_PARAM, STORE_PARAM})
+		for (int id : std::initializer_list<int>{RUN_PARAM, NEW_PARAM, CHORDLOCK_PARAM, CHORDNEW_PARAM})
 			paramQuantities[id]->randomizeEnabled = false;
 		for (int t = 0; t < 4; t++) {
 			paramQuantities[TNEW_PARAM + t]->randomizeEnabled = false;
 			paramQuantities[MUTE_PARAM + t]->randomizeEnabled = false;
 			paramQuantities[LOCK_PARAM + t]->randomizeEnabled = false;
 		}
-		for (int i = 0; i < NUM_SCENES; i++)
-			paramQuantities[SCENE_PARAM + i]->randomizeEnabled = false;
 
 		configInput(CLOCK_INPUT, "Clock");
 		configInput(RESET_INPUT, "Reset");
@@ -385,8 +361,6 @@ struct Genra : Module {
 		configInput(VARIANT_INPUT, "Variante CV (0-10 V, addiert)");
 		configInput(COMPLEX_INPUT, "Complex CV (0-10 V, addiert)");
 		configInput(COLOR_INPUT, "Color CV (0-10 V, addiert)");
-		configInput(SCENE_INPUT, "Szene CV (0-10 V = Szene 1-8)");
-		configInput(NEXT_INPUT, "Nächste Szene (Trigger)");
 		configInput(SWING_INPUT, "Swing CV (0-10 V, addiert)");
 		configInput(BPM_INPUT, "Tempo CV (interne Clock, 10 BPM pro Volt, addiert)");
 		configInput(LENGTH_INPUT, "Loop-Länge CV (0-10 V, addiert)");
@@ -583,79 +557,6 @@ struct Genra : Module {
 		extChord = true;
 	}
 
-	// ------------------------------------------------------------ scenes
-	void storeScene(int i) {
-		Scene& s = scenes[i];
-		s.used = true;
-		s.pat = pat;
-		for (int t = 0; t < 4; t++)
-			s.sel[t] = (int8_t)trackSel[t];
-		s.lengthIdx = (int8_t)clamp((int)std::round(params[LENGTH_PARAM].getValue()), 0, 3);
-		activeScene = i;
-		pendingScene = -1;
-	}
-
-	void recallScene(int i) {
-		const Scene& s = scenes[i];
-		if (!s.used)
-			return;
-		pat = s.pat;
-		for (int t = 0; t < 4; t++) {
-			trackSel[t] = s.sel[t];
-			trackSelChanged[t] = false;
-			pendingTrack[t] = false;
-			ownPrev[t] = ownGenre(t);
-		}
-		params[LENGTH_PARAM].setValue((float)s.lengthIdx);
-		pendingGenre = false;
-		lastGenre = curGenre; // the scene's pattern stands, even if the GENRE knob differs
-		padHasPrev = false;
-		activeScene = i;
-	}
-
-	void requestScene(int i) {
-		if (i < 0 || i >= NUM_SCENES || !scenes[i].used)
-			return;
-		if (!running || step < 0)
-			recallScene(i); // stopped: switch right away
-		else
-			pendingScene = i; // playing: at the next bar line
-	}
-
-	void processScenes() {
-		bool armed = params[STORE_PARAM].getValue() > 0.5f;
-		for (int i = 0; i < NUM_SCENES; i++) {
-			if (!sceneBtn[i].process(params[SCENE_PARAM + i].getValue() > 0.5f))
-				continue;
-			if (armed || !scenes[i].used) {
-				storeScene(i);
-				params[STORE_PARAM].setValue(0.f);
-				armed = false;
-			}
-			else
-				requestScene(i);
-		}
-		if (nextTrig.process(inputs[NEXT_INPUT].getVoltage(), 0.1f, 1.f)) {
-			int from = pendingScene >= 0 ? pendingScene : activeScene;
-			for (int k = 1; k <= NUM_SCENES; k++) {
-				int i = ((from < 0 ? -1 : from) + k) % NUM_SCENES;
-				if (scenes[i].used) {
-					requestScene(i);
-					break;
-				}
-			}
-		}
-		if (inputs[SCENE_INPUT].isConnected()) {
-			int s = clamp((int)std::round(inputs[SCENE_INPUT].getVoltage() / 10.f * (NUM_SCENES - 1)), 0, NUM_SCENES - 1);
-			if (s != lastSceneCv) {
-				lastSceneCv = s;
-				requestScene(s);
-			}
-		}
-		else
-			lastSceneCv = -1;
-	}
-
 	// ------------------------------------------------------------ voices
 	void queueDrum(int v, const Hit& h, float sr) {
 		if (h.delay > 0.f) {
@@ -758,15 +659,6 @@ struct Genra : Module {
 		Params P = buildParams();
 		if (step % STEPS_PER_BAR == 0) {
 			bool changed = false;
-			if (pendingScene >= 0) {
-				recallScene(pendingScene);
-				pendingScene = -1;
-				L = lengthSteps();
-				layoutTimeline(pat, L);
-				if (step >= L)
-					step = 0;
-				changed = true;
-			}
 			if (pendingGenre) {
 				pendingGenre = false;
 				doGenerate(false);
@@ -865,9 +757,6 @@ struct Genra : Module {
 			trackSelChanged[t] = false;
 			pendingTrack[t] = false;
 		}
-		for (int i = 0; i < NUM_SCENES; i++)
-			scenes[i].used = false;
-		activeScene = pendingScene = -1;
 		dDrums = dBass = dMel = dPad = -1.f;
 		initPattern(pat);
 		lastGenre = -1;
@@ -923,12 +812,6 @@ struct Genra : Module {
 		if (resetTracksRequested.exchange(false))
 			for (int t = 0; t < 4; t++)
 				setTrackSel(t, -1);
-		if (clearScenesRequested.exchange(false)) {
-			for (int i = 0; i < NUM_SCENES; i++)
-				scenes[i].used = false;
-			activeScene = pendingScene = -1;
-		}
-		processScenes();
 		readGenre();
 		readChordInput();
 		if (regenRequested.exchange(false)) {
@@ -1110,21 +993,6 @@ struct Genra : Module {
 				lights[MUTE_LIGHT + t].setBrightness(params[MUTE_PARAM + t].getValue());
 				lights[LOCK_LIGHT + t].setBrightness(params[LOCK_PARAM + t].getValue());
 			}
-			for (int i = 0; i < NUM_SCENES; i++) {
-				// green = active scene (blinking: comes at the next bar), red = pattern stored, off = empty
-				float green = 0.f, red = scenes[i].used ? 0.85f : 0.f;
-				if (i == activeScene) {
-					green = 1.f;
-					red = 0.f;
-				}
-				if (i == pendingScene) {
-					green = blink < 0.5f ? 1.f : 0.f;
-					red = blink < 0.5f ? 0.f : 0.85f;
-				}
-				lights[SCENE_LIGHT + 2 * i].setBrightness(green);
-				lights[SCENE_LIGHT + 2 * i + 1].setBrightness(red);
-			}
-			lights[STORE_LIGHT].setBrightness(params[STORE_PARAM].getValue() > 0.5f ? (blink < 0.5f ? 1.f : 0.4f) : 0.f);
 		}
 	}
 
@@ -1142,23 +1010,6 @@ struct Genra : Module {
 		for (int t = 0; t < 4; t++)
 			json_array_append_new(sel, json_integer(trackSel[t]));
 		json_object_set_new(root, "trackGenre", sel);
-		json_t* sc = json_array();
-		for (int i = 0; i < NUM_SCENES; i++) {
-			if (!scenes[i].used)
-				continue;
-			json_t* o = json_object();
-			json_object_set_new(o, "slot", json_integer(i));
-			std::vector<uint8_t> b = savePattern(scenes[i].pat);
-			json_object_set_new(o, "pattern3", json_string(string::toBase64(b.data(), b.size()).c_str()));
-			json_t* s = json_array();
-			for (int t = 0; t < 4; t++)
-				json_array_append_new(s, json_integer(scenes[i].sel[t]));
-			json_object_set_new(o, "trackGenre", s);
-			json_object_set_new(o, "length", json_integer(scenes[i].lengthIdx));
-			json_array_append_new(sc, o);
-		}
-		json_object_set_new(root, "scenes", sc);
-		json_object_set_new(root, "activeScene", json_integer(activeScene));
 		return root;
 	}
 
@@ -1203,32 +1054,6 @@ struct Genra : Module {
 			pendingTrack[t] = false;
 			ownPrev[t] = sel[t] >= 0;
 		}
-		for (int i = 0; i < NUM_SCENES; i++)
-			scenes[i].used = false;
-		json_t* sc = json_object_get(root, "scenes");
-		for (size_t k = 0; sc && k < json_array_size(sc); k++) {
-			json_t* o = json_array_get(sc, k);
-			json_t* js = json_object_get(o, "slot");
-			json_t* jpat = json_object_get(o, "pattern3");
-			if (!js || !jpat || !json_is_string(jpat))
-				continue;
-			int i = (int)json_integer_value(js);
-			if (i < 0 || i >= NUM_SCENES)
-				continue;
-			Scene& s = scenes[i];
-			if (!loadPattern(string::fromBase64(json_string_value(jpat)), s.pat))
-				continue;
-			readSel(json_object_get(o, "trackGenre"), s.sel);
-			json_t* jl = json_object_get(o, "length");
-			s.lengthIdx = (int8_t)clamp(jl ? (int)json_integer_value(jl) : 2, 0, 3);
-			s.used = true;
-		}
-		activeScene = -1;
-		if ((j = json_object_get(root, "activeScene"))) {
-			int a = (int)json_integer_value(j);
-			activeScene = (a >= 0 && a < NUM_SCENES && scenes[a].used) ? a : -1;
-		}
-		pendingScene = -1;
 	}
 
 	// ------------------------------------------------------------ MIDI file actions (UI thread)

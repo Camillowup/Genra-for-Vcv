@@ -20,7 +20,7 @@ PREVIEW = MODE == "preview"
 REAL = MODE in ("real", "preview")
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-HP = 64
+HP = 58
 W = HP * 5.08
 H = 128.5
 
@@ -30,7 +30,6 @@ LINE = "#34363f"
 TXT = "#d9dbe2"
 DIM = "#8a8d99"
 CHORDCOL = "#2f9e8f"  # harmony: dark teal
-SCENECOL = "#ffd23d"
 TRACKS = [("DRUMS", "#7b6cff"), ("BASS", "#b8f23a"), ("MELODY", "#3dc9ff"), ("PADS", "#e0779e")]
 
 # real component radii (mm)
@@ -177,7 +176,7 @@ text(38, IN_Y0 + 4 * IN_DY + 8.2, "POLY", 1.3, CHORDCOL, 700)
 
 # ---------------------------------------------------------------- sync / harmony outputs (2 x 4)
 OW = 27
-OX = W - 6 - OW  # right edge (scenes sit next to the inputs)
+OX = W - 6 - OW  # right edge
 e(f'<rect x="{OX:.2f}" y="{TOP}" width="{OW}" height="{BOT-TOP}" rx="1.6" fill="{PLATE}"/>')
 text(OX + OW / 2, TOP + 4.6, "OUT", 2.0, TXT, 700)
 SYNCCOL = "#c9ccd6"
@@ -187,24 +186,8 @@ for i, (lab, c) in enumerate(outs_s):
     jack("OUT_" + lab, OX + 7.5 + (i % 2) * 12, 64.0 + (i // 2) * 14.2, lab, True, c, ldy=5.9)
 text(OX + 7.5 + 12, 64.0 + 3 * 14.2 + 9.0, "POLY", 1.3, CHORDCOL, 700)
 
-# ---------------------------------------------------------------- scenes column
-SCW = 30
-sx0 = 6 + INW + 1
-e(f'<rect x="{sx0:.2f}" y="{TOP}" width="{SCW}" height="{BOT-TOP}" rx="1.6" fill="{PLATE}"/>')
-e(f'<rect x="{sx0:.2f}" y="{TOP}" width="{SCW}" height="1.3" rx="0.6" fill="{SCENECOL}"/>')
-scx = sx0 + SCW / 2
-text(scx, TOP + 6.1, "SCENES", 2.6, SCENECOL, 800, "middle", 0.6)
-for i in range(8):
-    bx = scx - 6.5 + (i % 2) * 13
-    by = 65.5 + (i // 2) * 10.4
-    button(f"SCENE_{i}", bx, by, SCENECOL, lit=(i == 0))
-    text(bx + (-6.2 if i % 2 == 0 else 6.2), by + 0.8, str(i + 1), 2.0, DIM, 700)
-button("STORE", scx, 107.2, "#ffffff", "STORE")
-jack("IN_SCENE", scx - 6.5, 119.0, "CV", lsize=1.6, ldy=6.0)
-jack("IN_NEXT", scx + 6.5, 119.0, "NEXT", lsize=1.6, ldy=6.0)
-
 # ---------------------------------------------------------------- tracks
-x0 = sx0 + SCW + 1
+x0 = 6 + INW + 1
 TW = OX - 1 - x0
 DRW = 63
 OTW = (TW - DRW) / 3
@@ -269,6 +252,17 @@ if PREVIEW:
     _cache = {}
 
     def img(name, x, y, layer=""):
+        if not HAVE_CL:  # no Rack tree at hand: simple stand-ins
+            if layer:
+                return
+            if name == "PJ301M":
+                out.insert(-1, f'<circle cx="{x}" cy="{y}" r="3.1" fill="#c9cbd1"/><circle cx="{x}" cy="{y}" r="2.2" fill="#8d9097"/><circle cx="{x}" cy="{y}" r="1.45" fill="#050505"/>')
+            elif name == "VCVBezel":
+                out.insert(-1, f'<circle cx="{x}" cy="{y}" r="3.6" fill="#0d0e11"/>')
+            else:
+                r = {"RoundLargeBlackKnob": 6.1, "RoundBlackKnob": 4.8, "Trimpot": 3.0}.get(name, 3.84)
+                out.insert(-1, f'<circle cx="{x}" cy="{y}" r="{r}" fill="#141417" stroke="#2c2d33" stroke-width="0.4"/><line x1="{x}" y1="{y - r * 0.9:.2f}" x2="{x}" y2="{y - r * 0.35:.2f}" stroke="#eee" stroke-width="0.6" stroke-linecap="round"/>')
+            return
         fn = f"{CL}/{name}{layer}.svg"
         if fn not in _cache:
             src = open(fn).read()
@@ -288,8 +282,8 @@ if PREVIEW:
         sw, sh = w / PX, h / PX
         out.insert(-1, f'<svg x="{x-sw/2:.3f}" y="{y-sh/2:.3f}" width="{sw:.3f}" height="{sh:.3f}" viewBox="{vbs}">{body}</svg>')
 
-    STORED = "#ff2a1a"  # scene slot holds a pattern (red)
-    lit = {"RUN": "#5dff8a", "LOCK_1": "#b8f23a", "SCENE_0": SCENECOL, "SCENE_1": STORED, "SCENE_2": STORED, "SCENE_5": STORED}
+    lit = {"RUN": "#5dff8a", "LOCK_1": "#b8f23a"}
+    HAVE_CL = os.path.isdir(CL)
     # mock content of the genre fields: (text, follows global?)
     FIELDS = {0: ("GLOBAL", True), 1: ("DUB · STEPPERS", False), 2: ("LO-FI · JAZZY", False), 3: ("AMBIENT · BRIGHT", False)}
     for c in components:
@@ -326,7 +320,7 @@ if PREVIEW:
         act = i == 1
         D.append(f'<rect x="{x}" y="{dy+2.6}" width="16.8" height="6" rx="0.8" fill="{CHORDCOL if act else "#1a1b21"}"/>')
         D.append(f'<text x="{x+8.4}" y="{dy+6.5}" text-anchor="middle" font-family="Inter" font-weight="800" font-size="2.7" fill="{"#0a0a0d" if act else "#8a8d99"}">{ch}</text>')
-    D.append(f'<text x="{cx0}" y="{dy+13}" font-family="DejaVu Sans Mono" font-size="2.4" fill="#8a8d99">BAR 2/4   SCENE 1</text>')
+    D.append(f'<text x="{cx0}" y="{dy+13}" font-family="DejaVu Sans Mono" font-size="2.4" fill="#8a8d99">BAR 2/4</text>')
     D.append(f'<text x="{cx0+4*18-1.2}" y="{dy+13}" text-anchor="end" font-family="DejaVu Sans Mono" font-size="2.4" fill="{CHORDCOL}">BASS LOCKED</text>')
     # lanes with per-track genre labels
     lanes = ["X..x..X.x.X..x.x", "X.......X..X....", "......X..X..X...", "X...............", ]

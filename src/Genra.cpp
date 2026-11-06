@@ -25,13 +25,6 @@ using CyanLight = ColorLight<0x3d, 0xc9, 0xff>;
 using PurpleLight = ColorLight<0xe0, 0x77, 0x9e>;
 using MintLight = ColorLight<0x5d, 0xff, 0x8a>;
 using TealLight = ColorLight<0x4f, 0xd1, 0xbd>;
-// scene slots: yellow = active, red = pattern stored
-struct SceneLight : GrayModuleLightWidget {
-	SceneLight() {
-		addBaseColor(nvgRGB(0xff, 0xd2, 0x3d));
-		addBaseColor(nvgRGB(0xff, 0x2a, 0x1a));
-	}
-};
 
 // ================================================================= shared drawing
 static void drawText(NVGcontext* vg, std::shared_ptr<window::Font> f, float xmm, float ymm, float sizeMm, NVGcolor c, const std::string& s,
@@ -224,15 +217,6 @@ struct GenraDisplay : Widget {
 			int s = std::max(0, m->step);
 			snprintf(buf, sizeof(buf), "BAR %d/%d", s / 16 + 1, L / 16);
 			bar = buf;
-			if (m->activeScene >= 0 || m->pendingScene >= 0) {
-				if (m->pendingScene >= 0 && m->activeScene >= 0)
-					snprintf(buf, sizeof(buf), "   SCENE %d > %d", m->activeScene + 1, m->pendingScene + 1);
-				else if (m->pendingScene >= 0)
-					snprintf(buf, sizeof(buf), "   SCENE > %d", m->pendingScene + 1);
-				else
-					snprintf(buf, sizeof(buf), "   SCENE %d", m->activeScene + 1);
-				bar += buf;
-			}
 			std::vector<std::string> st;
 			if (!m->running)
 				st.push_back("STOP");
@@ -458,14 +442,6 @@ struct GenraWidget : ModuleWidget {
 		out(layout::OUT_ROOT, Genra::ROOT_OUTPUT);
 		out(layout::OUT_CHORD, Genra::CHORD_OUTPUT);
 
-		// scenes
-		const float* scene[NUM_SCENES] = {layout::SCENE_0, layout::SCENE_1, layout::SCENE_2, layout::SCENE_3,
-		                                  layout::SCENE_4, layout::SCENE_5, layout::SCENE_6, layout::SCENE_7};
-		for (int i = 0; i < NUM_SCENES; i++)
-			addParam(createLightParamCentered<VCVLightBezel<SceneLight>>(P(scene[i]), module, Genra::SCENE_PARAM + i, Genra::SCENE_LIGHT + 2 * i));
-		addParam(createLightParamCentered<VCVLightBezelLatch<WhiteLight>>(P(layout::STORE), module, Genra::STORE_PARAM, Genra::STORE_LIGHT));
-		in(layout::IN_SCENE, Genra::SCENE_INPUT);
-		in(layout::IN_NEXT, Genra::NEXT_INPUT);
 
 		// tracks
 		const float* dens[4] = {layout::DENS_0, layout::DENS_1, layout::DENS_2, layout::DENS_3};
@@ -558,7 +534,6 @@ struct GenraWidget : ModuleWidget {
 		                                      [=]() { return (size_t)m->genreCvMode; },
 		                                      [=](size_t v) { m->genreCvMode = (int)v; }));
 		menu->addChild(createMenuItem("Alle Spuren auf Global (folgen GENRE)", "", [=]() { m->resetTracksRequested = true; }));
-		menu->addChild(createMenuItem("Alle Szenen löschen", "", [=]() { m->clearScenesRequested = true; }));
 		menu->addChild(new MenuSeparator);
 		menu->addChild(createIndexSubmenuItem("Clock-Eingang", {CLOCK_MODES[0], CLOCK_MODES[1], CLOCK_MODES[2], CLOCK_MODES[3]},
 		                                      [=]() { return (size_t)m->clockMode; },

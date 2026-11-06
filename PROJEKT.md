@@ -1,6 +1,6 @@
 # GENRA – Projektstand
 
-**Stand:** 6. November 2026 · **Plugin 2.10.0: 15 Module** (GENRA, GRID, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, SCHMELZ, MIX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `CamilloGF/genra-v3`
+**Stand:** 6. November 2026 · **Plugin 2.11.0: 15 Module** (GENRA, GRID, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, SCHMELZ, MIX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `CamilloGF/genra-v3`
 Vorgänger: v1 `CamilloGF/vcv-sequenzer-Genra` (2.0.0), v2 `CamilloGF/Genra-v2` (2.1.0, läuft in Rack)
 Plattform: VCV Rack Pro 2.6.6 unter Windows · Build: GitHub Actions (`.github/workflows/main.yml`)
 
@@ -24,7 +24,7 @@ DJ-Effektpad nach Polyend Play (Perform) und Akai Flex Beat: 16 Pads in 4 Bänke
 - Effekte: Stutter, Halftime, Reverse, Tape Stop, Scratch, Gate, Trance, Pump, Echo Out, Freeze, Bitcrush, Rearrange – je 3 Parameter P1–P3, mit < > umbelegbar, INIT
 - EQ wie DJ-Isolator (LR4, −∞ … +6 dB, Kills, FREQ verschiebt die Mitte, PRE/POST), DJ-Filter (LP links/HP rechts), Drive, Intensity, Mix
 - REC 1 BAR (Loop statt Eingang), TAP, CLOCK/RESET wie GENRA, PADS (poly Gates), KILLS (poly), MIDI-Noten C1–D#2 mit MIDI learn
-- Farben (2.8.1): Jede Spur hat die Farbe ihrer Instrumente – DRUMS blau-violett `#7b6cff` (= DRUM-X), BASS säuregrün `#b8f23a` (= K-WASUB und MONO), MELODY cyan `#3dc9ff` (= FUNKE), PADS rosa `#e0779e` (= SCHMELZ); SCENES gelb `#ffd23d`. Gilt auch für GRID, MIX und die STOTTER-Pads.
+- Farben (2.8.1): Jede Spur hat die Farbe ihrer Instrumente – DRUMS blau-violett `#7b6cff` (= DRUM-X), BASS säuregrün `#b8f23a` (= K-WASUB und MONO), MELODY cyan `#3dc9ff` (= FUNKE), PADS rosa `#e0779e` (= SCHMELZ). Gilt auch für GRID, MIX und die STOTTER-Pads.
 - K-WASUB (2.8.0): PRESET-Feld statt ◀ ▶, Liste nach Stil sortiert (Kern-API 2: `preset_style`)
 - Dateien: `src/stotter/StotterDsp.hpp` (Engine, Test `test/test_stotter.cpp`), `src/stotter/Stotter.cpp`, `tools/stotter_panel.py` → `res/Stotter.svg` + `src/stotter/StotterLayout.hpp` (30 HP)
 
@@ -123,11 +123,12 @@ DJ-Effektpad nach Polyend Play (Perform) und Akai Flex Beat: 16 Pads in 4 Bänke
 **Als Nächstes**
 - [x] 13 neue Genres (Stufe 1, mit vorhandenen Engine-Mitteln), hinten angehängt (Genre 24–36, Profile 46–82), Familien Afro / Techno Styles / Latin & Club; GENRE-CV 0–10 V verteilt jetzt alle 37 Genres: Afrobeat, Afrobeats, Amapiano, Afro House · Dub Techno, Melodic Techno, Hard/Industrial Techno, Tech House, Detroit Techno · Baile Funk, Reggaeton, Footwork, Breakcore
 - [ ] Genre-Stufe 2 (Engine): Pad-Echo (Dub Techno), Melodie-Stil CHOP, Kick-Fill, Log-Drum-Bass, Bass folgt Tom-Spur, Gabber-Kick-Layer
-- [ ] Später: Länge pro Spur (Polymeter), Szenen verketten (Song-Modus), Seed merken, Mikro-Timing
+- [ ] Später: Länge pro Spur (Polymeter), Seed merken, Mikro-Timing
+- **2.11.0:** Szenen entfernt (8 Taster, STORE, SCENE CV, NEXT), Panel 58 HP. Parameter/Lichter waren am Listenende und sind ganz weg; die beiden Eingänge bleiben als `UNUSED_SCENE_INPUT`/`UNUSED_NEXT_INPUT` in der Liste, damit SWING, BPM und LENGTH ihre Ids behalten. Gespeicherte Szenen im Patch werden ignoriert. Nachfolger: eigenes Song-Modul (Arbeitsname ABLAUF, Konzept offen).
 - [ ] Ganz am Schluss: alle Genres nach Gehör feinschleifen
 
 **Offen**
-- [ ] Test in Rack (v3.1: neue Ausgänge, Szenen-Farben, CHANCE, Mehrfachauswahl) (Genre-Feld-Menü, CV-Eingänge, Szenen, v2-Patch laden)
+- [ ] Test in Rack (v3.1: neue Ausgänge, Szenen-Farben, CHANCE, Mehrfachauswahl) (Genre-Feld-Menü, CV-Eingänge, v2-Patch laden)
 - [ ] Länge pro Spur (Polymeter) – zurückgestellt: tonale Spuren müssten Akkorde über den echten Step statt den umgebrochenen lesen
 - [ ] Genres überarbeiten (eigene spätere Version), Genres aus MIDI lernen
 
