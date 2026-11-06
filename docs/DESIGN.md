@@ -24,6 +24,9 @@ bedient wie die anderen. Stand: Plugin 2.15.2.
 - **Ausgänge** auf farbigen Platten (Akzent auf der Platte gemischt), Eingänge ohne Platte; Ein- und Ausgänge farblich
   klar getrennt. Audio-Ausgänge L/R unten rechts.
 - Breite nach Inhalt, so schmal wie sinnvoll.
+- **Expander** (z. B. GRUND FX): eine Sektion pro Reihe, kleine Regler; die CV-Buchsen sitzen **in ihrer Sektion** rechts
+  auf einem dunklen Feld (keine Buchsenleiste unten). Ein/Aus-Taster links oben in jeder Sektion, LINK-Anzeige im Kopf.
+  Instrumente selbst behalten die GENRA-Leiste unten.
 
 ## Buchsen
 
