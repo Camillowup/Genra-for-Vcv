@@ -2,7 +2,9 @@
 // GENRA MONO – monophonic bass synth after the Moog Minitaur, in the look of MONK and the JIANT voices (accent: turquoise).
 // Sound engine: MonoDsp.hpp. Panel: tools/mono_panel.py (res/GenraMono.svg + MonoLayout.hpp).
 #include "../plugin.hpp"
+#include <cctype>
 #include "MonoDsp.hpp"
+#include "MonoPresets.hpp"
 #include "MonoLayout.hpp"
 
 namespace genra_mono {
@@ -44,6 +46,122 @@ struct GenraMono : Module {
 	gmono::Voice voice;
 	gmono::Params p;
 	bool gate = false;
+
+	// ---- presets: the factory list (gmono::PRESETS), then the user presets from userDir()
+	struct UserPreset {
+		std::string name;
+		float v[NUM_PARAMS];
+	};
+	std::vector<UserPreset> user;
+	int preset = -1;            // index into factory + user list, -1 = none (INIT)
+	std::string presetName;     // a user preset is remembered by name, the list may change
+	float loaded[NUM_PARAMS];   // the values as loaded, to show when a knob has moved since
+
+	static std::string userDir() { return asset::user("Genra/MonoPresets"); }
+	int count() { return gmono::NUM_PRESETS + (int) user.size(); }
+	std::string nameOf(int i) {
+		if (i < 0 || i >= count())
+			return "INIT";
+		return i < gmono::NUM_PRESETS ? gmono::PRESETS[i].name : user[i - gmono::NUM_PRESETS].name;
+	}
+	void valuesOf(int i, float* v) {
+		if (i < gmono::NUM_PRESETS)
+			gmono::PRESETS[i].values(v);
+		else
+			std::copy(user[i - gmono::NUM_PRESETS].v, user[i - gmono::NUM_PRESETS].v + NUM_PARAMS, v);
+	}
+	void rememberLoaded() {
+		for (int i = 0; i < NUM_PARAMS; i++)
+			loaded[i] = params[i].getValue();
+	}
+	/** True when a knob was moved since the preset was loaded. */
+	bool edited() {
+		if (preset < 0)
+			return false;
+		for (int i = 0; i < NUM_PARAMS; i++)
+			if (std::fabs(params[i].getValue() - loaded[i]) > 1e-4f)
+				return true;
+		return false;
+	}
+	/** Loads preset i (undoable). */
+	void load(int i) {
+		if (i < 0 || i >= count())
+			return;
+		json_t* oldJ = toJson();
+		float v[NUM_PARAMS];
+		valuesOf(i, v);
+		for (int k = 0; k < NUM_PARAMS; k++)
+			params[k].setValue(v[k]);
+		preset = i;
+		presetName = nameOf(i);
+		rememberLoaded();
+		history::ModuleChange* h = new history::ModuleChange;
+		h->name = "load preset " + presetName;
+		h->moduleId = id;
+		h->oldModuleJ = oldJ;
+		h->newModuleJ = toJson();
+		APP->history->push(h);
+	}
+	int step(int d) {
+		int n = count();
+		return preset < 0 ? (d > 0 ? 0 : n - 1) : (preset + d + n) % n;
+	}
+
+	void scanUser() {
+		user.clear();
+		std::string dir = userDir();
+		if (!system::isDirectory(dir))
+			return;
+		std::vector<std::string> files = system::getEntries(dir);
+		std::sort(files.begin(), files.end());
+		for (const std::string& f : files) {
+			if (system::getExtension(f) != ".json")
+				continue;
+			json_t* j = json_load_file(f.c_str(), 0, nullptr);
+			if (!j)
+				continue;
+			json_t* nameJ = json_object_get(j, "name");
+			json_t* valsJ = json_object_get(j, "params");
+			if (json_is_string(nameJ) && json_is_array(valsJ) && (int) json_array_size(valsJ) == NUM_PARAMS) {
+				UserPreset u;
+				u.name = json_string_value(nameJ);
+				for (int i = 0; i < NUM_PARAMS; i++)
+					u.v[i] = (float) json_number_value(json_array_get(valsJ, i));
+				user.push_back(u);
+			}
+			json_decref(j);
+		}
+		// keep pointing at the same user preset
+		if (preset >= gmono::NUM_PRESETS) {
+			preset = -1;
+			for (size_t i = 0; i < user.size(); i++)
+				if (user[i].name == presetName)
+					preset = gmono::NUM_PRESETS + i;
+		}
+	}
+	/** Saves the knobs as a user preset (an existing one with the same name is replaced) and selects it. */
+	void saveUser(std::string name) {
+		name = string::trim(name);
+		if (name.empty())
+			return;
+		name = string::uppercase(name);
+		std::string file;
+		for (char c : name)
+			file += std::isalnum((unsigned char) c) ? (char) std::tolower(c) : '_';
+		system::createDirectories(userDir());
+		json_t* j = json_object();
+		json_object_set_new(j, "name", json_string(name.c_str()));
+		json_t* a = json_array();
+		for (int i = 0; i < NUM_PARAMS; i++)
+			json_array_append_new(a, json_real(params[i].getValue()));
+		json_object_set_new(j, "params", a);
+		json_dump_file(j, system::join(userDir(), file + ".json").c_str(), JSON_INDENT(2));
+		json_decref(j);
+		presetName = name;
+		preset = gmono::NUM_PRESETS;  // so scanUser looks the name up
+		scanUser();
+		rememberLoaded();
+	}
 
 	GenraMono() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, 0);
@@ -93,6 +211,34 @@ struct GenraMono : Module {
 		configInput(EXT_INPUT, "External audio into the filter");
 		configOutput(LFO_OUTPUT, "LFO");
 		configOutput(AUDIO_OUTPUT, "Audio");
+		rememberLoaded();
+		scanUser();
+	}
+
+	json_t* dataToJson() override {
+		json_t* j = json_object();
+		json_object_set_new(j, "preset", json_string(preset < 0 ? "" : presetName.c_str()));
+		json_t* a = json_array();
+		for (int i = 0; i < NUM_PARAMS; i++)
+			json_array_append_new(a, json_real(loaded[i]));
+		json_object_set_new(j, "loaded", a);
+		return j;
+	}
+	void dataFromJson(json_t* j) override {
+		json_t* pJ = json_object_get(j, "preset");
+		preset = -1;
+		presetName = json_is_string(pJ) ? json_string_value(pJ) : "";
+		for (int i = 0; i < count() && !presetName.empty(); i++)
+			if (nameOf(i) == presetName) {
+				preset = i;
+				break;
+			}
+		json_t* a = json_object_get(j, "loaded");
+		if (json_is_array(a) && (int) json_array_size(a) == NUM_PARAMS)
+			for (int i = 0; i < NUM_PARAMS; i++)
+				loaded[i] = (float) json_number_value(json_array_get(a, i));
+		else
+			rememberLoaded();
 	}
 
 	void onSampleRateChange(const SampleRateChangeEvent& e) override { voice.setSampleRate(e.sampleRate); }
@@ -100,6 +246,9 @@ struct GenraMono : Module {
 		Module::onReset(e);
 		voice = gmono::Voice();
 		voice.setSampleRate(APP->engine->getSampleRate());
+		preset = -1;
+		presetName.clear();
+		rememberLoaded();
 	}
 
 	void process(const ProcessArgs& args) override {
@@ -217,6 +366,96 @@ struct FilterField : app::ParamWidget {
 	}
 };
 
+/** The preset list: one submenu per style, the user presets at the end; the one playing ticked. */
+static void appendPresets(Menu* menu, GenraMono* m) {
+	for (int i = 0; i < gmono::NUM_PRESETS;) {
+		std::string st = gmono::PRESETS[i].style;
+		int j = i;
+		while (j < gmono::NUM_PRESETS && st == gmono::PRESETS[j].style)
+			j++;
+		bool here = m->preset >= i && m->preset < j;
+		menu->addChild(createSubmenuItem(st, here ? "✔" : "", [=](Menu* sub) {
+			for (int k = i; k < j; k++)
+				sub->addChild(createCheckMenuItem(string::f("%02d  %s", k + 1, gmono::PRESETS[k].name), "",
+				                                  [=]() { return m->preset == k; }, [=]() { m->load(k); }));
+		}));
+		i = j;
+	}
+	bool here = m->preset >= gmono::NUM_PRESETS;
+	menu->addChild(createSubmenuItem("USER", here ? "✔" : string::f("%d", (int) m->user.size()), [=](Menu* sub) {
+		if (m->user.empty())
+			sub->addChild(createMenuLabel("Save one with right-click → Save preset as …"));
+		for (int k = gmono::NUM_PRESETS; k < m->count(); k++)
+			sub->addChild(createCheckMenuItem(m->nameOf(k), "", [=]() { return m->preset == k; }, [=]() { m->load(k); }));
+	}));
+}
+
+/** The preset field in the header: number and name (a dot when a knob has moved), click = list, wheel = step. */
+struct PresetField : OpaqueWidget {
+	GenraMono* module = nullptr;
+	void onButton(const ButtonEvent& e) override {
+		if (e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_LEFT && module) {
+			module->scanUser();
+			Menu* menu = createMenu();
+			menu->addChild(createMenuLabel("Preset"));
+			appendPresets(menu, module);
+			e.consume(this);
+			return;
+		}
+		OpaqueWidget::onButton(e);
+	}
+	void onHoverScroll(const HoverScrollEvent& e) override {
+		if (module && e.scrollDelta.y != 0.f) {
+			module->load(module->step(e.scrollDelta.y < 0.f ? 1 : -1));
+			e.consume(this);
+			return;
+		}
+		OpaqueWidget::onHoverScroll(e);
+	}
+	void draw(const DrawArgs& args) override {}
+	void drawLayer(const DrawArgs& args, int layer) override {
+		if (layer == 1) {
+			std::shared_ptr<window::Font> f = boldFont();
+			if (f && f->handle >= 0) {
+				NVGcontext* vg = args.vg;
+				int idx = module ? module->preset : 0;
+				std::string name = module ? module->nameOf(idx) : gmono::PRESETS[0].name;
+				std::string num = idx < 0 ? "--" : idx >= gmono::NUM_PRESETS ? "U" : string::f("%02d", idx + 1);
+				float y = box.size.y / 2 + 0.5f;
+				nvgFontFaceId(vg, f->handle);
+				nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE);
+				nvgFontSize(vg, 6.4f);
+				nvgTextLetterSpacing(vg, 0.8f);
+				nvgFillColor(vg, ACCENT);
+				nvgText(vg, mm2px(2.f), y, num.c_str(), nullptr);
+				nvgFontSize(vg, 7.6f);
+				nvgTextLetterSpacing(vg, 0.9f);
+				nvgFillColor(vg, TXT);
+				float end = nvgText(vg, mm2px(6.2f), y, name.c_str(), nullptr);
+				if (module && module->edited()) {
+					nvgBeginPath(vg);
+					nvgCircle(vg, end + mm2px(1.4f), y, mm2px(0.55f));
+					nvgFillColor(vg, ACCENT);
+					nvgFill(vg);
+				}
+			}
+		}
+		OpaqueWidget::drawLayer(args, layer);
+	}
+};
+
+/** The name field of "Save preset as …": Enter saves. */
+struct SaveField : ui::TextField {
+	GenraMono* module = nullptr;
+	void onAction(const ActionEvent& e) override {
+		if (module)
+			module->saveUser(text);
+		if (ui::MenuOverlay* o = getAncestorOfType<ui::MenuOverlay>())
+			o->requestDelete();
+		e.consume(this);
+	}
+};
+
 struct GenraMonoWidget : ModuleWidget {
 	GenraMonoWidget(GenraMono* module) {
 		setModule(module);
@@ -240,6 +479,11 @@ struct GenraMonoWidget : ModuleWidget {
 		FilterField* field = createParam<FilterField>(mm2px(Vec(L::FIELD[0], L::FIELD[1])), module, M::FTYPE_PARAM);
 		field->box.size = mm2px(Vec(L::FIELD[2], L::FIELD[3]));
 		addParam(field);
+
+		PresetField* pf = createWidget<PresetField>(mm2px(Vec(L::PFIELD[0], L::PFIELD[1])));
+		pf->box.size = mm2px(Vec(L::PFIELD[2], L::PFIELD[3]));
+		pf->module = module;
+		addChild(pf);
 		addParam(createParamCentered<RoundLargeBlackKnob>(P(L::CUTOFF), module, M::CUTOFF_PARAM));
 		knob(L::RES, M::RES_PARAM);
 		knob(L::EGAMT, M::EGAMT_PARAM);
@@ -270,6 +514,22 @@ struct GenraMonoWidget : ModuleWidget {
 		if (!m)
 			return;
 		menu->addChild(new MenuSeparator);
+		m->scanUser();
+		menu->addChild(createSubmenuItem("Preset", m->nameOf(m->preset), [=](Menu* sub) { appendPresets(sub, m); }));
+		menu->addChild(createSubmenuItem("Save preset as …", "", [=](Menu* sub) {
+			SaveField* tf = new SaveField;
+			tf->module = m;
+			tf->box.size.x = 160.f;
+			tf->placeholder = "Name, Enter saves";
+			tf->text = m->preset >= gmono::NUM_PRESETS ? m->presetName : "";
+			sub->addChild(tf);
+			APP->event->setSelectedWidget(tf);
+		}));
+		menu->addChild(createMenuItem("Open user preset folder", "", [=]() {
+			system::createDirectories(GenraMono::userDir());
+			system::openDirectory(GenraMono::userDir());
+		}));
+		menu->addChild(new MenuSeparator);
 		menu->addChild(createIndexSubmenuItem(
 		    "Filter type",
 		    std::vector<std::string>(gmono::FILTER_NAMES, gmono::FILTER_NAMES + gmono::NUM_FILTERS),
@@ -278,6 +538,7 @@ struct GenraMonoWidget : ModuleWidget {
 		menu->addChild(new MenuSeparator);
 		menu->addChild(createMenuLabel("Monophonic bass synth after the Moog Minitaur"));
 		menu->addChild(createMenuLabel("Click or scroll the filter field to change the filter type"));
+		menu->addChild(createMenuLabel("Click or scroll the preset field to change the preset"));
 	}
 };
 

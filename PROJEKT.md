@@ -158,6 +158,8 @@ GENRA MONO: `g++ -std=c++17 -O2 test/test_mono.cpp -o tm && ./tm`
 - Filtertyp als Parameter `FTYPE` (speicherbar, Undo), Auswahl über das Feld (Klick = Liste, Mausrad) oder Rechtsklick-Menü.
 - Test `test/test_mono.cpp`: Tonhöhe, TUNE, alle Filter bei voller Resonanz/Drive stabil, Selbstoszillation (Ladder, Diode, MS-20; SEM nicht), Bassausgleich, Hüllkurvenzeiten.
 - [ ] Klangtest in Rack, Feinschliff nach Gehör (Lautstärke-Ausgleich zwischen den Filtertypen, Kurven von DRIVE und EG AMT).
+- **Presets (2.9.0):** PRESET-Feld im Kopf (`PFIELD` aus `tools/mono_panel.py`, Klick = Liste mit Untermenü pro Stil, Mausrad), 23 Werks-Presets in `src/mono/MonoPresets.hpp` (Werte in ParamId-Reihenfolge, Liste muss zu `PRESETS` in `tools/mono_panel.py` passen), Laden mit Undo, Punkt bei geänderten Reglern (Vergleich mit den geladenen Werten, im Patch gespeichert). User-Presets als JSON in `Rack2/Genra/MonoPresets/` (Rechtsklick → Save preset as …, gleicher Name ersetzt). Test spielt eine Basslinie durch jedes Preset (klingt, bleibt unter 6 V, klingt aus). Vorschau mit Liste: `python3 tools/mono_panel.py preview out.png <Rack> presets`.
+- [ ] Presets in Rack anhören, nach Gehör nachstellen.
 
 ## FUNKE (2.7.0) – Stand 6. November 2026
 - Melodiestimme für GENRAs Melodiespur, 30 HP, Akzent cyan `#3dc9ff` (in `tools/funke_panel.py` und

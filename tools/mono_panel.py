@@ -21,8 +21,9 @@ from fontTools.ttLib import TTFont
 MODE = sys.argv[1] if len(sys.argv) > 1 else "real"
 PREVIEW = MODE == "preview"
 MENU = PREVIEW and "menu" in sys.argv[3:]
+PMENU = PREVIEW and "presets" in sys.argv[3:]
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-RACK = sys.argv[3] if PREVIEW and len(sys.argv) > 3 and sys.argv[3] != "menu" else os.path.join(ROOT, "..", "ext", "Rack")
+RACK = sys.argv[3] if PREVIEW and len(sys.argv) > 3 and sys.argv[3] not in ("menu", "presets") else os.path.join(ROOT, "..", "ext", "Rack")
 CL = os.path.join(RACK, "res", "ComponentLibrary")
 
 HP = 28
@@ -40,6 +41,15 @@ KIND = {"small": "RoundSmallBlackKnob", "knob": "RoundBlackKnob", "large": "Roun
 FILTERS = [("LADDER 24", "Moog-style LP"), ("LADDER 12", "Moog-style LP, 2-pole"), ("DIODE", "303-style LP"),
            ("MS-20", "Sallen-Key LP"), ("SVF LP", "Oberheim SEM"), ("SVF BP", "Oberheim SEM"),
            ("SVF HP", "Oberheim SEM"), ("OTA", "Juno-style LP")]
+
+# the factory presets by style, in list order (keep in step with src/mono/MonoPresets.hpp) - preview only
+PRESETS = [("SUB", ["DEEP SUB", "DUB SUB", "808 GLIDE", "ROUND SUB"]),
+           ("CLASSIC", ["TAURUS", "FAT MOOG", "FUNK PLUCK", "SYNTHWAVE"]),
+           ("GARAGE · 2-STEP", ["ORGAN BASS", "2-STEP BOUNCE", "SPEED REESE"]),
+           ("DUB · DUBSTEP · GRIME", ["REESE", "WOBBLE", "GRIME SQUARE"]),
+           ("ACID", ["ACID 303", "SQUELCH", "RUBBER"]),
+           ("HOUSE · TECHNO · ELECTRO", ["DEEP HOUSE", "MINIMAL BLIP", "ELECTRO ZAP"]),
+           ("HIP-HOP · LO-FI", ["BOOM BAP", "LO-FI ROUND", "TRIP-HOP"])]
 
 FONT_DIR = "/usr/share/fonts/opentype/inter/"
 FONTS = {400: "Inter-Regular.otf", 500: "Inter-Medium.otf", 600: "Inter-SemiBold.otf", 700: "Inter-Bold.otf",
@@ -127,6 +137,13 @@ e(f'<rect width="{W:.2f}" height="{H}" fill="{BG}"/>')
 text(12.9, 7.6, "MONO", 5.1, TITLE, 800, "start", 1.08)
 text(12.9 + width("MONO", 5.1, 800, 1.08) + 3.4, 7.45, "GENRA · TAURUS-STYLE BASS", 1.76, DIM, 600, "start", 0.47)
 e(f'<rect x="{W - 27.1:.2f}" y="5.55" width="11.5" height="1.08" rx="0.54" fill="{ACC}"/>')
+# the preset selector in the header: the module writes number and name (+ a dot when edited), click = list, wheel = step
+PFIELD = (77.5, 3.3, 34.0, 5.4)
+e(f'<rect x="{PFIELD[0]}" y="{PFIELD[1]}" width="{PFIELD[2]}" height="{PFIELD[3]}" rx="0.9" fill="{DARK}" '
+  f'stroke="{LINE}" stroke-width="0.4"/>')
+pcx = PFIELD[0] + PFIELD[2] - 3
+e(f'<polyline points="{pcx - 1.2:.2f},{PFIELD[1] + 2.1} {pcx:.2f},{PFIELD[1] + 3.4} {pcx + 1.2:.2f},{PFIELD[1] + 2.1}" '
+  f'fill="none" stroke="{ACC}" stroke-width="0.4" stroke-linecap="round" stroke-linejoin="round"/>')
 
 # ---------------------------------------------------------------- oscillators: per VCO wave, tune, level; glide
 ow = 65.16
@@ -192,6 +209,7 @@ if not PREVIEW:
     for kind, n, x, y in comps:
         lines.append(f"static const float {n}[2] = {{{x:.3f}f, {y:.3f}f}};")
     lines.append(f"static const float FIELD[4] = {{{FIELD[0]:.3f}f, {FIELD[1]:.3f}f, {FIELD[2]:.3f}f, {FIELD[3]:.3f}f}};")
+    lines.append(f"static const float PFIELD[4] = {{{PFIELD[0]:.3f}f, {PFIELD[1]:.3f}f, {PFIELD[2]:.3f}f, {PFIELD[3]:.3f}f}};")
     lines.append(f"static const int HP = {HP};")
     lines.append("}")
     os.makedirs(os.path.join(ROOT, "src", "mono"), exist_ok=True)
@@ -253,6 +271,26 @@ if MENU:
                            f'fill="{ACC}" fill-opacity="0.22"/>')
         ptext(FIELD[0] + 2.5, y + 3.4, nm, 1.8, ACC if i == 0 else TXT, 700, "start", 0.3)
         ptext(FIELD[0] + FIELD[2] - 2, y + 3.4, d, 1.5, DIM, 500, "end", 0.2)
+ptext(PFIELD[0] + 2, PFIELD[1] + 3.55, "01", 1.6, ACC, 700, "start", 0.3)
+ptext(PFIELD[0] + 6.2, PFIELD[1] + 3.55, PRESETS[0][1][0], 1.9, TXT, 700, "start", 0.35)
+if PMENU:
+    y0 = PFIELD[1] + PFIELD[3] + 0.4
+    rows = sum(1 + len(n) for _, n in PRESETS)
+    mw = 46
+    out.insert(-1, f'<rect x="{PFIELD[0]:.2f}" y="{y0}" width="{mw}" height="{rows * 3.7 + 1}" rx="0.9" '
+                   f'fill="#101115" stroke="{ACC}" stroke-width="0.35"/>')
+    y, k = y0 + 0.5, 0
+    for style, names in PRESETS:
+        ptext(PFIELD[0] + 2, y + 2.7, style, 1.35, ACC, 800, "start", 0.45)
+        y += 3.7
+        for nm in names:
+            k += 1
+            if k == 1:
+                out.insert(-1, f'<rect x="{PFIELD[0] + 0.5}" y="{y}" width="{mw - 1}" height="3.7" rx="0.5" '
+                               f'fill="{ACC}" fill-opacity="0.22"/>')
+            ptext(PFIELD[0] + 3, y + 2.6, f"{k:02d}", 1.4, DIM, 600, "start", 0.2)
+            ptext(PFIELD[0] + 7.5, y + 2.6, nm, 1.6, ACC if k == 1 else TXT, 700, "start", 0.3)
+            y += 3.7
 svg = sys.argv[2].rsplit(".", 1)[0] + ".svg"
 open(svg, "w").write("\n".join(out))
 subprocess.run(["rsvg-convert", "-w", "1100", svg, "-o", sys.argv[2]], check=True)

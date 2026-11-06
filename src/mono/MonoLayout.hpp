@@ -37,5 +37,6 @@ static const float IN_EXT[2] = {96.400f, 114.600f};
 static const float OUT_LFO[2] = {119.240f, 114.600f};
 static const float OUT_AUDIO[2] = {131.240f, 114.600f};
 static const float FIELD[4] = {73.160f, 20.600f, 63.080f, 5.400f};
+static const float PFIELD[4] = {77.500f, 3.300f, 34.000f, 5.400f};
 static const int HP = 28;
 }

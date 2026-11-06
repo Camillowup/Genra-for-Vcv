@@ -1,6 +1,6 @@
 // GENRA MONO engine: pitch, stability of every filter at full resonance and drive, self-oscillation, envelopes.
 // g++ -O2 -std=c++17 test/test_mono.cpp -o /tmp/test_mono && /tmp/test_mono
-#include "../src/mono/MonoDsp.hpp"
+#include "../src/mono/MonoPresets.hpp"
 #include <cstdio>
 #include <vector>
 using namespace gmono;
@@ -164,6 +164,44 @@ int main() {
 		for (int i = 0; i < fs; i++)
 			e.process(false, 0.1f, 1.f, 0.5f, 0.2f, dt);
 		CHECK(e.v == 0.f && e.stage == 0, "release does not end");
+	}
+	// 6. presets: a bass line (C1 … C3, short and long notes) through every preset: sounds, stays in range, ends
+	{
+		const float notes[] = {-3.f, -3.f, -2.f, -2.58f, -1.f, -3.f, -2.42f, -2.f};
+		for (int k = 0; k < NUM_PRESETS; k++) {
+			const Preset& pr = PRESETS[k];
+			Params p = pr.params();
+			Voice v;
+			v.setSampleRate(fs);
+			Inputs in;
+			std::vector<float> o;
+			float l, peak = 0.f;
+			bool finite = true;
+			for (int n = 0; n < 8; n++) {
+				in.voct = notes[n];
+				int len = (int) (fs * (n % 3 == 2 ? 0.6f : 0.18f));
+				for (int i = 0; i < (int) (fs * 0.25f); i++) {
+					in.gate = i < len;
+					float s;
+					v.process(p, in, s, l);
+					finite &= std::isfinite(s);
+					peak = std::max(peak, std::fabs(s));
+					o.push_back(s);
+				}
+			}
+			float r = rms(o, 0);
+			in.gate = false;
+			std::vector<float> tail(fs * 3);
+			for (auto& s : tail)
+				v.process(p, in, s, l);
+			float end = rms(tail, fs * 2.5f);
+			printf("preset %2d %-14s rms %.2f V  peak %.2f V\n", k + 1, pr.name, r, peak);
+			CHECK(finite, "preset %s not finite", pr.name);
+			CHECK(r > 0.2f && peak > 1.5f, "preset %s too quiet (rms %.2f V, peak %.2f V)", pr.name, r, peak);
+			CHECK(peak < 6.f, "preset %s too loud (%.2f V)", pr.name, peak);
+			CHECK(end < 0.01f, "preset %s does not end (%.3f V)", pr.name, end);
+			CHECK(pr.ftype >= 0 && pr.ftype < NUM_FILTERS, "preset %s filter", pr.name);
+		}
 	}
 	printf("mono fails=%d\n", fails);
 	return fails;
