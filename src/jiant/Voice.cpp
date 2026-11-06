@@ -230,6 +230,7 @@ struct Voice : Module {
 			int n = std::max(1, (int) core.api->npresets());
 			preset = ((preset % n) + n) % n;
 			core.api->load_preset(preset);
+			textDirty = true; // the text loaded with it, not the preset's
 			for (int& s : sent)
 				s = INT32_MIN; // the knobs' values follow in the next block
 			shownPreset = preset;

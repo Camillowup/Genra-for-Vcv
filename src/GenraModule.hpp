@@ -690,12 +690,13 @@ struct Genra : Module {
 				lastTarget[t] = tgt;
 				continue;
 			}
-			bool locked = params[LOCK_PARAM + t].getValue() > 0.5f;
 			if (sel)
 				pendingTrack[t] = true; // new choice in the genre field (also back to Global)
-			if (ownPrev[t] && !own && !locked)
+			if (params[LOCK_PARAM + t].getValue() > 0.5f)
+				continue; // locked: CV changes wait; unlocked, they are caught up
+			if (ownPrev[t] && !own)
 				pendingTrack[t] = true; // CV unplugged -> back to the global genre
-			if (own && tgt != lastTarget[t] && !locked)
+			if (own && tgt != lastTarget[t])
 				pendingTrack[t] = true; // the track's genre CV moved to another genre
 			lastTarget[t] = tgt;
 			ownPrev[t] = own;

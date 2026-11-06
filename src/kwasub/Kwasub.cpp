@@ -537,7 +537,15 @@ struct Kwasub : Module {
 			}
 			gate[c] = g;
 		}
-		// clock → tempo, reset → the bar
+		// reset → the bar (first: with a clock edge in the same sample, the gap before the reset is no period)
+		float rs = inputs[RESET_INPUT].getVoltage();
+		bool rh = rs >= 1.f ? true : (rs <= 0.1f ? false : rstHigh);
+		if (rh && !rstHigh) {
+			a->sync();
+			clkSamples = 1e9;
+		}
+		rstHigh = rh;
+		// clock → tempo
 		float cl = inputs[CLOCK_INPUT].getVoltage();
 		bool h = cl >= 1.f ? true : (cl <= 0.1f ? false : clkHigh);
 		clkSamples += 1.0;
@@ -551,13 +559,6 @@ struct Kwasub : Module {
 			clkSamples = 0.0;
 		}
 		clkHigh = h;
-		float rs = inputs[RESET_INPUT].getVoltage();
-		bool rh = rs >= 1.f ? true : (rs <= 0.1f ? false : rstHigh);
-		if (rh && !rstHigh) {
-			a->sync();
-			clkSamples = 1e9; // the gap before a reset is not a clock period
-		}
-		rstHigh = rh;
 	}
 	void controllers() {
 		const kw_api* a = core.api;
@@ -692,7 +693,7 @@ struct Kwasub : Module {
 			// a CV is up must not bake it into the sound
 			std::vector<char> fromKnob(core.api->np(), 0);
 			for (const Bind& b : binds)
-				if (b.kind == PATCH && b.fw >= 0 && b.fw < (int) fromKnob.size())
+				if (b.kind == PATCH && b.fw >= 0 && b.fw < (int) fromKnob.size() && b.fw != kwid::OT_AMT) // (OT_AMT: its 0 = MULTIBAND off)
 					fromKnob[b.fw] = 1;
 			for (uint32_t id = 0; id < core.api->np(); id++)
 				json_array_append_new(p, json_integer(fromKnob[id] && std::isfinite(base[id]) ? (int) std::lround(base[id])

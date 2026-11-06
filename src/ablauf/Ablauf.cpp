@@ -750,7 +750,7 @@ struct Ablauf : Module {
 	void songStep(Genra* g) {
 		if (!song.playing)
 			return;
-		if (!g->running && song.row >= 0) { // stopped on GENRA itself: the marker stays on the row that played
+		if (!g->running && song.row >= 0 && !(song.waitId && g->cueDone.load() == song.waitId)) { // stopped on GENRA itself: the marker stays on the row that played
 			if (song.waitId)
 				g->cueCancel();
 			setRow(song.row);
@@ -779,7 +779,7 @@ struct Ablauf : Module {
 			song.row = song.cuedRow;
 			song.rowStart = g->rowStartPub.load();
 			song.rowBars = song.cuedBars;
-			if (song.cuedJump)
+			if (song.cuedJump || song.jumpRow == song.cuedRow)
 				song.jumpRow = -1; // (a regular next row does not cancel a NEXT / ROW CV jump asked for meanwhile)
 			if (song.row >= (int)rows.size()) { // rows deleted while it waited: go on after it
 				song.row = -1;
