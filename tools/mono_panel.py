@@ -154,7 +154,8 @@ for row, y in ((1, 27.0), (2, 45.0)):
     knob(f"TUNE{row}", 35, y, "TUNE")
     knob(f"LEVEL{row}", 49, y, "LEVEL")
 e(f'<line x1="56.5" y1="21" x2="56.5" y2="55" stroke="{LINE}" stroke-width="0.3"/>')
-knob("GLIDE", 62.3, 36, "GLIDE", "small")
+knob("GLIDE", 62.3, 27.5, "GLIDE", "small")
+knob("ACCENT", 62.3, 45.5, "ACCENT", "small")
 
 # ---------------------------------------------------------------- filter
 fx = 3 + ow + 2
@@ -185,21 +186,31 @@ for i, l in enumerate("ADSR"):
 e(f'<line x1="{mid:.2f}" y1="68" x2="{mid:.2f}" y2="83" stroke="{LINE}" stroke-width="0.3"/>')
 
 # ---------------------------------------------------------------- lfo
-section(3, 88, W - 6, 17.5, "LFO")
-knob("RATE", 26, 97.6, "RATE", "small")
-switch("LFOWAVE", 50, 97.6, "TRI", "SQR")
-knob("LFOPITCH", 92, 97.6, "> PITCH", "small")
-knob("LFOFILT", 116, 97.6, "> FILTER", "small")
+lw = 98
+section(3, 88, lw, 17.5, "LFO")
+knob("RATE", 13, 97.6, "RATE", "small")
+switch("LFOWAVE", 27, 97.6, "TRI", "SQR")
+knob("LFOPITCH", 40, 97.6, "> PITCH", "small")
+knob("LFOFILT", 64, 97.6, "> FILTER", "small")
+e(f'<line x1="72.5" y1="92" x2="72.5" y2="103.5" stroke="{LINE}" stroke-width="0.3"/>')
+jack("IN_RETRIG", 80, 97.0, "RETRIG")
+jack("IN_SYNC", 93, 97.0, "SYNC")
+section(3 + lw + 2, 88, W - 3 - (3 + lw + 2), 17.5, "STEREO")
+knob("WIDTH", (3 + lw + 2 + W - 3) / 2, 97.6, "WIDTH", "small")
 
 # ---------------------------------------------------------------- in / out
 e(f'<rect x="3" y="107.5" width="{W - 6:.2f}" height="18" rx="1.2" fill="{PLATE}"/>')
-for i, (n, l) in enumerate([("IN_VOCT", "V/OCT"), ("IN_GATE", "GATE"), ("IN_VEL", "VEL"), ("IN_CUTOFF", "CUTOFF"),
-                            ("IN_RES", "RES"), ("IN_DRIVE", "DRIVE"), ("IN_RATE", "RATE"), ("IN_VCA", "VCA"),
-                            ("IN_EXT", "EXT")]):
-    jack(n, 10 + i * 10.8, 114.6, l)
+# note inputs as GENRA's bass outputs, then the CV inputs
+for i, (n, l) in enumerate([("IN_VOCT", "V/OCT"), ("IN_GATE", "GATE"), ("IN_VEL", "VEL"), ("IN_ACC", "ACC"),
+                            ("IN_SLIDE", "SLIDE")]):
+    jack(n, 9.5 + i * 9.4, 114.6, l)
+e(f'<line x1="52.3" y1="109.5" x2="52.3" y2="123.5" stroke="{LINE}" stroke-width="0.3"/>')
+for i, (n, l) in enumerate([("IN_CUTOFF", "CUT"), ("IN_RES", "RES"), ("IN_DRIVE", "DRIVE"), ("IN_RATE", "RATE"),
+                            ("IN_VCA", "VCA"), ("IN_EXT", "EXT")]):
+    jack(n, 57.5 + i * 9.4, 114.6, l)
 e(f'<line x1="{W - 31:.2f}" y1="109.5" x2="{W - 31:.2f}" y2="123.5" stroke="{LINE}" stroke-width="0.3"/>')
-jack("OUT_LFO", W - 23, 114.6, "LFO", True)
-jack("OUT_AUDIO", W - 11, 114.6, "OUT", True)
+jack("OUT_L", W - 23, 114.6, "L", True)
+jack("OUT_R", W - 11, 114.6, "R", True)
 
 e("</svg>")
 

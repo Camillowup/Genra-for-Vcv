@@ -136,13 +136,15 @@ Das passende Set zu GENRA: **GENRA MONO** oder **K-WASUB** für den Bass, **FUNK
 |---|---|
 | ![GENRA MONO](docs/entwuerfe/genra_mono.png) | ![Preset-Liste](docs/entwuerfe/genra_mono_presets.png) |
 
-Monophoner Synth (28 HP) im Look von MONK und den JIANT-Stimmen, Farbe **säuregrün** (GENRAs Bass-Farbe, wie K-WASUB).
+Monophoner Synth (28 HP, Stand 2.10.0) im Look von MONK und den JIANT-Stimmen, Farbe **säuregrün** (GENRAs Bass-Farbe, wie K-WASUB).
 
-- **Oszillatoren:** pro VCO WAVE (stufenlos Dreieck → Sägezahn → Rechteck → schmaler Puls), TUNE (±12 Halbtöne, fein um die Mitte – zum leichten Verstimmen) und LEVEL (hohe Pegel übersteuern das Filter); GLIDE.
+- **Oszillatoren:** pro VCO WAVE (stufenlos Dreieck → Sägezahn → Rechteck → schmaler Puls), TUNE (±12 Halbtöne, fein um die Mitte – zum leichten Verstimmen) und LEVEL (hohe Pegel übersteuern das Filter); GLIDE; ACCENT (wie stark ACC wirkt).
 - **Filter:** Klick auf das Feld öffnet die Liste, das Mausrad blättert: LADDER 24 (Moog, Standard, Bass bleibt bei Resonanz erhalten), LADDER 12, DIODE (303), MS-20, SVF LP/BP/HP (Oberheim SEM), OTA (Juno). CUTOFF, RES, EG AMT (bipolar), DRIVE, KEY TRK.
 - **Hüllkurven:** Filter- und Amp-ADSR mit analogen Kurven (1 ms … 10 s).
-- **LFO:** RATE (0,05–50 Hz), TRI/SQR, Stärke auf Tonhöhe und Filter, eigener LFO-Ausgang.
-- **Eingänge:** V/OCT (0 V = C4), GATE, VEL, CV für CUTOFF (1 V/Okt.), RES, DRIVE, RATE (1 V/Okt.), VCA, EXT (externes Audio durchs Filter). **Ausgänge:** LFO, OUT.
+- **LFO:** RATE (0,05–50 Hz), TRI/SQR, Stärke auf Tonhöhe und Filter. **RETRIG** startet die Welle neu (z. B. GENRAs GATE). **SYNC:** Steckt eine Clock, läuft der LFO im Takt und RATE wählt den Notenwert (4 Takte … 1/32, auch punktiert und triolisch, im Tooltip); Clock-Auflösung im Rechtsklick-Menü, Standard 16tel wie GENRA.
+- **STEREO:** WIDTH verteilt die beiden VCOs leicht nach links und rechts und legt einen feinen Chorus auf die Höhen; unter 150 Hz bleibt der Bass immer mono. Ohne Kabel in R ist L der Mono-Ausgang.
+- **Eingänge:** V/OCT (0 V = C4), GATE, VEL, **ACC**, **SLIDE** – in derselben Reihenfolge wie GENRAs Bass-Ausgänge – und CV für CUT (1 V/Okt.), RES, DRIVE, RATE (1 V/Okt.; mit SYNC: 1 V = 2 Notenwerte), VCA, EXT (externes Audio durchs Filter). **Ausgänge:** L, R.
+- **ACC:** Eine akzentuierte Note (ACC beim Notenstart über 1 V) wird lauter und bekommt mehr Filterhüllkurve, wie bei der 303. **SLIDE:** Ist der Eingang gesteckt, gleitet MONO nur, solange SLIDE anliegt (Gleitzeit GLIDE, bei 0 eine kurze 303-Gleitzeit); die Hüllkurven starten dabei nicht neu, weil GENRA das Gate offen hält. Ohne Kabel wirkt GLIDE wie bisher auf jede Note.
 - Oszillatoren und Filter laufen mit 2-facher Überabtastung.
 - **Presets (ab 2.9.0):** Feld oben im Kopf – Klick öffnet die Liste, das Mausrad blättert. 23 Werks-Presets nach Stil (SUB, CLASSIC, GARAGE · 2-STEP, DUB · DUBSTEP · GRIME, ACID, HOUSE · TECHNO · ELECTRO, HIP-HOP · LO-FI). Ein grüner Punkt hinter dem Namen zeigt, dass seit dem Laden ein Regler bewegt wurde. Eigene Presets: Rechtsklick → *Save preset as …* (Name, Enter), sie liegen in `Rack2/Genra/MonoPresets/` und erscheinen unter USER.
 

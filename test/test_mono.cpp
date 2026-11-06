@@ -203,6 +203,114 @@ int main() {
 			CHECK(pr.ftype >= 0 && pr.ftype < NUM_FILTERS, "preset %s filter", pr.name);
 		}
 	}
+	// 7. ACC, SLIDE, stereo, LFO sync and retrigger (2.10.0)
+	{
+		auto note = [&](Params p, bool acc) {
+			Voice v;
+			v.setSampleRate(fs);
+			Inputs in;
+			in.voct = -2.f;
+			in.acc = acc;
+			std::vector<float> o(fs / 4);
+			float r;
+			for (size_t i = 0; i < o.size(); i++) {
+				in.gate = i < o.size() / 2;
+				v.process(p, in, o[i], r);
+			}
+			return rms(o, 0);
+		};
+		Params p;
+		p.cutoff = 0.3f;
+		p.egAmt = 0.3f;
+		float plain = note(p, false), acc = note(p, true);
+		p.accent = 0.f;
+		float off = note(p, true);
+		printf("accent: %.2f V → %.2f V (ACCENT 0: %.2f V)\n", plain, acc, off);
+		CHECK(acc > plain * 1.25f, "ACC does not lift the note");
+		CHECK(std::fabs(off - plain) < 0.01f * plain, "ACC acts at ACCENT 0");
+
+		// SLIDE patched: no glide on plain notes, a glide while SLIDE is high
+		auto pitchAfter = [&](bool slide, float ms) {
+			Voice v;
+			v.setSampleRate(fs);
+			Params q;
+			Inputs in;
+			in.gate = true;
+			in.slideConnected = true;
+			in.voct = -2.f;
+			float l, r;
+			for (int i = 0; i < 4800; i++)
+				v.process(q, in, l, r);
+			in.voct = -1.f;
+			in.slide = slide;
+			for (int i = 0; i < (int) (fs * ms / 1000.f); i++)
+				v.process(q, in, l, r);
+			return v.pitch;
+		};
+		CHECK(std::fabs(pitchAfter(false, 1.f) + 1.f) < 1e-3f, "plain note glides");
+		float mid = pitchAfter(true, 20.f);
+		CHECK(mid > -1.9f && mid < -1.1f, "slide does not glide (%.3f)", mid);
+		CHECK(std::fabs(pitchAfter(true, 2000.f) + 1.f) < 0.01f, "slide does not arrive");
+
+		// stereo: WIDTH 0 = identical sides, WIDTH up = different sides with mono lows
+		auto side = [&](float width, float& lowSide) {
+			Voice v;
+			v.setSampleRate(fs);
+			Params q;
+			q.wave1 = q.wave2 = 0.33f;
+			q.tune2 = 0.1f;
+			q.cutoff = 0.7f;
+			q.width = width;
+			Inputs in;
+			in.gate = true;
+			in.voct = -2.f;
+			double d = 0, m = 0, lowS = 0, lowM = 0;
+			Biquad s1, s2, m1, m2;  // 4-pole low-pass at 90 Hz: the fundamental (65 Hz) and below
+			s1.lowpass(90.f, fs, 0.5412f), s2.lowpass(90.f, fs, 1.3066f);
+			m1.lowpass(90.f, fs, 0.5412f), m2.lowpass(90.f, fs, 1.3066f);
+			float l, r;
+			for (int i = 0; i < fs; i++) {
+				v.process(q, in, l, r);
+				float ls = s2.process(s1.process(l - r)), lm = m2.process(m1.process(l + r));
+				if (i < fs / 2)
+					continue;
+				d += (l - r) * (l - r);
+				m += (l + r) * (l + r);
+				lowS += ls * ls;
+				lowM += lm * lm;
+			}
+			lowSide = (float) std::sqrt(lowS / lowM);
+			return (float) std::sqrt(d / m);
+		};
+		float low0, low1;
+		float s0 = side(0.f, low0), s1 = side(1.f, low1);
+		printf("stereo side/mid: width 0 %.3f, width 1 %.3f (below 90 Hz %.4f)\n", s0, s1, low1);
+		CHECK(s0 < 1e-6f, "WIDTH 0 is not mono");
+		CHECK(s1 > 0.05f, "WIDTH 1 is not wide");
+		CHECK(low1 < 0.05f, "lows not mono (%.3f)", low1);
+
+		// LFO: SYNC at 120 BPM, RATE on 1/4 → 2 Hz; RETRIG starts it over
+		{
+			Voice v;
+			v.setSampleRate(fs);
+			Params q;
+			q.rate = 7.f / 16.f;  // DIV_NAMES[7] = 1/4
+			Inputs in;
+			in.beatSec = 0.5f;
+			float l, r, last = 0.f;
+			int wraps = 0;
+			for (int i = 0; i < fs * 1.25f; i++) {
+				v.process(q, in, l, r);
+				if (v.lfo.phase < last)
+					wraps++;
+				last = v.lfo.phase;
+			}
+			CHECK(wraps == 2, "sync 1/4 at 120 BPM: %d cycles in 1.25 s", wraps);
+			in.retrig = true;
+			v.process(q, in, l, r);
+			CHECK(std::fabs(v.lfo.phase - 0.25f - 2.f / fs) < 1e-4f, "retrigger");
+		}
+	}
 	printf("mono fails=%d\n", fails);
 	return fails;
 }

@@ -23,11 +23,15 @@ struct GenraMono : Module {
 		FTYPE_PARAM, CUTOFF_PARAM, RES_PARAM, EGAMT_PARAM, DRIVE_PARAM, KEYTRK_PARAM,
 		FA_PARAM, FD_PARAM, FS_PARAM, FR_PARAM, AA_PARAM, AD_PARAM, AS_PARAM, AR_PARAM,
 		RATE_PARAM, LFOWAVE_PARAM, LFOPITCH_PARAM, LFOFILT_PARAM,
+		ACCENT_PARAM, WIDTH_PARAM,  // 2.10.0
 		NUM_PARAMS
 	};
 	enum InputId { VOCT_INPUT, GATE_INPUT, VEL_INPUT, CUTOFF_INPUT, RES_INPUT, DRIVE_INPUT, RATE_INPUT, VCA_INPUT,
-		           EXT_INPUT, NUM_INPUTS };
-	enum OutputId { LFO_OUTPUT, AUDIO_OUTPUT, NUM_OUTPUTS };
+		           EXT_INPUT, ACC_INPUT, SLIDE_INPUT, RETRIG_INPUT, SYNC_INPUT, NUM_INPUTS };
+	// the LFO output is gone (2.10.0); its id stays so cables on OUT land on L
+	enum OutputId { OLD_LFO_OUTPUT, L_OUTPUT, R_OUTPUT, NUM_OUTPUTS };
+	static const int OLD_PARAMS = 25;  // presets and patches before 2.10.0
+	static_assert(gmono::NUM_PRESET_PARAMS == NUM_PARAMS, "presets must cover every knob");
 
 	/** Envelope times: 1 ms .. 10 s. */
 	struct TimeQuantity : ParamQuantity {
@@ -43,7 +47,25 @@ struct GenraMono : Module {
 		std::string getUnit() override { return " st"; }
 	};
 
+	/** LFO rate: Hz when free, a note value when SYNC has a clock. */
+	struct RateQuantity : ParamQuantity {
+		std::string getDisplayValueString() override {
+			GenraMono* m = dynamic_cast<GenraMono*>(module);
+			if (m && m->inputs[SYNC_INPUT].isConnected())
+				return gmono::DIV_NAMES[gmono::divIndex(getValue(), 0.f)];
+			return string::f("%.3g", 0.05f * std::pow(1000.f, getValue()));
+		}
+		std::string getUnit() override {
+			GenraMono* m = dynamic_cast<GenraMono*>(module);
+			return m && m->inputs[SYNC_INPUT].isConnected() ? "" : " Hz";
+		}
+	};
+
 	gmono::Voice voice;
+	dsp::SchmittTrigger retrigT, syncT;
+	int clockRes = 0;           // SYNC clock: 0 = 16ths, 1 = 8ths, 2 = quarters, 3 = 24 PPQN
+	int64_t sinceClock = -1;    // samples since the last clock edge, -1 = none yet
+	float beatSec = 0.f;
 	gmono::Params p;
 	bool gate = false;
 
@@ -122,11 +144,13 @@ struct GenraMono : Module {
 				continue;
 			json_t* nameJ = json_object_get(j, "name");
 			json_t* valsJ = json_object_get(j, "params");
-			if (json_is_string(nameJ) && json_is_array(valsJ) && (int) json_array_size(valsJ) == NUM_PARAMS) {
+			int n = json_is_array(valsJ) ? (int) json_array_size(valsJ) : 0;
+			if (json_is_string(nameJ) && n >= OLD_PARAMS) {
 				UserPreset u;
 				u.name = json_string_value(nameJ);
 				for (int i = 0; i < NUM_PARAMS; i++)
-					u.v[i] = (float) json_number_value(json_array_get(valsJ, i));
+					u.v[i] = i < n ? (float) json_number_value(json_array_get(valsJ, i))
+					               : paramQuantities[i]->getDefaultValue();
 				user.push_back(u);
 			}
 			json_decref(j);
@@ -195,10 +219,15 @@ struct GenraMono : Module {
 				configParam<TimeQuantity>(AA_PARAM + i, 0.f, 1.f, i == 0 ? 0.f : 0.45f, std::string("Amp EG ") + st[i]);
 			}
 		}
-		configParam(RATE_PARAM, 0.f, 1.f, 0.45f, "LFO rate", " Hz", 1000.f, 0.05f);
+		configParam<RateQuantity>(RATE_PARAM, 0.f, 1.f, 0.45f, "LFO rate");
+		paramQuantities[RATE_PARAM]->description = "With a clock at SYNC: the note value";
 		configSwitch(LFOWAVE_PARAM, 0.f, 1.f, 1.f, "LFO wave", {"Square", "Triangle"});
 		configParam(LFOPITCH_PARAM, 0.f, 1.f, 0.f, "LFO → pitch", "%", 0.f, 100.f);
 		configParam(LFOFILT_PARAM, 0.f, 1.f, 0.f, "LFO → filter", "%", 0.f, 100.f);
+		configParam(ACCENT_PARAM, 0.f, 1.f, 0.5f, "Accent", "%", 0.f, 100.f);
+		paramQuantities[ACCENT_PARAM]->description = "How strongly ACC makes a note louder and brighter";
+		configParam(WIDTH_PARAM, 0.f, 1.f, 0.f, "Stereo width", "%", 0.f, 100.f);
+		paramQuantities[WIDTH_PARAM]->description = "0 = mono; the lows below 150 Hz always stay mono";
 
 		configInput(VOCT_INPUT, "V/Oct");
 		configInput(GATE_INPUT, "Gate");
@@ -209,8 +238,13 @@ struct GenraMono : Module {
 		configInput(RATE_INPUT, "LFO rate CV (1 V/oct)");
 		configInput(VCA_INPUT, "VCA CV (0–10 V)");
 		configInput(EXT_INPUT, "External audio into the filter");
-		configOutput(LFO_OUTPUT, "LFO");
-		configOutput(AUDIO_OUTPUT, "Audio");
+		configInput(ACC_INPUT, "Accent (gate, taken at the start of a note)");
+		configInput(SLIDE_INPUT, "Slide (glides while high; patched: glide only on slides)");
+		configInput(RETRIG_INPUT, "LFO retrigger");
+		configInput(SYNC_INPUT, "LFO sync (clock; RATE then picks the note value)");
+		configOutput(OLD_LFO_OUTPUT, "(unused)");
+		configOutput(L_OUTPUT, "Left (mono when R is not patched)");
+		configOutput(R_OUTPUT, "Right");
 		rememberLoaded();
 		scanUser();
 	}
@@ -222,6 +256,7 @@ struct GenraMono : Module {
 		for (int i = 0; i < NUM_PARAMS; i++)
 			json_array_append_new(a, json_real(loaded[i]));
 		json_object_set_new(j, "loaded", a);
+		json_object_set_new(j, "clockRes", json_integer(clockRes));
 		return j;
 	}
 	void dataFromJson(json_t* j) override {
@@ -234,11 +269,13 @@ struct GenraMono : Module {
 				break;
 			}
 		json_t* a = json_object_get(j, "loaded");
-		if (json_is_array(a) && (int) json_array_size(a) == NUM_PARAMS)
-			for (int i = 0; i < NUM_PARAMS; i++)
-				loaded[i] = (float) json_number_value(json_array_get(a, i));
-		else
-			rememberLoaded();
+		int n = json_is_array(a) ? (int) json_array_size(a) : 0;
+		rememberLoaded();
+		for (int i = 0; i < n && i < NUM_PARAMS; i++)
+			loaded[i] = (float) json_number_value(json_array_get(a, i));
+		json_t* cJ = json_object_get(j, "clockRes");
+		if (json_is_integer(cJ))
+			clockRes = clamp((int) json_integer_value(cJ), 0, 3);
 	}
 
 	void onSampleRateChange(const SampleRateChangeEvent& e) override { voice.setSampleRate(e.sampleRate); }
@@ -272,6 +309,8 @@ struct GenraMono : Module {
 		p.lfoSquare = v(LFOWAVE_PARAM) < 0.5f;
 		p.lfoPitch = v(LFOPITCH_PARAM);
 		p.lfoFilter = v(LFOFILT_PARAM);
+		p.accent = v(ACCENT_PARAM);
+		p.width = outputs[R_OUTPUT].isConnected() ? v(WIDTH_PARAM) : 0.f;
 
 		gmono::Inputs in;
 		in.voct = inputs[VOCT_INPUT].getVoltage();
@@ -288,11 +327,37 @@ struct GenraMono : Module {
 		in.rateCv = inputs[RATE_INPUT].getVoltage();
 		in.vca = inputs[VCA_INPUT].isConnected() ? clamp(inputs[VCA_INPUT].getVoltage() / 10.f, 0.f, 1.f) : 1.f;
 		in.ext = inputs[EXT_INPUT].getVoltage();
+		in.acc = inputs[ACC_INPUT].getVoltage() >= 1.f;
+		in.slideConnected = inputs[SLIDE_INPUT].isConnected();
+		in.slide = inputs[SLIDE_INPUT].getVoltage() >= 1.f;
+		in.retrig = retrigT.process(inputs[RETRIG_INPUT].getVoltage(), 0.1f, 1.f);
 
-		float audio, lfo;
-		voice.process(p, in, audio, lfo);
-		outputs[AUDIO_OUTPUT].setVoltage(audio);
-		outputs[LFO_OUTPUT].setVoltage(lfo);
+		// SYNC: the clock period → one beat; no clock for 2 s → free again
+		if (inputs[SYNC_INPUT].isConnected()) {
+			if (sinceClock >= 0)
+				sinceClock++;
+			if (syncT.process(inputs[SYNC_INPUT].getVoltage(), 0.1f, 1.f)) {
+				static const float PER_BEAT[4] = {4.f, 2.f, 1.f, 24.f};
+				if (sinceClock > 0)
+					beatSec = sinceClock * args.sampleTime * PER_BEAT[clamp(clockRes, 0, 3)];
+				sinceClock = 0;
+			}
+			if (sinceClock > (int64_t) (2.f * args.sampleRate))
+				beatSec = 0.f, sinceClock = -1;
+		} else {
+			beatSec = 0.f;
+			sinceClock = -1;
+		}
+		in.beatSec = beatSec;
+
+		float l, r;
+		voice.process(p, in, l, r);
+		if (outputs[R_OUTPUT].isConnected()) {
+			outputs[L_OUTPUT].setVoltage(l);
+			outputs[R_OUTPUT].setVoltage(r);
+		} else {
+			outputs[L_OUTPUT].setVoltage(l);
+		}
 	}
 };
 
@@ -475,6 +540,8 @@ struct GenraMonoWidget : ModuleWidget {
 		knob(L::TUNE2, M::TUNE2_PARAM);
 		knob(L::LEVEL2, M::LEVEL2_PARAM);
 		small(L::GLIDE, M::GLIDE_PARAM);
+		small(L::ACCENT, M::ACCENT_PARAM);
+		small(L::WIDTH, M::WIDTH_PARAM);
 
 		FilterField* field = createParam<FilterField>(mm2px(Vec(L::FIELD[0], L::FIELD[1])), module, M::FTYPE_PARAM);
 		field->box.size = mm2px(Vec(L::FIELD[2], L::FIELD[3]));
@@ -501,12 +568,13 @@ struct GenraMonoWidget : ModuleWidget {
 		small(L::LFOPITCH, M::LFOPITCH_PARAM);
 		small(L::LFOFILT, M::LFOFILT_PARAM);
 
-		const float* ins[M::NUM_INPUTS] = {L::IN_VOCT, L::IN_GATE, L::IN_VEL, L::IN_CUTOFF, L::IN_RES,
-		                                   L::IN_DRIVE, L::IN_RATE, L::IN_VCA, L::IN_EXT};
+		const float* ins[M::NUM_INPUTS] = {L::IN_VOCT, L::IN_GATE,  L::IN_VEL,   L::IN_CUTOFF, L::IN_RES,
+		                                   L::IN_DRIVE, L::IN_RATE, L::IN_VCA,   L::IN_EXT,    L::IN_ACC,
+		                                   L::IN_SLIDE, L::IN_RETRIG, L::IN_SYNC};
 		for (int i = 0; i < M::NUM_INPUTS; i++)
 			addInput(createInputCentered<PJ301MPort>(P(ins[i]), module, i));
-		addOutput(createOutputCentered<PJ301MPort>(P(L::OUT_LFO), module, M::LFO_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(P(L::OUT_AUDIO), module, M::AUDIO_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(P(L::OUT_L), module, M::L_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(P(L::OUT_R), module, M::R_OUTPUT));
 	}
 
 	void appendContextMenu(Menu* menu) override {
@@ -535,6 +603,8 @@ struct GenraMonoWidget : ModuleWidget {
 		    std::vector<std::string>(gmono::FILTER_NAMES, gmono::FILTER_NAMES + gmono::NUM_FILTERS),
 		    [=]() { return (size_t) clamp((int) std::round(m->params[GenraMono::FTYPE_PARAM].getValue()), 0, gmono::NUM_FILTERS - 1); },
 		    [=](size_t i) { m->params[GenraMono::FTYPE_PARAM].setValue((float) i); }));
+		menu->addChild(createIndexPtrSubmenuItem("LFO sync clock", {"16ths (as GENRA)", "8ths", "Quarters", "24 PPQN"},
+		                                         &m->clockRes));
 		menu->addChild(new MenuSeparator);
 		menu->addChild(createMenuLabel("Monophonic bass synth after the Moog Minitaur"));
 		menu->addChild(createMenuLabel("Click or scroll the filter field to change the filter type"));

@@ -186,6 +186,7 @@ struct Env {
 
 struct Lfo {
 	float phase = 0.f;
+	void restart() { phase = 0.25f; }  // triangle starts at its middle, rising
 	float process(float hz, bool square, float dt) {
 		phase += hz * dt;
 		phase -= std::floor(phase);
@@ -200,6 +201,14 @@ struct Biquad {
 		float w = 2.f * PI * fc / fs, cs = std::cos(w), al = std::sin(w) / (2.f * q), a0 = 1.f + al;
 		b0 = (1.f - cs) / 2.f / a0;
 		b1 = (1.f - cs) / a0;
+		b2 = b0;
+		a1 = -2.f * cs / a0;
+		a2 = (1.f - al) / a0;
+	}
+	void highpass(float fc, float fs, float q) {
+		float w = 2.f * PI * fc / fs, cs = std::cos(w), al = std::sin(w) / (2.f * q), a0 = 1.f + al;
+		b0 = (1.f + cs) / 2.f / a0;
+		b1 = -(1.f + cs) / a0;
 		b2 = b0;
 		a1 = -2.f * cs / a0;
 		a2 = (1.f - al) / a0;
@@ -230,7 +239,22 @@ struct Params {
 	float aA = 0.f, aD = 0.4f, aS = 1.f, aR = 0.3f;
 	float rate = 0.4f, lfoPitch = 0.f, lfoFilter = 0.f;
 	bool lfoSquare = false;
+	float accent = 0.5f;  // how strongly ACC acts, 0..1
+	float width = 0.f;    // stereo width, 0 = mono
 };
+
+/** LFO divisions with SYNC, slow → fast, in beats (quarter notes). */
+static const int NUM_DIVS = 17;
+static const float DIV_BEATS[NUM_DIVS] = {16.f, 8.f, 4.f, 3.f, 2.f, 1.5f, 4.f / 3.f, 1.f, 0.75f, 2.f / 3.f,
+                                          0.5f, 0.375f, 1.f / 3.f, 0.25f, 0.1875f, 1.f / 6.f, 0.125f};
+static const char* const DIV_NAMES[NUM_DIVS] = {"4 bars", "2 bars", "1 bar", "1/2 dot", "1/2", "1/4 dot", "1/2 trip",
+                                                "1/4", "1/8 dot", "1/4 trip", "1/8", "1/16 dot", "1/8 trip",
+                                                "1/16", "1/32 dot", "1/16 trip", "1/32"};
+/** RATE knob (+ RATE CV, 1 V = 2 steps) → division index. */
+inline int divIndex(float rate, float rateCv) {
+	int i = (int) std::round(clampf(rate, 0.f, 1.f) * (NUM_DIVS - 1) + rateCv * 2.f);
+	return std::min(std::max(i, 0), NUM_DIVS - 1);
+}
 
 struct Inputs {
 	float voct = 0.f;      // V
@@ -242,19 +266,63 @@ struct Inputs {
 	float rateCv = 0.f;    // V, 1 V/oct
 	float vca = 1.f;       // 0..1
 	float ext = 0.f;       // V (audio)
+	bool acc = false;      // ACC high (taken at the start of a note)
+	bool slideConnected = false, slide = false;  // SLIDE: glide only while high
+	bool retrig = false;   // a trigger at RETRIG this sample: LFO starts over
+	float beatSec = 0.f;   // > 0: SYNC has a clock, one beat lasts this long (RATE chooses the division)
+};
+
+
+/** Stereo for a bass: mid/side. The side is high-passed at 150 Hz (24 dB/oct), so the lows stay mono; WIDTH adds a
+ *  slow chorus of the mid's highs to the side (opposite on both sides, the mono sum stays clean). */
+struct Stereo {
+	float fs = 48000.f;
+	Biquad hp1, hp2, ch1, ch2;
+	float lfo = 0.f;
+	static const int N = 2048;
+	float buf[N] = {};
+	int w = 0;
+	void setSampleRate(float sr) {
+		fs = sr;
+		hp1.highpass(150.f, sr, 0.5412f);
+		hp2.highpass(150.f, sr, 1.3066f);
+		ch1.highpass(250.f, sr, 0.5412f);
+		ch2.highpass(250.f, sr, 1.3066f);
+	}
+	float read(float d) {
+		float p = w - d;
+		while (p < 0.f)
+			p += N;
+		int i = (int) p;
+		float f = p - i;
+		return buf[i % N] + (buf[(i + 1) % N] - buf[i % N]) * f;
+	}
+	void process(float& l, float& r, float width) {
+		float m = 0.5f * (l + r);
+		buf[w] = ch2.process(ch1.process(m));
+		w = (w + 1) % N;
+		lfo += 0.31f / fs;
+		lfo -= std::floor(lfo);
+		float chorus = read(fs * (0.008f + 0.003f * std::sin(2.f * PI * lfo)));
+		float sd = hp2.process(hp1.process(0.5f * (l - r) + chorus * width * 0.45f));
+		l = m + sd;
+		r = m - sd;
+	}
 };
 
 struct Voice {
 	static const int OS = 2;
 	float fs = 48000.f;
 	Osc osc1, osc2;
-	Filter filter;
+	Filter filter, filterR;
+	Stereo stereo;
+	bool lastGate = false, accNote = false;
 	Env fenv, aenv;
 	Lfo lfo;
 	Biquad dec1, dec2;
 	float pitch = 0.f;  // V after glide
 	bool started = false;
-	float dc = 0.f;
+	float dc = 0.f, dcR = 0.f;
 	uint32_t noise = 0x12345678u;
 
 	void setSampleRate(float sr) {
@@ -262,21 +330,36 @@ struct Voice {
 		float f = std::min(0.45f * sr, 20000.f);
 		dec1.lowpass(f, sr * OS, 0.5412f);
 		dec2.lowpass(f, sr * OS, 1.3066f);
+		decR1.lowpass(f, sr * OS, 0.5412f);
+		decR2.lowpass(f, sr * OS, 1.3066f);
+		stereo.setSampleRate(sr);
 	}
+	Biquad decR1, decR2;
 	Voice() { setSampleRate(48000.f); }
 
-	/** One output sample: audio (±5 V) and the LFO (±5 V). */
-	void process(const Params& p, const Inputs& in, float& audio, float& lfoOut) {
+	/** One output sample, stereo (±5 V each). */
+	void process(const Params& p, const Inputs& in, float& outL, float& outR) {
 		float dt = 1.f / fs;
 		// control rate = sample rate
-		float l = lfo.process(0.05f * std::pow(1000.f, clampf(p.rate, 0.f, 1.f)) * std::pow(2.f, clampf(in.rateCv, -5.f, 5.f)),
-		                      p.lfoSquare, dt);
-		lfoOut = 5.f * l;
+		if (in.retrig)
+			lfo.restart();
+		float hz = in.beatSec > 0.f ? 1.f / (DIV_BEATS[divIndex(p.rate, in.rateCv)] * in.beatSec)
+		                            : 0.05f * std::pow(1000.f, clampf(p.rate, 0.f, 1.f)) * std::pow(2.f, clampf(in.rateCv, -5.f, 5.f));
+		float l = lfo.process(hz, p.lfoSquare, dt);
 		if (!started) {
 			pitch = in.voct;
 			started = true;
 		}
-		float gt = p.glide * p.glide * 1.5f;
+		// accent is taken when a note starts
+		if (in.gate && !lastGate)
+			accNote = in.acc;
+		lastGate = in.gate;
+		float acc = accNote ? clampf(p.accent, 0.f, 1.f) : 0.f;
+		// glide: with SLIDE patched only while SLIDE is high (GLIDE at 0 → a short 303-like slide), else always GLIDE
+		float g = p.glide;
+		if (in.slideConnected)
+			g = in.slide ? std::max(p.glide, 0.25f) : 0.f;
+		float gt = g * g * 1.5f;
 		pitch += (in.voct - pitch) * (gt > 1e-4f ? Env::coef(gt, dt) : 1.f);
 		float fe = fenv.process(in.gate, knobTime(p.fA), knobTime(p.fD), p.fS, knobTime(p.fR), dt);
 		float ae = aenv.process(in.gate, knobTime(p.aA), knobTime(p.aD), p.aS, knobTime(p.aR), dt);
@@ -288,31 +371,47 @@ struct Voice {
 		float fsOs = fs * OS;
 
 		float oct = std::log2(20.f) + clampf(p.cutoff, 0.f, 1.f) * std::log2(1000.f)
-		            + p.egAmt * 7.f * fe * (0.6f + 0.4f * in.vel) + p.keytrk * pitch + in.cutoffCv
+		            + (p.egAmt + acc * 0.6f) * 7.f * fe * (0.6f + 0.4f * in.vel) + p.keytrk * pitch + in.cutoffCv
 		            + p.lfoFilter * 3.f * l;
 		float fc = std::pow(2.f, clampf(oct, 3.f, 15.f));
 		float res = clampf(p.res + in.resCv / 10.f, 0.f, 1.f);
 		float dr = clampf(p.drive + in.driveCv / 10.f, 0.f, 1.f);
 		float driveGain = 1.f + 9.f * dr * dr;
 
-		float y = 0.f;
+		// WIDTH: VCO1 a little to the left, VCO2 to the right; the right side runs its own filter only when needed
+		float wd = clampf(p.width, 0.f, 1.f);
+		bool st = wd > 0.001f;
+		float y = 0.f, yR = 0.f;
 		for (int i = 0; i < OS; i++) {
-			float m = p.level1 * osc1.process(f1 / fsOs, p.wave1) + p.level2 * osc2.process(f2 / fsOs, p.wave2)
-			          + in.ext / 5.f;
+			float o1 = p.level1 * osc1.process(f1 / fsOs, p.wave1), o2 = p.level2 * osc2.process(f2 / fsOs, p.wave2);
 			noise = noise * 1664525u + 1013904223u;
-			m += ((int32_t) noise) * 4.6e-10f * 1e-3f;  // a breath of noise: lets the filter start to self-oscillate
-			float x = m * 0.7f * driveGain;
-			float f = filter.process(x, fc, res, fsOs, p.ftype);
-			y = dec2.process(dec1.process(f));
+			float n = ((int32_t) noise) * 4.6e-10f * 1e-3f;  // a breath of noise: lets the filter start to self-oscillate
+			float pan = 0.35f * wd;
+			float m = (1.f + pan) * o1 + (1.f - pan) * o2 + in.ext / 5.f + n;
+			y = dec2.process(dec1.process(filter.process(m * 0.7f * driveGain, fc, res, fsOs, p.ftype)));
+			if (st) {
+				float mR = (1.f - pan) * o1 + (1.f + pan) * o2 + in.ext / 5.f - n;
+				yR = decR2.process(decR1.process(filterR.process(mR * 0.7f * driveGain, fc, res, fsOs, p.ftype)));
+			}
 		}
-		y /= 0.6f + 0.4f * std::sqrt(driveGain);
-		y *= ae * in.vel * clampf(in.vca, 0.f, 1.f);
-		y = sat(y * 0.9f);
+		if (!st) {
+			filterR = filter;  // stays in step, so turning WIDTH up does not click
+			yR = y;
+		}
+		float gain = ae * in.vel * clampf(in.vca, 0.f, 1.f) * (1.f + 0.6f * acc) / (0.6f + 0.4f * std::sqrt(driveGain));
+		y = sat(y * gain * 0.9f);
+		yR = sat(yR * gain * 0.9f);
+		if (st)
+			stereo.process(y, yR, wd);
 		dc += (y - dc) * (2.f * PI * 8.f * dt);
-		audio = 5.f * (y - dc);
-		if (!std::isfinite(audio)) {  // never let a bad state stick
-			audio = 0.f;
+		dcR += (yR - dcR) * (2.f * PI * 8.f * dt);
+		outL = 5.f * (y - dc);
+		outR = 5.f * (yR - dcR);
+		if (!std::isfinite(outL) || !std::isfinite(outR)) {  // never let a bad state stick
+			outL = outR = 0.f;
 			filter.reset();
+			filterR.reset();
+			dc = dcR = 0.f;
 		}
 	}
 };
