@@ -720,6 +720,8 @@ struct Umlauf : Module, follow::Host {
 	// ---------------------------------------------------------------- audio
 	void onRemove(const RemoveEvent& e) override { follow::gone(this); }
 
+	void onPortChange(const PortChangeEvent& e) override { fol.portChange(e); } // a real cable wins (Follow.hpp)
+
 	void process(const ProcessArgs& args) override {
 		fol.process(this); // FOLLOW GENRA: the jacks without a cable (Follow.hpp)
 		if (!inst)

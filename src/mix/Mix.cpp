@@ -62,6 +62,7 @@ struct Mix : Module {
 		std::atomic<int> mode{0};
 		std::atomic<int64_t> id{-1};
 		std::atomic<int> outL{-1}, outR{-1};
+		std::atomic<follow::Host*> host{nullptr};
 		follow::Ref ref;
 		follow::Drive dl, dr;
 		float timer = 0.f;
@@ -82,29 +83,27 @@ struct Mix : Module {
 			int ol = s.outL.load(), orr = s.outR.load();
 			Input& il = inputs[iid(c, IN_L)];
 			Input& ir = inputs[iid(c, IN_R)];
-			if (!m || ol < 0) {
+			follow::Host* h = s.host.load();
+			// (bounds: for one sample at a change of source, the module and the ids may not belong together)
+			if (!m || !h || ol < 0 || ol >= (int) m->outputs.size() || orr >= (int) m->outputs.size()) {
 				if (s.dl.ch >= 0)
 					s.dl.release(il);
 				if (s.dr.ch >= 0)
 					s.dr.release(ir);
 				continue;
 			}
-			// the source's outputs count as patched (it then plays in stereo, as with two cables)
+			h->pulledAt.store(APP->engine->getFrame(), std::memory_order_relaxed); // it plays in stereo, as with two cables
 			Output& oL = m->outputs[ol];
-			if (oL.channels == 0)
-				oL.channels = 1;
-			s.dl.feed(il, oL.voltages, oL.channels);
+			s.dl.feed(il, oL.voltages, std::max(1, (int) oL.channels));
 			if (orr >= 0) {
 				Output& oR = m->outputs[orr];
-				if (oR.channels == 0)
-					oR.channels = 1;
-				s.dr.feed(ir, oR.voltages, oR.channels);
+				s.dr.feed(ir, oR.voltages, std::max(1, (int) oR.channels));
 			}
 		}
 		Module* g = duckMode.load() ? duckRef.to.load() : nullptr;
 		if (g) {
 			follow::Src k = follow::genraOut(follow::T_DRUMS, follow::DRUMS); // output 0 of the 8: the kick
-			dd.feed(inputs[DUCK_INPUT], g->outputs[k.id].voltages, 1);
+			dd.feed(inputs[DUCK_INPUT], follow::genraFrame(g, k.id), 1);
 		}
 		else if (dd.ch >= 0)
 			dd.release(inputs[DUCK_INPUT]);
@@ -132,7 +131,7 @@ struct Mix : Module {
 				if (h && h->audioL >= 0)
 					want = m;
 			}
-			else {
+			if (!want) { // auto, or the chosen module is not there (e.g. a pasted copy): who follows the channel's track
 				for (int64_t id : APP->engine->getModuleIds()) {
 					Module* m = APP->engine->getModule(id);
 					follow::Host* h = follow::host(m);
@@ -145,6 +144,7 @@ struct Mix : Module {
 			if (want != now) {
 				follow::point(s.ref, this, nullptr);
 				follow::Host* h = follow::host(want);
+				s.host = h;
 				s.outL = h ? h->audioL : -1;
 				s.outR = h ? h->audioR : -1;
 				follow::point(s.ref, this, want);
@@ -195,6 +195,19 @@ struct Mix : Module {
 			duckMode = clamp((int) json_integer_value(j), 0, 1);
 	}
 	void onRemove(const RemoveEvent& e) override { follow::gone(this); }
+	// a real cable wins (exact, from the engine; see Follow.hpp)
+	void onPortChange(const PortChangeEvent& e) override {
+		if (e.type != Port::INPUT)
+			return;
+		for (int c = 0; c < NCH; c++) {
+			if (e.portId == iid(c, IN_L))
+				src[c].dl.cable = e.connecting;
+			if (e.portId == iid(c, IN_R))
+				src[c].dr.cable = e.connecting;
+		}
+		if (e.portId == DUCK_INPUT)
+			dd.cable = e.connecting;
+	}
 
 	std::unique_ptr<Mixer> mx{new Mixer};
 	ChannelParams cp[NCH];

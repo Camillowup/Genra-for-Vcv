@@ -184,6 +184,8 @@ struct Monk : Module, follow::Host {
 
 	void onRemove(const RemoveEvent& e) override { follow::gone(this); }
 
+	void onPortChange(const PortChangeEvent& e) override { fol.portChange(e); } // a real cable wins (Follow.hpp)
+
 	void process(const ProcessArgs& args) override {
 		fol.process(this); // FOLLOW GENRA: the jacks without a cable (Follow.hpp)
 		// the singer: the buttons, the menu, the CV (on a change of the step it is on)

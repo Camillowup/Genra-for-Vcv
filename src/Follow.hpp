@@ -38,12 +38,15 @@ struct Src {
 };
 Src genraOut(int track, int sig);
 bool isGenra(Module* m);
+/** GENRA's outputs as of the last complete frame (one sample later than a cable, never half a frame). */
+const float* genraFrame(Module* genra, int outputId);
 
 // ---------------------------------------------------------------- the virtual cable
 struct Drive {
 	int ch = -1;           // what we wrote last sample (-1: nothing; the jack is not ours)
 	float v[PORT_MAX_CHANNELS] = {};
 	bool owned = false;    // for the panel: this jack is fed by the link
+	bool cable = false;    // a real cable is in the jack (from Module::onPortChange: exact, set under the engine lock)
 	/** Feed `in` from n voltages. False if a cable is in the jack (then nothing is written). */
 	bool feed(Input& in, const float* src, int n);
 	/** Stop feeding (unplugs the virtual cable if it is ours). */
@@ -72,6 +75,8 @@ struct Follower {
 	bool active() const { return track.load() >= 0 && genra.to.load() != nullptr; }
 	/** Audio thread, first thing in process(). */
 	void process(Module* self);
+	/** From the module's onPortChange: a cable plugged into / pulled from one of the bound jacks. */
+	void portChange(const Module::PortChangeEvent& e);
 	/** UI thread: find the GENRA. */
 	void uiStep(Module* self, float dt);
 	void toJson(json_t* root);
@@ -87,6 +92,9 @@ struct Host {
 	bool follows = true;      // false: a source for MIX only (STOTTER)
 	int audioL = -1, audioR = -1; // the stereo out MIX takes
 	const char* srcName = "";
+	std::atomic<int64_t> pulledAt{-1000000}; // MIX takes the stereo out (engine frame of the last time)
+	/** The R out counts as patched while MIX takes it (the module then plays in stereo, as with two cables). */
+	bool pulled() const { return APP->engine->getFrame() - pulledAt.load(std::memory_order_relaxed) < 4096; }
 	virtual ~Host() {}
 };
 Host* host(Module* m);

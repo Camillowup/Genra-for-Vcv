@@ -63,6 +63,11 @@ void gone(Module* m) {
 
 bool isGenra(Module* m) { return m && m->model == modelGenra; }
 
+const float* genraFrame(Module* g, int outputId) {
+	Genra* gg = static_cast<Genra*>(g); // (only GENRAs are pointed at as such)
+	return gg->followPub[(APP->engine->getFrame() + 1) & 1][outputId];
+}
+
 Src genraOut(int track, int sig) {
 	Src s;
 	if (sig == CLOCK) {
@@ -106,16 +111,7 @@ Src genraOut(int track, int sig) {
 }
 
 // ---------------------------------------------------------------- the virtual cable
-bool Drive::cableIn(const Input& in) const {
-	if (in.channels == 0)
-		return false; // nothing in the jack
-	if (ch < 0 || in.channels != ch)
-		return true;
-	for (int c = 0; c < ch; c++)
-		if (in.voltages[c] != v[c])
-			return true; // the engine wrote it: a cable
-	return false;
-}
+bool Drive::cableIn(const Input& in) const { return cable; }
 
 bool Drive::feed(Input& in, const float* src, int n) {
 	if (cableIn(in)) {
@@ -159,14 +155,23 @@ void Follower::process(Module* self) {
 		float v[PORT_MAX_CHANNELS];
 		if (binds[i].sig == DRUMS) {
 			for (int c = 0; c < s.channels; c++)
-				v[c] = g->outputs[s.id + c].voltages[0];
+				v[c] = genraFrame(g, s.id + c)[0];
 		}
 		else {
+			const float* f = genraFrame(g, s.id);
 			for (int c = 0; c < s.channels; c++)
-				v[c] = g->outputs[s.id].voltages[c];
+				v[c] = f[c];
 		}
 		drv[i].feed(in, v, s.channels);
 	}
+}
+
+void Follower::portChange(const Module::PortChangeEvent& e) {
+	if (e.type != Port::INPUT)
+		return;
+	for (size_t i = 0; i < binds.size(); i++)
+		if (binds[i].input == e.portId)
+			drv[i].cable = e.connecting;
 }
 
 void Follower::uiStep(Module* self, float dt) {
@@ -187,9 +192,10 @@ void Follower::uiStep(Module* self, float dt) {
 		if (isGenra(m))
 			want = m;
 	}
-	else if (now)
-		want = now; // automatic and still there
-	else {
+	if (!want) { // automatic, or the chosen one is not there (e.g. a pasted copy): the only / first GENRA
+		if (now && id < 0)
+			want = now; // still there
+		else
 		for (int64_t mid : APP->engine->getModuleIds()) {
 			Module* m = APP->engine->getModule(mid);
 			if (isGenra(m)) {

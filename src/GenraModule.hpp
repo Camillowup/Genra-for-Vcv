@@ -433,6 +433,7 @@ struct Genra : Module {
 	float newFlash = 0.f;
 	dsp::ClockDivider lightDivider;
 
+	float followPub[2][OUTPUTS_LEN][4] = {}; // the outputs per frame (even / odd) for Follow.cpp
 	// instruments and MIX that follow this GENRA without cables let go (Follow.hpp)
 	void onRemove(const RemoveEvent& e) override { follow::gone(this); }
 
@@ -1233,6 +1234,14 @@ struct Genra : Module {
 			outputs[CHORD_OUTPUT].setChannels(std::max(1, chordN));
 			for (int i = 0; i < std::max(1, chordN); i++)
 				outputs[CHORD_OUTPUT].setVoltage(chordN ? chordV[i] : rootV, i);
+		}
+
+		// for instruments / MIX that follow without cables: this frame complete, read in the next one (Follow.cpp)
+		{
+			float(*p)[4] = followPub[args.frame & 1];
+			for (int o = 0; o < OUTPUTS_LEN; o++)
+				for (int c = 0; c < 4; c++)
+					p[o][c] = outputs[o].voltages[c];
 		}
 
 		// ---- lights

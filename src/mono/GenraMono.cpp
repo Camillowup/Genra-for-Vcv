@@ -303,6 +303,8 @@ struct GenraMono : Module, follow::Host {
 
 	void onRemove(const RemoveEvent& e) override { follow::gone(this); }
 
+	void onPortChange(const PortChangeEvent& e) override { fol.portChange(e); } // a real cable wins (Follow.hpp)
+
 	void process(const ProcessArgs& args) override {
 		fol.process(this); // FOLLOW GENRA: the jacks without a cable (Follow.hpp)
 		auto v = [&](int id) { return params[id].getValue(); };
@@ -326,7 +328,7 @@ struct GenraMono : Module, follow::Host {
 		p.lfoPitch = v(LFOPITCH_PARAM);
 		p.lfoFilter = v(LFOFILT_PARAM);
 		p.accent = v(ACCENT_PARAM);
-		p.width = outputs[R_OUTPUT].isConnected() ? v(WIDTH_PARAM) : 0.f;
+		p.width = outputs[R_OUTPUT].isConnected() || pulled() ? v(WIDTH_PARAM) : 0.f;
 
 		gmono::Inputs in;
 		in.voct = inputs[VOCT_INPUT].getVoltage();
@@ -370,7 +372,7 @@ struct GenraMono : Module, follow::Host {
 
 		float l, r;
 		voice.process(p, in, l, r);
-		if (outputs[R_OUTPUT].isConnected()) {
+		if (outputs[R_OUTPUT].isConnected() || pulled()) {
 			outputs[L_OUTPUT].setVoltage(l);
 			outputs[R_OUTPUT].setVoltage(r);
 		} else {
