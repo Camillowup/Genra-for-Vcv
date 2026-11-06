@@ -162,10 +162,13 @@ struct Ablauf : Module {
 		bool cuedStop = false, cuedWrap = false;
 		uint64_t cuedSig = 0;
 		int jumpRow = -1;      // NEXT / ZEILE CV: this row at the next bar line
+		int rowBars = 0;       // length of the playing row when it began
+		int cuedBars = 0;
 		int64_t jumpAt = 0;
 		int lastRowCv = -1, lastPattCv = -1;
 	} song;
 	uint32_t cueCounter = 1;
+	int pendingStart = -1; // PLAY while GENRA was taking a cue: try again next frame
 
 	Ablauf() {
 		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
@@ -347,13 +350,25 @@ struct Ablauf : Module {
 		APP->history->push(a);
 	}
 	void restore(const std::vector<Row>& r, int cur, int slot, const std::shared_ptr<Slot>& s) {
+		bool listChanged = !(r.size() == rows.size() && std::equal(r.begin(), r.end(), rows.begin()));
 		rows = r;
+		if (listChanged)
+			rowsReplaced();
 		if (slot >= 0 && s) {
 			slots[slot] = *s;
 			slotVer[slot]++;
 		}
 		setRow(cur);
 	}
+	// rows changed as a whole while the song plays: the playing pattern ends as planned, then the row after it
+	void rowsReplaced() {
+		if (!song.playing || song.row < 0)
+			return;
+		song.jumpRow = std::min(song.row + 1, (int)rows.size());
+		song.jumpAt = song.rowStart + song.rowBars;
+		song.row = -1;
+	}
+
 	void undoButton() {
 		history::State* h = APP->history;
 		if (h->actionIndex > 0) {
@@ -423,11 +438,11 @@ struct Ablauf : Module {
 			say("Höchstens 64 Zeilen");
 			return;
 		}
-		AblaufAction* a = beginChange("Zeile einfügen", selSlot);
+		int s = selSlot >= 0 ? selSlot : (rows.empty() ? -1 : rows[curRow].slot);
+		AblaufAction* a = beginChange("Zeile einfügen", s);
 		Row w;
 		if (!rows.empty())
 			w = rows[curRow], w.fill = false, w.on = 0xF, w.cvA = w.cvB = 0.f;
-		int s = selSlot >= 0 ? selSlot : (rows.empty() ? -1 : rows[curRow].slot);
 		w.slot = (int8_t)s;
 		if (s >= 0 && slots[s].used) {
 			w.barsIdx = (int8_t)barsIdxFor(slots[s].lengthIdx);
@@ -580,7 +595,7 @@ struct Ablauf : Module {
 		// a break, ..." always starts from the great one, and a second press re-rolls the same pad
 		bool same = false;
 		if (session.active) {
-			int playing = g->arrSlotPub.load();
+			int playing = clamp(g->arrSlotPub.load(), -1, NUM_SLOTS - 1);
 			for (int j = 0; j < NUM_SECTIONS; j++)
 				if (session.result[j] >= 0 && session.result[j] == playing && slotVer[playing] == session.ver[j])
 					same = true;
@@ -635,6 +650,10 @@ struct Ablauf : Module {
 	bool cueRow(Genra* g, int r, int64_t at, bool now, bool stop) {
 		if (!g->cueBegin())
 			return false;
+		if (song.waitId && g->cueDone.load() == song.waitId) {
+			g->cueState.store(0); // ours was applied meanwhile: handle that first (next frame)
+			return false;
+		}
 		Genra::ArrCue& c = g->cue;
 		c.stop = stop;
 		c.now = now;
@@ -652,6 +671,7 @@ struct Ablauf : Module {
 		}
 		g->cueCommit();
 		song.waitId = c.id;
+		song.cuedBars = stop ? 0 : c.rowBars;
 		song.cuedRow = r;
 		song.cuedStop = stop;
 		song.cuedSig = rowSig(stop ? -1 : r, at);
@@ -670,8 +690,10 @@ struct Ablauf : Module {
 		song.playing = true;
 		if (!cueRow(g, r, 0, true, false)) {
 			song.playing = false;
+			pendingStart = from;
 			return;
 		}
+		pendingStart = -1;
 		g->arrRunReq = 1;
 	}
 	void stopSong(Genra* g) {
@@ -692,6 +714,13 @@ struct Ablauf : Module {
 			song.row = -1;
 			return;
 		}
+		if (song.waitId && g->cueDone.load() != song.waitId) {
+			// our cue gone without being applied (replaced or cancelled elsewhere)? then hand it over again
+			int st = g->cueState.load();
+			bool lost = st == 0 || (st == 1 && g->cue.id != song.waitId);
+			if (lost && g->cueDone.load() != song.waitId)
+				song.waitId = 0, song.cuedSig = 0;
+		}
 		if (song.waitId && g->cueDone.load() == song.waitId) {
 			song.waitId = 0;
 			if (song.cuedStop) {
@@ -704,6 +733,7 @@ struct Ablauf : Module {
 				endTrig++;
 			song.row = song.cuedRow;
 			song.rowStart = g->rowStartPub.load();
+			song.rowBars = song.cuedBars;
 			song.jumpRow = -1;
 			rowTrig++;
 		}
@@ -731,6 +761,16 @@ struct Ablauf : Module {
 			return; // already handed over
 		if (cueRow(g, nr, at, false, stop))
 			song.cuedWrap = wrap;
+	}
+
+	// the GENRA this ABLAUF holds offsets / mutes in; let go when the link changes or ABLAUF is removed
+	Genra* attached = nullptr;
+	static void letGo(Genra* g) {
+		if (!g)
+			return;
+		std::lock_guard<std::mutex> lk(genraRegMutex());
+		if (genraRegistry().count(g))
+			g->arrAlive.store(1e-6f);
 	}
 
 	// what the widgets show (refreshed every frame)
@@ -770,6 +810,13 @@ struct Ablauf : Module {
 
 	void uiFrame(float dt) {
 		Genra* g = genra();
+		if (g != attached) {
+			letGo(attached);
+			attached = g;
+			if (song.playing) // another GENRA: the song starts over there with PLAY
+				song = Song();
+			pendingPadCue = -1;
+		}
 		genraLinked = g != nullptr;
 		genraRunning = g && g->running;
 		barNow = g ? g->barPub.load() : 0;
@@ -779,8 +826,12 @@ struct Ablauf : Module {
 			// the pad GENRA plays, as long as its pattern was not changed since (NEW, MUTATE, edits)
 			if (g->patChanges.load() == g->patChangesAtCue.load())
 				playingSlot = g->arrSlotPub.load();
+			if (playingSlot >= NUM_SLOTS)
+				playingSlot = -1;
 			if (g->cueState.load() == 1 && !g->cue.stop)
 				queuedSlot = g->cue.slotIdx;
+			if (queuedSlot >= NUM_SLOTS)
+				queuedSlot = -1;
 		}
 		for (int i = 0; i < NUM_SLOTS; i++)
 			if (silentVer[i] != slotVer[i])
@@ -797,10 +848,10 @@ struct Ablauf : Module {
 		if (msgTime > 0.f)
 			msgTime -= dt;
 		if (g)
-			g->arrAlive.store(1e9f); // attached; cleared when ABLAUF is removed (onRemove), not by a stalled UI
+			g->arrAlive.store(1e9f); // attached; let go explicitly (letGo), not by a timeout: a stalled UI must not unmute
 
 		// GENRA's snapshot arrived
-		if (g && g->snapState.load(std::memory_order_acquire) == 2) {
+		if (g && (pendingStore >= 0 || pendingPart >= 0) && g->snapState.load(std::memory_order_acquire) == 2) {
 			if (pendingStore >= 0) {
 				int i = pendingStore;
 				AblaufAction* a = beginChange("Speichern", i);
@@ -823,8 +874,12 @@ struct Ablauf : Module {
 			pendingStore = pendingPart = -1;
 			g->snapState.store(0);
 		}
+		if (pendingPadCue >= 0 && (songMode() || song.playing))
+			pendingPadCue = -1;
 		if (g && pendingPadCue >= 0)
 			cuePattern(pendingPadCue, g);
+		if (g && pendingStart >= 0)
+			startSong(g, pendingStart);
 
 		// buttons
 		if (pressed(STORE_PARAM))
@@ -1113,8 +1168,8 @@ struct Ablauf : Module {
 
 	// removed from the rack: GENRA drops the offsets and mutes of the pattern it got from here
 	void onRemove(const RemoveEvent& e) override {
-		if (Genra* g = genra())
-			g->arrAlive.store(1e-6f);
+		letGo(attached); // no engine calls here: Rack holds its lock while removing
+		attached = nullptr;
 		Module::onRemove(e);
 	}
 
@@ -1618,6 +1673,44 @@ struct SectionRing : AbWidget {
 template <int R, int G, int B>
 using ALight = ui::AccentLight<R, G, B>;
 
+/** PATTERN / TAKTE / ABSCHNITT: a turn is one undo step of the row it changed (not Rack's ParamChange, whose undo
+ * would land on whatever row is selected then). */
+template <class K>
+struct RowKnob : K {
+	AblaufAction* pending = nullptr;
+	void onDragStart(const event::DragStart& e) override {
+		Ablauf* m = dynamic_cast<Ablauf*>(this->module);
+		if (m && e.button == GLFW_MOUSE_BUTTON_LEFT && !pending)
+			pending = m->beginChange("Zeile ändern", m->rows.empty() ? -1 : m->rows[m->curRow].slot);
+		K::onDragStart(e);
+	}
+	void onDragEnd(const event::DragEnd& e) override {
+		K::onDragEnd(e);
+		Ablauf* m = dynamic_cast<Ablauf*>(this->module);
+		if (!m || e.button != GLFW_MOUSE_BUTTON_LEFT)
+			return;
+		history::State* h = APP->history;
+		if (h->actionIndex > 0 && h->actionIndex == (int)h->actions.size()) {
+			history::ParamChange* pc = dynamic_cast<history::ParamChange*>(h->actions.back());
+			if (pc && pc->moduleId == m->id && pc->paramId == this->paramId) {
+				delete pc;
+				h->actions.pop_back();
+				h->actionIndex--;
+			}
+		}
+		if (pending) {
+			m->bindKnobs(); // the last value into the row before the snapshot
+			bool changed = !(pending->rowsBefore.size() == m->rows.size() &&
+			                 std::equal(m->rows.begin(), m->rows.end(), pending->rowsBefore.begin()));
+			if (changed)
+				m->endChange(pending);
+			else
+				delete pending;
+			pending = nullptr;
+		}
+	}
+};
+
 struct AblaufWidget : ModuleWidget {
 	AblaufWidget(Ablauf* module) {
 		setModule(module);
@@ -1645,9 +1738,9 @@ struct AblaufWidget : ModuleWidget {
 		add(nm, L::SECNAME);
 
 		addParam(createParamCentered<RoundBlackKnob>(ui::mm(L::ZEILE), module, A::ZEILE_PARAM));
-		addParam(createParamCentered<RoundSmallBlackKnob>(ui::mm(L::PATTERN), module, A::PATTERN_PARAM));
-		addParam(createParamCentered<RoundSmallBlackKnob>(ui::mm(L::TAKTE), module, A::TAKTE_PARAM));
-		addParam(createParamCentered<RoundSmallBlackKnob>(ui::mm(L::ABSCHNITT), module, A::ABSCHNITT_PARAM));
+		addParam(createParamCentered<RowKnob<RoundSmallBlackKnob>>(ui::mm(L::PATTERN), module, A::PATTERN_PARAM));
+		addParam(createParamCentered<RowKnob<RoundSmallBlackKnob>>(ui::mm(L::TAKTE), module, A::TAKTE_PARAM));
+		addParam(createParamCentered<RowKnob<RoundSmallBlackKnob>>(ui::mm(L::ABSCHNITT), module, A::ABSCHNITT_PARAM));
 
 		const float* tr[4] = {L::TRACK0, L::TRACK1, L::TRACK2, L::TRACK3};
 		addParam(createLightParamCentered<VCVLightBezel<ALight<0x7b, 0x6c, 0xff>>>(ui::mm(tr[0]), module, A::TRACK_PARAM + 0, A::TRACK_LIGHT + 0));
@@ -1720,6 +1813,7 @@ struct AblaufWidget : ModuleWidget {
 		menu->addChild(createMenuItem("Song leeren", "", [=]() {
 			AblaufAction* a = m->beginChange("Song leeren");
 			m->rows.clear();
+			m->rowsReplaced();
 			m->setRow(0);
 			m->endChange(a);
 		}));

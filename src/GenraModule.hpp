@@ -6,6 +6,8 @@
 #include "Layout.hpp"
 #include <osdialog.h>
 #include <atomic>
+#include <mutex>
+#include <set>
 #include <cmath>
 #include <cctype>
 #include <cstdio>
@@ -47,6 +49,15 @@ inline std::string profileLabel(int p) {
 }
 
 struct Genra;
+// every GENRA alive (ABLAUF checks a remembered GENRA against it before touching it)
+inline std::mutex& genraRegMutex() {
+	static std::mutex m;
+	return m;
+}
+inline std::set<Genra*>& genraRegistry() {
+	static std::set<Genra*> s;
+	return s;
+}
 // shows the variant's name of the current genre on hover / right-click
 struct VariantQuantity : ParamQuantity {
 	std::string getDisplayValueString() override;
@@ -255,11 +266,12 @@ struct Genra : Module {
 	std::atomic<int> arrSecPub{-1}, arrRowPub{-1}, arrSlotPub{-1};
 	std::atomic<uint32_t> patChanges{0};    // counts changes of the pattern (generate, mutate, edits)
 	std::atomic<uint32_t> patChangesAtCue{0};
-	std::atomic<float> arrAlive{0.f};       // > 0 while ABLAUF is attached (it sets a huge value, a tiny one on removal)
+	std::atomic<float> arrAlive{0.f};       // > 0 while ABLAUF is attached (it sets a huge value, a tiny one to let go)
 	ArrMods arrMods;
 	uint8_t arrMute = 0;
 	bool arrFill = false;
 	int64_t arrRowEnd = -1;
+	int arrFillEnd = -1; // the row ends inside the loop: the drums play the fill up to this step
 	int64_t barIndex = 0;
 
 	// writer side (ABLAUF): acquire the cue buffer (also replaces a cue still waiting)
@@ -287,6 +299,10 @@ struct Genra : Module {
 			resetArmed = true;
 			arrSecPub = -1;
 			arrRowPub = -1;
+			arrMute = 0;
+			arrFill = false;
+			arrRowEnd = -1;
+			arrFillEnd = -1;
 		}
 		else {
 			const Slot& s = cue.slot;
@@ -310,6 +326,14 @@ struct Genra : Module {
 			arrSecPub = cue.tag;
 			arrRowPub = cue.row;
 			arrSlotPub = cue.slotIdx;
+			arrFillEnd = -1;
+			// the stored pattern is heard as stored: no MUTATE in its first pass, CHANCE / every-2nd count anew
+			firstPass = true;
+			passCount = 0;
+			if (!atBarLine) { // GENRA stopped (or the song starts): from the top at the next start
+				step = -1;
+				resetArmed = true;
+			}
 			patChangesAtCue.store(patChanges.load());
 		}
 		cueDone.store(cue.id, std::memory_order_release);
@@ -390,7 +414,16 @@ struct Genra : Module {
 	float newFlash = 0.f;
 	dsp::ClockDivider lightDivider;
 
+	~Genra() {
+		std::lock_guard<std::mutex> lk(genraRegMutex());
+		genraRegistry().erase(this);
+	}
+
 	Genra() {
+		{
+			std::lock_guard<std::mutex> lk(genraRegMutex());
+			genraRegistry().insert(this);
+		}
 		initGenres();
 		for (int t = 0; t < 4; t++) {
 			trackSel[t] = -1;
@@ -768,6 +801,14 @@ struct Genra : Module {
 				layoutTimeline(pat, L);
 			}
 		}
+		if (step % STEPS_PER_BAR == 0) {
+			// ABLAUF: fill / drop over the last bar of a song row, also when the row ends inside the loop
+			arrFillEnd = -1;
+			if (arrFill && arrRowEnd >= 0 && barIndex == arrRowEnd - 1) {
+				arrFillEnd = step + STEPS_PER_BAR;
+				fillActive = true;
+			}
+		}
 		Params P = buildParams();
 		if (step % STEPS_PER_BAR == 0) {
 			bool changed = false;
@@ -796,11 +837,9 @@ struct Genra : Module {
 		if (step == L - 1)
 			endPulse.trigger(2e-3f);
 		if (step == 0) {
-			fillActive = fillCarry || rng.uni() < P.fill;
+			fillActive = fillCarry || rng.uni() < P.fill || arrFillEnd > 0;
 			fillCarry = false;
-			// ABLAUF: fill / drop at the end of the row (its last full pass)
-			if (arrFill && arrRowEnd >= 0 && barIndex + L / STEPS_PER_BAR == arrRowEnd)
-				fillActive = true;
+
 			P.fillActive = fillActive;
 			if (!firstPass) {
 				float m = params[MUTATE_PARAM].getValue() + cv01(inputs[MUTATE_INPUT]);
@@ -814,7 +853,7 @@ struct Genra : Module {
 			firstPass = false;
 		}
 		// compute this step for every track, play it after the track's swing delay
-		drumStep(pat, P, step, L, fillActive, qDrums);
+		drumStep(pat, P, step, arrFillEnd > 0 ? arrFillEnd : L, fillActive, qDrums);
 		if (params[MUTE_PARAM + 0].getValue() < 0.5f && !(arrMute & 1)) {
 			float d = swingDelay(P, T_DRUMS);
 			if (d >= 1.f)
@@ -927,8 +966,8 @@ struct Genra : Module {
 			}
 			else if (rq == 2)
 				running = false;
-			if (cueState.load(std::memory_order_acquire) == 1 && cue.now)
-				takeCue(false);
+			if (cueState.load(std::memory_order_acquire) == 1)
+				takeCue(false); // only a cue marked "now" is taken here
 			if (snapState.load(std::memory_order_acquire) == 1) {
 				snap.pat = pat;
 				for (int t = 0; t < 4; t++)
@@ -1256,7 +1295,7 @@ struct Genra : Module {
 			if ((j = json_object_get(a, "section")))
 				arrSecPub = (int)json_integer_value(j);
 			if ((j = json_object_get(a, "slot")))
-				arrSlotPub = (int)json_integer_value(j);
+				arrSlotPub = clamp((int)json_integer_value(j), -1, 63);
 			arrAlive = 3.f; // ABLAUF has a few seconds to show up
 		}
 	}
