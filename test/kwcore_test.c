@@ -8,6 +8,12 @@ int printf(const char *, ...);
 static int fails;
 #define CHECK(c, ...) do { if (!(c)) { fails++; printf("FAIL " __VA_ARGS__); printf("\n"); } } while (0)
 
+static int same(const char *x, const char *y)
+{
+    while (*x && *x == *y) x++, y++;
+    return *x == *y;
+}
+
 static float run(const kw_api *a, int blocks, int *bad)
 {
     float pk = 0.f;
@@ -36,6 +42,12 @@ int main(void)
     for (k = 0; k < n; k++) {
         float on, off;
         a->load_preset(k);
+        {   /* the style the list sorts by is the one the preset sets */
+            char st[32];
+            a->text(P_STYLE, st, sizeof st);
+            CHECK(same(st, a->preset_style(k)), "%s: style %s, list says %s", a->preset_name(k), st,
+                  a->preset_style(k));
+        }
         a->midi(0x90, 36, 110);
         on = run(a, 60, &bad);
         a->midi(0x80, 36, 0);

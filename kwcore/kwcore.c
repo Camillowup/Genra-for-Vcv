@@ -51,6 +51,15 @@ static void k_text(uint32_t id, char *out, uint32_t n)
 static uint32_t k_npresets(void) { return (uint32_t)NFACTORY; }
 static const char *k_preset_name(uint32_t i) { return FACTORY[i % NFACTORY].name; }
 static void k_load_preset(uint32_t i) { load_preset(0, i % NFACTORY); }
+static const char *k_preset_style(uint32_t i)
+{
+    /* the preset's list is (parameter, value) pairs up to -1; no STYLE in it: the first style */
+    const int8_t *p = FACTORY[i % NFACTORY].ov;
+    int st = 0;
+    for (; p[0] >= 0; p += 2)
+        if (p[0] == P_STYLE) st = p[1];
+    return L_STYLE[clampi(st, 0, NSTYLE - 1)];
+}
 static int32_t k_eq_get(uint32_t band, uint32_t what)
 {
     band &= 3u;
@@ -88,7 +97,7 @@ static float k_lfo_phase(void) { return (float)(lfo_ph_show[0] >> 8) * (1.0f / 1
 static const kw_api API = {
     KW_API_VERSION, k_rate, k_init, k_render, k_midi, k_np, k_get, k_set, k_lo, k_hi, k_name, k_sname, k_text,
     k_npresets, k_preset_name, k_load_preset, k_eq_get, k_eq_set, k_set_bpm10, k_bpm10, k_sync, k_env, k_lfo,
-    k_voices, k_lfo_phase,
+    k_voices, k_lfo_phase, k_preset_style,
 };
 
 KW_EXPORT const kw_api *kw_get(void) { return &API; }
