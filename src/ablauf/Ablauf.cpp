@@ -183,52 +183,52 @@ struct Ablauf : Module {
 				int i = (int)std::round(getValue());
 				std::string s = slotName(i);
 				if (m && i >= 0 && i < NUM_SLOTS && !m->slots[i].used)
-					s += " (leer)";
+					s += " (empty)";
 				return s;
 			}
 		};
-		configParam<RowQuantity>(ZEILE_PARAM, 0.f, MAX_ROWS - 1, 0.f, "Zeile");
-		configParam<SlotQuantity>(PATTERN_PARAM, 0.f, NUM_SLOTS - 1, 0.f, "Pattern der Zeile");
-		configSwitch(TAKTE_PARAM, 0.f, 5.f, 2.f, "Takte der Zeile", {"1 Takt", "2 Takte", "4 Takte", "8 Takte", "16 Takte", "32 Takte"});
-		configSwitch(ABSCHNITT_PARAM, 0.f, NUM_SECTIONS - 1, SEC_DROP, "Abschnitt der Zeile",
+		configParam<RowQuantity>(ZEILE_PARAM, 0.f, MAX_ROWS - 1, 0.f, "Row");
+		configParam<SlotQuantity>(PATTERN_PARAM, 0.f, NUM_SLOTS - 1, 0.f, "Row pattern");
+		configSwitch(TAKTE_PARAM, 0.f, 5.f, 2.f, "Row length", {"1 bar", "2 bars", "4 bars", "8 bars", "16 bars", "32 bars"});
+		configSwitch(ABSCHNITT_PARAM, 0.f, NUM_SECTIONS - 1, SEC_DROP, "Row part",
 		             {"Intro", "Verse", "Build", "Drop", "Break", "Outro"});
 		for (int p : {ZEILE_PARAM, PATTERN_PARAM})
 			paramQuantities[p]->snapEnabled = true;
-		static const char* TN[4] = {"Drums", "Bass", "Melodie", "Pads"};
+		static const char* TN[4] = {"Drums", "Bass", "Melody", "Pads"};
 		for (int t = 0; t < 4; t++) {
-			configButton(TRACK_PARAM + t, std::string(TN[t]) + " in dieser Zeile an / aus");
-			configSwitch(REROLL_PARAM + t, 0.f, 1.f, 1.f, std::string("Varianten: ") + TN[t] + " neu würfeln",
-			             {"Behalten", "Neu würfeln"});
+			configButton(TRACK_PARAM + t, std::string(TN[t]) + " on / off in this row");
+			configSwitch(REROLL_PARAM + t, 0.f, 1.f, 1.f, std::string("Variations: re-roll ") + TN[t],
+			             {"Keep", "Re-roll"});
 		}
-		configButton(INS_PARAM, "Zeile einfügen (mit dem gewählten Pad)");
-		configButton(DEL_PARAM, "Zeile löschen");
-		configButton(UNDO_PARAM, "Rückgängig");
-		configButton(FILL_PARAM, "Fill am Ende der Zeile an / aus");
-		configSwitch(MODE_PARAM, 0.f, 1.f, 0.f, "Modus", {"Pattern (Pads live spielen)", "Song (Liste abspielen)"});
-		configButton(PLAY_PARAM, "Play (Song ab der gewählten Zeile)");
+		configButton(INS_PARAM, "Insert row (with the selected pad)");
+		configButton(DEL_PARAM, "Delete row");
+		configButton(UNDO_PARAM, "Undo");
+		configButton(FILL_PARAM, "Fill at the end of the row on / off");
+		configSwitch(MODE_PARAM, 0.f, 1.f, 0.f, "Mode", {"Pattern (play pads live)", "Song (play the list)"});
+		configButton(PLAY_PARAM, "Play (song from the selected row)");
 		configButton(STOP_PARAM, "Stop");
-		configSwitch(LOOP_PARAM, 0.f, 1.f, 1.f, "Song wiederholen", {"Aus (am Ende stoppen)", "An"});
+		configSwitch(LOOP_PARAM, 0.f, 1.f, 1.f, "Loop song", {"Off (stop at the end)", "On"});
 		configSwitch(BANK_PARAM, 0.f, 3.f, 0.f, "Bank", {"A", "B", "C", "D"});
 		static const char* PN[NUM_SECTIONS] = {"Intro", "Verse", "Build", "Drop", "Break", "Outro"};
 		for (int k = 0; k < NUM_SECTIONS; k++)
-			configButton(PART_PARAM + k, std::string(PN[k]) + " aus dem laufenden Pattern machen (nochmal: neu würfeln)");
-		configButton(STORE_PARAM, "STORE: dann ein Pad – speichert, was GENRA gerade spielt");
-		configButton(COPY_PARAM, "COPY: erst Quelle, dann Ziel antippen");
-		configButton(CLEAR_PARAM, "CLEAR: dann ein Pad – löscht den Platz");
+			configButton(PART_PARAM + k, std::string(PN[k]) + " from the playing pattern (again: re-roll)");
+		configButton(STORE_PARAM, "STORE: then a pad – saves what GENRA is playing");
+		configButton(COPY_PARAM, "COPY: tap source, then target");
+		configButton(CLEAR_PARAM, "CLEAR: then a pad – clears the slot");
 		for (int i = 0; i < PARAMS_LEN; i++)
 			paramQuantities[i]->randomizeEnabled = false;
-		configInput(RUN_INPUT, "Run (Trigger: Play / Stop)");
-		configInput(RESET_INPUT, "Reset (Song an den Anfang)");
-		configInput(NEXT_INPUT, "Nächste Zeile / nächstes Pattern (Trigger, am nächsten Takt)");
-		configInput(PATT_INPUT, "Pattern CV (0–10 V über alle 64 Plätze, Pattern-Modus)");
-		configInput(ROW_INPUT, "Zeile CV (0–10 V über die Song-Liste, springt am nächsten Takt)");
-		configOutput(END_OUTPUT, "Ende (Trigger am Song-Ende und beim Wiederholen)");
-		configOutput(ROW_OUTPUT, "Zeile (Trigger bei jeder neuen Zeile)");
-		configOutput(BUILD_OUTPUT, "Build (Gate, solange ein Build läuft)");
-		configOutput(DROP_OUTPUT, "Drop (Gate, solange ein Drop läuft)");
-		configOutput(POS_OUTPUT, "Song-Position (0–10 V)");
-		configOutput(CVA_OUTPUT, "CV A der Zeile");
-		configOutput(CVB_OUTPUT, "CV B der Zeile");
+		configInput(RUN_INPUT, "Run (trigger: play / stop)");
+		configInput(RESET_INPUT, "Reset (song to the start)");
+		configInput(NEXT_INPUT, "Next row / next pattern (trigger, at the next bar)");
+		configInput(PATT_INPUT, "Pattern CV (0–10 V across all 64 slots, pattern mode)");
+		configInput(ROW_INPUT, "Row CV (0–10 V across the song list, jumps at the next bar)");
+		configOutput(END_OUTPUT, "End (trigger at song end and on loop)");
+		configOutput(ROW_OUTPUT, "Row (trigger on every new row)");
+		configOutput(BUILD_OUTPUT, "Build (gate while a build plays)");
+		configOutput(DROP_OUTPUT, "Drop (gate while a drop plays)");
+		configOutput(POS_OUTPUT, "Song position (0–10 V)");
+		configOutput(CVA_OUTPUT, "Row CV A");
+		configOutput(CVB_OUTPUT, "Row CV B");
 	}
 
 	// ------------------------------------------------------------ audio thread
@@ -375,11 +375,11 @@ struct Ablauf : Module {
 			AblaufAction* a = dynamic_cast<AblaufAction*>(h->actions[h->actionIndex - 1]);
 			if (a && a->moduleId == id) {
 				h->undo();
-				say("Rückgängig");
+				say("Undo");
 				return;
 			}
 		}
-		say(h->canUndo() ? "Zuletzt kein ABLAUF-Schritt (Strg+Z)" : "Nichts rückgängig zu machen");
+		say(h->canUndo() ? "Last step was not ABLAUF (Ctrl+Z)" : "Nothing to undo");
 	}
 
 	// ---- the selected row and its knobs
@@ -435,11 +435,11 @@ struct Ablauf : Module {
 	// ---- song list edits
 	void insertRow() {
 		if ((int)rows.size() >= MAX_ROWS) {
-			say("Höchstens 64 Zeilen");
+			say("64 rows at most");
 			return;
 		}
 		int s = selSlot >= 0 ? selSlot : (rows.empty() ? -1 : rows[curRow].slot);
-		AblaufAction* a = beginChange("Zeile einfügen", s);
+		AblaufAction* a = beginChange("insert row", s);
 		Row w;
 		if (!rows.empty())
 			w = rows[curRow], w.fill = false, w.on = 0xF, w.cvA = w.cvB = 0.f;
@@ -459,12 +459,12 @@ struct Ablauf : Module {
 			song.jumpRow++;
 		setRow(at);
 		endChange(a);
-		say("Zeile " + std::to_string(at + 1) + ": " + slotName(s));
+		say("Row " + std::to_string(at + 1) + ": " + slotName(s));
 	}
 	void deleteRow() {
 		if (rows.empty())
 			return;
-		AblaufAction* a = beginChange("Zeile löschen");
+		AblaufAction* a = beginChange("delete row");
 		int at = curRow;
 		rows.erase(rows.begin() + at);
 		if (song.playing) {
@@ -484,14 +484,14 @@ struct Ablauf : Module {
 	void toggleTrack(int t) {
 		if (rows.empty())
 			return;
-		AblaufAction* a = beginChange("Spur an/aus");
+		AblaufAction* a = beginChange("track on/off");
 		rows[curRow].on ^= (uint8_t)(1 << t);
 		endChange(a);
 	}
 	void toggleFill() {
 		if (rows.empty())
 			return;
-		AblaufAction* a = beginChange("Fill");
+		AblaufAction* a = beginChange("fill");
 		rows[curRow].fill = !rows[curRow].fill;
 		endChange(a);
 	}
@@ -507,7 +507,7 @@ struct Ablauf : Module {
 			return;
 		if (armed == 1) { // STORE
 			if (!g) {
-				say("Kein GENRA verbunden");
+				say("No GENRA connected");
 				return;
 			}
 			pendingStore = i;
@@ -518,14 +518,14 @@ struct Ablauf : Module {
 		if (armed == 2) { // COPY: source, then target
 			if (copySrc < 0) {
 				if (!slots[i].used) {
-					say("Leerer Platz – Quelle wählen");
+					say("Empty slot – pick a source");
 					return;
 				}
 				copySrc = i;
-				say(slotName(i) + " → Ziel antippen");
+				say(slotName(i) + " → tap target");
 				return;
 			}
-			AblaufAction* a = beginChange("Kopieren", i);
+			AblaufAction* a = beginChange("copy", i);
 			slots[i] = slots[copySrc];
 			endChange(a);
 			say(slotName(copySrc) + " → " + slotName(i));
@@ -535,10 +535,10 @@ struct Ablauf : Module {
 			return;
 		}
 		if (armed == 3) { // CLEAR
-			AblaufAction* a = beginChange("Löschen", i);
+			AblaufAction* a = beginChange("clear", i);
 			slots[i] = Slot();
 			endChange(a);
-			say(slotName(i) + " gelöscht");
+			say(slotName(i) + " cleared");
 			armed = 0;
 			return;
 		}
@@ -547,12 +547,12 @@ struct Ablauf : Module {
 			cuePattern(i, g);
 	}
 	void setTag(int i, int tag) {
-		AblaufAction* a = beginChange("Abschnitt", i);
+		AblaufAction* a = beginChange("part", i);
 		slots[i].tag = (int8_t)tag;
 		endChange(a);
 	}
 	void clearSlot(int i) {
-		AblaufAction* a = beginChange("Löschen", i);
+		AblaufAction* a = beginChange("clear", i);
 		slots[i] = Slot();
 		endChange(a);
 	}
@@ -588,7 +588,7 @@ struct Ablauf : Module {
 	// ---- variants
 	void part(int k, Genra* g) {
 		if (!g) {
-			say("Kein GENRA verbunden");
+			say("No GENRA connected");
 			return;
 		}
 		// still on one of this session's results (unchanged)? then the same source: "this pattern is great – an intro,
@@ -614,7 +614,7 @@ struct Ablauf : Module {
 		if (target < 0 || slotVer[target] != session.ver[k] || !slots[target].used)
 			target = freeSlot();
 		if (target < 0) {
-			say("Kein freier Platz");
+			say("No free slot");
 			return;
 		}
 		AblaufAction* a = beginChange(SECTION_NAMES[k], target);
@@ -682,7 +682,7 @@ struct Ablauf : Module {
 		if (r < 0)
 			r = nextPlayable(0);
 		if (r < 0) {
-			say("Song ist leer – Pads mit EINF. eintragen");
+			say("Song is empty – add pads with EINF.");
 			return;
 		}
 		g->cueCancel();
@@ -854,14 +854,14 @@ struct Ablauf : Module {
 		if (g && (pendingStore >= 0 || pendingPart >= 0) && g->snapState.load(std::memory_order_acquire) == 2) {
 			if (pendingStore >= 0) {
 				int i = pendingStore;
-				AblaufAction* a = beginChange("Speichern", i);
+				AblaufAction* a = beginChange("store", i);
 				int8_t tag = slots[i].used ? slots[i].tag : -1;
 				slots[i] = g->snap;
 				slots[i].tag = tag;
 				slots[i].used = true;
 				endChange(a);
 				selSlot = i;
-				say(slotName(i) + " gespeichert");
+				say(slotName(i) + " stored");
 				session.clear();
 			}
 			if (pendingPart >= 0) {
@@ -1241,10 +1241,10 @@ struct SongList : AbWidget {
 		};
 		t(2.5f, 3.6f, "#", 1.3f, ui::DIM);
 		t(8.5f, 3.6f, "PATT", 1.3f, ui::DIM);
-		t(21.f, 3.6f, "TAKTE", 1.3f, ui::DIM, NVG_ALIGN_CENTER);
-		t(37.f, 3.6f, "SPUREN", 1.3f, ui::DIM, NVG_ALIGN_CENTER);
+		t(21.f, 3.6f, "BARS", 1.3f, ui::DIM, NVG_ALIGN_CENTER);
+		t(37.f, 3.6f, "TRACKS", 1.3f, ui::DIM, NVG_ALIGN_CENTER);
 		t(53.f, 3.6f, "FILL", 1.3f, ui::DIM, NVG_ALIGN_CENTER);
-		t(60.f, 3.6f, "ABSCHNITT", 1.3f, ui::DIM);
+		t(60.f, 3.6f, "PART", 1.3f, ui::DIM);
 		nvgBeginPath(vg);
 		nvgMoveTo(vg, 1.5f * u, 5.f * u);
 		nvgLineTo(vg, (w - 1.5f) * u, 5.f * u);
@@ -1267,9 +1267,9 @@ struct SongList : AbWidget {
 			firstVisible = want - vis + 1;
 		firstVisible = clamp(firstVisible, 0, std::max(0, n - vis));
 		if (n == 0) {
-			t(w / 2, 18.f, "Noch kein Song", 1.8f, ui::DIM, NVG_ALIGN_CENTER);
-			t(w / 2, 23.f, "Pad antippen, dann EINF. – Zeile für Zeile", 1.4f, ui::DIM, NVG_ALIGN_CENTER);
-			t(w / 2, 27.f, "Varianten: Pattern läuft, dann INTRO, BUILD, …", 1.4f, ui::DIM, NVG_ALIGN_CENTER);
+			t(w / 2, 18.f, "No song yet", 1.8f, ui::DIM, NVG_ALIGN_CENTER);
+			t(w / 2, 23.f, "Tap a pad, then EINF. – row by row", 1.4f, ui::DIM, NVG_ALIGN_CENTER);
+			t(w / 2, 27.f, "Variations: pattern playing, then INTRO, BUILD …", 1.4f, ui::DIM, NVG_ALIGN_CENTER);
 		}
 		for (int i = 0; i < vis && firstVisible + i < n; i++) {
 			int r = firstVisible + i;
@@ -1327,10 +1327,10 @@ struct SongList : AbWidget {
 						done += b;
 				}
 			int into = clamp((int)(m->barNow - m->song.rowStart), 0, 99) + 1;
-			st = string::f("TAKT %d / %d  ·  ZEILE %d / %d", done + into, total, m->song.row + 1, n);
+			st = string::f("BAR %d / %d  ·  ROW %d / %d", done + into, total, m->song.row + 1, n);
 		}
 		else if (n)
-			st = string::f("ZEILE %d / %d", m->curRow + 1, n);
+			st = string::f("ROW %d / %d", m->curRow + 1, n);
 		if (!st.empty())
 			ui::text(vg, mono, (w - 2.5f) * u, (box.size.y / u - 1.2f) * u, st, 2.2f * u, ui::DIM, NVG_ALIGN_RIGHT, 0.f);
 		if (n > vis) { // scroll bar
@@ -1390,7 +1390,7 @@ struct SongList : AbWidget {
 	};
 	void openMenu(int r) {
 		Menu* menu = createMenu();
-		menu->addChild(createMenuLabel(string::f("Zeile %d", r + 1)));
+		menu->addChild(createMenuLabel(string::f("Row %d", r + 1)));
 		for (int k = 0; k < 2; k++) {
 			rack::ui::Slider* s = new rack::ui::Slider;
 			CvQuantity* q = new CvQuantity;
@@ -1402,14 +1402,14 @@ struct SongList : AbWidget {
 			menu->addChild(s);
 		}
 		Ablauf* m = module;
-		menu->addChild(createMenuItem("Zeile duplizieren", "", [=]() {
+		menu->addChild(createMenuItem("Duplicate row", "", [=]() {
 			int keep = m->selSlot;
 			m->selSlot = m->rows[r].slot;
 			m->setRow(r);
 			m->insertRow();
 			m->selSlot = keep;
 		}));
-		menu->addChild(createMenuItem("Zeile löschen", "", [=]() {
+		menu->addChild(createMenuItem("Delete row", "", [=]() {
 			m->setRow(r);
 			m->deleteRow();
 		}));
@@ -1557,19 +1557,19 @@ struct Pads : AbWidget {
 	void openMenu(int i) {
 		Ablauf* m = module;
 		Menu* menu = createMenu();
-		menu->addChild(createMenuLabel("Pad " + slotName(i) + (m->slots[i].used ? "" : " (leer)")));
+		menu->addChild(createMenuLabel("Pad " + slotName(i) + (m->slots[i].used ? "" : " (empty)")));
 		if (!m->slots[i].used)
 			return;
-		menu->addChild(createSubmenuItem("Abschnitt", m->slots[i].tag >= 0 ? SECTION_NAMES[m->slots[i].tag] : "keiner", [=](Menu* sm) {
-			sm->addChild(createCheckMenuItem("keiner", "", [=]() { return m->slots[i].tag < 0; }, [=]() { m->setTag(i, -1); }));
+		menu->addChild(createSubmenuItem("Part", m->slots[i].tag >= 0 ? SECTION_NAMES[m->slots[i].tag] : "none", [=](Menu* sm) {
+			sm->addChild(createCheckMenuItem("None", "", [=]() { return m->slots[i].tag < 0; }, [=]() { m->setTag(i, -1); }));
 			for (int k = 0; k < NUM_SECTIONS; k++)
 				sm->addChild(createCheckMenuItem(SECTION_NAMES[k], "", [=]() { return m->slots[i].tag == k; }, [=]() { m->setTag(i, k); }));
 		}));
-		menu->addChild(createMenuItem("In den Song einfügen (nach der gewählten Zeile)", "", [=]() {
+		menu->addChild(createMenuItem("Insert into song (after the selected row)", "", [=]() {
 			m->selSlot = i;
 			m->insertRow();
 		}));
-		menu->addChild(createMenuItem("Löschen", "", [=]() { m->clearSlot(i); }));
+		menu->addChild(createMenuItem("Clear", "", [=]() { m->clearSlot(i); }));
 	}
 };
 
@@ -1584,7 +1584,7 @@ struct InfoLine : AbWidget {
 			if (m->msgTime > 0.f)
 				ui::text(vg, bold, 1.6f * u, 3.7f * u, m->msg, 1.45f * u, ACC, NVG_ALIGN_LEFT, 0.25f * u);
 			else if (!m->genraLinked)
-				ui::text(vg, bold, 1.6f * u, 3.7f * u, "Neben GENRA setzen oder Rechtsklick › Verbinden", 1.3f * u, ui::DIM, NVG_ALIGN_LEFT, 0.15f * u);
+				ui::text(vg, bold, 1.6f * u, 3.7f * u, "Place next to GENRA or right-click › Connect", 1.3f * u, ui::DIM, NVG_ALIGN_LEFT, 0.15f * u);
 			else {
 				int p = m->playingSlot;
 				if (p >= 0) {
@@ -1594,10 +1594,10 @@ struct InfoLine : AbWidget {
 						ui::text(vg, bold, (x + 1.5f) * u, 3.7f * u, SECTION_NAMES[tag], 1.45f * u, SEC_COL[tag], NVG_ALIGN_LEFT, 0.25f * u);
 				}
 				else
-					ui::text(vg, bold, 1.6f * u, 3.7f * u, m->armed == 1 ? "STORE: Pad antippen" : "GENRA spielt frei", 1.4f * u,
+					ui::text(vg, bold, 1.6f * u, 3.7f * u, m->armed == 1 ? "STORE: tap a pad" : "GENRA plays freely", 1.4f * u,
 					         m->armed == 1 ? ACC : ui::DIM, NVG_ALIGN_LEFT, 0.25f * u);
 				if (m->armed == 2)
-					ui::text(vg, bold, (w - 1.6f) * u, 3.7f * u, m->copySrc < 0 ? "COPY: Quelle" : "COPY: Ziel", 1.4f * u, ACC, NVG_ALIGN_RIGHT, 0.25f * u);
+					ui::text(vg, bold, (w - 1.6f) * u, 3.7f * u, m->copySrc < 0 ? "COPY: source" : "COPY: target", 1.4f * u, ACC, NVG_ALIGN_RIGHT, 0.25f * u);
 				else if (m->armed == 3)
 					ui::text(vg, bold, (w - 1.6f) * u, 3.7f * u, "CLEAR: Pad", 1.4f * u, ACC, NVG_ALIGN_RIGHT, 0.25f * u);
 				else if (m->queuedSlot >= 0)
@@ -1681,7 +1681,7 @@ struct RowKnob : K {
 	void onDragStart(const event::DragStart& e) override {
 		Ablauf* m = dynamic_cast<Ablauf*>(this->module);
 		if (m && e.button == GLFW_MOUSE_BUTTON_LEFT && !pending)
-			pending = m->beginChange("Zeile ändern", m->rows.empty() ? -1 : m->rows[m->curRow].slot);
+			pending = m->beginChange("edit row", m->rows.empty() ? -1 : m->rows[m->curRow].slot);
 		K::onDragStart(e);
 	}
 	void onDragEnd(const event::DragEnd& e) override {
@@ -1798,8 +1798,8 @@ struct AblaufWidget : ModuleWidget {
 		if (!m)
 			return;
 		menu->addChild(new MenuSeparator);
-		menu->addChild(createMenuLabel("Verbinden mit…"));
-		menu->addChild(createCheckMenuItem("Automatisch (angedocktes GENRA)", "", [=]() { return m->linkedId < 0; }, [=]() { m->linkedId = -1; }));
+		menu->addChild(createMenuLabel("Connect to…"));
+		menu->addChild(createCheckMenuItem("Automatic (docked GENRA)", "", [=]() { return m->linkedId < 0; }, [=]() { m->linkedId = -1; }));
 		int n = 0;
 		for (int64_t id : APP->engine->getModuleIds()) {
 			Module* mm = APP->engine->getModule(id);
@@ -1810,15 +1810,15 @@ struct AblaufWidget : ModuleWidget {
 			menu->addChild(createCheckMenuItem(label, "", [=]() { return m->linkedId == id; }, [=]() { m->linkedId = id; }));
 		}
 		menu->addChild(new MenuSeparator);
-		menu->addChild(createMenuItem("Song leeren", "", [=]() {
-			AblaufAction* a = m->beginChange("Song leeren");
+		menu->addChild(createMenuItem("Clear song", "", [=]() {
+			AblaufAction* a = m->beginChange("clear song");
 			m->rows.clear();
 			m->rowsReplaced();
 			m->setRow(0);
 			m->endChange(a);
 		}));
-		menu->addChild(createMenuLabel("Pattern speichern: STORE, dann Pad · Song: Pad antippen, dann EINF."));
-		menu->addChild(createMenuLabel("Varianten: Pattern läuft, dann INTRO … OUTRO (nochmal = neu würfeln)"));
+		menu->addChild(createMenuLabel("Store a pattern: STORE, then a pad · Song: tap a pad, then EINF."));
+		menu->addChild(createMenuLabel("Variations: pattern playing, then INTRO … OUTRO (again = re-roll)"));
 	}
 };
 

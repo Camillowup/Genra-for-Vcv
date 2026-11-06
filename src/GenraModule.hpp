@@ -15,10 +15,10 @@
 using namespace genra;
 
 static const int LENGTHS[4] = {1, 2, 4, 8};
-static const char* const CLOCK_MODES[4] = {"16tel (4 PPQN)", "8tel (2 PPQN)", "Viertel (1 PPQN)", "24 PPQN"};
-static const char* const CHORD_MODES[3] = {"Gemischt (Vorlagen + frei)", "Nur Genre-Vorlagen", "Frei erzeugt"};
-static const char* const GENRE_CV_MODES[2] = {"0–10 V über alle Genres", "1/12 V pro Genre (Halbtöne, 0 V = House)"};
-static const char* const TRACK_NAMES[4] = {"Drums", "Bass", "Melodie", "Pads"};
+static const char* const CLOCK_MODES[4] = {"16ths (4 PPQN)", "8ths (2 PPQN)", "Quarters (1 PPQN)", "24 PPQN"};
+static const char* const CHORD_MODES[3] = {"Mixed (templates + free)", "Genre templates only", "Freely generated"};
+static const char* const GENRE_CV_MODES[2] = {"0–10 V across all genres", "1/12 V per genre (semitones, 0 V = House)"};
+static const char* const TRACK_NAMES[4] = {"Drums", "Bass", "Melody", "Pads"};
 
 static const NVGcolor TRACK_COLORS[4] = {
 	nvgRGB(0x7b, 0x6c, 0xff), nvgRGB(0xb8, 0xf2, 0x3a), nvgRGB(0x3d, 0xc9, 0xff), nvgRGB(0xe0, 0x77, 0x9e)};
@@ -435,43 +435,43 @@ struct Genra : Module {
 		for (int g = 0; g < NUM_GENRES; g++)
 			genreNames.push_back(prof(profileOf(g, 0)).name);
 		configSwitch(GENRE_PARAM, 0.f, NUM_GENRES - 1, 0.f, "Genre (global)", genreNames);
-		configParam<VariantQuantity>(VARIANT_PARAM, 0.f, MAX_VARIANTS - 1, 0.f, "Variante");
+		configParam<VariantQuantity>(VARIANT_PARAM, 0.f, MAX_VARIANTS - 1, 0.f, "Variant");
 		paramQuantities[VARIANT_PARAM]->snapEnabled = true;
-		configButton(CHORDNEW_PARAM, "Harmony: neue Akkordfolge (NEW)");
-		configSwitch(KEY_PARAM, 0.f, 11.f, 9.f, "Tonart (Grundton)",
+		configButton(CHORDNEW_PARAM, "Harmony: new chord progression (NEW)");
+		configSwitch(KEY_PARAM, 0.f, 11.f, 9.f, "Key (root)",
 		             {"C", "C#/Db", "D", "D#/Eb", "E", "F", "F#/Gb", "G", "G#/Ab", "A", "A#/Bb", "B/H"});
 		std::vector<std::string> scaleNames = {"Auto (Genre)"};
 		for (int s = 0; s < NUM_SCALES; s++)
 			scaleNames.push_back(SCALES[s].name);
-		configSwitch(SCALE_PARAM, 0.f, NUM_SCALES, 0.f, "Tonleiter", scaleNames);
-		configParam(BPM_PARAM, 40.f, 220.f, 124.f, "Tempo (interne Clock)", " BPM");
+		configSwitch(SCALE_PARAM, 0.f, NUM_SCALES, 0.f, "Scale", scaleNames);
+		configParam(BPM_PARAM, 40.f, 220.f, 124.f, "Tempo (internal clock)", " BPM");
 		paramQuantities[BPM_PARAM]->snapEnabled = true;
-		configParam(SWING_PARAM, -1.f, 1.f, 0.f, "Swing (relativ zum Genre jeder Spur)", "%", 0.f, 25.f);
-		configParam(COMPLEX_PARAM, 0.f, 1.f, 0.5f, "Rhythmische Komplexität (relativ zum Genre)", "%", 0.f, 200.f, -100.f);
-		configParam(COLOR_PARAM, 0.f, 1.f, 0.5f, "Harmonische Farbe (relativ zum Genre)", "%", 0.f, 200.f, -100.f);
-		configParam(MUTATE_PARAM, 0.f, 1.f, 0.f, "Mutation pro Durchlauf", "%", 0.f, 100.f);
-		configSwitch(LENGTH_PARAM, 0.f, 3.f, 2.f, "Loop-Länge", {"1 Takt", "2 Takte", "4 Takte", "8 Takte"});
-		configButton(NEW_PARAM, "Alles neu würfeln (NEW ALL)");
+		configParam(SWING_PARAM, -1.f, 1.f, 0.f, "Swing (relative to each track's genre)", "%", 0.f, 25.f);
+		configParam(COMPLEX_PARAM, 0.f, 1.f, 0.5f, "Rhythmic complexity (relative to genre)", "%", 0.f, 200.f, -100.f);
+		configParam(COLOR_PARAM, 0.f, 1.f, 0.5f, "Harmonic color (relative to genre)", "%", 0.f, 200.f, -100.f);
+		configParam(MUTATE_PARAM, 0.f, 1.f, 0.f, "Mutation per loop", "%", 0.f, 100.f);
+		configSwitch(LENGTH_PARAM, 0.f, 3.f, 2.f, "Loop length", {"1 bar", "2 bars", "4 bars", "8 bars"});
+		configButton(NEW_PARAM, "Re-roll everything (NEW ALL)");
 		configButton(RUN_PARAM, "Start / Stop");
-		configSwitch(CHORDLOCK_PARAM, 0.f, 1.f, 0.f, "Harmony: Akkordfolge sperren", {"Aus", "Gesperrt"});
+		configSwitch(CHORDLOCK_PARAM, 0.f, 1.f, 0.f, "Harmony: lock chord progression", {"Off", "Locked"});
 		for (int t = 0; t < 4; t++) {
 			std::string tn = TRACK_NAMES[t];
-			configParam(DENS_PARAM + t, 0.f, 1.f, 0.5f, tn + " Dichte", "%", 0.f, 200.f);
-			configSwitch(MUTE_PARAM + t, 0.f, 1.f, 0.f, tn + " Mute", {"Aus", "Stumm"});
-			configSwitch(LOCK_PARAM + t, 0.f, 1.f, 0.f, tn + " Lock", {"Aus", "Gesperrt"});
-			configButton(TNEW_PARAM + t, tn + " neu würfeln (NEW)");
-			configInput(TNEW_INPUT + t, tn + " neu würfeln (Trigger)");
-			configInput(TGENRE_INPUT + t, tn + " Genre CV (überschreibt das Genre-Feld)");
-			configInput(DENS_INPUT + t, tn + " Dichte CV (0-10 V, addiert)");
+			configParam(DENS_PARAM + t, 0.f, 1.f, 0.5f, tn + " density", "%", 0.f, 200.f);
+			configSwitch(MUTE_PARAM + t, 0.f, 1.f, 0.f, tn + " mute", {"Off", "Muted"});
+			configSwitch(LOCK_PARAM + t, 0.f, 1.f, 0.f, tn + " lock", {"Off", "Locked"});
+			configButton(TNEW_PARAM + t, tn + " re-roll (NEW)");
+			configInput(TNEW_INPUT + t, tn + " re-roll (trigger)");
+			configInput(TGENRE_INPUT + t, tn + " genre CV (overrides the genre field)");
+			configInput(DENS_INPUT + t, tn + " density CV (0–10 V, added)");
 		}
-		configParam(FILL_PARAM, 0.f, 1.f, 0.25f, "Drum-Fill / Drop Wahrscheinlichkeit", "%", 0.f, 100.f);
-		configParam(GHOST_PARAM, 0.f, 1.f, 0.3f, "Ghost Notes", "%", 0.f, 100.f);
-		configParam(MOVE_PARAM, 0.f, 1.f, 0.5f, "Bass Bewegung (relativ zum Genre)", "%", 0.f, 200.f, -100.f);
-		configParam(RANGE_PARAM, 0.f, 1.f, 0.5f, "Melodie Tonumfang", "%", 0.f, 100.f);
-		configParam(VOICING_PARAM, 0.f, 1.f, 0.5f, "Pad Voicing (eng - offen)", "%", 0.f, 100.f);
-		static const char* ON[3] = {"Bass", "Melodie", "Pads"};
+		configParam(FILL_PARAM, 0.f, 1.f, 0.25f, "Drum fill / drop probability", "%", 0.f, 100.f);
+		configParam(GHOST_PARAM, 0.f, 1.f, 0.3f, "Ghost notes", "%", 0.f, 100.f);
+		configParam(MOVE_PARAM, 0.f, 1.f, 0.5f, "Bass movement (relative to genre)", "%", 0.f, 200.f, -100.f);
+		configParam(RANGE_PARAM, 0.f, 1.f, 0.5f, "Melody range", "%", 0.f, 100.f);
+		configParam(VOICING_PARAM, 0.f, 1.f, 0.5f, "Pad voicing (close – open)", "%", 0.f, 100.f);
+		static const char* ON[3] = {"Bass", "Melody", "Pads"};
 		for (int i = 0; i < 3; i++)
-			configSwitch(OCT_PARAM + i, -2.f, 2.f, 0.f, std::string(ON[i]) + " Oktave", {"-2", "-1", "0", "+1", "+2"});
+			configSwitch(OCT_PARAM + i, -2.f, 2.f, 0.f, std::string(ON[i]) + " octave", {"-2", "-1", "0", "+1", "+2"});
 		for (int id : std::initializer_list<int>{RUN_PARAM, NEW_PARAM, CHORDLOCK_PARAM, CHORDNEW_PARAM})
 			paramQuantities[id]->randomizeEnabled = false;
 		for (int t = 0; t < 4; t++) {
@@ -482,44 +482,44 @@ struct Genra : Module {
 
 		configInput(CLOCK_INPUT, "Clock");
 		configInput(RESET_INPUT, "Reset");
-		configInput(RUN_INPUT, "Run (Trigger schaltet um)");
-		configInput(NEW_INPUT, "Alles neu würfeln (Trigger)");
+		configInput(RUN_INPUT, "Run (trigger toggles)");
+		configInput(NEW_INPUT, "Re-roll everything (trigger)");
 		configInput(GENRE_INPUT, "Genre CV (global)");
-		configInput(MUTATE_INPUT, "Mutate CV (0-10 V, addiert)");
+		configInput(MUTATE_INPUT, "Mutate CV (0–10 V, added)");
 		configInput(TRANSP_INPUT, "Transpose (V/Oct)");
-		configInput(CHORD_INPUT, "Akkord (polyphon, V/Oct)");
-		configInput(CHORDNEW_INPUT, "Harmony: neue Akkordfolge (Trigger)");
-		configInput(FILL_INPUT, "Fill / Drop am Loop-Ende auslösen (Trigger)");
-		configInput(VARIANT_INPUT, "Variante CV (0-10 V, addiert)");
-		configInput(COMPLEX_INPUT, "Complex CV (0-10 V, addiert)");
-		configInput(COLOR_INPUT, "Color CV (0-10 V, addiert)");
-		configInput(SWING_INPUT, "Swing CV (0-10 V, addiert)");
-		configInput(BPM_INPUT, "Tempo CV (interne Clock, 10 BPM pro Volt, addiert)");
-		configInput(LENGTH_INPUT, "Loop-Länge CV (0-10 V, addiert)");
-		configOutput(CLOCK_OUTPUT, "Clock (16tel)");
-		configOutput(RESET_OUTPUT, "Reset (Loop-Anfang)");
-		configOutput(RUN_OUTPUT, "Run (Gate, solange GENRA läuft)");
-		configOutput(BAR_OUTPUT, "Bar (Impuls pro Takt)");
-		configOutput(END_OUTPUT, "Loop-Ende (Impuls auf dem letzten Step)");
-		configOutput(FILL_OUTPUT, "Fill / Drop (Gate)");
-		configOutput(ROOT_OUTPUT, "Grundton des aktuellen Akkords (V/Oct)");
-		configOutput(CHORD_OUTPUT, "Aktueller Akkord (polyphon, V/Oct)");
+		configInput(CHORD_INPUT, "Chord (polyphonic, V/Oct)");
+		configInput(CHORDNEW_INPUT, "Harmony: new chord progression (trigger)");
+		configInput(FILL_INPUT, "Fill / drop at loop end (trigger)");
+		configInput(VARIANT_INPUT, "Variant CV (0–10 V, added)");
+		configInput(COMPLEX_INPUT, "Complex CV (0–10 V, added)");
+		configInput(COLOR_INPUT, "Color CV (0–10 V, added)");
+		configInput(SWING_INPUT, "Swing CV (0–10 V, added)");
+		configInput(BPM_INPUT, "Tempo CV (internal clock, 10 BPM per volt, added)");
+		configInput(LENGTH_INPUT, "Loop length CV (0–10 V, added)");
+		configOutput(CLOCK_OUTPUT, "Clock (16ths)");
+		configOutput(RESET_OUTPUT, "Reset (loop start)");
+		configOutput(RUN_OUTPUT, "Run (gate while GENRA is running)");
+		configOutput(BAR_OUTPUT, "Bar (pulse per bar)");
+		configOutput(END_OUTPUT, "Loop end (pulse on the last step)");
+		configOutput(FILL_OUTPUT, "Fill / drop (gate)");
+		configOutput(ROOT_OUTPUT, "Root of the current chord (V/Oct)");
+		configOutput(CHORD_OUTPUT, "Current chord (polyphonic, V/Oct)");
 		for (int v = 0; v < NUM_DRUMS; v++)
-			configOutput(DRUM_OUTPUT + v, std::string(DRUM_NAMES[v]) + " Trigger (Höhe = Velocity)");
+			configOutput(DRUM_OUTPUT + v, std::string(DRUM_NAMES[v]) + " trigger (level = velocity)");
 		configOutput(BASS_VOCT_OUTPUT, "Bass V/Oct");
-		configOutput(BASS_GATE_OUTPUT, "Bass Gate");
-		configOutput(BASS_VEL_OUTPUT, "Bass Velocity");
-		configOutput(BASS_ACC_OUTPUT, "Bass Akzent");
-		configOutput(MEL_VOCT_OUTPUT, "Melodie V/Oct");
-		configOutput(MEL_GATE_OUTPUT, "Melodie Gate");
-		configOutput(MEL_VEL_OUTPUT, "Melodie Velocity");
-		configOutput(MEL_ACC_OUTPUT, "Melodie Akzent");
-		configOutput(PAD_VOCT_OUTPUT, "Pads V/Oct (polyphon, 4)");
-		configOutput(PAD_GATE_OUTPUT, "Pads Gate (polyphon, 4)");
-		configOutput(PAD_VEL_OUTPUT, "Pads Velocity");
-		configOutput(PAD_MOD_OUTPUT, "Pads Modulation (0-10 V)");
-		configOutput(BASS_SLIDE_OUTPUT, "Bass Slide (10 V während des Glides)");
-		configOutput(MEL_SLIDE_OUTPUT, "Melodie Slide (10 V während des Glides)");
+		configOutput(BASS_GATE_OUTPUT, "Bass gate");
+		configOutput(BASS_VEL_OUTPUT, "Bass velocity");
+		configOutput(BASS_ACC_OUTPUT, "Bass accent");
+		configOutput(MEL_VOCT_OUTPUT, "Melody V/Oct");
+		configOutput(MEL_GATE_OUTPUT, "Melody gate");
+		configOutput(MEL_VEL_OUTPUT, "Melody velocity");
+		configOutput(MEL_ACC_OUTPUT, "Melody accent");
+		configOutput(PAD_VOCT_OUTPUT, "Pads V/Oct (polyphonic, 4)");
+		configOutput(PAD_GATE_OUTPUT, "Pads gate (polyphonic, 4)");
+		configOutput(PAD_VEL_OUTPUT, "Pads velocity");
+		configOutput(PAD_MOD_OUTPUT, "Pads modulation (0–10 V)");
+		configOutput(BASS_SLIDE_OUTPUT, "Bass slide (10 V during glide)");
+		configOutput(MEL_SLIDE_OUTPUT, "Melody slide (10 V during glide)");
 
 		lightDivider.setDivision(64);
 		rng = Rng(random::u64());
@@ -1302,7 +1302,7 @@ struct Genra : Module {
 
 	// ------------------------------------------------------------ MIDI file actions (UI thread)
 	void exportMidi() {
-		osdialog_filters* filters = osdialog_filters_parse("MIDI-Datei:mid,midi");
+		osdialog_filters* filters = osdialog_filters_parse("MIDI file:mid,midi");
 		std::string name = std::string("genra-") + prof(curGenre).name + ".mid";
 		for (char& c : name)
 			if (c == ' ' || c == '&')
@@ -1325,12 +1325,12 @@ struct Genra : Module {
 			system::writeFile(path, data);
 		}
 		catch (Exception& e) {
-			osdialog_message(OSDIALOG_ERROR, OSDIALOG_OK, ("Speichern fehlgeschlagen: " + std::string(e.what())).c_str());
+			osdialog_message(OSDIALOG_ERROR, OSDIALOG_OK, ("Saving failed: " + std::string(e.what())).c_str());
 		}
 	}
 
 	void importMidi() {
-		osdialog_filters* filters = osdialog_filters_parse("MIDI-Datei:mid,midi");
+		osdialog_filters* filters = osdialog_filters_parse("MIDI file:mid,midi");
 		char* pathC = osdialog_file(OSDIALOG_OPEN, NULL, NULL, filters);
 		osdialog_filters_free(filters);
 		if (!pathC)
@@ -1342,7 +1342,7 @@ struct Genra : Module {
 			data = system::readFile(path);
 		}
 		catch (Exception& e) {
-			osdialog_message(OSDIALOG_ERROR, OSDIALOG_OK, "Datei konnte nicht gelesen werden.");
+			osdialog_message(OSDIALOG_ERROR, OSDIALOG_OK, "Could not read the file.");
 			return;
 		}
 		if (importReady)
