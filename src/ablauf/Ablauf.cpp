@@ -694,7 +694,7 @@ struct Ablauf : Module {
 		if (r < 0)
 			r = nextPlayable(0);
 		if (r < 0) {
-			say("Song is empty – add pads with EINF.");
+			say("Song is empty – add pads with INSERT");
 			return;
 		}
 		g->cueCancel();
@@ -1296,7 +1296,7 @@ struct SongList : AbWidget {
 		firstVisible = clamp(firstVisible, 0, std::max(0, n - vis));
 		if (n == 0) {
 			t(w / 2, 18.f, "No song yet", 1.8f, ui::DIM, NVG_ALIGN_CENTER);
-			t(w / 2, 23.f, "Tap a pad, then EINF. – row by row", 1.4f, ui::DIM, NVG_ALIGN_CENTER);
+			t(w / 2, 23.f, "Tap a pad, then INSERT – row by row", 1.4f, ui::DIM, NVG_ALIGN_CENTER);
 			t(w / 2, 27.f, "Variations: pattern playing, then INTRO, BUILD …", 1.4f, ui::DIM, NVG_ALIGN_CENTER);
 		}
 		for (int i = 0; i < vis && firstVisible + i < n; i++) {
@@ -1627,7 +1627,7 @@ struct InfoLine : AbWidget {
 				if (m->armed == 2)
 					ui::text(vg, bold, (w - 1.6f) * u, 3.7f * u, m->copySrc < 0 ? "COPY: source" : "COPY: target", 1.4f * u, ACC, NVG_ALIGN_RIGHT, 0.25f * u);
 				else if (m->armed == 3)
-					ui::text(vg, bold, (w - 1.6f) * u, 3.7f * u, "CLEAR: Pad", 1.4f * u, ACC, NVG_ALIGN_RIGHT, 0.25f * u);
+					ui::text(vg, bold, (w - 1.6f) * u, 3.7f * u, "CLEAR: tap a pad", 1.4f * u, ACC, NVG_ALIGN_RIGHT, 0.25f * u);
 				else if (m->queuedSlot >= 0)
 					ui::text(vg, bold, (w - 1.6f) * u, 3.7f * u, "> " + slotName(m->queuedSlot), 1.45f * u, ui::TXT, NVG_ALIGN_RIGHT, 0.25f * u);
 			}
@@ -1845,7 +1845,7 @@ struct AblaufWidget : ModuleWidget {
 			m->setRow(0);
 			m->endChange(a);
 		}));
-		menu->addChild(createMenuLabel("Store: tap an empty pad (or STORE, then any pad) · Song: tap a pad, then EINF."));
+		menu->addChild(createMenuLabel("Store: tap an empty pad (or STORE, then any pad) · Song: tap a pad, then INSERT"));
 		menu->addChild(createMenuLabel("Variations: pattern playing, then INTRO … OUTRO (again = re-roll)"));
 	}
 };

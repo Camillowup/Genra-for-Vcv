@@ -123,21 +123,21 @@ dx, dy, dw, dh = sx + 3, 18.5, sw - 6, 51.5
 rect(dx, dy, dw, dh, DARK, 1.0)
 area("SONGLIST", dx, dy, dw, dh)
 ky = 79.5
-knob("ZEILE", sx + 10, ky, "ZEILE", "knob", ACC)
+knob("ZEILE", sx + 10, ky, "ROW", "knob", ACC)
 knob("PATTERN", sx + 23, ky, "PATTERN")
-knob("TAKTE", sx + 35, ky, "TAKTE")
+knob("TAKTE", sx + 35, ky, "BARS")
 # ABSCHNITT: the module draws the six coloured lamps around the knob and the name below it
 ax = sx + 49
 knob("ABSCHNITT", ax, ky, None, "small", "#00000000")
 area("SECRING", ax - 7.5, ky - 7.5, 15, 15)
 rect(ax - 5.2, ky + 5.4, 10.4, 3.4, DARK, 0.6)
 area("SECNAME", ax - 5.2, ky + 5.4, 10.4, 3.4)
-text(ax, ky + 11.4, "ABSCHNITT", 1.45, TXT, 600, "middle", 0.3)
+text(ax, ky + 11.4, "PART", 1.45, TXT, 600, "middle", 0.3)
 for k, (n, col) in enumerate(TR):
     button(f"TRACK{k}", sx + 61 + k * 8.5, ky - 1.5, n, 1.7, col, 5.6)
-text(sx + 73.75, ky + 6.9, "SPUREN AN / AUS", 1.3, DIM, 700, "middle", 0.3)
+text(sx + 73.75, ky + 6.9, "TRACKS ON / OFF", 1.3, DIM, 700, "middle", 0.3)
 by = 95
-for k, (nm, lab) in enumerate([("INS", "EINF."), ("DEL", "LÖSCH."), ("UNDO", "UNDO"), ("FILL", "FILL")]):
+for k, (nm, lab) in enumerate([("INS", "INSERT"), ("DEL", "DELETE"), ("UNDO", "UNDO"), ("FILL", "FILL")]):
     button(nm, sx + 7.5 + k * 8.6, by)
     text(sx + 7.5 + k * 8.6, by + 5.3, lab, 1.25, TXT, 600, "middle", 0.2)
 e(f'<line x1="{sx + 38.6}" y1="{by - 4}" x2="{sx + 38.6}" y2="{by + 5}" stroke="{LINE}" stroke-width="0.3"/>')
@@ -167,7 +167,7 @@ py = y0 + 4 * (s_ + gap) + 1.0
 rect(x0, py, gw, 5.6, DARK, 0.7)
 area("INFO", x0, py, gw, 5.6)
 ty = py + 9.0
-text(x0, ty + 0.6, "NEU WÜRFELN", 1.3, DIM, 700, "start", 0.3)
+text(x0, ty + 0.6, "RE-ROLL", 1.3, DIM, 700, "start", 0.3)
 area("REROLL", x0 + gw - 18.2, ty - 1.6, 4 * 4.6 - 1.0, 3.2)
 vy = ty + 8.0
 for k, (nm, col) in enumerate(SECS):
@@ -182,14 +182,14 @@ for k, nm in enumerate(["STORE", "COPY", "CLEAR"]):
 # ---------------------------------------------------------------- jacks
 section(3, 104, W - 6, 21.5, None, RING)
 for i, (nm, lab) in enumerate([("IN_RUN", "RUN"), ("IN_RESET", "RESET"), ("IN_NEXT", "NEXT"), ("IN_PATT", "PATT CV"),
-                               ("IN_ROW", "ZEILE CV")]):
+                               ("IN_ROW", "ROW CV")]):
     jack(nm, 10 + i * 10.6, 115.2, lab)
-text(10 + 2 * 10.6, 108.4, "EINGÄNGE", 1.4, DIM, 700, "middle", 0.4)
+text(10 + 2 * 10.6, 108.4, "INPUTS", 1.4, DIM, 700, "middle", 0.4)
 e(f'<line x1="63" y1="108" x2="63" y2="122.5" stroke="{LINE}" stroke-width="0.3"/>')
-for i, (nm, lab) in enumerate([("OUT_END", "ENDE"), ("OUT_ROW", "ZEILE"), ("OUT_BUILD", "BUILD"), ("OUT_DROP", "DROP"),
+for i, (nm, lab) in enumerate([("OUT_END", "END"), ("OUT_ROW", "ROW"), ("OUT_BUILD", "BUILD"), ("OUT_DROP", "DROP"),
                                ("OUT_POS", "POS"), ("OUT_CVA", "CV A"), ("OUT_CVB", "CV B")]):
     jack(nm, 70 + i * 12.0, 115.2, lab, True)
-text(70 + 3 * 12.0, 108.4, "AUSGÄNGE", 1.4, DIM, 700, "middle", 0.4)
+text(70 + 3 * 12.0, 108.4, "OUTPUTS", 1.4, DIM, 700, "middle", 0.4)
 e("</svg>")
 
 if not PREVIEW:
@@ -252,8 +252,8 @@ for k, (nm, col) in enumerate(SECS):
 ptext(ax, ky + 7.95, "DROP", 1.6, SECC["DROP"], 800, "middle", 0.35)
 # mock song list
 X, Y, WW, HH = areas["SONGLIST"]
-for x_, t_, a_ in [(2.5, "#", "start"), (8.5, "PATT", "start"), (21, "TAKTE", "middle"), (37, "SPUREN", "middle"),
-                   (53, "FILL", "middle"), (60, "ABSCHNITT", "start")]:
+for x_, t_, a_ in [(2.5, "#", "start"), (8.5, "PATT", "start"), (21, "BARS", "middle"), (37, "TRACKS", "middle"),
+                   (53, "FILL", "middle"), (60, "PART", "start")]:
     ptext(X + x_, Y + 3.6, t_, 1.3, DIM, 700, a_, 0.35)
 SONG = [("A1", 8, [1, 0, 0, 0], "INTRO", False), ("A1", 8, [1, 1, 0, 1], "INTRO", True), ("A2", 8, [1, 1, 1, 1], "BUILD", True),
         ("A3", 16, [1, 1, 1, 1], "DROP", False), ("A5", 8, [0, 0, 1, 1], "BREAK", False), ("A6", 16, [1, 1, 1, 0], "VERSE", True),
@@ -275,7 +275,7 @@ for i, (pp, bars, m, sec, fill) in enumerate(SONG):
         put(f'<circle cx="{X + 53}" cy="{y + 2.1:.2f}" r="0.9" fill="{ACC}"/>')
     put(f'<rect x="{X + 59.5}" y="{y + 0.8:.2f}" width="1.2" height="2.6" rx="0.3" fill="{SECC[sec]}"/>')
     ptext(X + 62, y + 3.0, sec, 1.5, SECC[sec] if i == 3 else TXT, 700, "start", 0.3)
-ptext(X + WW - 2.5, Y + HH - 1.2, "TAKT 37 / 92  ·  ZEILE 4 / 9", 1.2, DIM, 700, "end", 0.3)
+ptext(X + WW - 2.5, Y + HH - 1.2, "BAR 37 / 92  ·  ROW 4 / 9", 1.2, DIM, 700, "end", 0.3)
 # banks, pads, info, reroll
 X, Y, WW, HH = areas["BANKS"]
 for k in range(4):

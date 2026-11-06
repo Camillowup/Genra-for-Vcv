@@ -1,6 +1,6 @@
 # GENRA – Projektstand
 
-**Stand:** 6. November 2026 · **Plugin 2.13.1: 16 Module** (GENRA, GRID, ABLAUF, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, SCHMELZ, MIX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `CamilloGF/genra-v3`
+**Stand:** 6. November 2026 · **Plugin 2.13.2: 16 Module** (GENRA, GRID, ABLAUF, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, SCHMELZ, MIX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `CamilloGF/genra-v3`
 Vorgänger: v1 `CamilloGF/vcv-sequenzer-Genra` (2.0.0), v2 `CamilloGF/Genra-v2` (2.1.0, läuft in Rack)
 Plattform: VCV Rack Pro 2.6.6 unter Windows · Build: GitHub Actions (`.github/workflows/main.yml`)
 
@@ -276,3 +276,6 @@ GENRA MONO: `g++ -std=c++17 -O2 test/test_mono.cpp -o tm && ./tm`
 ### 2.13.1 – ABLAUF-Bedienung
 - Leeres Pad antippen = speichern, was GENRA gerade spielt (`padTap`: `pendingStore` + Snapshot). Belegte Pads überschreibt weiterhin nur STORE + Pad.
 - STOP: Markierung bleibt auf der Zeile, die lief (`setRow(song.row)`); STOP im gestoppten Zustand = `setRow(0)`, Song-Anfang.
+
+### 2.13.2 – ABLAUF-Panel englisch
+- Beschriftung wie die anderen Module: ROW, BARS, PART, TRACKS ON / OFF, INSERT, DELETE, RE-ROLL, ROW CV, INPUTS/OUTPUTS, END, ROW. Param-Namen im Code unverändert (Patches laden weiter).
