@@ -1,6 +1,6 @@
 # GENRA – Projektstand
 
-**Stand:** 6. November 2026 · **Plugin 2.7.0: 14 Module** (GENRA, GRID, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, SCHMELZ, MIX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX) · Repo: `CamilloGF/genra-v3`
+**Stand:** 6. November 2026 · **Plugin 2.8.0: 15 Module** (GENRA, GRID, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, SCHMELZ, MIX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `CamilloGF/genra-v3`
 Vorgänger: v1 `CamilloGF/vcv-sequenzer-Genra` (2.0.0), v2 `CamilloGF/Genra-v2` (2.1.0, läuft in Rack)
 Plattform: VCV Rack Pro 2.6.6 unter Windows · Build: GitHub Actions (`.github/workflows/main.yml`)
 
@@ -24,6 +24,7 @@ DJ-Effektpad nach Polyend Play (Perform) und Akai Flex Beat: 16 Pads in 4 Bänke
 - Effekte: Stutter, Halftime, Reverse, Tape Stop, Scratch, Gate, Trance, Pump, Echo Out, Freeze, Bitcrush, Rearrange – je 3 Parameter P1–P3, mit < > umbelegbar, INIT
 - EQ wie DJ-Isolator (LR4, −∞ … +6 dB, Kills, FREQ verschiebt die Mitte, PRE/POST), DJ-Filter (LP links/HP rechts), Drive, Intensity, Mix
 - REC 1 BAR (Loop statt Eingang), TAP, CLOCK/RESET wie GENRA, PADS (poly Gates), KILLS (poly), MIDI-Noten C1–D#2 mit MIDI learn
+- K-WASUB (2.8.0): PRESET-Feld statt ◀ ▶, Liste nach Stil sortiert (Kern-API 2: `preset_style`)
 - Dateien: `src/stotter/StotterDsp.hpp` (Engine, Test `test/test_stotter.cpp`), `src/stotter/Stotter.cpp`, `tools/stotter_panel.py` → `res/Stotter.svg` + `src/stotter/StotterLayout.hpp` (30 HP)
 
 ## Wichtige Designentscheidungen

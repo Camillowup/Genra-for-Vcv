@@ -1,6 +1,6 @@
 # GENRA v3 – Generativer 4-Spur-Sequencer für VCV Rack 2
 
-Breite: **64 HP** (GENRA) und **50 HP** (Grid Editor). Dazu im selben Plugin die drei JIANT-Stimmen **VOICE** (26 HP), **DRUM-X** (32 HP) und **ANIMAL** (26 HP), **MONK** (26 HP) der Bass-Synth **GENRA MONO** (28 HP), die Melodiestimme **FUNKE** (30 HP) und die Klangmodule aus GENRA SYNTHIS: **SCHMELZ** (32 HP), **MIX** (32 HP), **K-WASUB** und **K-WASUB FX** (je 40 HP), **UMLAUF** (54 HP) und **UMLAUF FX** (36 HP). Projektstand und Entscheidungen: `PROJEKT.md`.
+Breite: **64 HP** (GENRA) und **50 HP** (Grid Editor). Dazu im selben Plugin die drei JIANT-Stimmen **VOICE** (26 HP), **DRUM-X** (32 HP) und **ANIMAL** (26 HP), **MONK** (26 HP) der Bass-Synth **GENRA MONO** (28 HP), die Melodiestimme **FUNKE** (30 HP) und die Klangmodule aus GENRA SYNTHIS: **SCHMELZ** (32 HP), **MIX** (32 HP), **K-WASUB** und **K-WASUB FX** (je 40 HP), **UMLAUF** (54 HP) und **UMLAUF FX** (36 HP), dazu das Performance-Effektmodul **STOTTER** (30 HP). Projektstand und Entscheidungen: `PROJEKT.md`.
 
 ## GENRA Grid Editor (zweites Modul)
 
@@ -86,6 +86,27 @@ Melodie-Ausgängen: V/OCT, GATE, VEL, ACC, SLIDE und CLOCK.
 - **CV:** MODEL, TIMBRE, BITE, CUT (1 V/Okt.), RES, VIB (wie ein Modrad), ECHO, LO-FI, ATK, REL.
   **Ausgänge:** ENV (Hüllkurve der neuesten Note), L, R (nur L gesteckt: mono).
 
+## STOTTER: Performance-Effekte
+
+![STOTTER](docs/entwuerfe/stotter.png)
+
+DJ-Effektpad nach dem Perform-Modus des Polyend Play und Akai Flex Beat, 30 HP, im Farbsystem des GENRA-Hauptmoduls.
+Stereo-Effekt: z. B. GENRAs Drums oder MIX-Ausgang hinein, CLOCK von GENRA.
+
+- **16 Pads** in vier Reihen (Farben der GENRA-Spuren): STUTTER 1/4 … 1/32 · TIME (Halftime, Reverse, Tape Stop,
+  Scratch) · GATE (1/8, 1/16, Trance, Pump) · FX (Echo Out, Freeze, Bitcrush, Rearrange). Jedes Pad spielt ein Muster
+  über einen Takt (das Display zeigt es mit Laufbalken). **4 Bänke** A–D, je 16 Pads.
+- **PERFORM:** LOOP (läuft bis zum nächsten Pad, dasselbe Pad stoppt), 1-SHOT (ein Takt, dann zurück), HOLD (solange
+  gedrückt; LATCH: Druck startet, nächster stoppt), QUANT (Start auf 1/16 … 1 Takt oder sofort), MIX, KILL.
+- **EDIT-Streifen:** P1–P3 stellen das laufende Pad ein (mit EDIT: das angetippte, ohne es zu spielen), < > wählen den
+  Effekt des Pads, INIT setzt es zurück. Alle Pads werden im Patch gespeichert.
+- **EQ** wie ein DJ-Isolator (Linkwitz-Riley, −∞ … +6 dB): GAIN, HIGH, MID, LOW, FREQ (Mitte 200 Hz … 5 kHz), KILL LO/MID/HI,
+  PRE FX (vor oder nach den Effekten). **FILTER:** links Tiefpass, rechts Hochpass, Mitte aus; RESO, DRIVE, INTENSITY
+  (100 %: Pads wie eingestellt, weniger: weicher, mehr: härter).
+- **REC 1 BAR:** nimmt den nächsten Takt auf und spielt ihn statt des Eingangs als Loop. **TAP** ohne Clock.
+- **Eingänge:** IN L/R, CLOCK, RESET (Auflösung im Menü wie GENRA), PADS (poly Gates, Kanal 1 = Pad 1), FILT CV, INT CV,
+  KILLS (poly: Low, Mid, High). **MIDI** im Rechtsklick-Menü: Noten C1–D#2 spielen die Pads, MIDI learn.
+
 ## Aus GENRA SYNTHIS
 
 Die folgenden Module entstanden im eigenen Repo `CamilloGF/vcv-synthis` (Plugin GENRA SYNTHIS) und sind seit 2.6.0 Teil
@@ -143,8 +164,9 @@ eigene kleine Bibliothek (`res/kwcore.*`, eine Kopie pro Modul) mit 44,1 kHz, da
   und welchen Wert sie haben, steht im Display und im Tooltip), LEVEL, OCT, SEMI, FINE.
 - **FILTER:** Typ-Feld (LP 24, LP 12, BAND, HIGH, NOTCH, VOWEL, COMB), CUTOFF, RES, DRIVE, ENV, KEY, Filterhüllkurve.
 - **SUB · X:** Sub, Rauschen, X-Mod · **WOBBLE:** LFO 1 im Tempo (RATE = Notenwert), DEPTH, SHAPE, DEST ·
-  **AMP:** ADSR · **FX:** SAT, DELAY, VERB, GLUE (schalten ihren Effekt ein) · **PRESET:** ◀ ▶ durch die 97 Werksklänge
-  (auch im Rechtsklick-Menü).
+  **AMP:** ADSR · **FX:** SAT, DELAY, VERB, GLUE (schalten ihren Effekt ein) · **PRESET:** Feld mit Stil und Name der
+  97 Werksklänge: Klick (auch auf den Namen im Display) öffnet die Liste, nach Stil sortiert (DNB, DUB, DUBSTEP …, je ein
+  Untermenü, Namen A–Z), das Mausrad blättert in dieser Reihenfolge.
 - **Eingänge:** V/OCT, GATE, VEL (bis 4 Stimmen, auf Halbtöne gerundet), CLOCK (setzt das Tempo; Standard 16tel wie
   GENRA, im Menü 8tel, Viertel, 24 PPQN), RESET (Taktanfang), CV für CUT, RES, DRIVE, ENV, A/B SHAPE und COLOR, WOB,
   DEPTH, PRESET (0–10 V über alle Presets), SUB, NOISE, X-MOD, ATK, REL, SAT, DELAY, VERB, GLIDE; MOD (Modrad),
@@ -304,6 +326,7 @@ src/kwasub/           K-WASUB und K-WASUB FX: Module, Kern-Lader (KwCore), Param
 kwcore/               der K-WASUB-Kern: die Firmware als Bibliothek (res/kwcore.dll beim Build)
 kwasub/               die K-WASUB-Firmware, unverändert (GPL-3.0, Omnipotard)
 src/umlauf/           UMLAUF und UMLAUF FX (Module, Schnittstelle zu VADER)
+src/stotter/          STOTTER (Modul, Engine StotterDsp.hpp, Layout aus tools/stotter_panel.py)
 vader/                VADER (MIT), gepatcht (tools/vader_vendor.sh, tools/vader_patch.py), in plugin.dll gelinkt
 res/Schmelz.svg …     Frontplatten: tools/schmelz_panel.py, mix_panel.py, kwasub_panel.py, umlauf_panel.py,
                       umlauf_fx_panel.py (jeweils real | preview <datei.png> <Rack-Quellen>)
