@@ -5,9 +5,91 @@
 #include "../plugin.hpp"
 #include "JiantLayout.hpp"
 #include <blendish.h>
+#include <atomic>
+#include <cstring>
 #include <functional>
 
 namespace jiant {
+
+/** The cores' 44.1 kHz blocks into Rack's rate (quality 6). The firmware hushes itself when idle: once only exact
+ * silence has gone through the converter for longer than its filter (its history all zeros, its output exactly 0),
+ * the converter rests and zeros go straight into the buffer at the same ratio; the first sound wakes it with its
+ * state fresh (all zeros, as it was), so the sound and the buffer's fill (the latency) stay as they were, to within
+ * the converter's sub-sample phase. At 44.1 kHz nothing is converted, as before. */
+struct Resampler {
+	dsp::SampleRateConverter<2> src;
+	uint32_t zeros = 0;      // frames of exact silence in a row through the converter
+	bool resting = false;
+	uint64_t acc = 0;        // resting: the output frames owed, in units of 1 / devRate
+	int lastRate = 0;
+
+	Resampler() { src.setQuality(6); }
+	void reset() {
+		src.refreshState();
+		zeros = 0;
+		resting = false;
+	}
+
+	static bool silent(const dsp::Frame<2>* in, int n) {
+		for (int i = 0; i < n; i++)
+			if (in[i].samples[0] != 0.f || in[i].samples[1] != 0.f)
+				return false;
+		return true;
+	}
+
+	template <class Buf>
+	void process(dsp::Frame<2>* in, int n, int devRate, int rate, Buf& outBuf) {
+		if (rate == devRate) {
+			for (int i = 0; i < n && !outBuf.full(); i++)
+				outBuf.push(in[i]);
+			zeros = 0;
+			resting = false;
+			return;
+		}
+		bool quiet = silent(in, n);
+		if (resting && (!quiet || rate != lastRate)) {
+			src.setRates(devRate, rate);
+			src.refreshState();               // its history: the zeros it would hold
+			resting = false;
+			zeros = 0;
+		}
+		if (resting) {
+			acc += (uint64_t) n * (uint64_t) rate;
+			uint64_t k = acc / (uint64_t) devRate;
+			acc -= k * (uint64_t) devRate;
+			size_t m = std::min((size_t) k, outBuf.capacity());
+			if (m) {
+				std::memset((void*) outBuf.endData(), 0, m * sizeof(dsp::Frame<2>));
+				outBuf.endIncr(m);
+			}
+			return;
+		}
+		src.setRates(devRate, rate);
+		int inLen = n, outLen = (int) outBuf.capacity();
+		src.process(in, &inLen, outBuf.endData(), &outLen);
+		outBuf.endIncr(outLen);
+		if (!quiet) {
+			zeros = 0;
+			return;
+		}
+		zeros += (uint32_t) n;
+		// the filter's length: at most 256 taps (quality 10; 6 has 96), times the ratio when it lowers the rate
+		uint32_t need = 512u * (uint32_t) (1 + devRate / std::max(1, rate)) + 256u;
+		if (zeros >= need) {
+			resting = true;
+			lastRate = rate;
+			acc = (uint64_t) devRate / 2;
+		}
+	}
+};
+
+/** When a module's screen was last drawn: Rack draws no widget off the screen, so the audio thread renders the
+ * firmware's screen only while it is seen (and at once when it is seen again). */
+struct ScreenClock {
+	std::atomic<double> drawn{-1e9};
+	void mark() { drawn.store(system::getTime(), std::memory_order_relaxed); }
+	bool seen() const { return system::getTime() - drawn.load(std::memory_order_relaxed) < 0.2; }
+};
 
 // one colour per module (keep in step with tools/jiant_panel.py)
 #define JIANT_VOICE_RGB 0xff, 0x4f, 0x5a

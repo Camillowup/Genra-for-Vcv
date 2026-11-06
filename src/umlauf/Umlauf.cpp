@@ -161,9 +161,11 @@ struct Umlauf : Module, follow::Host {
 	// work for the audio thread (menus, a loaded patch)
 	std::mutex cmdMutex;
 	std::vector<std::function<void()>> cmds;
+	std::atomic<bool> cmdsPending{false};  // (the audio thread looks at this, not the lock, every sample)
 	void post(std::function<void()> f) {
 		std::lock_guard<std::mutex> lock(cmdMutex);
 		cmds.push_back(std::move(f));
+		cmdsPending.store(true, std::memory_order_release);
 	}
 
 	// for the display (audio thread writes, UI reads)
@@ -175,21 +177,34 @@ struct Umlauf : Module, follow::Host {
 	};
 	Disp disp;
 	std::mutex dispMutex;
+	// when the panel's displays were last drawn (Rack draws nothing off the screen): the texts only while it is seen
+	std::atomic<double> shownAt{-1e9};
+	void markShown() { shownAt.store(system::getTime(), std::memory_order_relaxed); }
+	bool shown() const { return system::getTime() - shownAt.load(std::memory_order_relaxed) < 0.2; }
 	int presetIdx = 0;
 	std::vector<std::string> presetNames;  // read once, before the engine runs
 	// the engine's whole state, as the audio thread last wrote it (dataToJson reads this, never the engine)
 	std::mutex stateMutex;
 	std::string stateCache;
 	int stateTick = 0;
-	void refreshState() {
+	// refreshes owed: the engine's state changes only through what the module sends it (and a file it loads in the
+	// background, collected a little later: those owe more than one)
+	int stateOwed = 1;
+	std::vector<char> stateBuf;
+	void stateChanged(int n = 2) { stateOwed = std::max(stateOwed, n); }
+	/** The engine's state into stateCache; false (still owed) when dataToJson holds the lock just now. */
+	bool refreshState() {
 		int need = E->get_param(inst, "state", nullptr, 0);
 		if (need <= 0)
-			return;
-		std::vector<char> b((size_t) need + 1, 0);
-		if (E->get_param(inst, "state", b.data(), need) <= 0)
-			return;
-		std::lock_guard<std::mutex> lock(stateMutex);
-		stateCache = b.data();
+			return true;
+		stateBuf.assign((size_t) need + 1, 0);
+		if (E->get_param(inst, "state", stateBuf.data(), need) <= 0)
+			return true;
+		std::unique_lock<std::mutex> lock(stateMutex, std::try_to_lock);
+		if (!lock.owns_lock())
+			return false;
+		stateCache = stateBuf.data();
+		return true;
 	}
 
 	// ---------------------------------------------------------------- set up
@@ -234,6 +249,7 @@ struct Umlauf : Module, follow::Host {
 		char b[32];
 		std::snprintf(b, sizeof(b), "%.6f", v);
 		E->set_param(inst, key.c_str(), b);
+		stateChanged();
 	}
 	std::string engText(const std::string& key) {
 		char b[96] = "";
@@ -482,6 +498,13 @@ struct Umlauf : Module, follow::Host {
 		}
 	}
 
+	float focusX = NAN, focusY = NAN;  // last written (focus_x, focus_y)
+	/** A value moved by CV: sent when it moved more than 1e-4 of its range (CV's noise does not reach the engine
+	 * every block: inaudible); a value never written (NAN) always. A knob alone is sent at every change, as before. */
+	static bool cvMoved(float v, float written, float range) {
+		return !(std::fabs(v - written) <= 1e-4f * std::fabs(range));
+	}
+
 	/** Knobs and CV → the engine, once a block. */
 	void sync() {
 		Module* fx = fxModule();
@@ -496,10 +519,19 @@ struct Umlauf : Module, follow::Host {
 		if (foc != focusOn) {
 			focusOn = foc;
 			engSet("focus", foc ? 1.f : 0.f);
+			focusX = focusY = NAN;
 		}
 		if (foc) {
-			engSet("focus_x", clamp(0.5f + inputs[X_INPUT].getVoltage() / 10.f, 0.f, 1.f));
-			engSet("focus_y", clamp(0.5f - inputs[Y_INPUT].getVoltage() / 10.f, 0.f, 1.f));
+			float fx = clamp(0.5f + inputs[X_INPUT].getVoltage() / 10.f, 0.f, 1.f);
+			float fy = clamp(0.5f - inputs[Y_INPUT].getVoltage() / 10.f, 0.f, 1.f);
+			if (cvMoved(fx, focusX, 1.f)) {
+				focusX = fx;
+				engSet("focus_x", fx);
+			}
+			if (cvMoved(fy, focusY, 1.f)) {
+				focusY = fy;
+				engSet("focus_y", fy);
+			}
 		}
 		if (delaySync != (keys[kDsync].written > 0.5f)) {
 			keys[kDsync].written = delaySync ? 1.f : 0.f;
@@ -526,10 +558,13 @@ struct Umlauf : Module, follow::Host {
 				continue;
 			}
 			float cv = 0.f;
+			bool byCv = false;
 			for (auto& in : k.inputs) {
 				Module* m = panelModule(in.first);
-				if (m && m->inputs[in.second].isConnected())
+				if (m && m->inputs[in.second].isConnected()) {
 					cv += m->inputs[in.second].getVoltage() * 0.1f * (k.hi - k.lo);
+					byCv = true;
+				}
 			}
 			float v = clamp(k.base + cv, k.lo, k.hi);
 			if (k.snap)
@@ -542,7 +577,7 @@ struct Umlauf : Module, follow::Host {
 				}
 				continue;
 			}
-			if (v != k.written) {
+			if (byCv && !k.snap ? cvMoved(v, k.written, k.hi - k.lo) : v != k.written) {
 				k.written = v;
 				engSet(k.name, v);
 				if ((int) i == kMode) {  // a new mode: its own knob values come back
@@ -592,13 +627,15 @@ struct Umlauf : Module, follow::Host {
 					cBase[c][s] = v;
 				}
 				float n = cBase[c][s];
-				if (s == 0 && inputs[K1_A_INPUT + c].isConnected())
+				bool byCv = s == 0 && inputs[K1_A_INPUT + c].isConnected();
+				if (byCv)
 					n += inputs[K1_A_INPUT + c].getVoltage() * 0.1f;
 				n = clamp(n, 0.f, 1.f);
 				float x = sl.lo + n * (sl.hi - sl.lo);
 				if (sl.snap)
 					x = std::round(x);
-				if (x != cWritten[c][s] && !cKey[c][s].empty()) {  // (cKey follows the engine: pullCorner)
+				bool moved = byCv && !sl.snap ? cvMoved(x, cWritten[c][s], sl.hi - sl.lo) : x != cWritten[c][s];
+				if (moved && !cKey[c][s].empty()) {  // (cKey follows the engine: pullCorner)
 					cWritten[c][s] = x;
 					engSet(cKey[c][s], x);
 				}
@@ -726,17 +763,21 @@ struct Umlauf : Module, follow::Host {
 		fol.process(this); // FOLLOW GENRA: the jacks without a cable (Follow.hpp)
 		if (!inst)
 			return;
-		{
+		if (cmdsPending.load(std::memory_order_acquire)) {
 			std::vector<std::function<void()>> todo;
 			{
 				std::unique_lock<std::mutex> lock(cmdMutex, std::try_to_lock);
-				if (lock.owns_lock())
+				if (lock.owns_lock()) {
 					todo.swap(cmds);
+					cmdsPending.store(false, std::memory_order_relaxed);
+				}
 			}
 			for (auto& f : todo)
 				f();
-			if (!todo.empty())
+			if (!todo.empty()) {
 				stateTick = 0;
+				stateChanged(4);  // (a file may still be loading: looked at again a few times)
+			}
 		}
 		if (rescanWanted) {
 			rescanWanted = false;
@@ -773,13 +814,20 @@ struct Umlauf : Module, follow::Host {
 			}
 			ringN += BLOCK;
 			overlay_read_view(bus, &view);
-			if (++ctlTick >= 40) {  // ~35 times a second
+			if (ctlTick < 40)
+				ctlTick++;
+			if (ctlTick >= 40 && shown()) {  // ~35 times a second, while the panel is seen (at once when it is again)
 				ctlTick = 0;
 				updateDisplay();
 			}
-			if (--stateTick <= 0) {  // the state for saving: now and then (sooner after a preset, a file)
+			if (--stateTick <= 0) {  // the state for saving: now and then, when it changed (sooner after a preset, a file)
 				stateTick = 44100 * 2 / BLOCK;
-				refreshState();
+				if (stateOwed > 0) {
+					if (refreshState())
+						stateOwed--;
+					else
+						stateTick = 8;  // (dataToJson reading it: soon again)
+				}
 			}
 		}
 		int i = (int) pos;
@@ -893,6 +941,7 @@ struct Umlauf : Module, follow::Host {
 		post([=]() {
 			if (!state.empty())
 				E->set_param(inst, "state", state.c_str());
+			stateChanged(4);
 			engSet("rescan", 1.f);
 			readLists();
 			// the knobs (Rack restored them) are written again over the state
@@ -925,6 +974,7 @@ std::string CornerQuantity::getLabel() {
 	Umlauf* m = dynamic_cast<Umlauf*>(module);
 	std::string n = string::f("%c %d", 'A' + corner, slot + 1);
 	if (m) {
+		m->markShown();  // (asked for: the texts kept up)
 		std::lock_guard<std::mutex> lock(m->dispMutex);
 		const std::string& s = m->disp.names[corner][slot];
 		if (!s.empty())
@@ -989,6 +1039,7 @@ struct OrbitDisplay : Widget {
 		ovl_view_t v = {};
 		bool have = false;
 		if (module && module->bus) {
+			module->markShown();
 			{
 				std::lock_guard<std::mutex> lock(module->dispMutex);
 				d = module->disp;
@@ -1150,6 +1201,7 @@ struct CornerDisplay : Widget {
 		auto mm = [](float v) { return mm2px(v); };
 		std::string eng = "SYNTH", names[5] = {"GEN 1", "GEN 2", "BLEND", "B.MODE", "G2 TUNE"}, smp;
 		if (module) {
+			module->markShown();
 			std::lock_guard<std::mutex> lock(module->dispMutex);
 			eng = module->disp.eng[corner];
 			for (int s = 0; s < 5; s++)

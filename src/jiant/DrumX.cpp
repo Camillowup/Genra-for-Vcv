@@ -25,15 +25,15 @@ static const char* SND_NAMES[JDX_NSND] = {"PITCH", "PMOD", "DECAY", "NOISE", "CO
 struct Voice {
 	enum { BLOCK = 32 };
 	DrumCore core;
-	dsp::SampleRateConverter<2> src;
+	jiant::Resampler src;                          // (rests while the core is silent: JiantUI.hpp)
 	dsp::DoubleRingBuffer<dsp::Frame<2>, 2048> outBuf;
 	float l[BLOCK], r[BLOCK];
 
-	Voice() { src.setQuality(6); }
+	Voice() {}
 	const jdx_api* api() const { return core.api; }
 	void reset() {
 		outBuf.clear();
-		src.refreshState();
+		src.reset();
 	}
 	void renderBlock(float sampleRate) {
 		const jdx_api* a = core.api;
@@ -43,16 +43,7 @@ struct Voice {
 			in[i].samples[0] = l[i];
 			in[i].samples[1] = r[i];
 		}
-		int devRate = (int) a->sample_rate();
-		if ((int) sampleRate == devRate) {
-			for (int i = 0; i < BLOCK && !outBuf.full(); i++)
-				outBuf.push(in[i]);
-		} else {
-			src.setRates(devRate, (int) sampleRate);
-			int inLen = BLOCK, outLen = (int) outBuf.capacity();
-			src.process(in, &inLen, outBuf.endData(), &outLen);
-			outBuf.endIncr(outLen);
-		}
+		src.process(in, BLOCK, (int) a->sample_rate(), (int) sampleRate, outBuf);
 	}
 	dsp::Frame<2> next() { return outBuf.empty() ? dsp::Frame<2>{} : outBuf.shift(); }
 };
@@ -102,6 +93,8 @@ struct DrumX : Module, follow::Host {
 	int sndShown[JDX_NSND];
 	int sndLane = -1, sndPatch = -1;
 	uint32_t framesSinceVis = 0;
+	bool visDue = true;                          // a frame of the screen owed (drawn when it is seen)
+	jiant::ScreenClock screenClock;              // set by the ScreenWidget's draw
 	dsp::SchmittTrigger trig[NL], gtrig[8];
 	bool padDown[NL] = {};
 	struct CvVoice { bool gate = false; };
@@ -478,12 +471,16 @@ struct DrumX : Module, follow::Host {
 			framesSinceVis += Voice::BLOCK * guard;
 			if (framesSinceVis >= m->sample_rate() / 30) {   // the kit, 30 frames a second
 				framesSinceVis = 0;
-				std::memcpy(screen, m->vis(JDX_VIS_W, JDX_VIS_H, sel), sizeof screen);
-				screenSeq++;
+				visDue = true;
 				for (int l = 0; l < NL; l++)
 					env[l] = m->lane_env(l);
 				for (int j = 0; j < JDX_NP; j++)
 					m->format(j, m->get(j), values[j].data(), (uint32_t) values[j].size());
+			}
+			if (visDue && screenClock.seen()) {         // (only while the screen is seen: it costs)
+				visDue = false;
+				std::memcpy(screen, m->vis(JDX_VIS_W, JDX_VIS_H, sel), sizeof screen);
+				screenSeq++;
 			}
 		}
 		dsp::Frame<2> f = mix.next();
@@ -528,6 +525,7 @@ struct ScreenWidget : Widget {
 			jiant::drawStatus(args.vg, module->status, box.size.x);
 			return;
 		}
+		module->screenClock.mark();
 		canvas.draw(args.vg, module->screen, module->screenSeq, box.size.x, box.size.y);
 	}
 };
