@@ -4,6 +4,7 @@
 // and one per patched lane output plays that lane alone (every other lane silent, no effects), so each output keeps
 // the hi-hat's choke and the lane's level. They all get the same knobs, hits and sounds, and render in step.
 #include "../plugin.hpp"
+#include "../Follow.hpp"
 #include "DrumCore.hpp"
 #include <atomic>
 #include <array>
@@ -57,7 +58,7 @@ struct Voice {
 };
 
 // ------------------------------------------------------------------------------------------------ the module
-struct DrumX : Module {
+struct DrumX : Module, follow::Host {
 	enum ParamId {
 		PREV_PARAM, NEXT_PARAM,
 		MORPH_PARAM,
@@ -108,6 +109,11 @@ struct DrumX : Module {
 
 	DrumX() {
 		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
+		srcName = "DRUM-X";
+		outL = L_OUTPUT;
+		outR = R_OUTPUT;
+		fol.bind(GENRA_INPUT, follow::DRUMS);
+		fol.drumsOnly = true;
 		configButton(PREV_PARAM, "Previous kit");
 		configButton(NEXT_PARAM, "Next kit");
 		configParam<ValueQuantity>(MORPH_PARAM, 0.f, 127.f, 64.f, "Morph A ↔ B")->snapEnabled = true;
@@ -263,7 +269,7 @@ struct DrumX : Module {
 			params[PAD_PARAM + l].setValue(0.f);
 		powerOn();
 	}
-	void onRemove(const RemoveEvent& e) override {
+	void onRemove(const RemoveEvent& e) override { follow::gone(this);
 		for (auto& l : lane)
 			l.reset();
 		mix.core.unload();
@@ -287,9 +293,11 @@ struct DrumX : Module {
 				hx += string::f("%02x", b);
 			json_object_set_new(r, "sounds", json_string(hx.c_str()));
 		}
+		fol.toJson(r);
 		return r;
 	}
 	void dataFromJson(json_t* r) override {
+		fol.fromJson(r);
 		if (json_t* j = json_object_get(r, "kit"))
 			kit = (int) json_integer_value(j);
 		if (json_t* j = json_object_get(r, "sel"))
@@ -420,6 +428,7 @@ struct DrumX : Module {
 	}
 
 	void process(const ProcessArgs& args) override {
+		fol.process(this); // FOLLOW GENRA: the jacks without a cable (Follow.hpp)
 		const jdx_api* m = mix.api();
 		if (!m) {
 			for (int o = 0; o < OUTPUTS_LEN; o++)
@@ -656,6 +665,7 @@ struct DrumXWidget : ModuleWidget {
 	DrumXWidget(DrumX* module) {
 		setModule(module);
 		setPanel(createPanel(asset::plugin(pluginInstance, "res/JiantDrumX.svg")));
+		follow::addStrip(this, module, {jiant::at(L::GENRA_IN)}); // lit while GENRA feeds the strip
 		jiant::addScrews(this);
 
 		ScreenWidget* scr = new ScreenWidget;
@@ -715,6 +725,8 @@ struct DrumXWidget : ModuleWidget {
 	}
 
 	void appendContextMenu(Menu* menu) override {
+		if (follow::Host* h = follow::host(module))
+			h->fol.appendMenu(menu, module);
 		DrumX* m = getModule<DrumX>();
 		if (!m || !m->mix.core.loaded())
 			return;

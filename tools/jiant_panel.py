@@ -20,6 +20,9 @@ from fontTools.pens.svgPathPen import SVGPathPen
 from fontTools.pens.transformPen import TransformPen
 from fontTools.ttLib import TTFont
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from panellib import dim  # noqa: E402
+
 MODE = sys.argv[1] if len(sys.argv) > 1 else "real"
 PREVIEW = MODE == "preview"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -184,7 +187,7 @@ def io_row(p, ins, outs=("L", "R")):
     rest = [x for x in ins if x not in notes]
     x0 = 22
     p.e(f'<rect x="{x0 + 0.9}" y="{332 - 13.6}" width="{len(notes) * SL - 1.8:.2f}" height="33" rx="3" fill="#141519"/>')
-    p.e(f'<rect x="{x0 + 3.5}" y="{332 - 13.6}" width="{len(notes) * SL - 7:.2f}" height="1.6" rx="0.8" fill="{p.C}"/>')
+    p.e(f'<rect x="{x0 + 3.5}" y="{332 - 13.6}" width="{len(notes) * SL - 7:.2f}" height="1.6" rx="0.8" fill="{dim(p.C)}"/>')
     for i, (name, lab) in enumerate(notes):
         p.jack(name, x0 + SL * (i + 0.5), 332, lab, 353.5)
     for i, (name, lab) in enumerate(rest):
@@ -278,7 +281,7 @@ def drumx():
     p.sep(133, 138, 166)
     # the GENRA strip: one poly cable with GENRA's 8 drum tracks in GENRA's order (tools/panellib.py look)
     p.e(f'<rect x="139" y="{147 - 13.6}" width="27.8" height="33" rx="3" fill="#141519"/>')
-    p.e(f'<rect x="142.5" y="{147 - 13.6}" width="20.8" height="1.6" rx="0.8" fill="{p.C}"/>')
+    p.e(f'<rect x="142.5" y="{147 - 13.6}" width="20.8" height="1.6" rx="0.8" fill="{dim(p.C)}"/>')
     p.jack("GENRA_IN", 152.9, 147, "DRUMS", 167.5)
     # General MIDI notes (MIDI-CV)
     p.jack("VOCT", 180, 147, "V/OCT", 167.5)

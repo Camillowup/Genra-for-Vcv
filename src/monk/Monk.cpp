@@ -5,6 +5,7 @@
 // V/OCT into its note (mono, as the firmware sings), VEL and PRESS as the keys' velocity and aftertouch, the twelve
 // singers as presets of all the knobs.
 #include "../plugin.hpp"
+#include "../Follow.hpp"
 #include "MonkDsp.hpp"
 #include "MonkLayout.hpp"
 #include "monkface.h"
@@ -23,7 +24,7 @@ static const char* NOTE_NAMES[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", 
 using namespace monkdsp;
 
 // ------------------------------------------------------------------------------------------------ the module
-struct Monk : Module {
+struct Monk : Module, follow::Host {
 	enum ParamId {
 		ENUMS(K_PARAM, NK),
 		ATK_PARAM, DEC_PARAM, SUS_PARAM, REL_PARAM,
@@ -93,6 +94,12 @@ struct Monk : Module {
 
 	Monk() {
 		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
+		srcName = "MONK";
+		outL = L_OUTPUT;
+		outR = R_OUTPUT;
+		fol.bind(VOCT_INPUT, follow::VOCT);
+		fol.bind(GATE_INPUT, follow::GATE);
+		fol.bind(VEL_INPUT, follow::VEL);
 		configParam<VowelQuantity>(K_PARAM + 0, 0.f, 1.f, 0.5f, "Vowel", "", 0.f, 1.f);
 		configParam(K_PARAM + 1, 0.f, 1.f, 0.5f, "Head (vocal tract)", " cm", 0.f, 30.f);
 		configParam<PctQuantity>(K_PARAM + 2, 0.f, 1.f, 0.5f, "Breath");
@@ -175,7 +182,10 @@ struct Monk : Module {
 		return clamp(x, 0.f, 1.f);
 	}
 
+	void onRemove(const RemoveEvent& e) override { follow::gone(this); }
+
 	void process(const ProcessArgs& args) override {
+		fol.process(this); // FOLLOW GENRA: the jacks without a cable (Follow.hpp)
 		// the singer: the buttons, the menu, the CV (on a change of the step it is on)
 		int req = singerReq.exchange(-1);
 		if (req >= 0)
@@ -249,9 +259,11 @@ struct Monk : Module {
 	json_t* dataToJson() override {
 		json_t* root = json_object();
 		json_object_set_new(root, "singer", json_integer(singer));
+		fol.toJson(root);
 		return root;
 	}
 	void dataFromJson(json_t* root) override {
+		fol.fromJson(root);
 		if (json_t* s = json_object_get(root, "singer"))
 			singer = clamp((int) json_integer_value(s), 0, monkface_count() - 1);
 	}
@@ -386,6 +398,7 @@ struct MonkWidget : ModuleWidget {
 	MonkWidget(Monk* module) {
 		setModule(module);
 		setPanel(createPanel(asset::plugin(pluginInstance, "res/Monk.svg")));
+		follow::addStrip(this, module, {jiant::at(L::VOCT), jiant::at(L::GATE), jiant::at(L::VEL)}); // lit while GENRA feeds the strip
 		jiant::addScrews(this);
 
 		ScreenWidget* scr = new ScreenWidget;
@@ -448,6 +461,8 @@ struct MonkWidget : ModuleWidget {
 	}
 
 	void appendContextMenu(Menu* menu) override {
+		if (follow::Host* h = follow::host(module))
+			h->fol.appendMenu(menu, module);
 		Monk* m = dynamic_cast<Monk*>(module);
 		if (!m)
 			return;

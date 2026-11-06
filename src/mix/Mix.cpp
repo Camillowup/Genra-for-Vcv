@@ -4,6 +4,8 @@
 // Engine: MixDsp.hpp. Panel: tools/mix_panel.py (res/Mix.svg + MixLayout.hpp).
 #include "../plugin.hpp"
 #include "../ui/GenraUI.hpp"
+#include "../Follow.hpp"
+#include <map>
 #include "MixDsp.hpp"
 #include "MixLayout.hpp"
 
@@ -53,6 +55,146 @@ struct Mix : Module {
 		std::string getDisplayValueString() override { return string::f("%.0f", duckSeconds(getValue()) * 1000.f); }
 		std::string getUnit() override { return " ms"; }
 	};
+
+	// ---- inputs without cables (right-click › CH n input from / DUCK from; see Follow.hpp)
+	// a channel's source: 0 off, 1 auto (the instrument that follows the channel's GENRA track), 2 a chosen module
+	struct ChSrc {
+		std::atomic<int> mode{0};
+		std::atomic<int64_t> id{-1};
+		std::atomic<int> outL{-1}, outR{-1};
+		follow::Ref ref;
+		follow::Drive dl, dr;
+		float timer = 0.f;
+	} src[NCH];
+	std::atomic<int> duckMode{0}; // 0 off, 1 GENRA's KICK
+	follow::Ref duckRef;
+	follow::Drive dd;
+	float duckTimer = 0.f;
+	static int chTrack(int c) {
+		static const int T[NCH] = {follow::T_DRUMS, follow::T_BASS, follow::T_MEL, follow::T_PAD};
+		return T[c];
+	}
+
+	void feedSources() {
+		for (int c = 0; c < NCH; c++) {
+			ChSrc& s = src[c];
+			Module* m = s.ref.to.load();
+			int ol = s.outL.load(), orr = s.outR.load();
+			Input& il = inputs[iid(c, IN_L)];
+			Input& ir = inputs[iid(c, IN_R)];
+			if (!m || ol < 0) {
+				if (s.dl.ch >= 0)
+					s.dl.release(il);
+				if (s.dr.ch >= 0)
+					s.dr.release(ir);
+				continue;
+			}
+			// the source's outputs count as patched (it then plays in stereo, as with two cables)
+			Output& oL = m->outputs[ol];
+			if (oL.channels == 0)
+				oL.channels = 1;
+			s.dl.feed(il, oL.voltages, oL.channels);
+			if (orr >= 0) {
+				Output& oR = m->outputs[orr];
+				if (oR.channels == 0)
+					oR.channels = 1;
+				s.dr.feed(ir, oR.voltages, oR.channels);
+			}
+		}
+		Module* g = duckMode.load() ? duckRef.to.load() : nullptr;
+		if (g) {
+			follow::Src k = follow::genraOut(follow::T_DRUMS, follow::DRUMS); // output 0 of the 8: the kick
+			dd.feed(inputs[DUCK_INPUT], g->outputs[k.id].voltages, 1);
+		}
+		else if (dd.ch >= 0)
+			dd.release(inputs[DUCK_INPUT]);
+	}
+
+	// UI thread: find the sources
+	void uiSources(float dt) {
+		for (int c = 0; c < NCH; c++) {
+			ChSrc& s = src[c];
+			s.timer -= dt;
+			int mode = s.mode.load();
+			Module* now = s.ref.to.load();
+			if (mode == 0) {
+				if (now)
+					follow::point(s.ref, this, nullptr);
+				continue;
+			}
+			if (now && s.timer > 0.f)
+				continue;
+			s.timer = 0.5f;
+			Module* want = nullptr;
+			if (mode == 2) {
+				Module* m = APP->engine->getModule(s.id.load());
+				follow::Host* h = follow::host(m);
+				if (h && h->outL >= 0)
+					want = m;
+			}
+			else {
+				for (int64_t id : APP->engine->getModuleIds()) {
+					Module* m = APP->engine->getModule(id);
+					follow::Host* h = follow::host(m);
+					if (h && h->follows && h->outL >= 0 && h->fol.track.load() == chTrack(c)) {
+						want = m;
+						break;
+					}
+				}
+			}
+			if (want != now) {
+				follow::point(s.ref, this, nullptr);
+				follow::Host* h = follow::host(want);
+				s.outL = h ? h->outL : -1;
+				s.outR = h ? h->outR : -1;
+				follow::point(s.ref, this, want);
+			}
+		}
+		duckTimer -= dt;
+		Module* g = duckRef.to.load();
+		if (!duckMode.load()) {
+			if (g)
+				follow::point(duckRef, this, nullptr);
+		}
+		else if (!g && duckTimer <= 0.f) {
+			duckTimer = 0.5f;
+			for (int64_t id : APP->engine->getModuleIds()) {
+				Module* m = APP->engine->getModule(id);
+				if (follow::isGenra(m)) {
+					follow::point(duckRef, this, m);
+					break;
+				}
+			}
+		}
+	}
+
+	json_t* dataToJson() override {
+		json_t* r = json_object();
+		json_t* a = json_array();
+		for (int c = 0; c < NCH; c++) {
+			json_t* o = json_object();
+			json_object_set_new(o, "mode", json_integer(src[c].mode.load()));
+			json_object_set_new(o, "id", json_integer(src[c].id.load()));
+			json_array_append_new(a, o);
+		}
+		json_object_set_new(r, "inputFrom", a);
+		json_object_set_new(r, "duckFrom", json_integer(duckMode.load()));
+		return r;
+	}
+	void dataFromJson(json_t* r) override {
+		if (json_t* a = json_object_get(r, "inputFrom"))
+			for (int c = 0; c < NCH && c < (int) json_array_size(a); c++) {
+				json_t* o = json_array_get(a, c);
+				if (json_t* j = json_object_get(o, "mode"))
+					src[c].mode = clamp((int) json_integer_value(j), 0, 2);
+				if (json_t* j = json_object_get(o, "id"))
+					src[c].id = (int64_t) json_integer_value(j);
+				src[c].timer = 0.f;
+			}
+		if (json_t* j = json_object_get(r, "duckFrom"))
+			duckMode = clamp((int) json_integer_value(j), 0, 1);
+	}
+	void onRemove(const RemoveEvent& e) override { follow::gone(this); }
 
 	std::unique_ptr<Mixer> mx{new Mixer};
 	ChannelParams cp[NCH];
@@ -104,6 +246,7 @@ struct Mix : Module {
 	void onSampleRateChange(const SampleRateChangeEvent& e) override { mx->setSampleRate(e.sampleRate); }
 
 	void process(const ProcessArgs& args) override {
+		feedSources();
 		if (--ctl <= 0) {
 			ctl = 16;
 			for (int c = 0; c < NCH; c++) {
@@ -150,6 +293,57 @@ struct Mix : Module {
 		outputs[SEND_R_OUTPUT].setVoltage(sr);
 		outputs[SENDB_L_OUTPUT].setVoltage(sbl);
 		outputs[SENDB_R_OUTPUT].setVoltage(sbr);
+	}
+};
+
+// ---------------------------------------------------------------- where a channel's sound comes from
+/** Over "CH n": the source's name in the channel colour (dim with "CABLE" when a cable wins); a ring at DUCK. */
+struct SourceTags : widget::TransparentWidget {
+	Mix* module = nullptr;
+	Vec duck;
+	void drawLayer(const DrawArgs& args, int layer) override {
+		Widget::drawLayer(args, layer);
+		if (layer != 1 || !module)
+			return;
+		NVGcontext* vg = args.vg;
+		auto font = ui::boldFont();
+		for (int c = 0; c < NCH; c++) {
+			Mix::ChSrc& s = module->src[c];
+			follow::Host* h = follow::host(s.ref.to.load());
+			if (!h)
+				continue;
+			bool cable = !s.dl.owned;
+			float cx = mm2px(3.f + c * 24.f + 11.5f), cy = mm2px(19.7f); // (tools/mix_panel.py: strips at 3 + i·24, 23 wide)
+			float w = mm2px(20.f), hh = mm2px(3.6f);
+			NVGcolor col = cable ? nvgLerpRGBA(TRACK[c], nvgRGB(0x20, 0x21, 0x26), 0.6f) : TRACK[c];
+			if (!cable) {
+				NVGpaint glow = nvgBoxGradient(vg, cx - w / 2, cy - hh / 2, w, hh, hh / 3, mm2px(1.4f),
+				                               nvgTransRGBAf(TRACK[c], 0.35f), nvgTransRGBAf(TRACK[c], 0.f));
+				nvgBeginPath(vg);
+				nvgRect(vg, cx - w / 2 - 10, cy - hh / 2 - 10, w + 20, hh + 20);
+				nvgFillPaint(vg, glow);
+				nvgFill(vg);
+			}
+			nvgBeginPath(vg);
+			nvgRoundedRect(vg, cx - w / 2, cy - hh / 2, w, hh, hh / 3);
+			nvgFillColor(vg, nvgRGB(0x07, 0x08, 0x0a));
+			nvgFill(vg);
+			nvgStrokeColor(vg, col);
+			nvgStrokeWidth(vg, 1.2f);
+			nvgStroke(vg);
+			std::string t = std::string("\xe2\x80\xb9 ") + h->srcName + (cable ? " \xc2\xb7 CABLE" : "");
+			ui::text(vg, font, cx, cy + hh * 0.22f, t, cable ? 6.5f : 7.5f, col, NVG_ALIGN_CENTER, 0.4f);
+		}
+		if (module->duckMode.load() && module->duckRef.to.load() && module->dd.owned) {
+			NVGcolor k = TRACK[0];
+			float r = mm2px(4.6f);
+			NVGpaint glow = nvgRadialGradient(vg, duck.x, duck.y, r * 0.8f, r * 1.5f, nvgTransRGBAf(k, 0.5f), nvgTransRGBAf(k, 0.f));
+			nvgBeginPath(vg);
+			nvgCircle(vg, duck.x, duck.y, r * 1.5f);
+			nvgFillPaint(vg, glow);
+			nvgFill(vg);
+			ui::text(vg, font, duck.x + mm2px(5.4f), duck.y + mm2px(0.7f), "\xe2\x80\xb9 KICK", 7.f, k, NVG_ALIGN_LEFT, 0.4f);
+		}
 	}
 };
 
@@ -267,9 +461,74 @@ struct MixWidget : ModuleWidget {
 		addOutput(createOutputCentered<PJ301MPort>(ui::mm(L::SENDB_R), module, M::SENDB_R_OUTPUT));
 		addOutput(createOutputCentered<PJ301MPort>(ui::mm(L::OUT_L), module, M::OUT_L_OUTPUT));
 		addOutput(createOutputCentered<PJ301MPort>(ui::mm(L::OUT_R), module, M::OUT_R_OUTPUT));
+		SourceTags* tags = new SourceTags;
+		tags->module = module;
+		tags->box.size = box.size;
+		tags->duck = ui::mm(L::IN_DUCK);
+		addChild(tags);
+	}
+
+	void step() override {
+		if (Mix* m = dynamic_cast<Mix*>(module))
+			m->uiSources(APP->window->getLastFrameDuration());
+		ModuleWidget::step();
 	}
 
 	void appendContextMenu(Menu* menu) override {
+		Mix* m = dynamic_cast<Mix*>(module);
+		if (m) {
+			menu->addChild(new MenuSeparator);
+			for (int c = 0; c < NCH; c++) {
+				int mode = m->src[c].mode.load();
+				Module* now = m->src[c].ref.to.load();
+				follow::Host* hn = follow::host(now);
+				std::string right = mode == 0 ? "Off" : (hn ? hn->srcName : (mode == 1 ? "Auto" : "–"));
+				menu->addChild(createSubmenuItem(string::f("CH %d input from", c + 1), right, [=](Menu* sub) {
+					sub->addChild(createCheckMenuItem("Off (cables only)", "", [=]() { return m->src[c].mode.load() == 0; },
+					                                  [=]() { m->src[c].mode = 0; }));
+					sub->addChild(createCheckMenuItem(string::f("Auto: who follows GENRA %s", follow::TRACK_NAMES[Mix::chTrack(c)]),
+					                                  "", [=]() { return m->src[c].mode.load() == 1; }, [=]() {
+						                                  m->src[c].mode = 1;
+						                                  m->src[c].timer = 0.f;
+						                                  follow::point(m->src[c].ref, m, nullptr);
+					                                  }));
+					sub->addChild(new MenuSeparator);
+					// every instrument (and STOTTER) in the patch, numbered when there are several of a kind
+					std::map<std::string, int> count, seen;
+					std::vector<std::pair<int64_t, std::string>> list;
+					for (int64_t id : APP->engine->getModuleIds()) {
+						follow::Host* h = follow::host(APP->engine->getModule(id));
+						if (h && h->outL >= 0) {
+							list.push_back({id, h->srcName});
+							count[h->srcName]++;
+						}
+					}
+					for (auto& it : list) {
+						int64_t id = it.first;
+						std::string name = it.second;
+						if (count[name] > 1)
+							name += string::f(" #%d", ++seen[name]);
+						sub->addChild(createCheckMenuItem(name, "", [=]() { return m->src[c].mode.load() == 2 && m->src[c].id.load() == id; },
+						                                  [=]() {
+							                                  m->src[c].id = id;
+							                                  m->src[c].mode = 2;
+							                                  m->src[c].timer = 0.f;
+							                                  follow::point(m->src[c].ref, m, nullptr);
+						                                  }));
+					}
+					if (list.empty())
+						sub->addChild(createMenuLabel("(no GENRA instrument in the patch)"));
+					sub->addChild(new MenuSeparator);
+					sub->addChild(createMenuLabel("A cable in IN L / IN R always wins"));
+				}));
+			}
+			menu->addChild(createSubmenuItem("DUCK from", m->duckMode.load() ? "GENRA KICK" : "Off", [=](Menu* sub) {
+				sub->addChild(createCheckMenuItem("Off (cable only)", "", [=]() { return m->duckMode.load() == 0; },
+				                                  [=]() { m->duckMode = 0; }));
+				sub->addChild(createCheckMenuItem("GENRA KICK", "", [=]() { return m->duckMode.load() == 1; },
+				                                  [=]() { m->duckMode = 1; }));
+			}));
+		}
 		menu->addChild(new MenuSeparator);
 		menu->addChild(createMenuLabel("4-track stereo mixer: polyphonic inputs are summed"));
 		menu->addChild(createMenuLabel("GENRA's KICK into DUCK makes the other tracks pump"));

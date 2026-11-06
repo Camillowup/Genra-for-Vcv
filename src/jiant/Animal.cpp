@@ -4,6 +4,7 @@
 // glue: knobs and CV into the part's parameters, V/OCT + GATE into its notes, its 44.1 kHz audio resampled to Rack's
 // rate, the creature (the firmware's own drawing) on the screen.
 #include "../plugin.hpp"
+#include "../Follow.hpp"
 #include "AnimalCore.hpp"
 #include <atomic>
 #include <array>
@@ -18,7 +19,7 @@ static const char* MODE_NAMES[5] = {"CMOS", "PULSE", "WHSTL", "WING", "GLOTT"};
 static const char* VOICE_NAMES[3] = {"POLY", "MONO", "LEGATO"};
 
 // ------------------------------------------------------------------------------------------------ the module
-struct Animal : Module {
+struct Animal : Module, follow::Host {
 	enum ParamId {
 		MODE_PARAM,
 		ENUMS(E_PARAM, NE),
@@ -63,6 +64,12 @@ struct Animal : Module {
 
 	Animal() {
 		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
+		srcName = "ANIMAL";
+		outL = L_OUTPUT;
+		outR = R_OUTPUT;
+		fol.bind(VOCT_INPUT, follow::VOCT);
+		fol.bind(GATE_INPUT, follow::GATE);
+		fol.bind(VEL_INPUT, follow::VEL);
 		configSwitch(MODE_PARAM, 0.f, 4.f, 0.f, "Mode", {"CMOS (bird machine)", "PULSE (cricket, cicada, frog)",
 		                                                 "WHSTL (syrinx)", "WING (flight tones)", "GLOTT (larynx)"});
 		for (int k = 0; k < NE; k++) {
@@ -175,7 +182,7 @@ struct Animal : Module {
 		params[CALL_PARAM].setValue(0.f);
 		powerOn();
 	}
-	void onRemove(const RemoveEvent& e) override { core.unload(); }
+	void onRemove(const RemoveEvent& e) override { follow::gone(this); core.unload(); }
 	void onReset(const ResetEvent& e) override {
 		Module::onReset(e);
 		fromPatch = false;
@@ -185,9 +192,11 @@ struct Animal : Module {
 	json_t* dataToJson() override {
 		json_t* r = json_object();
 		json_object_set_new(r, "preset", json_integer(preset));
+		fol.toJson(r);
 		return r;
 	}
 	void dataFromJson(json_t* r) override {
+		fol.fromJson(r);
 		if (json_t* j = json_object_get(r, "preset"))
 			preset = (int) json_integer_value(j);
 		fromPatch = true;
@@ -301,6 +310,7 @@ struct Animal : Module {
 	}
 
 	void process(const ProcessArgs& args) override {
+		fol.process(this); // FOLLOW GENRA: the jacks without a cable (Follow.hpp)
 		const jan_api* a = core.api;
 		if (!a) {
 			outputs[L_OUTPUT].setVoltage(0.f);
@@ -399,6 +409,7 @@ struct AnimalWidget : ModuleWidget {
 	AnimalWidget(Animal* module) {
 		setModule(module);
 		setPanel(createPanel(asset::plugin(pluginInstance, "res/JiantAnimal.svg")));
+		follow::addStrip(this, module, {jiant::at(L::VOCT), jiant::at(L::GATE), jiant::at(L::VEL)}); // lit while GENRA feeds the strip
 		jiant::addScrews(this);
 
 		ScreenWidget* scr = new ScreenWidget;
@@ -456,6 +467,8 @@ struct AnimalWidget : ModuleWidget {
 	}
 
 	void appendContextMenu(Menu* menu) override {
+		if (follow::Host* h = follow::host(module))
+			h->fol.appendMenu(menu, module);
 		Animal* m = getModule<Animal>();
 		if (!m || !m->core.loaded())
 			return;

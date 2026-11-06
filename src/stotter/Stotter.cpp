@@ -5,6 +5,7 @@
 // P1–P3 set the pad that plays (or, with EDIT on, the pad picked); < > change its effect.
 // Engine: StotterDsp.hpp. Panel: tools/stotter_panel.py (res/Stotter.svg + StotterLayout.hpp).
 #include "../plugin.hpp"
+#include "../Follow.hpp"
 #include "../ui/GenraUI.hpp"
 #include "StotterDsp.hpp"
 #include "StotterLayout.hpp"
@@ -32,7 +33,7 @@ static NVGcolor mixc(NVGcolor a, NVGcolor b, float t) {
 	return nvgRGBf(a.r + (b.r - a.r) * t, a.g + (b.g - a.g) * t, a.b + (b.b - a.b) * t);
 }
 
-struct Stotter : Module {
+struct Stotter : Module, follow::Host {
 	enum ParamId {
 		GAIN_PARAM, HIGH_PARAM, MID_PARAM, LOW_PARAM, FREQ_PARAM, PRE_PARAM, KILL_LO_PARAM, KILL_MID_PARAM,
 		KILL_HI_PARAM, FILTER_PARAM, RESO_PARAM, DRIVE_PARAM, INTENSITY_PARAM,
@@ -105,6 +106,10 @@ struct Stotter : Module {
 
 	Stotter() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
+		srcName = "STOTTER";
+		outL = OUT_L_OUTPUT;
+		outR = OUT_R_OUTPUT;
+		follows = false;
 		configParam<GainQuantity>(GAIN_PARAM, -1.f, 1.f, 0.f, "Input gain");
 		configParam<EqQuantity>(HIGH_PARAM, -1.f, 1.f, 0.f, "High");
 		configParam<EqQuantity>(MID_PARAM, -1.f, 1.f, 0.f, "Mid");
@@ -215,6 +220,8 @@ struct Stotter : Module {
 		else if (params[EDIT_PARAM].getValue() <= 0.5f)
 			e.release(i);
 	}
+
+	void onRemove(const RemoveEvent& e) override { follow::gone(this); }
 
 	void process(const ProcessArgs& args) override {
 		// MIDI notes (every sample: timing)

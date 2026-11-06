@@ -5,6 +5,7 @@
 // The effects expander K-WASUB FX docks to the right: this module reads its knobs too.
 // Panels: tools/kwasub_panel.py (res/Kwasub.svg, res/KwasubFx.svg + KwLayout.hpp, KwFxLayout.hpp).
 #include "../plugin.hpp"
+#include "../Follow.hpp"
 #include "../ui/GenraUI.hpp"
 #include "KwCore.hpp"
 #include "KwIds.hpp"
@@ -59,7 +60,7 @@ struct FwQuantity : ParamQuantity {
 	std::string getUnit() override { return ""; }
 };
 
-struct Kwasub : Module {
+struct Kwasub : Module, follow::Host {
 	enum ParamId {
 		ENG_A, A_P1_PARAM, A_P2_PARAM, A_P3_PARAM, A_P4_PARAM, A_LVL_PARAM, A_OCT_PARAM, A_SEMI_PARAM, A_FINE_PARAM,
 		ENG_B, B_P1_PARAM, B_P2_PARAM, B_P3_PARAM, B_P4_PARAM, B_LVL_PARAM, B_OCT_PARAM, B_SEMI_PARAM, B_FINE_PARAM,
@@ -148,6 +149,17 @@ struct Kwasub : Module {
 
 	Kwasub() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, 0);
+		srcName = "K-WASUB";
+		outL = L_OUTPUT;
+		outR = R_OUTPUT;
+		fol.bind(VOCT_INPUT, follow::VOCT);
+		fol.bind(GATE_INPUT, follow::GATE);
+		fol.bind(VEL_INPUT, follow::VEL);
+		fol.bind(ACC_INPUT, follow::ACC);
+		fol.bind(SLIDE_INPUT, follow::SLIDE);
+		fol.bind(MOD_INPUT, follow::MOD);
+		fol.bind(CLOCK_INPUT, follow::CLOCK);
+		fol.bind(RESET_INPUT, follow::RESET);
 		bool ok = core.load();
 		const kw_api* a = core.api;
 		if (ok)
@@ -628,7 +640,10 @@ struct Kwasub : Module {
 		disp.phase = a->lfo_phase();
 	}
 
+	void onRemove(const RemoveEvent& e) override { follow::gone(this); }
+
 	void process(const ProcessArgs& args) override {
+		fol.process(this); // FOLLOW GENRA: the jacks without a cable (Follow.hpp)
 		const kw_api* a = core.api;
 		if (!a)
 			return;
@@ -705,9 +720,11 @@ struct Kwasub : Module {
 					json_array_append_new(eq, json_integer(core.api->eq_get(k, w)));
 			json_object_set_new(r, "eq", eq);
 		}
+		fol.toJson(r);
 		return r;
 	}
 	void dataFromJson(json_t* r) override {
+		fol.fromJson(r);
 		if (json_t* j = json_object_get(r, "preset"))
 			presetIdx = std::max(0, (int) json_integer_value(j));
 		if (json_t* j = json_object_get(r, "ppqn"))
@@ -978,6 +995,7 @@ struct KwasubWidget : ModuleWidget {
 	KwasubWidget(Kwasub* module) {
 		setModule(module);
 		setPanel(createPanel(asset::plugin(pluginInstance, "res/Kwasub.svg")));
+		follow::addStrip(this, module, {mm2px(Vec(L::IN_VOCT[0], L::IN_VOCT[1])), mm2px(Vec(L::IN_GATE[0], L::IN_GATE[1])), mm2px(Vec(L::IN_VEL[0], L::IN_VEL[1])), mm2px(Vec(L::IN_ACC[0], L::IN_ACC[1])), mm2px(Vec(L::IN_SLIDE[0], L::IN_SLIDE[1])), mm2px(Vec(L::IN_MOD[0], L::IN_MOD[1])), mm2px(Vec(L::IN_CLOCK[0], L::IN_CLOCK[1])), mm2px(Vec(L::IN_RESET[0], L::IN_RESET[1]))}); // lit while GENRA feeds the strip
 		addChild(createWidget<ScrewBlack>(Vec(RACK_GRID_WIDTH, 0)));
 		addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
 		addChild(createWidget<ScrewBlack>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
@@ -1059,6 +1077,8 @@ struct KwasubWidget : ModuleWidget {
 	}
 
 	void appendContextMenu(Menu* menu) override {
+		if (follow::Host* h = follow::host(module))
+			h->fol.appendMenu(menu, module);
 		Kwasub* m = getModule<Kwasub>();
 		if (!m || !m->core.api)
 			return;

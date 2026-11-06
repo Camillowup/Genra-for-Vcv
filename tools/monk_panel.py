@@ -19,6 +19,9 @@ from fontTools.pens.svgPathPen import SVGPathPen
 from fontTools.pens.transformPen import TransformPen
 from fontTools.ttLib import TTFont
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from panellib import dim  # noqa: E402
+
 MODE = sys.argv[1] if len(sys.argv) > 1 else "real"
 PREVIEW = MODE == "preview"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -209,7 +212,7 @@ p.plate(14, 316, 200, 44)
 # the GENRA strip (tools/panellib.py look, in px: 1 mm = 2.9528): V/OCT, GATE, VEL on a tray in the module colour
 SL = 27.76
 p.e(f'<rect x="{22 + 0.9}" y="{332 - 13.6}" width="{3 * SL - 1.8:.2f}" height="33" rx="3" fill="#141519"/>')
-p.e(f'<rect x="{22 + 3.5}" y="{332 - 13.6}" width="{3 * SL - 7:.2f}" height="1.6" rx="0.8" fill="{p.C}"/>')
+p.e(f'<rect x="{22 + 3.5}" y="{332 - 13.6}" width="{3 * SL - 7:.2f}" height="1.6" rx="0.8" fill="{dim(p.C)}"/>')
 for i, (n, lab) in enumerate([("VOCT", "V/OCT"), ("GATE", "GATE"), ("VEL", "VEL")]):
     p.jack(n, 22 + SL * (i + 0.5), 332, lab, 353.5)
 for i, (n, lab) in enumerate([("PRESS", "PRESS"), ("SINGER", "SINGER")]):

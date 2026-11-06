@@ -2,6 +2,7 @@
 // GENRA MONO – monophonic bass synth after the Moog Minitaur, in the look of MONK and the JIANT voices (accent: turquoise).
 // Sound engine: MonoDsp.hpp. Panel: tools/mono_panel.py (res/GenraMono.svg + MonoLayout.hpp).
 #include "../plugin.hpp"
+#include "../Follow.hpp"
 #include <cctype>
 #include "MonoDsp.hpp"
 #include "MonoPresets.hpp"
@@ -17,7 +18,7 @@ static const NVGcolor TXT = nvgRGB(0xd9, 0xdb, 0xe2), DIM = nvgRGB(0x8a, 0x8d, 0
 
 inline Vec P(const float* p) { return mm2px(Vec(p[0], p[1])); }
 
-struct GenraMono : Module {
+struct GenraMono : Module, follow::Host {
 	enum ParamId {
 		WAVE1_PARAM, WAVE2_PARAM, TUNE1_PARAM, TUNE2_PARAM, LEVEL1_PARAM, LEVEL2_PARAM, GLIDE_PARAM,
 		FTYPE_PARAM, CUTOFF_PARAM, RES_PARAM, EGAMT_PARAM, DRIVE_PARAM, KEYTRK_PARAM,
@@ -189,6 +190,16 @@ struct GenraMono : Module {
 
 	GenraMono() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, 0);
+		srcName = "MONO";
+		outL = L_OUTPUT;
+		outR = R_OUTPUT;
+		fol.bind(VOCT_INPUT, follow::VOCT);
+		fol.bind(GATE_INPUT, follow::GATE);
+		fol.bind(VEL_INPUT, follow::VEL);
+		fol.bind(ACC_INPUT, follow::ACC);
+		fol.bind(SLIDE_INPUT, follow::SLIDE);
+		fol.bind(SYNC_INPUT, follow::CLOCK);
+		fol.bind(RETRIG_INPUT, follow::RESET);
 		configParam(WAVE1_PARAM, 0.f, 1.f, 0.33f, "VCO1 wave", "", 0.f, 1.f);
 		configParam(WAVE2_PARAM, 0.f, 1.f, 0.33f, "VCO2 wave", "", 0.f, 1.f);
 		paramQuantities[WAVE1_PARAM]->description = paramQuantities[WAVE2_PARAM]->description =
@@ -257,9 +268,11 @@ struct GenraMono : Module {
 			json_array_append_new(a, json_real(loaded[i]));
 		json_object_set_new(j, "loaded", a);
 		json_object_set_new(j, "clockRes", json_integer(clockRes));
+		fol.toJson(j);
 		return j;
 	}
 	void dataFromJson(json_t* j) override {
+		fol.fromJson(j);
 		json_t* pJ = json_object_get(j, "preset");
 		preset = -1;
 		presetName = json_is_string(pJ) ? json_string_value(pJ) : "";
@@ -288,7 +301,10 @@ struct GenraMono : Module {
 		rememberLoaded();
 	}
 
+	void onRemove(const RemoveEvent& e) override { follow::gone(this); }
+
 	void process(const ProcessArgs& args) override {
+		fol.process(this); // FOLLOW GENRA: the jacks without a cable (Follow.hpp)
 		auto v = [&](int id) { return params[id].getValue(); };
 		p.wave1 = v(WAVE1_PARAM);
 		p.wave2 = v(WAVE2_PARAM);
@@ -527,6 +543,7 @@ struct GenraMonoWidget : ModuleWidget {
 	GenraMonoWidget(GenraMono* module) {
 		setModule(module);
 		setPanel(createPanel(asset::plugin(pluginInstance, "res/GenraMono.svg")));
+		follow::addStrip(this, module, {mm2px(Vec(L::IN_VOCT[0], L::IN_VOCT[1])), mm2px(Vec(L::IN_GATE[0], L::IN_GATE[1])), mm2px(Vec(L::IN_VEL[0], L::IN_VEL[1])), mm2px(Vec(L::IN_ACC[0], L::IN_ACC[1])), mm2px(Vec(L::IN_SLIDE[0], L::IN_SLIDE[1])), mm2px(Vec(L::IN_SYNC[0], L::IN_SYNC[1])), mm2px(Vec(L::IN_RETRIG[0], L::IN_RETRIG[1]))}); // lit while GENRA feeds the strip
 		addChild(createWidget<ScrewBlack>(Vec(RACK_GRID_WIDTH, 0)));
 		addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
 		addChild(createWidget<ScrewBlack>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
@@ -580,6 +597,8 @@ struct GenraMonoWidget : ModuleWidget {
 	}
 
 	void appendContextMenu(Menu* menu) override {
+		if (follow::Host* h = follow::host(module))
+			h->fol.appendMenu(menu, module);
 		GenraMono* m = getModule<GenraMono>();
 		if (!m)
 			return;

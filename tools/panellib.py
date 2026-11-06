@@ -15,6 +15,15 @@ TRAY_TOP = -4.6  # tray top relative to the jack centre
 TRAY_H = 11.2
 
 
+def dim(color, f=0.35):
+    """The strip's line as printed: the track colour dimmed (it lights up when GENRA feeds the jack, src/Follow.cpp)."""
+    c = color.lstrip("#")
+    r, g, b = (int(c[i:i + 2], 16) for i in (0, 2, 4))
+    t = TRAY.lstrip("#")
+    tr, tg, tb = (int(t[i:i + 2], 16) for i in (0, 2, 4))
+    return "#%02x%02x%02x" % (round(r * f + tr * (1 - f)), round(g * f + tg * (1 - f)), round(b * f + tb * (1 - f)))
+
+
 def _tray(e, x, y, n, line):
     w = n * SLOT
     e(f'<rect x="{x + 0.3:.2f}" y="{y + TRAY_TOP:.2f}" width="{w - 0.6:.2f}" height="{TRAY_H}" rx="1" fill="{TRAY}"/>')
@@ -29,7 +38,7 @@ def genra_strip(jack, e, x0, y, have, color, sync=None):
     notes = [lb for lb in STRIP if lb in have]
     x = x0
     if notes:
-        _tray(e, x, y, len(notes), color)
+        _tray(e, x, y, len(notes), dim(color))
         for i, lb in enumerate(notes):
             jack(have[lb], x + SLOT / 2 + i * SLOT, y, lb)
         x += len(notes) * SLOT

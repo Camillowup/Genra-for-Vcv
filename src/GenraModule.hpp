@@ -5,6 +5,7 @@
 #include "Engine.hpp"
 #include "Arranger.hpp"
 #include "Layout.hpp"
+#include "Follow.hpp"
 #include <osdialog.h>
 #include <atomic>
 #include <mutex>
@@ -432,7 +433,11 @@ struct Genra : Module {
 	float newFlash = 0.f;
 	dsp::ClockDivider lightDivider;
 
+	// instruments and MIX that follow this GENRA without cables let go (Follow.hpp)
+	void onRemove(const RemoveEvent& e) override { follow::gone(this); }
+
 	~Genra() {
+		follow::gone(this);
 		std::lock_guard<std::mutex> lk(genraRegMutex());
 		genraRegistry().erase(this);
 	}

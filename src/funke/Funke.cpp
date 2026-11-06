@@ -2,6 +2,7 @@
 // FUNKE – the melody voice for GENRA's melody track, in the GENRA look (accent: cyan, GENRA's melody colour).
 // Sound engine: FunkeDsp.hpp. Panel: tools/funke_panel.py (res/Funke.svg + FunkeLayout.hpp).
 #include "../plugin.hpp"
+#include "../Follow.hpp"
 #include "../ui/GenraUI.hpp"
 #include "FunkeDsp.hpp"
 #include "FunkeLayout.hpp"
@@ -19,7 +20,7 @@ static const NVGcolor ACCENT = nvgRGB(FUNKE_RGB);
 static const int SCOPE = 128;
 static const int PPQN_CHOICES[4] = {1, 2, 4, 24};
 
-struct Funke : Module {
+struct Funke : Module, follow::Host {
 	enum ParamId {
 		MODEL_PARAM, TIMBRE_PARAM, BITE_PARAM, WIDTH_PARAM, SUB_PARAM, VMODE_PARAM, GLIDE_PARAM, ACCENT_PARAM,
 		FTYPE_PARAM, CUTOFF_PARAM, RES_PARAM, FENV_PARAM, KEY_PARAM, FATK_PARAM, FDEC_PARAM, DRIVE_PARAM,
@@ -88,6 +89,17 @@ struct Funke : Module {
 
 	Funke() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
+		srcName = "FUNKE";
+		outL = L_OUTPUT;
+		outR = R_OUTPUT;
+		fol.bind(VOCT_INPUT, follow::VOCT);
+		fol.bind(GATE_INPUT, follow::GATE);
+		fol.bind(VEL_INPUT, follow::VEL);
+		fol.bind(ACC_INPUT, follow::ACC);
+		fol.bind(SLIDE_INPUT, follow::SLIDE);
+		fol.bind(VIB_INPUT, follow::MOD);
+		fol.bind(CLOCK_INPUT, follow::CLOCK);
+		fol.bind(RESET_INPUT, follow::RESET);
 		std::vector<std::string> models, filters;
 		for (int i = 0; i < NUM_MODELS; i++)
 			models.push_back(MODEL_NAMES[i]);
@@ -160,7 +172,10 @@ struct Funke : Module {
 
 	float kv(int param, int input) { return clamp(params[param].getValue() + inputs[input].getVoltage() * 0.1f, 0.f, 1.f); }
 
+	void onRemove(const RemoveEvent& e) override { follow::gone(this); }
+
 	void process(const ProcessArgs& args) override {
+		fol.process(this); // FOLLOW GENRA: the jacks without a cable (Follow.hpp)
 		// the clock: BPM from the time between pulses
 		sinceClock += args.sampleTime;
 		if (resetTrig.process(inputs[RESET_INPUT].getVoltage(), 0.1f, 1.f)) {
@@ -251,9 +266,11 @@ struct Funke : Module {
 	json_t* dataToJson() override {
 		json_t* j = json_object();
 		json_object_set_new(j, "ppqn", json_integer(ppqn));
+		fol.toJson(j);
 		return j;
 	}
 	void dataFromJson(json_t* j) override {
+		fol.fromJson(j);
 		if (json_t* v = json_object_get(j, "ppqn"))
 			ppqn = std::max(1, (int) json_integer_value(v));
 	}
@@ -387,6 +404,7 @@ struct FunkeWidget : ModuleWidget {
 	FunkeWidget(Funke* module) {
 		setModule(module);
 		setPanel(createPanel(asset::plugin(pluginInstance, "res/Funke.svg")));
+		follow::addStrip(this, module, {mm2px(Vec(L::VOCT[0], L::VOCT[1])), mm2px(Vec(L::GATE[0], L::GATE[1])), mm2px(Vec(L::VEL[0], L::VEL[1])), mm2px(Vec(L::ACC[0], L::ACC[1])), mm2px(Vec(L::SLIDE[0], L::SLIDE[1])), mm2px(Vec(L::IN_VIB[0], L::IN_VIB[1])), mm2px(Vec(L::CLOCK[0], L::CLOCK[1])), mm2px(Vec(L::IN_RESET[0], L::IN_RESET[1]))}); // lit while GENRA feeds the strip
 		addChild(createWidget<ScrewBlack>(Vec(RACK_GRID_WIDTH, 0)));
 		addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
 		addChild(createWidget<ScrewBlack>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
@@ -461,6 +479,8 @@ struct FunkeWidget : ModuleWidget {
 	}
 
 	void appendContextMenu(Menu* menu) override {
+		if (follow::Host* h = follow::host(module))
+			h->fol.appendMenu(menu, module);
 		Funke* m = dynamic_cast<Funke*>(module);
 		if (!m)
 			return;

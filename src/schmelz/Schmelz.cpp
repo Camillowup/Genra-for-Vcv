@@ -2,6 +2,7 @@
 // SCHMELZ – string machine with a strings and a solo section, in the GENRA look (accent: rose).
 // Sound engine: SchmelzDsp.hpp. Panel: tools/schmelz_panel.py (res/Schmelz.svg + SchmelzLayout.hpp).
 #include "../plugin.hpp"
+#include "../Follow.hpp"
 #include "../ui/GenraUI.hpp"
 #include "SchmelzDsp.hpp"
 #include "SchmelzLayout.hpp"
@@ -18,7 +19,7 @@ using namespace gschmelz;
 static const NVGcolor ACCENT = nvgRGB(SCHMELZ_RGB);
 static const int MAXV = 16;
 
-struct Schmelz : Module {
+struct Schmelz : Module, follow::Host {
 	enum ParamId {
 		REG_PARAM, CRESC_PARAM, REL_PARAM, TONE_PARAM, ENSDEPTH_PARAM, OCT_PARAM, ENS_PARAM,
 		SOUND_PARAM, DECAY_PARAM, SUSTAIN_PARAM, TREM_PARAM, SPLIT_PARAM, ATK_PARAM, TRATE_PARAM, VEL_PARAM, HOLD_PARAM,
@@ -97,6 +98,13 @@ struct Schmelz : Module {
 
 	Schmelz() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
+		srcName = "SCHMELZ";
+		outL = L_OUTPUT;
+		outR = R_OUTPUT;
+		fol.bind(STR_VOCT_INPUT, follow::VOCT);
+		fol.bind(STR_GATE_INPUT, follow::GATE);
+		fol.bind(STR_VEL_INPUT, follow::VEL);
+		fol.bind(MOD_INPUT, follow::MOD);
 		configParam<RegQuantity>(REG_PARAM, 0.f, 1.f, 0.15f, "Registration");
 		paramQuantities[REG_PARAM]->description = "Violin, viola, cello, bass, brass, organ, choir, synth – morphing";
 		configParam<TimeQuantity<crescSeconds>>(CRESC_PARAM, 0.f, 1.f, 0.35f, "Crescendo");
@@ -183,9 +191,11 @@ struct Schmelz : Module {
 	json_t* dataToJson() override {
 		json_t* root = json_object();
 		json_object_set_new(root, "modTarget", json_integer(modTarget));
+		fol.toJson(root);
 		return root;
 	}
 	void dataFromJson(json_t* root) override {
+		fol.fromJson(root);
 		if (json_t* j = json_object_get(root, "modTarget"))
 			modTarget = clamp((int) json_integer_value(j), 0, 2);
 	}
@@ -199,7 +209,10 @@ struct Schmelz : Module {
 	}
 	static bool schmitt(bool was, float v) { return v >= 1.f ? true : (v <= 0.1f ? false : was); }
 
+	void onRemove(const RemoveEvent& e) override { follow::gone(this); }
+
 	void process(const ProcessArgs& args) override {
+		fol.process(this); // FOLLOW GENRA: the jacks without a cable (Follow.hpp)
 		// controls at a lower rate
 		if (--ctl <= 0) {
 			ctl = 8;
@@ -391,6 +404,7 @@ struct SchmelzWidget : ModuleWidget {
 	SchmelzWidget(Schmelz* module) {
 		setModule(module);
 		setPanel(createPanel(asset::plugin(pluginInstance, "res/Schmelz.svg")));
+		follow::addStrip(this, module, {mm2px(Vec(L::STR_VOCT[0], L::STR_VOCT[1])), mm2px(Vec(L::STR_GATE[0], L::STR_GATE[1])), mm2px(Vec(L::STR_VEL[0], L::STR_VEL[1])), mm2px(Vec(L::IN_MOD[0], L::IN_MOD[1]))}); // lit while GENRA feeds the strip
 		addChild(createWidget<ScrewBlack>(Vec(RACK_GRID_WIDTH, 0)));
 		addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
 		addChild(createWidget<ScrewBlack>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
@@ -453,6 +467,8 @@ struct SchmelzWidget : ModuleWidget {
 	}
 
 	void appendContextMenu(Menu* menu) override {
+		if (follow::Host* h = follow::host(module))
+			h->fol.appendMenu(menu, module);
 		menu->addChild(new MenuSeparator);
 		menu->addChild(createMenuLabel("String machine: strings + solo, up to 16 voices each"));
 		menu->addChild(createMenuLabel("SOLO GATE unplugged: the solo plays the strings notes (SPLIT at C4)"));

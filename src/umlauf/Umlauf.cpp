@@ -8,6 +8,7 @@
 // the orbiter, the corners' weights, the envelope and each corner on its own. UMLAUF FX docks to the right.
 // Panels: tools/umlauf_panel.py, tools/umlauf_fx_panel.py.
 #include "../plugin.hpp"
+#include "../Follow.hpp"
 #include "../ui/GenraUI.hpp"
 #include "UmlaufFx.hpp"
 #include "UmlaufLayout.hpp"
@@ -83,7 +84,7 @@ struct CornerQuantity : ParamQuantity {
 };
 
 // ---------------------------------------------------------------- the module
-struct Umlauf : Module {
+struct Umlauf : Module, follow::Host {
 	enum ParamId {
 		SHAPE_PARAM, MODE_PARAM, SPEED_PARAM, SIZE_PARAM, ROT_PARAM, SPIN_PARAM, TILT_PARAM, SUBSIZE_PARAM,
 		SUBSPD_PARAM, OENV_PARAM,
@@ -243,6 +244,14 @@ struct Umlauf : Module {
 
 	Umlauf() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, 0);
+		srcName = "UMLAUF";
+		outL = L_OUTPUT;
+		outR = R_OUTPUT;
+		fol.bind(VOCT_INPUT, follow::VOCT);
+		fol.bind(GATE_INPUT, follow::GATE);
+		fol.bind(VEL_INPUT, follow::VEL);
+		fol.bind(CLK_INPUT, follow::CLOCK);
+		fol.bind(RST_INPUT, follow::RESET);
 		prepareFolders();
 		{
 			// the engine reads numbers in the "C" locale (as Rack runs)
@@ -709,7 +718,10 @@ struct Umlauf : Module {
 	}
 
 	// ---------------------------------------------------------------- audio
+	void onRemove(const RemoveEvent& e) override { follow::gone(this); }
+
 	void process(const ProcessArgs& args) override {
+		fol.process(this); // FOLLOW GENRA: the jacks without a cable (Follow.hpp)
 		if (!inst)
 			return;
 		{
@@ -854,9 +866,11 @@ struct Umlauf : Module {
 			if (!stateCache.empty())
 				json_object_set_new(r, "state", json_string(stateCache.c_str()));
 		}
+		fol.toJson(r);
 		return r;
 	}
 	void dataFromJson(json_t* r) override {
+		fol.fromJson(r);
 		if (json_t* j = json_object_get(r, "ppqn"))
 			ppqn = clamp((int) json_integer_value(j), 1, 24);
 		if (json_t* j = json_object_get(r, "delaySync"))
@@ -1213,6 +1227,7 @@ struct UmlaufWidget : ModuleWidget {
 	UmlaufWidget(Umlauf* module) {
 		setModule(module);
 		setPanel(createPanel(asset::plugin(pluginInstance, "res/Umlauf.svg")));
+		follow::addStrip(this, module, {mm2px(Vec(L::IN_VOCT[0], L::IN_VOCT[1])), mm2px(Vec(L::IN_GATE[0], L::IN_GATE[1])), mm2px(Vec(L::IN_VEL[0], L::IN_VEL[1])), mm2px(Vec(L::IN_CLK[0], L::IN_CLK[1])), mm2px(Vec(L::IN_RST[0], L::IN_RST[1]))}); // lit while GENRA feeds the strip
 		addChild(createWidget<ScrewBlack>(Vec(RACK_GRID_WIDTH, 0)));
 		addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
 		addChild(createWidget<ScrewBlack>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
@@ -1277,6 +1292,8 @@ struct UmlaufWidget : ModuleWidget {
 	}
 
 	void appendContextMenu(Menu* menu) override {
+		if (follow::Host* h = follow::host(module))
+			h->fol.appendMenu(menu, module);
 		Umlauf* m = getModule<Umlauf>();
 		if (!m || !m->inst)
 			return;

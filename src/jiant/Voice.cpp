@@ -4,6 +4,7 @@
 // core (Core.hpp); this file is the panel, the jacks and the glue: knobs and CV into the part's parameters, V/OCT + GATE
 // into its notes (each note sings the next syllable), the lyric typed on the panel, its 44.1 kHz audio resampled.
 #include "../plugin.hpp"
+#include "../Follow.hpp"
 #include "VoiceCore.hpp"
 #include <atomic>
 #include <array>
@@ -17,7 +18,7 @@ namespace jiant_voice {
 static const int NE = 8;
 
 // ------------------------------------------------------------------------------------------------ the module
-struct Voice : Module {
+struct Voice : Module, follow::Host {
 	enum ParamId {
 		ENUMS(E_PARAM, NE),
 		ATK_PARAM, DEC_PARAM, SUS_PARAM, REL_PARAM,
@@ -93,6 +94,12 @@ struct Voice : Module {
 
 	Voice() {
 		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
+		srcName = "VOICE";
+		outL = L_OUTPUT;
+		outR = R_OUTPUT;
+		fol.bind(VOCT_INPUT, follow::VOCT);
+		fol.bind(GATE_INPUT, follow::GATE);
+		fol.bind(VEL_INPUT, follow::VEL);
 		for (int k = 0; k < NE; k++) {
 			configParam<EQuantity>(E_PARAM + k, 0.f, 1.f, 0.5f, string::f("E%d", k + 1));
 			configInput(E_INPUT + k, string::f("E%d CV (±5 V: ± half the range)", k + 1));
@@ -194,7 +201,7 @@ struct Voice : Module {
 			params[j].setValue(0.f);
 		powerOn();
 	}
-	void onRemove(const RemoveEvent& e) override { core.unload(); }
+	void onRemove(const RemoveEvent& e) override { follow::gone(this); core.unload(); }
 	void onReset(const ResetEvent& e) override {
 		Module::onReset(e);
 		fromPatch = false;
@@ -215,9 +222,11 @@ struct Voice : Module {
 		json_t* r = json_object();
 		json_object_set_new(r, "preset", json_integer(preset));
 		json_object_set_new(r, "text", json_string(getText().c_str()));
+		fol.toJson(r);
 		return r;
 	}
 	void dataFromJson(json_t* r) override {
+		fol.fromJson(r);
 		if (json_t* j = json_object_get(r, "preset"))
 			preset = (int) json_integer_value(j);
 		if (json_t* j = json_object_get(r, "text")) {
@@ -348,6 +357,7 @@ struct Voice : Module {
 	}
 
 	void process(const ProcessArgs& args) override {
+		fol.process(this); // FOLLOW GENRA: the jacks without a cable (Follow.hpp)
 		const jvo_api* a = core.api;
 		if (!a) {
 			outputs[L_OUTPUT].setVoltage(0.f);
@@ -519,6 +529,7 @@ struct VoiceWidget : ModuleWidget {
 	VoiceWidget(Voice* module) {
 		setModule(module);
 		setPanel(createPanel(asset::plugin(pluginInstance, "res/JiantVoice.svg")));
+		follow::addStrip(this, module, {jiant::at(L::VOCT), jiant::at(L::GATE), jiant::at(L::VEL)}); // lit while GENRA feeds the strip
 		jiant::addScrews(this);
 
 		ScreenWidget* scr = new ScreenWidget;
@@ -582,6 +593,8 @@ struct VoiceWidget : ModuleWidget {
 	}
 
 	void appendContextMenu(Menu* menu) override {
+		if (follow::Host* h = follow::host(module))
+			h->fol.appendMenu(menu, module);
 		Voice* m = getModule<Voice>();
 		if (!m || !m->core.loaded())
 			return;
