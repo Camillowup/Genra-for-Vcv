@@ -58,9 +58,11 @@ struct Voice : Module, follow::Host {
 	// engine thread
 	int sent[JVO_NP];
 	float devL[BLOCK], devR[BLOCK];
-	dsp::SampleRateConverter<2> src;
+	jiant::Resampler src;
 	dsp::DoubleRingBuffer<dsp::Frame<2>, 2048> outBuf;
 	uint32_t framesSinceVis = 0;
+	bool visDue = true;                          // a frame of the screen owed (drawn when it is seen)
+	jiant::ScreenClock screenClock;              // set by the ScreenWidget's draw
 	struct CvVoice { bool gate = false; int note = 60; };
 	CvVoice cv[16];
 	bool callOn = false;
@@ -133,7 +135,6 @@ struct Voice : Module, follow::Host {
 		configOutput(R_OUTPUT, "Right");
 		for (int j = ATK_PARAM; j < PARAMS_LEN; j++)
 			paramQuantities[j]->randomizeEnabled = j < DIST_PARAM;
-		src.setQuality(6);
 		for (int& s : sent)
 			s = INT32_MIN;
 	}
@@ -150,7 +151,7 @@ struct Voice : Module, follow::Host {
 		for (int& s : sent)
 			s = INT32_MIN;
 		outBuf.clear();
-		src.refreshState();
+		src.reset();
 		for (auto& v : cv)
 			v.gate = false;
 		callOn = false;
@@ -330,20 +331,16 @@ struct Voice : Module, follow::Host {
 			in[i].samples[1] = devR[i];
 		}
 		int devRate = (int) a->sample_rate();
-		if ((int) sampleRate == devRate) {
-			for (int i = 0; i < BLOCK && !outBuf.full(); i++)
-				outBuf.push(in[i]);
-		} else {
-			src.setRates(devRate, (int) sampleRate);
-			int inLen = BLOCK, outLen = (int) outBuf.capacity();
-			src.process(in, &inLen, outBuf.endData(), &outLen);
-			outBuf.endIncr(outLen);
-		}
+		src.process(in, BLOCK, devRate, (int) sampleRate, outBuf);
 		framesSinceVis += BLOCK;
-		if (framesSinceVis >= (uint32_t) devRate / 30) {     // the tract, 30 frames a second
-			framesSinceVis = 0;
+		if (visDue && screenClock.seen()) {             // (only while the screen is seen: it costs)
+			visDue = false;
 			std::memcpy(screen, a->vis(JVO_VIS_W, JVO_VIS_H), sizeof screen);
 			screenSeq++;
+		}
+		if (framesSinceVis >= (uint32_t) devRate / 30) {     // the tract, 30 frames a second
+			framesSinceVis = 0;
+			visDue = true;
 			for (int k = 0; k < NE; k++)
 				std::snprintf(labels[k].data(), labels[k].size(), "%s", a->label(JVO_E1 + k));
 			for (uint32_t j = 0; j < JVO_NP; j++)
@@ -427,6 +424,7 @@ struct ScreenWidget : Widget {
 			jiant::drawStatus(args.vg, module->status, box.size.x);
 			return;
 		}
+		module->screenClock.mark();
 		canvas.draw(args.vg, module->screen, module->screenSeq, box.size.x, box.size.y);
 	}
 };

@@ -54,9 +54,11 @@ struct Animal : Module, follow::Host {
 	// engine thread
 	int sent[JAN_NP];
 	float devL[BLOCK], devR[BLOCK];
-	dsp::SampleRateConverter<2> src;
+	jiant::Resampler src;
 	dsp::DoubleRingBuffer<dsp::Frame<2>, 2048> outBuf;
 	uint32_t framesSinceVis = 0;
+	bool visDue = true;                          // a frame of the screen owed (drawn when it is seen)
+	jiant::ScreenClock screenClock;              // set by the ScreenWidget's draw
 	struct CvVoice { bool gate = false; int note = 60; };
 	CvVoice cv[16];
 	bool callOn = false;
@@ -96,7 +98,6 @@ struct Animal : Module, follow::Host {
 		for (int j = ATK_PARAM; j <= VOICE_PARAM; j++)
 			paramQuantities[j]->randomizeEnabled = j < DIST_PARAM;
 		paramQuantities[MODE_PARAM]->randomizeEnabled = false;
-		src.setQuality(6);
 		for (int& s : sent)
 			s = INT32_MIN;
 	}
@@ -138,7 +139,7 @@ struct Animal : Module, follow::Host {
 		for (int& s : sent)
 			s = INT32_MIN;
 		outBuf.clear();
-		src.refreshState();
+		src.reset();
 		for (auto& v : cv)
 			v.gate = false;
 		callOn = false;
@@ -287,20 +288,16 @@ struct Animal : Module, follow::Host {
 			in[i].samples[1] = devR[i];
 		}
 		int devRate = (int) a->sample_rate();
-		if ((int) sampleRate == devRate) {
-			for (int i = 0; i < BLOCK && !outBuf.full(); i++)
-				outBuf.push(in[i]);
-		} else {
-			src.setRates(devRate, (int) sampleRate);
-			int inLen = BLOCK, outLen = (int) outBuf.capacity();
-			src.process(in, &inLen, outBuf.endData(), &outLen);
-			outBuf.endIncr(outLen);
-		}
+		src.process(in, BLOCK, devRate, (int) sampleRate, outBuf);
 		framesSinceVis += BLOCK;
-		if (framesSinceVis >= (uint32_t) devRate / 30) {     // the creature, 30 frames a second
-			framesSinceVis = 0;
+		if (visDue && screenClock.seen()) {             // (only while the screen is seen: it costs)
+			visDue = false;
 			std::memcpy(screen, a->vis(JAN_VIS_W, JAN_VIS_H), sizeof screen);
 			screenSeq++;
+		}
+		if (framesSinceVis >= (uint32_t) devRate / 30) {     // the creature, 30 frames a second
+			framesSinceVis = 0;
+			visDue = true;
 			for (int k = 0; k <= NE; k++)
 				std::snprintf(labels[k].data(), labels[k].size(), "%s", a->label(JAN_MODE + k));
 			for (uint32_t j = JAN_E1; j <= JAN_LEVEL; j++)
@@ -369,6 +366,7 @@ struct ScreenWidget : Widget {
 			jiant::drawStatus(args.vg, module->status, box.size.x);
 			return;
 		}
+		module->screenClock.mark();
 		canvas.draw(args.vg, module->screen, module->screenSeq, box.size.x, box.size.y);
 	}
 };
