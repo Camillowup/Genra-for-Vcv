@@ -1,6 +1,6 @@
 # GENRA – Projektstand
 
-**Stand:** 6. November 2026 · **Plugin 2.12.0: 16 Module** (GENRA, GRID, ABLAUF, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, SCHMELZ, MIX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `CamilloGF/genra-v3`
+**Stand:** 6. November 2026 · **Plugin 2.13.0: 16 Module** (GENRA, GRID, ABLAUF, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, SCHMELZ, MIX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `CamilloGF/genra-v3`
 Vorgänger: v1 `CamilloGF/vcv-sequenzer-Genra` (2.0.0), v2 `CamilloGF/Genra-v2` (2.1.0, läuft in Rack)
 Plattform: VCV Rack Pro 2.6.6 unter Windows · Build: GitHub Actions (`.github/workflows/main.yml`)
 
@@ -262,3 +262,13 @@ GENRA MONO: `g++ -std=c++17 -O2 test/test_mono.cpp -o tm && ./tm`
 - [ ] Test in Rack: Song mit GENRA (Taktgenauigkeit bei interner und externer Clock, 1-Takt-Zeilen), Varianten nach Gehör (Build-Länge, Intro-Dichte je Genre), Undo, Laden/Speichern grosser Bänke.
 
 - Tooltips, Menüs und Meldungen von GENRA, GRID und ABLAUF auf Englisch (wie die übrigen Module).
+
+## GENRA-Leiste und Aufräumen (2.13.0) – Stand 6. November 2026
+- Entscheidungen (Bericht „GENRA-Plugin: Zusammenarbeit und Streamlining“): einheitliche GENRA-Leiste an allen Instrumenten, alle Ein-/Ausgänge bleiben (auch für fremde Module), Verbindung *Spur von GENRA* per Rechtsklick zusätzlich (folgt), Tooltips/Menüs Englisch, Sound-Snapshots in ABLAUF später.
+- Leiste: `tools/panellib.py` (`genra_strip`): V/OCT · GATE · VEL · ACC · SLIDE · MOD (Spurfarbe), CLOCK · RESET (grau), Raster 9,4 mm, unten links. Umgesetzt in MONO, K-WASUB, FUNKE, SCHMELZ, UMLAUF; VOICE, ANIMAL, MONK (Leistenoptik in px); DRUM-X: Poly-Eingang DRUMS.
+- Neue Buchsen (hinten an die Listen gehängt, alte Patches laden): GENRA `DRUMS_OUTPUT` (8 Kanäle), DRUM-X `GENRA_INPUT` (GENRA-Reihenfolge → Spuren 0,1,2,6,3,4,5,7), SCHMELZ `MOD_INPUT` (Ziel im Menü, im Patch), FUNKE `RESET_INPUT` (Tempo neu messen), K-WASUB `ACC_INPUT` (Velocity +30) und `SLIDE_INPUT` (Glide +35 % des Bereichs, solange hoch).
+- Eigene dunkle Regler `res/knob/{large,medium,small,trim}{,_bg}.svg` in Rack-Grössen, Klassen `GLargeKnob`, `GKnob`, `GSmallKnob`, `GTrimpot` in `plugin.hpp` – ersetzen Rack's Round*BlackKnob/Trimpot in allen Modulen (MONK wirkte mit Rack's Reglern silbern).
+- Workflow: GENRAs Engine-Tests (Spuren, Grid-Bearbeitung, Speicherformat, MIDI) laufen mit. Vorschaubilder ohne Rack-Quellen: `../ext/Rack/res/ComponentLibrary` mit Rack's Grafiken plus den eigenen Reglern.
+- [ ] *Spur von GENRA* (Verbindung per Rechtsklick) für alle Instrumente.
+- [ ] Test in Rack: neue Buchsen, Regler-Optik, K-WASUB ACC/SLIDE nach Gehör.
+

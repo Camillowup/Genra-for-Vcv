@@ -1,6 +1,6 @@
 # GENRA – Plugin für VCV Rack 2
 
-Ein generativer, genreabhängiger 4-Spur-Sequencer mit MIDI-Grid, Performance-Effekten und passenden Instrumenten, alle im selben Look. Plugin-Version **2.12.0**, 16 Module. Projektstand und Entscheidungen: `PROJEKT.md`.
+Ein generativer, genreabhängiger 4-Spur-Sequencer mit MIDI-Grid, Performance-Effekten und passenden Instrumenten, alle im selben Look. Plugin-Version **2.13.0**, 16 Module. Projektstand und Entscheidungen: `PROJEKT.md`.
 
 | Modul | Breite | Farbe | Was es ist |
 |---|---|---|---|
@@ -49,7 +49,7 @@ GENRA erfindet genretypische Loops (1/2/4/8 Takte) für **8 Drumspuren, Bass, Me
 - **Pro Spur:** DENSITY + DENS-CV · zweiter Regler (Drums: FILL, GHOST · Bass: MOVE · Melodie: RANGE · Pads: VOICING) · OCT (Bass/Melodie/Pads) · Genre-Feld + GENRE-CV · MUTE · LOCK · NEW · TRIG.
 - **Eingänge (IN):** CLOCK, RESET, RUN, NEW, FILL, MUTATE, GENRE, VARIANT, TRANSP (V/Oct), COMPLEX, COLOR, SWING, BPM, LENGTH, CHORD (poly) · pro Spur GENRE-CV, DENS-CV, TRIG · HARMONY TRIG.
 - **Ausgänge pro Spur:** 8 Drum-Trigger (Höhe = Velocity) · Bass/Melodie: V/OCT, GATE, VEL, ACC, SLIDE · Pads: V/OCT + GATE (poly 4), VEL, MOD.
-- **Ausgänge (OUT):** CLOCK (16tel), RESET (Loop-Anfang), RUN (Gate), BAR (pro Takt), END (letzter Step), FILL (Gate während Fill/Drop), ROOT (Grundton des aktuellen Akkords, V/Oct zwischen C4 und B4), CHORD (ganzer Akkord, polyphon).
+- **Ausgänge (OUT):** CLOCK (16tel), RESET (Loop-Anfang), RUN (Gate), BAR (pro Takt), END (letzter Step), FILL (Gate während Fill/Drop), ROOT (Grundton des aktuellen Akkords, V/Oct zwischen C4 und B4), CHORD (ganzer Akkord, polyphon), **DRUMS** (alle 8 Drumspuren auf einem Poly-Kabel in GENRAs Reihenfolge, z. B. in DRUM-X; die 8 Einzelausgänge bleiben).
 - **Display:** Genre und Variante, Tonart, BPM, Swing, Akkordfolge, Genre jeder Spur neben ihren Lauflichtern. Akkord anklicken = nächste Alternative, Rechtsklick = Liste, Mausrad = mehr/weniger Farbe. Akkordnamen mit # oder b passend zur Tonart.
 - **Rechtsklick-Menü:** MIDI-Export/-Import, Akkord-Modus, Akkord-Vorlage, nur Akkorde neu würfeln, Genre-CV-Modus, alle Spuren auf Global, Clock-Auflösung, *Verbinden mit…* (Grid Editor).
 
@@ -155,6 +155,8 @@ Stereo-Effekt: z. B. GENRAs Drums oder MIX-Ausgang hinein, CLOCK von GENRA.
 
 Das passende Set zu GENRA: **GENRA MONO** oder **K-WASUB** für den Bass, **FUNKE** für die Melodie, **SCHMELZ** für die Pads, **DRUM-X** für die Drums – zusammengeführt im **MIX**. Dazu weitere Stimmen: VOICE, ANIMAL, MONK und UMLAUF.
 
+**Die GENRA-Leiste (ab 2.13.0):** Jedes Instrument nimmt GENRAs Spur-Ausgänge an derselben Stelle auf – unten links, gleich beschriftet, in derselben Reihenfolge: **V/OCT · GATE · VEL · ACC · SLIDE · MOD** auf einer Fläche mit einer Linie in der Spurfarbe, rechts daneben **CLOCK · RESET** (graue Linie). Was ein Instrument nicht braucht, lässt es weg; die Reihenfolge bleibt. Alle Buchsen sind normale Ein- und Ausgänge, also auch mit anderen VCV-Modulen nutzbar. Neu dafür: MOD an SCHMELZ (auf Crescendo, Animate oder Tone, Rechtsklick-Menü), ACC und SLIDE an K-WASUB, RESET an FUNKE, DRUMS-Eingang an DRUM-X; bei MONO heissen SYNC und RETRIG jetzt CLOCK und RESET, bei FUNKE VIB jetzt MOD. Alle Module haben dieselben dunklen Regler (`res/knob/`).
+
 > SCHMELZ, MIX, K-WASUB und UMLAUF entstanden im eigenen Repo `CamilloGF/vcv-synthis` (Plugin GENRA SYNTHIS) und sind seit 2.6.0 Teil des GENRA-Plugins. Ihre Modul-Slugs sind gleich geblieben; Patches, die sie aus dem GENRA-SYNTHIS-Plugin geladen haben, müssen sie neu einsetzen. Das GENRA-SYNTHIS-Plugin am besten deinstallieren, sonst stehen die Module doppelt im Browser.
 
 ### GENRA MONO: Bass-Synth nach dem Moog Minitaur
@@ -168,9 +170,9 @@ Monophoner Synth (28 HP, Stand 2.10.0) im Look von MONK und den JIANT-Stimmen, F
 - **Oszillatoren:** pro VCO WAVE (stufenlos Dreieck → Sägezahn → Rechteck → schmaler Puls), TUNE (±12 Halbtöne, fein um die Mitte – zum leichten Verstimmen) und LEVEL (hohe Pegel übersteuern das Filter); GLIDE; ACCENT (wie stark ACC wirkt).
 - **Filter:** Klick auf das Feld öffnet die Liste, das Mausrad blättert: LADDER 24 (Moog, Standard, Bass bleibt bei Resonanz erhalten), LADDER 12, DIODE (303), MS-20, SVF LP/BP/HP (Oberheim SEM), OTA (Juno). CUTOFF, RES, EG AMT (bipolar), DRIVE, KEY TRK.
 - **Hüllkurven:** Filter- und Amp-ADSR mit analogen Kurven (1 ms … 10 s).
-- **LFO:** RATE (0,05–50 Hz), TRI/SQR, Stärke auf Tonhöhe und Filter. **RETRIG** startet die Welle neu (z. B. GENRAs GATE). **SYNC:** Steckt eine Clock, läuft der LFO im Takt und RATE wählt den Notenwert (4 Takte … 1/32, auch punktiert und triolisch, im Tooltip); Clock-Auflösung im Rechtsklick-Menü, Standard 16tel wie GENRA.
+- **LFO:** RATE (0,05–50 Hz), TRI/SQR, Stärke auf Tonhöhe und Filter. **RESET** (früher RETRIG) startet die Welle neu (z. B. GENRAs GATE). **CLOCK** (früher SYNC): Steckt eine Clock, läuft der LFO im Takt und RATE wählt den Notenwert (4 Takte … 1/32, auch punktiert und triolisch, im Tooltip); Clock-Auflösung im Rechtsklick-Menü, Standard 16tel wie GENRA.
 - **STEREO:** WIDTH verteilt die beiden VCOs leicht nach links und rechts und legt einen feinen Chorus auf die Höhen; unter 150 Hz bleibt der Bass immer mono. Ohne Kabel in R ist L der Mono-Ausgang.
-- **Eingänge:** V/OCT (0 V = C4), GATE, VEL, **ACC**, **SLIDE** – in derselben Reihenfolge wie GENRAs Bass-Ausgänge – und CV für CUT (1 V/Okt.), RES, DRIVE, RATE (1 V/Okt.; mit SYNC: 1 V = 2 Notenwerte), VCA, EXT (externes Audio durchs Filter). **Ausgänge:** L, R.
+- **Eingänge:** V/OCT (0 V = C4), GATE, VEL, **ACC**, **SLIDE** – in derselben Reihenfolge wie GENRAs Bass-Ausgänge – und CV für CUT (1 V/Okt.), RES, DRIVE, RATE (1 V/Okt.; mit CLOCK: 1 V = 2 Notenwerte), VCA, EXT (externes Audio durchs Filter). **Ausgänge:** L, R.
 - **ACC:** Eine akzentuierte Note (ACC beim Notenstart über 1 V) wird lauter und bekommt mehr Filterhüllkurve, wie bei der 303. **SLIDE:** Ist der Eingang gesteckt, gleitet MONO nur, solange SLIDE anliegt (Gleitzeit GLIDE, bei 0 eine kurze 303-Gleitzeit); die Hüllkurven starten dabei nicht neu, weil GENRA das Gate offen hält. Ohne Kabel wirkt GLIDE wie bisher auf jede Note.
 - Oszillatoren und Filter laufen mit 2-facher Überabtastung.
 - **Presets (ab 2.9.0):** Feld oben im Kopf – Klick öffnet die Liste, das Mausrad blättert. 23 Werks-Presets nach Stil (SUB, CLASSIC, GARAGE · 2-STEP, DUB · DUBSTEP · GRIME, ACID, HOUSE · TECHNO · ELECTRO, HIP-HOP · LO-FI). Ein grüner Punkt hinter dem Namen zeigt, dass seit dem Laden ein Regler bewegt wurde. Eigene Presets: Rechtsklick → *Save preset as …* (Name, Enter), sie liegen in `Rack2/Genra/MonoPresets/` und erscheinen unter USER.
@@ -229,7 +231,7 @@ Melodie-Ausgängen: V/OCT, GATE, VEL, ACC, SLIDE und CLOCK.
 - **ENVELOPE** ADSR, **VIBRATO** DEPTH/RATE/DELAY (setzt nach DELAY langsam ein).
 - **FX:** LO-FI (Bandeiern, weniger Bits und Samples), CHORUS, ECHO im Takt (1/16, 1/8, 1/8D, 1/4 von CLOCK; ohne
   Clock 120 BPM; Pingpong, FDBK), VERB. CLOCK-Auflösung im Kontextmenü (Standard 16tel wie GENRA).
-- **CV:** MODEL, TIMBRE, BITE, CUT (1 V/Okt.), RES, VIB (wie ein Modrad), ECHO, LO-FI, ATK, REL.
+- **CV:** MODEL, TIMBRE, BITE, CUT (1 V/Okt.), RES, MOD (Vibrato-Tiefe wie ein Modrad, früher VIB), RESET (Tempo neu messen), ECHO, LO-FI, ATK, REL.
   **Ausgänge:** ENV (Hüllkurve der neuesten Note), L, R (nur L gesteckt: mono).
 
 ### SCHMELZ: String Machine
@@ -378,6 +380,7 @@ src/ablauf/           ABLAUF: Modul (Ablauf.cpp), Frontplatte aus tools/ablauf_p
 res/GenraGrid.svg     Frontplatte des Editors (tools/grid_panel.py real)
 src/Genra.cpp         Rack-Modul, Display, Menüs
 res/Genra.svg         Frontplatte (tools/panel.py real), Vorschau: tools/panel.py preview <datei.svg>
+tools/panellib.py     gemeinsame Panel-Bausteine (GENRA-Leiste)
 src/jiant/            JIANT-Stimmen VOICE, DRUM-X, ANIMAL (Module, Kern-Lader, gemeinsamer Look JiantUI.hpp)
 jiantcore/            die drei Firmware-Kerne als eigene kleine Bibliotheken (res/*core.dll beim Build)
 jiant.tar.gz          Firmware-Quellen von JIANT FM (beim ersten Build nach jiant/ entpackt)
