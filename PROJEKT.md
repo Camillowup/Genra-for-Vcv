@@ -1,6 +1,6 @@
 # GENRA – Projektstand
 
-**Stand:** 6. November 2026 · **Plugin 2.14.1: 16 Module** (GENRA, GRID, ABLAUF, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, SCHMELZ, MIX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `CamilloGF/genra-v3`
+**Stand:** 6. November 2026 · **Plugin 2.15.0: 16 Module** (GENRA, GRID, ABLAUF, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, SCHMELZ, MIX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `CamilloGF/genra-v3`
 Vorgänger: v1 `CamilloGF/vcv-sequenzer-Genra` (2.0.0), v2 `CamilloGF/Genra-v2` (2.1.0, läuft in Rack)
 Plattform: VCV Rack Pro 2.6.6 unter Windows · Build: GitHub Actions (`.github/workflows/main.yml`)
 
@@ -304,3 +304,14 @@ GENRA MONO: `g++ -std=c++17 -O2 test/test_mono.cpp -o tm && ./tm`
 
 ### 2.14.1 – FUNKE ohne Knacksen beim Neuanschlag
 - Eine klingende Stimme, die neu angeschlagen wird (Mono-Retrigger, Voice-Stealing in POLY), setzte Phasen, Saite (PLUCK) und Anregung hart zurück: Sprung in der Wellenform. `Voice::process` misst den Sprung im ersten Sample und blendet ihn über ~3 ms aus (Offset), der Anschlag bleibt scharf.
+
+### 2.15.0 – Weniger CPU, gleicher Klang
+- K-WASUB: Der Kern zeichnete ~30×/s sein (unsichtbares) Display im Audio-Thread, ~75–80 % seiner Zeit. `kwcore.c` setzt `ui_frame_ms = fm1_ms` vor `ksub_step()` und liest MIDI mit `app_poll()` jeden Block (Noten ~6 ms statt bis ~33 ms).
+- FUNKE: Zeiten/Raten nur bei Knopfänderung (`mk/mv`), Filter-`tan` einmal pro Sample (`gmono::Filter::coef/processG`), Effekte schlafen nach 3,4 s Stille; Declick wie 2.14.1.
+- MONO: Koeffizienten gecacht, `tan` einmal pro Sample, Oszillatoren/Filter ruhen nach 0,25 s Stille (nicht bei Resonanz ≥ 0,9).
+- JIANT (VOICE, ANIMAL, DRUM-X inkl. Lanes): `jiant::Resampler` pausiert den Speex-Konverter bei Stille; Firmware-Screen nur, wenn er in den letzten 200 ms gezeichnet wurde (`ScreenClock`).
+- UMLAUF: UI-Befehle über `cmdsPending`, `refreshState()` nur nach Änderungen (`stateOwed`, try_lock), Display nur bei Sichtbarkeit, CV-Werte nur bei Änderung > 1e-4.
+- SCHMELZ: Stimmen-Koeffizienten nur bei Änderung, stumme Stimmen nur Hüllkurve, Ensemble 4 statt 6 `sin`, Phaser alle 16 Samples interpoliert, Bus schläft in Stille (Zustände < 1e-7), Reverb ohne `%`.
+- MONK: DRY-`tanh` nur wenn gesteckt, Stille/Echo-Ruhe, Delay ohne `%`, Grain-Cache bei gleichen Unison-Stimmen.
+- STOTTER: Konstanten vorberechnet, DJ-Filter nur bei Änderung, keine 64-Bit-`%`. MIX: Duck-Rate gecacht, ruht wenn eingeschwungen.
+- Follow: Frame wird durchgereicht (kein `APP->engine->getFrame()` pro Sample), MIX schreibt `pulledAt` nur alle 1024 Frames. GENRA: Flags erst lesen, dann `exchange`.
