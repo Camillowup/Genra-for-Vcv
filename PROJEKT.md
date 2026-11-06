@@ -1,6 +1,6 @@
 # GENRA – Projektstand
 
-**Stand:** 6. November 2026 · **Plugin 2.15.1: 16 Module** (GENRA, GRID, ABLAUF, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, SCHMELZ, MIX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `CamilloGF/genra-v3`
+**Stand:** 6. November 2026 · **Plugin 2.15.2: 16 Module** (GENRA, GRID, ABLAUF, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, SCHMELZ, MIX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `CamilloGF/genra-v3`
 Vorgänger: v1 `CamilloGF/vcv-sequenzer-Genra` (2.0.0), v2 `CamilloGF/Genra-v2` (2.1.0, läuft in Rack)
 Plattform: VCV Rack Pro 2.6.6 unter Windows · Build: GitHub Actions (`.github/workflows/main.yml`)
 
@@ -320,3 +320,6 @@ GENRA MONO: `g++ -std=c++17 -O2 test/test_mono.cpp -o tm && ./tm`
 - GENRA (`LinkLights` in Genra.cpp): Ausgänge, die ein Instrument ohne Kabel liest, leuchten als Ring in der Spurfarbe (CLOCK/RESET weiss); über „OUT“ der Gruppe steht, wer liest.
 - Instrumente und STOTTER (`follow::OutLight`): OUT L/R leuchten in der Kanalfarbe, solange der MIX sie nimmt (`Host::pulledBy`), darüber „› MIX CH n“.
 - MIX: über IN L/R (und DUCK) leuchtet das Segment wie an der Leiste der Instrumente; das Namensfeld über dem Kanal wird auf dem Panel gezeichnet (deckt „CH n“ ab), Name und Schein als Licht.
+
+### 2.15.2
+- Ausgänge (GENRA, Instrumente, STOTTER) zeigen die Verbindung ohne Kabel als kleines Leuchtsegment über der Buchse statt als Ring, wie die Eingänge.

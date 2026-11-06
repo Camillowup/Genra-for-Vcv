@@ -389,9 +389,9 @@ void OutLight::drawLayer(const DrawArgs& args, int layer) {
 		return;
 	int ch = clamp(h->pulledBy.load(), 0, 3);
 	NVGcolor c = mixColor(ch);
-	ring(args.vg, l, c);
+	segment(args.vg, l, c); // (a small lit bar over each, as over the inputs)
 	if (r.x != l.x || r.y != l.y)
-		ring(args.vg, r, c);
+		segment(args.vg, r, c);
 	auto font = APP->window->loadFont(asset::system("res/fonts/Nunito-Bold.ttf"));
 	if (font && font->handle >= 0) {
 		nvgFontFaceId(args.vg, font->handle);

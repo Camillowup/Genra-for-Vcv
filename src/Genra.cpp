@@ -460,7 +460,7 @@ struct LinkLights : widget::TransparentWidget {
 			return;
 		for (int id = 0; id < Genra::OUTPUTS_LEN; id++)
 			if (lit[id])
-				follow::ring(args.vg, pos[id], lit[id] == 5 ? nvgRGB(0xe6, 0xe7, 0xec) : follow::trackColor(lit[id] - 1));
+				follow::segment(args.vg, pos[id], lit[id] == 5 ? nvgRGB(0xe6, 0xe7, 0xec) : follow::trackColor(lit[id] - 1));
 		auto font = APP->window->loadFont(asset::system("res/fonts/Nunito-Bold.ttf"));
 		if (!font || font->handle < 0)
 			return;
