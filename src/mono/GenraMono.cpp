@@ -102,7 +102,7 @@ struct GenraMono : Module {
 		h->newModuleJ = toJson();
 		APP->history->push(h);
 	}
-	int step(int d) {
+	int stepPreset(int d) {
 		int n = count();
 		return preset < 0 ? (d > 0 ? 0 : n - 1) : (preset + d + n) % n;
 	}
@@ -406,7 +406,7 @@ struct PresetField : OpaqueWidget {
 	}
 	void onHoverScroll(const HoverScrollEvent& e) override {
 		if (module && e.scrollDelta.y != 0.f) {
-			module->load(module->step(e.scrollDelta.y < 0.f ? 1 : -1));
+			module->load(module->stepPreset(e.scrollDelta.y < 0.f ? 1 : -1));
 			e.consume(this);
 			return;
 		}
