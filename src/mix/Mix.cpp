@@ -129,14 +129,14 @@ struct Mix : Module {
 			if (mode == 2) {
 				Module* m = APP->engine->getModule(s.id.load());
 				follow::Host* h = follow::host(m);
-				if (h && h->outL >= 0)
+				if (h && h->audioL >= 0)
 					want = m;
 			}
 			else {
 				for (int64_t id : APP->engine->getModuleIds()) {
 					Module* m = APP->engine->getModule(id);
 					follow::Host* h = follow::host(m);
-					if (h && h->follows && h->outL >= 0 && h->fol.track.load() == chTrack(c)) {
+					if (h && h->follows && h->audioL >= 0 && h->fol.track.load() == chTrack(c)) {
 						want = m;
 						break;
 					}
@@ -145,8 +145,8 @@ struct Mix : Module {
 			if (want != now) {
 				follow::point(s.ref, this, nullptr);
 				follow::Host* h = follow::host(want);
-				s.outL = h ? h->outL : -1;
-				s.outR = h ? h->outR : -1;
+				s.outL = h ? h->audioL : -1;
+				s.outR = h ? h->audioR : -1;
 				follow::point(s.ref, this, want);
 			}
 		}
@@ -498,7 +498,7 @@ struct MixWidget : ModuleWidget {
 					std::vector<std::pair<int64_t, std::string>> list;
 					for (int64_t id : APP->engine->getModuleIds()) {
 						follow::Host* h = follow::host(APP->engine->getModule(id));
-						if (h && h->outL >= 0) {
+						if (h && h->audioL >= 0) {
 							list.push_back({id, h->srcName});
 							count[h->srcName]++;
 						}

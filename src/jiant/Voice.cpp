@@ -95,8 +95,8 @@ struct Voice : Module, follow::Host {
 	Voice() {
 		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
 		srcName = "VOICE";
-		outL = L_OUTPUT;
-		outR = R_OUTPUT;
+		audioL = L_OUTPUT;
+		audioR = R_OUTPUT;
 		fol.bind(VOCT_INPUT, follow::VOCT);
 		fol.bind(GATE_INPUT, follow::GATE);
 		fol.bind(VEL_INPUT, follow::VEL);

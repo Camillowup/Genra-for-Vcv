@@ -85,7 +85,7 @@ struct Follower {
 struct Host {
 	Follower fol;
 	bool follows = true;      // false: a source for MIX only (STOTTER)
-	int outL = -1, outR = -1;
+	int audioL = -1, audioR = -1; // the stereo out MIX takes
 	const char* srcName = "";
 	virtual ~Host() {}
 };

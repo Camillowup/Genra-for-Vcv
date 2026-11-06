@@ -107,8 +107,8 @@ struct Stotter : Module, follow::Host {
 	Stotter() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 		srcName = "STOTTER";
-		outL = OUT_L_OUTPUT;
-		outR = OUT_R_OUTPUT;
+		audioL = OUT_L_OUTPUT;
+		audioR = OUT_R_OUTPUT;
 		follows = false;
 		configParam<GainQuantity>(GAIN_PARAM, -1.f, 1.f, 0.f, "Input gain");
 		configParam<EqQuantity>(HIGH_PARAM, -1.f, 1.f, 0.f, "High");

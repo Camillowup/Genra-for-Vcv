@@ -99,8 +99,8 @@ struct Schmelz : Module, follow::Host {
 	Schmelz() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 		srcName = "SCHMELZ";
-		outL = L_OUTPUT;
-		outR = R_OUTPUT;
+		audioL = L_OUTPUT;
+		audioR = R_OUTPUT;
 		fol.bind(STR_VOCT_INPUT, follow::VOCT);
 		fol.bind(STR_GATE_INPUT, follow::GATE);
 		fol.bind(STR_VEL_INPUT, follow::VEL);

@@ -110,8 +110,8 @@ struct DrumX : Module, follow::Host {
 	DrumX() {
 		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
 		srcName = "DRUM-X";
-		outL = L_OUTPUT;
-		outR = R_OUTPUT;
+		audioL = L_OUTPUT;
+		audioR = R_OUTPUT;
 		fol.bind(GENRA_INPUT, follow::DRUMS);
 		fol.drumsOnly = true;
 		configButton(PREV_PARAM, "Previous kit");
