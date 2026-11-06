@@ -225,7 +225,7 @@ struct Monk : Module, follow::Host {
 
 		if (pos >= monkdsp::Monk::BLOCK) {
 			setParams();
-			dsp.render(outL, outR, outD);
+			dsp.render(outL, outR, outD, outputs[DRY_OUTPUT].isConnected()); // DRY's tanh only when patched
 			pos = 0;
 			uiVowel = dsp.uiVowel;
 			uiAmp = dsp.uiAmp;

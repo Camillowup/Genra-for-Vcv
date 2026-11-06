@@ -384,6 +384,7 @@ struct Engine {
 	std::vector<float> bl, br;
 	int64_t W = -1;
 	int64_t bufN = 1;
+	int64_t Wk = 0;           // W % bufN, kept up to date (no 64-bit % per sample)
 
 	// the pad state
 	int act = -1;             // slot (bank * 16 + pad) playing, −1: none
@@ -413,6 +414,7 @@ struct Engine {
 	float gsm = 1.f;          // smoothed gain of the gates and scratch
 	std::vector<float> dl[2]; // echo
 	int64_t dW = 0;
+	int64_t dWk = 0;          // dW % the echo line's length
 	float dlp[2] = {0, 0};
 	Allpass hall[2][4];
 	float echoIn = 1.f;
@@ -428,6 +430,9 @@ struct Engine {
 	Isolator iso[2];
 	Svf svf[2];
 	float gCut = 0.f;         // smoothed filter control
+	float gCutC = 1e30f, djG = 0.f;  // the DJ filter's g, worked out again only when gCut moves
+	// the one-pole coefficients, constant for a sample rate
+	float kCut = 0.f, kEcho = 0.f, kScratch = 0.f, gateMs = -1.f, kGate = 0.f;
 	int ctl = 0;
 	float gl = 1, gm = 1, gh = 1, ingain = 1;
 
@@ -451,7 +456,14 @@ struct Engine {
 			iso[k].f1 = -1;
 		}
 		W = -1;
+		Wk = bufN - 1;
 		dW = 0;
+		dWk = 0;
+		gCutC = 1e30f;
+		gateMs = -1.f;
+		kCut = 1.f - std::exp(-1.f / (0.01f * fs));
+		kEcho = 1.f - std::exp(-1.f / (0.004f * fs));
+		kScratch = 1.f - std::exp(-1.f / (0.001f * fs));
 		spb = fs * 60.0 / bpm;
 		cap = CAP_OFF;
 		// every sample position above counted on the old clock: start the pads and the tempo measurement fresh
@@ -589,7 +601,7 @@ struct Engine {
 	float at(const std::vector<float>& b, int64_t i) const {
 		if (i > W) i = W;
 		if (i < W - bufN + 2) i = W - bufN + 2;
-		int64_t k = i % bufN;
+		int64_t k = Wk - (W - i);  // W - i is 0 … bufN − 2: the same slot as i % bufN
 		if (k < 0) k += bufN;
 		return b[k];
 	}
@@ -699,7 +711,7 @@ struct Engine {
 				float g = 1.f;
 				if (mv == 1) g = ph < 0.5 ? 1.f : 0.f;                       // forward: the back stroke cut
 				if (mv == 2) g = (ph > 0.15 && ph < 0.6) ? 1.f : 0.f;        // chirp
-				gsm += (g - gsm) * (1.f - std::exp(-1.f / (0.001f * fs)));
+				gsm += (g - gsm) * kScratch;
 				double anchor = pStart + k * P - depth;
 				float a, b;
 				readLR(anchor + s * depth, a, b);
@@ -728,7 +740,11 @@ struct Engine {
 					ms = 0.7f;
 					depth = v[1];
 				}
-				gsm += (g - gsm) * (1.f - std::exp(-1.f / (ms * 0.001f * fs)));
+				if (ms != gateMs) {
+					gateMs = ms;
+					kGate = 1.f - std::exp(-1.f / (ms * 0.001f * fs));
+				}
+				gsm += (g - gsm) * kGate;
 				float m = 1.f - clampf(depth * amt + hard * 0.3f, 0.f, 1.f) * (1.f - gsm);
 				ol = sl * m;
 				orr = sr * m;
@@ -808,14 +824,17 @@ struct Engine {
 		int64_t n = (int64_t) dl[0].size();
 		d = std::min(d, (double) n - 4.0);
 		float target = echoing ? 0.f : 1.f;
-		echoIn += (target - echoIn) * (1.f - std::exp(-1.f / (0.004f * fs)));
+		echoIn += (target - echoIn) * kEcho;
 		float in[2] = {sl, sr};
 		float hallAmt = v ? v[2] : 0.f;
 		for (int k = 0; k < 2; k++) {
 			double pos = (double) dW - d;
 			int64_t i = (int64_t) std::floor(pos);
 			float f = (float) (pos - i);
-			float y = dl[k][(size_t) (((i % n) + n) % n)] * (1.f - f) + dl[k][(size_t) ((((i + 1) % n) + n) % n)] * f;
+			int64_t i0 = dWk - (dW - i);  // dW - i is 0 … n − 3: the same slot as i mod n
+			if (i0 < 0) i0 += n;
+			int64_t i1 = i0 + 1 >= n ? 0 : i0 + 1;
+			float y = dl[k][(size_t) i0] * (1.f - f) + dl[k][(size_t) i1] * f;
 			dlp[k] += (y - dlp[k]) * 0.35f;  // dark repeats
 			if (std::fabs(dlp[k]) < 1e-12f) dlp[k] = 0.f;
 			float h = dlp[k];
@@ -823,14 +842,16 @@ struct Engine {
 			echoOut[k] = dlp[k] + (h - dlp[k]) * hallAmt;
 			float fbk = (k == 0 ? dlp[1] : dlp[0]) * 0.25f + dlp[k] * 0.75f;  // a little ping-pong
 			float wv = sat((in[k] * echoIn + fbk * fb) * 0.2f) * 5.f;
-			dl[k][(size_t) (dW % n)] = std::fabs(wv) < 1e-12f ? 0.f : wv;  // no denormals in the dying tail
+			dl[k][(size_t) dWk] = std::fabs(wv) < 1e-12f ? 0.f : wv;  // no denormals in the dying tail
 		}
 		dW++;
+		if (++dWk >= n) dWk = 0;
 	}
 
 	// ---------------------------------------------------------------- one sample
 	void process(float inL, float inR, float& outL, float& outR) {
 		W++;
+		if (++Wk >= bufN) Wk = 0;
 		// time
 		if (++sinceClock > (int64_t) (fs * 2.f)) ext = false;
 		double prevBeat = beat;
@@ -893,9 +914,8 @@ struct Engine {
 			sl = iso[0].process(sl, gl, gm, gh);
 			sr = iso[1].process(sr, gl, gm, gh);
 		}
-		int64_t k = W % bufN;
-		bl[k] = sl;
-		br[k] = sr;
+		bl[Wk] = sl;
+		br[Wk] = sr;
 
 		// switching pads: fade the running effect out, then start the next one
 		if (want != -2) {
@@ -947,14 +967,18 @@ struct Engine {
 		}
 
 		// DJ filter: a dead zone around the centre, LP to the left, HP to the right
-		gCut += (c.cut - gCut) * (1.f - std::exp(-1.f / (0.01f * fs)));
+		gCut += (c.cut - gCut) * kCut;
 		float ac = std::fabs(gCut);
 		float blend = clampf((ac - 0.02f) / 0.06f, 0.f, 1.f);
 		if (blend > 0.f) {
-			float a = clampf((ac - 0.02f) / 0.98f, 0.f, 1.f);
-			float fc = gCut < 0.f ? 20000.f * std::pow(40.f / 20000.f, a) : 20.f * std::pow(10000.f / 20.f, a);
-			fc = std::min(fc, fs * 0.45f);
-			float g = std::tan(PI * fc / fs);
+			if (gCut != gCutC) {  // pow and tan only while the filter control moves
+				gCutC = gCut;
+				float a = clampf((ac - 0.02f) / 0.98f, 0.f, 1.f);
+				float fc = gCut < 0.f ? 20000.f * std::pow(40.f / 20000.f, a) : 20.f * std::pow(10000.f / 20.f, a);
+				fc = std::min(fc, fs * 0.45f);
+				djG = std::tan(PI * fc / fs);
+			}
+			float g = djG;
 			float kq = 1.f / (0.707f + c.reso * 3.3f);  // up to Q 4: +12 dB at the cutoff
 			float x[2] = {el, er};
 			for (int ch = 0; ch < 2; ch++) {
