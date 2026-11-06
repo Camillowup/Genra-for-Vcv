@@ -19,6 +19,13 @@ Generativer, genreabhängiger 4-Spur-Sequencer für VCV Rack 2. Erfindet Loops (
 - **Eingänge:** CLOCK, RESET, RUN, NEW, GENRE CV, MUTATE CV, TRANSP (V/Oct), CHORD (poly)
 - **Rechtsklick-Menü:** MIDI-Export/-Import, Akkord-Modus (gemischt/Vorlagen/frei), feste Akkordvorlage, nur Akkorde neu würfeln, Clock-Auflösung (16tel/8tel/Viertel/24 PPQN)
 
+## STOTTER (Performance-FX, ab 2.8.0)
+DJ-Effektpad nach Polyend Play (Perform) und Akai Flex Beat: 16 Pads in 4 Bänken, Reihen STUTTER · TIME · GATE · FX in den GENRA-Spurfarben, Modi LOOP / ONE SHOT / HOLD (+ LATCH), Start auf dem Raster (QUANT), jedes Pad = 1-Takt-Muster.
+- Effekte: Stutter, Halftime, Reverse, Tape Stop, Scratch, Gate, Trance, Pump, Echo Out, Freeze, Bitcrush, Rearrange – je 3 Parameter P1–P3, mit < > umbelegbar, INIT
+- EQ wie DJ-Isolator (LR4, −∞ … +6 dB, Kills, FREQ verschiebt die Mitte, PRE/POST), DJ-Filter (LP links/HP rechts), Drive, Intensity, Mix
+- REC 1 BAR (Loop statt Eingang), TAP, CLOCK/RESET wie GENRA, PADS (poly Gates), KILLS (poly), MIDI-Noten C1–D#2 mit MIDI learn
+- Dateien: `src/stotter/StotterDsp.hpp` (Engine, Test `test/test_stotter.cpp`), `src/stotter/Stotter.cpp`, `tools/stotter_panel.py` → `res/Stotter.svg` + `src/stotter/StotterLayout.hpp` (30 HP)
+
 ## Wichtige Designentscheidungen
 1. **Zufallszahlen statt fertiger Noten:** Jeder Step speichert Zufallswerte + abstrakte Tonhöhe (Akkordton/Stufe). Ob/welche Note klingt, wird beim Abspielen berechnet → fast alle Regler wirken live (DENSITY, KEY, SCALE, COLOR, VOICING, OCT, RANGE, MOVE, COMPLEX).
 2. **Genre-Profile als Wahrscheinlichkeitsraster** (16 Zeichen/Takt, `.`=nie, `1`–`9`) in `src/Genres.cpp`.

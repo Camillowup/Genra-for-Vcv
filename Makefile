@@ -10,6 +10,7 @@ SOURCES += $(wildcard src/funke/*.cpp)
 SOURCES += $(wildcard src/mix/*.cpp)
 SOURCES += $(wildcard src/kwasub/*.cpp)
 SOURCES += $(wildcard src/umlauf/*.cpp)
+SOURCES += $(wildcard src/stotter/*.cpp)
 
 DISTRIBUTABLES += res
 DISTRIBUTABLES += $(wildcard LICENSE*)
