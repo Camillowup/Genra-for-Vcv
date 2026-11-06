@@ -13,6 +13,9 @@ import re
 import subprocess
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from panellib import genra_strip, _tray, SLOT  # noqa: E402
+
 from fontTools.pens.svgPathPen import SVGPathPen
 from fontTools.pens.transformPen import TransformPen
 from fontTools.ttLib import TTFont
@@ -161,26 +164,26 @@ for i, (n, l, k, hot) in enumerate([("BAL", "BALANCE", "knob", True), ("ANIM", "
 # ---------------------------------------------------------------- in / out
 e(f'<rect x="3" y="104.0" width="{W - 6:.2f}" height="23.8" rx="1.2" fill="{PLATE}"/>')
 X = [13.5 + i * (W - 31) / 11 for i in range(12)]
-ROW1 = [("STR_VOCT", "V/OCT"), ("STR_GATE", "GATE"), ("STR_VEL", "VEL"), ("SOLO_VOCT", "V/OCT"),
-        ("SOLO_GATE", "GATE"), ("SOLO_VEL", "VEL"), ("IN_REG", "REG"), ("IN_CRESC", "CRESC"), ("IN_REL", "REL"),
-        ("IN_TONE", "TONE"), ("IN_ENS", "ENS"), ("IN_OCT", "OCT")]
 ROW2 = [("IN_SOUND", "SOUND"), ("IN_DECAY", "DECAY"), ("IN_TREM", "TREM"), ("IN_BAL", "BAL"), ("IN_ANIM", "ANIM"),
         ("IN_VERB", "VERB")]
-for i, (n, l) in enumerate(ROW1):
-    jack(n, X[i], 109.0, l)
+# the GENRA strip (as on every instrument): the strings take GENRA's pad track, MOD is new
+x = genra_strip(jack, e, 5, 109.0, {"V/OCT": "STR_VOCT", "GATE": "STR_GATE", "VEL": "STR_VEL", "MOD": "IN_MOD"}, ACC)
+# the solo's own notes (unplugged: it plays the strings' notes)
+x += 2.2
+_tray(e, x, 109.0, 3, DIM)
+for i, (n, l) in enumerate([("SOLO_VOCT", "V/OCT"), ("SOLO_GATE", "GATE"), ("SOLO_VEL", "VEL")]):
+    jack(n, x + SLOT / 2 + i * SLOT, 109.0, l)
+x += 3 * SLOT + 3.5
+for i, (n, l) in enumerate([("IN_REG", "REG"), ("IN_CRESC", "CRESC"), ("IN_REL", "REL"), ("IN_TONE", "TONE"),
+                            ("IN_ENS", "ENS"), ("IN_OCT", "OCT")]):
+    jack(n, x + SLOT / 2 + i * 10.6, 109.0, l)
 for i, (n, l) in enumerate(ROW2):
     jack(n, X[i + 1], 121.0, l)
 for i, (n, l) in enumerate([("OUT_ENV", "ENV"), ("OUT_STR", "STR"), ("OUT_SOLO", "SOLO"), ("OUT_L", "L"),
                             ("OUT_R", "R")]):
     jack(n, X[i + 7], 121.0, l, True)
 text(X[0], 121.7, "IN", 1.7, DIM, 800, "middle", 0.3)
-# the note inputs: strings (accent), solo (grey)
-e(f'<rect x="{X[0] - 4.2:.2f}" y="104.6" width="{X[2] - X[0] + 8.4:.2f}" height="0.5" rx="0.25" fill="{ACC}" '
-  f'fill-opacity="0.7"/>')
-e(f'<rect x="{X[3] - 4.2:.2f}" y="104.6" width="{X[5] - X[3] + 8.4:.2f}" height="0.5" rx="0.25" fill="{DIM}" '
-  f'fill-opacity="0.7"/>')
-for x, y in (((X[5] + X[6]) / 2, 105.2), ((X[6] + X[7]) / 2, 117.0)):
-    e(f'<line x1="{x:.2f}" y1="{y}" x2="{x:.2f}" y2="{y + 9.8}" stroke="{LINE}" stroke-width="0.3"/>')
+
 
 e("</svg>")
 

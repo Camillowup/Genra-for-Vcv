@@ -14,6 +14,9 @@ import re
 import subprocess
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from panellib import genra_strip  # noqa: E402
+
 from fontTools.pens.svgPathPen import SVGPathPen
 from fontTools.pens.transformPen import TransformPen
 from fontTools.ttLib import TTFont
@@ -172,12 +175,13 @@ def header(title, sub):
     e(f'<rect x="{W - 27.1:.2f}" y="5.55" width="11.5" height="1.08" rx="0.54" fill="{ACC}"/>')
 
 
-def jack_groups(rowsets, y, ytop, sh=14.3, SL=11.0):
-    """rowsets: groups of (name, label, out); laid out as one row with gaps between the groups, each on a strip."""
+def jack_groups(rowsets, y, ytop, sh=14.3, SL=11.0, x0=None):
+    """rowsets: groups of (name, label, out); laid out as one row with gaps between the groups, each on a strip
+    (centred, or from x0)."""
     GAP = 2.2
     n = sum(len(g) for g in rowsets)
     tot = n * SL + (len(rowsets) - 1) * GAP
-    gx = (W - tot) / 2
+    gx = (W - tot) / 2 if x0 is None else x0
     for g in rowsets:
         w = len(g) * SL
         e(f'<rect x="{gx + 0.3:.2f}" y="{ytop}" width="{w - 0.6:.2f}" height="{sh}" rx="1" fill="{STRIP}"/>')
@@ -240,16 +244,20 @@ def build_main():
     e(f'<polyline points="{px + pw - 4.2:.2f},{py + 2.1} {px + pw - 3:.2f},{py + 3.4} {px + pw - 1.8:.2f},{py + 2.1}" '
       f'fill="none" stroke="{ACC}" stroke-width="0.4" stroke-linecap="round" stroke-linejoin="round"/>')
     e(f'<rect x="3" y="102.2" width="{W - 6:.2f}" height="25" rx="1.2" fill="{PLATE}"/>')
-    jack_groups([[("IN_VOCT", "V/OCT", 0), ("IN_GATE", "GATE", 0), ("IN_VEL", "VEL", 0)],
-                 [("IN_CLOCK", "CLOCK", 0), ("IN_RESET", "RESET", 0)],
-                 [("IN_CUT", "CUT", 0), ("IN_RES", "RES", 0), ("IN_DRV", "DRIVE", 0), ("IN_FENV", "ENV", 0)],
+    # the GENRA strip (as on every instrument): ACC and SLIDE are new, MOD moved here (mod wheel)
+    def jk(name, x, y, label):
+        comps.append(("input", name, x, y))
+        text(x, y + 5.7, label, 1.5, DIM, 600, "middle", 0.25)
+    x = genra_strip(jk, e, 5, 106.8, {"V/OCT": "IN_VOCT", "GATE": "IN_GATE", "VEL": "IN_VEL", "ACC": "IN_ACC",
+                                       "SLIDE": "IN_SLIDE", "MOD": "IN_MOD"}, ACC,
+                    {"CLOCK": "IN_CLOCK", "RESET": "IN_RESET"})
+    jack_groups([[("IN_CUT", "CUT", 0), ("IN_RES", "RES", 0), ("IN_DRV", "DRIVE", 0), ("IN_FENV", "ENV", 0)],
                  [("IN_ASHP", "A SHP", 0), ("IN_ACOL", "A COL", 0), ("IN_BSHP", "B SHP", 0), ("IN_BCOL", "B COL", 0)],
-                 [("IN_WOB", "WOB", 0), ("IN_DEP", "DEPTH", 0)],
-                 [("IN_PRESET", "PRESET", 0)]], 106.8, 102.9, 11.8, 10.8)
+                 [("IN_WOB", "WOB", 0), ("IN_DEP", "DEPTH", 0)]], 106.8, 102.9, 11.8, 10.8, x + 3.2)
     jack_groups([[("IN_SUB", "SUB", 0), ("IN_NOISE", "NOISE", 0), ("IN_XMOD", "X-MOD", 0)],
                  [("IN_ATK", "ATK", 0), ("IN_REL", "REL", 0)],
                  [("IN_SAT", "SAT", 0), ("IN_DLY", "DELAY", 0), ("IN_VERB", "VERB", 0)],
-                 [("IN_MOD", "MOD", 0), ("IN_PRESS", "PRESS", 0), ("IN_BEND", "BEND", 0), ("IN_GLIDE", "GLIDE", 0)],
+                 [("IN_PRESS", "PRESS", 0), ("IN_BEND", "BEND", 0), ("IN_GLIDE", "GLIDE", 0), ("IN_PRESET", "PRESET", 0)],
                  [("OUT_ENV", "ENV", 1), ("OUT_LFO", "LFO", 1), ("OUT_L", "L", 1), ("OUT_R", "R", 1)]], 118.9, 115.0, 11.8, 10.8)
     e("</svg>")
 

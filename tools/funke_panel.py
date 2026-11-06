@@ -13,6 +13,9 @@ import re
 import subprocess
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from panellib import genra_strip, SLOT  # noqa: E402
+
 from fontTools.pens.svgPathPen import SVGPathPen
 from fontTools.pens.transformPen import TransformPen
 from fontTools.ttLib import TTFont
@@ -175,16 +178,15 @@ for i, (n, l) in enumerate([("CHORUS", "CHORUS"), ("ECHO", "ECHO"), ("FDBK", "FD
 
 # ---------------------------------------------------------------- in / out: jacks grouped on dark strips
 e(f'<rect x="3" y="103.6" width="{W - 6:.2f}" height="24.2" rx="1.2" fill="{PLATE}"/>')
-G1 = [[("VOCT", "V/OCT"), ("GATE", "GATE"), ("VEL", "VEL"), ("ACC", "ACC"), ("SLIDE", "SLIDE")], [("CLOCK", "CLOCK")],
-      [("IN_MODEL", "MODEL"), ("IN_TIMBRE", "TIMBRE"), ("IN_BITE", "BITE")], [("IN_CUT", "CUT"), ("IN_RES", "RES")]]
-G2 = [[("IN_VIB", "VIB"), ("IN_ECHO", "ECHO"), ("IN_LOFI", "LO-FI")], [("IN_ATK", "ATK"), ("IN_REL", "REL")],
+G1 = [[("IN_MODEL", "MODEL"), ("IN_TIMBRE", "TIMBRE"), ("IN_BITE", "BITE")], [("IN_CUT", "CUT"), ("IN_RES", "RES")]]
+G2 = [[("IN_ECHO", "ECHO"), ("IN_LOFI", "LO-FI")], [("IN_ATK", "ATK"), ("IN_REL", "REL")],
       [("OUT_ENV", "ENV"), ("OUT_L", "L"), ("OUT_R", "R")]]
 
 
-def row(groups, y, ytop, outs_last):
+def row(groups, y, ytop, outs_last, x0=None):
     sl, gap = 10.8, 2.2
     n = sum(len(g) for g in groups)
-    gx = (W - (n * sl + (len(groups) - 1) * gap)) / 2
+    gx = (W - (n * sl + (len(groups) - 1) * gap)) / 2 if x0 is None else x0
     for gi, g in enumerate(groups):
         w = len(g) * sl
         e(f'<rect x="{gx + 0.3:.2f}" y="{ytop}" width="{w - 0.6:.2f}" height="11.4" rx="1" fill="#141519"/>')
@@ -193,7 +195,10 @@ def row(groups, y, ytop, outs_last):
         gx += w + gap
 
 
-row(G1, 108.4, 104.4, False)
+# the GENRA strip (as on every instrument): VIB became MOD (GENRA's MOD, like a mod wheel), RESET is new
+x = genra_strip(jack, e, 6, 108.4, {"V/OCT": "VOCT", "GATE": "GATE", "VEL": "VEL", "ACC": "ACC", "SLIDE": "SLIDE",
+                                     "MOD": "IN_VIB"}, ACC, {"CLOCK": "CLOCK", "RESET": "IN_RESET"})
+row(G1, 108.4, 103.5, False, x + 3.2)
 row(G2, 120.3, 116.3, True)
 
 e("</svg>")

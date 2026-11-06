@@ -14,6 +14,9 @@ import re
 import subprocess
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from panellib import genra_strip  # noqa: E402
+
 from fontTools.pens.svgPathPen import SVGPathPen
 from fontTools.pens.transformPen import TransformPen
 from fontTools.ttLib import TTFont
@@ -193,21 +196,19 @@ switch("LFOWAVE", 27, 97.6, "TRI", "SQR")
 knob("LFOPITCH", 40, 97.6, "> PITCH", "small")
 knob("LFOFILT", 64, 97.6, "> FILTER", "small")
 e(f'<line x1="72.5" y1="92" x2="72.5" y2="103.5" stroke="{LINE}" stroke-width="0.3"/>')
-jack("IN_RETRIG", 80, 97.0, "RETRIG")
-jack("IN_SYNC", 93, 97.0, "SYNC")
+jack("IN_RATE", 80, 97.0, "RATE")
+jack("IN_VCA", 93, 97.0, "VCA")
 section(3 + lw + 2, 88, W - 3 - (3 + lw + 2), 17.5, "STEREO")
 knob("WIDTH", (3 + lw + 2 + W - 3) / 2, 97.6, "WIDTH", "small")
 
 # ---------------------------------------------------------------- in / out
 e(f'<rect x="3" y="107.5" width="{W - 6:.2f}" height="18" rx="1.2" fill="{PLATE}"/>')
-# note inputs as GENRA's bass outputs, then the CV inputs
-for i, (n, l) in enumerate([("IN_VOCT", "V/OCT"), ("IN_GATE", "GATE"), ("IN_VEL", "VEL"), ("IN_ACC", "ACC"),
-                            ("IN_SLIDE", "SLIDE")]):
-    jack(n, 9.5 + i * 9.4, 114.6, l)
-e(f'<line x1="52.3" y1="109.5" x2="52.3" y2="123.5" stroke="{LINE}" stroke-width="0.3"/>')
-for i, (n, l) in enumerate([("IN_CUTOFF", "CUT"), ("IN_RES", "RES"), ("IN_DRIVE", "DRIVE"), ("IN_RATE", "RATE"),
-                            ("IN_VCA", "VCA"), ("IN_EXT", "EXT")]):
-    jack(n, 57.5 + i * 9.4, 114.6, l)
+# the GENRA strip (as on every instrument), then the CV inputs
+x = genra_strip(jack, e, 4.5, 114.6, {"V/OCT": "IN_VOCT", "GATE": "IN_GATE", "VEL": "IN_VEL", "ACC": "IN_ACC",
+                                      "SLIDE": "IN_SLIDE"}, ACC, {"CLOCK": "IN_SYNC", "RESET": "IN_RETRIG"})
+e(f'<line x1="{x + 1.6:.2f}" y1="109.5" x2="{x + 1.6:.2f}" y2="123.5" stroke="{LINE}" stroke-width="0.3"/>')
+for i, (n, l) in enumerate([("IN_CUTOFF", "CUT"), ("IN_RES", "RES"), ("IN_DRIVE", "DRIVE"), ("IN_EXT", "EXT")]):
+    jack(n, x + 7.9 + i * 9.4, 114.6, l)
 e(f'<line x1="{W - 31:.2f}" y1="109.5" x2="{W - 31:.2f}" y2="123.5" stroke="{LINE}" stroke-width="0.3"/>')
 jack("OUT_L", W - 23, 114.6, "L", True)
 jack("OUT_R", W - 11, 114.6, "R", True)

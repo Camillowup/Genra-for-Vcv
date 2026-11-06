@@ -206,8 +206,14 @@ for i, (n, lab) in enumerate([("VIBD", "DEPTH"), ("VIBR", "RATE"), ("ECHO", "ECH
 
 # in | out
 p.plate(14, 316, 200, 44)
-for i, (n, lab) in enumerate([("VOCT", "V/OCT"), ("GATE", "GATE"), ("VEL", "VEL"), ("PRESS", "PRESS"), ("SINGER", "SINGER")]):
-    p.jack(n, 14 + 40 * (i + 0.5), 332, lab, 353.5)
+# the GENRA strip (tools/panellib.py look, in px: 1 mm = 2.9528): V/OCT, GATE, VEL on a tray in the module colour
+SL = 27.76
+p.e(f'<rect x="{22 + 0.9}" y="{332 - 13.6}" width="{3 * SL - 1.8:.2f}" height="33" rx="3" fill="#141519"/>')
+p.e(f'<rect x="{22 + 3.5}" y="{332 - 13.6}" width="{3 * SL - 7:.2f}" height="1.6" rx="0.8" fill="{p.C}"/>')
+for i, (n, lab) in enumerate([("VOCT", "V/OCT"), ("GATE", "GATE"), ("VEL", "VEL")]):
+    p.jack(n, 22 + SL * (i + 0.5), 332, lab, 353.5)
+for i, (n, lab) in enumerate([("PRESS", "PRESS"), ("SINGER", "SINGER")]):
+    p.jack(n, 22 + 3 * SL + 10 + 36 * (i + 0.5), 332, lab, 353.5)
 p.plate(220, 316, 156, 44)
 for i, lab in enumerate(["ENV", "DRY", "L", "R"]):
     p.jack(f"OUT_{lab}", 220 + 39 * (i + 0.5), 332, lab, 353.5, out=True)

@@ -13,6 +13,9 @@ import re
 import subprocess
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from panellib import genra_strip  # noqa: E402
+
 from fontTools.pens.svgPathPen import SVGPathPen
 from fontTools.pens.transformPen import TransformPen
 from fontTools.ttLib import TTFont
@@ -171,8 +174,11 @@ ROW2_IN = [("IN_CUT_A", "CUT A"), ("IN_CUT_B", "CUT B"), ("IN_CUT_C", "CUT C"), 
 ROW2_OUT = [("OUT_X", "X"), ("OUT_Y", "Y"), ("OUT_W_A", "WT A"), ("OUT_W_B", "WT B"), ("OUT_W_C", "WT C"),
             ("OUT_W_D", "WT D"), ("OUT_ENV", "ENV"), ("OUT_A", "A"), ("OUT_B", "B"), ("OUT_C", "C"), ("OUT_D", "D"),
             ("OUT_L", "L"), ("OUT_R", "R")]
-for i, (n, l) in enumerate(ROW1):
-    jack(n, X[i], 109.2, l)
+# the GENRA strip (as on every instrument), then the CV inputs
+x = genra_strip(jack, e, 9.3, 109.2, {"V/OCT": "IN_VOCT", "GATE": "IN_GATE", "VEL": "IN_VEL"}, ACC,
+                {"CLOCK": "IN_CLK", "RESET": "IN_RST"})
+for i, (n, l) in enumerate(ROW1[5:]):
+    jack(n, x + 8.1 + i * 11.4, 109.2, l)
 for i, (n, l) in enumerate(ROW2_IN):
     jack(n, X[i], 120.2, l)
 for i, (n, l) in enumerate(ROW2_OUT):
@@ -184,12 +190,14 @@ def bar(i0, i1, y, col, op=0.7):
       f'fill-opacity="{op}"/>')
 
 
-bar(0, 4, 105.1, ACC)
-bar(5, 16, 105.1, DIM)
-bar(17, 21, 105.1, "#6b6e7b")
-for x, y in (((X[4] + X[5]) / 2, 105.7), ((X[16] + X[17]) / 2, 105.7), ((X[8] + X[9]) / 2, 116.4),
-             ((X[3] + X[4]) / 2, 116.4)):
-    e(f'<line x1="{x:.2f}" y1="{y}" x2="{x:.2f}" y2="{y + 9.8}" stroke="{LINE}" stroke-width="0.3"/>')
+# row 1: the strip (its own trays), then the orbit / mode CVs and the corner levels
+X1 = [x + 8.1 + i * 11.4 for i in range(len(ROW1) - 5)]
+e(f'<rect x="{X1[0] - 4.2:.2f}" y="105.1" width="{X1[11] - X1[0] + 8.4:.2f}" height="0.5" rx="0.25" fill="{DIM}" '
+  f'fill-opacity="0.7"/>')
+e(f'<rect x="{X1[12] - 4.2:.2f}" y="105.1" width="{X1[16] - X1[12] + 8.4:.2f}" height="0.5" rx="0.25" fill="#6b6e7b" '
+  f'fill-opacity="0.7"/>')
+for xx, y in (((X1[11] + X1[12]) / 2, 105.7), ((X[8] + X[9]) / 2, 116.4), ((X[3] + X[4]) / 2, 116.4)):
+    e(f'<line x1="{xx:.2f}" y1="{y}" x2="{xx:.2f}" y2="{y + 9.8}" stroke="{LINE}" stroke-width="0.3"/>')
 
 e("</svg>")
 

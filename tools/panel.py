@@ -183,8 +183,12 @@ SYNCCOL = "#c9ccd6"
 outs_s = [("CLOCK", SYNCCOL), ("RESET", SYNCCOL), ("RUN", SYNCCOL), ("BAR", SYNCCOL),
           ("END", SYNCCOL), ("FILL", SYNCCOL), ("ROOT", CHORDCOL), ("CHORD", CHORDCOL)]
 for i, (lab, c) in enumerate(outs_s):
-    jack("OUT_" + lab, OX + 7.5 + (i % 2) * 12, 64.0 + (i // 2) * 14.2, lab, True, c, ldy=5.9)
-text(OX + 7.5 + 12, 64.0 + 3 * 14.2 + 9.0, "POLY", 1.3, CHORDCOL, 700)
+    jack("OUT_" + lab, OX + 7.5 + (i % 2) * 12, 63.5 + (i // 2) * 13.4, lab, True, c, ldy=5.9)
+# all 8 drum tracks on one poly cable (GENRA's order), e.g. into DRUM-X's DRUMS input
+jack("OUT_DRUMS", OX + 7.5, 63.5 + 4 * 13.4, "DRUMS", True, TRACKS[0][1], ldy=5.9)
+text(OX + 7.5 + 12, 63.5 + 4 * 13.4 - 0.6, "POLY:", 1.3, DIM, 700)
+text(OX + 7.5 + 12, 63.5 + 4 * 13.4 + 2.4, "CHORD", 1.3, CHORDCOL, 700)
+text(OX + 7.5 + 12, 63.5 + 4 * 13.4 + 5.0, "DRUMS", 1.3, TRACKS[0][1], 700)
 
 # ---------------------------------------------------------------- tracks
 x0 = 6 + INW + 1

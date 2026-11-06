@@ -178,9 +178,17 @@ class Panel:
 def io_row(p, ins, outs=("L", "R")):
     """Inputs on the left (plain jacks), the mix out on the right (on tiles), labels below."""
     p.plate(14, 316, 236, 44)
-    dx = 236 / len(ins)
-    for i, (name, lab) in enumerate(ins):
-        p.jack(name, 14 + dx * (i + 0.5), 332, lab, 353.5)
+    # the GENRA strip (tools/panellib.py look, in px: 1 mm = 2.9528): V/OCT, GATE, VEL on a tray in the module colour
+    SL = 27.76
+    notes = [x for x in ins if x[1] in ("V/OCT", "GATE", "VEL")]
+    rest = [x for x in ins if x not in notes]
+    x0 = 22
+    p.e(f'<rect x="{x0 + 0.9}" y="{332 - 13.6}" width="{len(notes) * SL - 1.8:.2f}" height="33" rx="3" fill="#141519"/>')
+    p.e(f'<rect x="{x0 + 3.5}" y="{332 - 13.6}" width="{len(notes) * SL - 7:.2f}" height="1.6" rx="0.8" fill="{p.C}"/>')
+    for i, (name, lab) in enumerate(notes):
+        p.jack(name, x0 + SL * (i + 0.5), 332, lab, 353.5)
+    for i, (name, lab) in enumerate(rest):
+        p.jack(name, x0 + len(notes) * SL + 12 + 34 * (i + 0.5), 332, lab, 353.5)
     p.plate(256, 316, 120, 44)
     for i, lab in enumerate(outs):
         p.jack(f"OUT_{lab}", 292 + i * 48, 332, lab, 353.5, out=True)
@@ -262,18 +270,24 @@ def drumx():
     p.display(14, 30, W - 28, 98)
     # strip: kit, morph, notes | the sound of the chosen lane
     p.plate(14, 132, W - 28, 40)
-    p.button("PREV", 32, 146, "◀ KIT")
-    p.button("NEXT", 62, 146, "KIT ▶")
-    p.sep(80, 138, 166)
-    p.knob("MORPH", 102, 147, label="MORPH", ly=167.5, v=0.5)
-    p.jack("MORPH_IN", 134, 147, "CV", 167.5)
-    p.jack("VOCT", 166, 147, "V/OCT", 167.5)
-    p.jack("GATE", 198, 147, "GATE", 167.5)
-    p.sep(216, 138, 166)
-    p.block(222, 135, W - 236, 34)
-    p.area("SOUND_HEAD", 228, 136, W - 248, 10)
+    p.button("PREV", 28, 146, "◀ KIT")
+    p.button("NEXT", 54, 146, "KIT ▶")
+    p.sep(70, 138, 166)
+    p.knob("MORPH", 88, 147, label="MORPH", ly=167.5, v=0.5)
+    p.jack("MORPH_IN", 116, 147, "CV", 167.5)
+    p.sep(133, 138, 166)
+    # the GENRA strip: one poly cable with GENRA's 8 drum tracks in GENRA's order (tools/panellib.py look)
+    p.e(f'<rect x="139" y="{147 - 13.6}" width="27.8" height="33" rx="3" fill="#141519"/>')
+    p.e(f'<rect x="142.5" y="{147 - 13.6}" width="20.8" height="1.6" rx="0.8" fill="{p.C}"/>')
+    p.jack("GENRA_IN", 152.9, 147, "DRUMS", 167.5)
+    # General MIDI notes (MIDI-CV)
+    p.jack("VOCT", 180, 147, "V/OCT", 167.5)
+    p.jack("GATE", 207, 147, "GATE", 167.5)
+    p.sep(223, 138, 166)
+    p.block(229, 135, W - 243, 34)
+    p.area("SOUND_HEAD", 235, 136, W - 255, 10)
     for k, lab in enumerate(["PITCH", "PMOD", "DECAY", "NOISE", "COLOR"]):
-        p.knob(f"SND{k}", 252 + k * 42, 154, R_TRIM, lab, 167, ring=False)
+        p.knob(f"SND{k}", 257 + k * 41, 154, R_TRIM, lab, 167, ring=False)
     # kit macros: knob and its CV side by side
     p.plate(14, 176, W - 28, 52, True)
     p.title(W / 2, 186.5, "KIT MACROS", 6.0)
