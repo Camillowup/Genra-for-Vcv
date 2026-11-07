@@ -116,68 +116,69 @@ text(12.9 + width("ABLAUF", 5.1, 800, 1.08) + 3.4, 7.45, "GENRA · SONG ARRANGER
 text(W - 16.4, 7.45, "LINK", 1.5, DIM, 700, "end", 0.4)
 comps.append(("light", "LINKLED", W - 14, 6.9))
 
-# ---------------------------------------------------------------- song (left)
-sx, sw = 3, 92
+# ---------------------------------------------------------------- song (left, compact)
+sx, sw = 3, 63
 section(sx, 11, sw, 91, "SONG")
-dx, dy, dw, dh = sx + 3, 18.5, sw - 6, 51.5
+dx, dy, dw, dh = sx + 2.5, 18.5, sw - 5, 43.5
 rect(dx, dy, dw, dh, DARK, 1.0)
 area("SONGLIST", dx, dy, dw, dh)
-ky = 79.5
-knob("ZEILE", sx + 10, ky, "ROW", "knob", ACC)
-knob("PATTERN", sx + 23, ky, "PATTERN")
-knob("TAKTE", sx + 35, ky, "BARS")
+ky = 70
+knob("ZEILE", sx + 8.5, ky, "ROW", "knob", ACC)
+knob("PATTERN", sx + 21, ky, "PATTERN")
+knob("TAKTE", sx + 32, ky, "BARS")
 # ABSCHNITT: the module draws the six coloured lamps around the knob and the name below it
-ax = sx + 49
+ax = sx + 47
 knob("ABSCHNITT", ax, ky, None, "small", "#00000000")
 area("SECRING", ax - 7.5, ky - 7.5, 15, 15)
 rect(ax - 5.2, ky + 5.4, 10.4, 3.4, DARK, 0.6)
 area("SECNAME", ax - 5.2, ky + 5.4, 10.4, 3.4)
 text(ax, ky + 11.4, "PART", 1.45, TXT, 600, "middle", 0.3)
+ry = 85
 for k, (n, col) in enumerate(TR):
-    button(f"TRACK{k}", sx + 61 + k * 8.5, ky - 1.5, n, 1.7, col, 5.6)
-text(sx + 73.75, ky + 6.9, "TRACKS ON / OFF", 1.3, DIM, 700, "middle", 0.3)
-by = 95
-for k, (nm, lab) in enumerate([("INS", "INSERT"), ("DEL", "DELETE"), ("UNDO", "UNDO"), ("FILL", "FILL")]):
-    button(nm, sx + 7.5 + k * 8.6, by)
-    text(sx + 7.5 + k * 8.6, by + 5.3, lab, 1.25, TXT, 600, "middle", 0.2)
-e(f'<line x1="{sx + 38.6}" y1="{by - 4}" x2="{sx + 38.6}" y2="{by + 5}" stroke="{LINE}" stroke-width="0.3"/>')
-comps.append(("lamps", "MODE", sx + 44, by))
+    button(f"TRACK{k}", sx + 6.5 + k * 8.4, ry, n, 1.7, col, 5.4)
+button("FILL", sx + 6.5 + 4 * 8.4, ry)
+text(sx + 6.5 + 4 * 8.4, ry + 5.4, "FILL", 1.3, TXT, 600, "middle", 0.2)
+e(f'<line x1="{sx + 44.5}" y1="{ry - 2.5}" x2="{sx + 44.5}" y2="{ry + 5}" stroke="{LINE}" stroke-width="0.3"/>')
+comps.append(("lamps", "MODE", sx + 49.5, ry))
 for k, lab in enumerate(["PATT", "SONG"]):
-    e(f'<circle cx="{sx + 44 + k * 7.5:.2f}" cy="{by}" r="1.35" fill="#0d0e11"/>')
-    text(sx + 44 + k * 7.5, by + 5.0, lab, 1.4, TXT, 600, "middle", 0.25)
-e(f'<line x1="{sx + 56.5}" y1="{by - 4}" x2="{sx + 56.5}" y2="{by + 5}" stroke="{LINE}" stroke-width="0.3"/>')
+    e(f'<circle cx="{sx + 49.5 + k * 8:.2f}" cy="{ry}" r="1.35" fill="#0d0e11"/>')
+    text(sx + 49.5 + k * 8, ry + 5.0, lab, 1.35, TXT, 600, "middle", 0.25)
+by = 96.5
+for k, (nm, lab) in enumerate([("INS", "INSERT"), ("DEL", "DELETE"), ("UNDO", "UNDO")]):
+    button(nm, sx + 6.5 + k * 9, by)
+    text(sx + 6.5 + k * 9, by + 5.0, lab, 1.25, TXT, 600, "middle", 0.2)
+e(f'<line x1="{sx + 30.5}" y1="{by - 4}" x2="{sx + 30.5}" y2="{by + 5}" stroke="{LINE}" stroke-width="0.3"/>')
 for k, (nm, lab) in enumerate([("PLAY", "PLAY"), ("STOP", "STOP"), ("LOOP", "LOOP")]):
-    button(nm, sx + 63 + k * 11, by)
-    text(sx + 63 + k * 11, by + 5.3, lab, 1.4, TXT, 600, "middle", 0.3)
+    button(nm, sx + 37 + k * 9.3, by)
+    text(sx + 37 + k * 9.3, by + 5.0, lab, 1.35, TXT, 600, "middle", 0.25)
 
-# ---------------------------------------------------------------- patterns (right)
+# ---------------------------------------------------------------- patterns (right, wide)
 bx = sx + sw + 1
 bw = W - 3 - bx
 bc = bx + bw / 2
 section(bx, 11, bw, 91, "PATTERNS")
-text(bc, 19.6, "BANK", 1.4, DIM, 700, "middle", 0.4)
-area("BANKS", bc - 19, 21.2, 38, 6.2)  # four boxes A-D, drawn and clicked by the module
-s_, gap = 8.6, 1.1
-gw = 4 * s_ + 3 * gap
+area("BANKS", bc - 19, 17.4, 38, 4.6)  # four boxes A-D, drawn and clicked by the module
+pw_, ph_, gap = 9.0, 9.0, 1.0  # square pads, 8 x 4 per bank
+gw = 8 * pw_ + 7 * gap
 x0 = bc - gw / 2
-y0 = 29.5
-area("PADS", x0, y0, gw, 4 * s_ + 3 * gap)
-areas["PADSTEP"] = (s_ + gap, s_, 0, 0)
-py = y0 + 4 * (s_ + gap) + 1.0
+y0 = 24.0
+area("PADS", x0, y0, gw, 4 * ph_ + 3 * gap)  # 8 columns, 4 rows
+areas["PADSTEP"] = (pw_ + gap, ph_ + gap, pw_, ph_)
+py = y0 + 4 * (ph_ + gap) + 0.6
 rect(x0, py, gw, 5.6, DARK, 0.7)
 area("INFO", x0, py, gw, 5.6)
-ty = py + 9.0
+ty = py + 8.4
 text(x0, ty + 0.6, "RE-ROLL", 1.3, DIM, 700, "start", 0.3)
-area("REROLL", x0 + gw - 18.2, ty - 1.6, 4 * 4.6 - 1.0, 3.2)
+area("REROLL", x0 + 14, ty - 1.6, 4 * 4.6 - 1.0, 3.2)
 vy = ty + 8.0
 for k, (nm, col) in enumerate(SECS):
-    x = bc - 21.25 + k * 8.5
+    x = bc - 32.5 + k * 13
     comps.append(("button", f"PART{k}", x, vy))
-    text(x, vy + 5.2, nm, 1.1, col, 800, "middle", 0.15)
-sy_ = vy + 10.5
+    text(x, vy + 5.2, nm, 1.25, col, 800, "middle", 0.2)
+sy_ = vy + 10.8
 for k, (nm, lab) in enumerate([("STORE", "STORE"), ("COPY", "COPY"), ("CLEAR", "CLEAR"), ("CLEARALL", "CLR ALL")]):
-    button(nm, bc - 18 + k * 12, sy_)
-    text(bc - 18 + k * 12, sy_ + 5.0, lab, 1.25, TXT, 600, "middle", 0.25)
+    button(nm, bc - 27 + k * 18, sy_)
+    text(bc - 27 + k * 18, sy_ + 5.0, lab, 1.25, TXT, 600, "middle", 0.25)
 
 # ---------------------------------------------------------------- jacks
 section(3, 104, W - 6, 21.5, None, RING)
@@ -252,30 +253,31 @@ for k, (nm, col) in enumerate(SECS):
 ptext(ax, ky + 7.95, "DROP", 1.6, SECC["DROP"], 800, "middle", 0.35)
 # mock song list
 X, Y, WW, HH = areas["SONGLIST"]
-for x_, t_, a_ in [(2.5, "#", "start"), (8.5, "PATT", "start"), (21, "BARS", "middle"), (37, "TRACKS", "middle"),
-                   (53, "FILL", "middle"), (60, "PART", "start")]:
-    ptext(X + x_, Y + 3.6, t_, 1.3, DIM, 700, a_, 0.35)
-SONG = [("A1", 8, [1, 0, 0, 0], "INTRO", False), ("A1", 8, [1, 1, 0, 1], "INTRO", True), ("A2", 8, [1, 1, 1, 1], "BUILD", True),
-        ("A3", 16, [1, 1, 1, 1], "DROP", False), ("A5", 8, [0, 0, 1, 1], "BREAK", False), ("A6", 16, [1, 1, 1, 0], "VERSE", True),
-        ("A2", 4, [1, 1, 0, 1], "BUILD", True), ("A3", 16, [1, 1, 1, 1], "DROP", False), ("A8", 8, [1, 0, 0, 1], "OUTRO", False)]
-for i, (pp, bars, m, sec, fill) in enumerate(SONG):
-    y = Y + 7 + i * 4.6
+for x_, t_, a_ in [(2.2, "#", "start"), (7, "PATTERN", "start"), (31, "BARS", "middle"), (39.5, "TRK", "middle"),
+                   (46, "PART", "start")]:
+    ptext(X + x_, Y + 3.6, t_, 1.2, DIM, 700, a_, 0.3)
+SONG = [("A1", "ROOT", 8, [1, 0, 0, 0], "INTRO", False), ("A1", "ROOT", 8, [1, 1, 0, 1], "INTRO", True),
+        ("A2", "ROOT", 8, [1, 1, 1, 1], "BUILD", True), ("A3", "ROOT", 16, [1, 1, 1, 1], "DROP", False),
+        ("A5", "ROOT", 8, [0, 0, 1, 1], "BREAK", False), ("A9", "DUBBY", 16, [1, 1, 1, 0], "VERSE", True),
+        ("A10", "DUBBY", 4, [1, 1, 0, 1], "BUILD", True), ("A11", "DUBBY", 16, [1, 1, 1, 1], "DROP", False)]
+for i, (pp, nm, bars, m, sec, fill) in enumerate(SONG):
+    y = Y + 6.2 + i * 4.3
     if i == 3:
-        put(f'<rect x="{X + 1}" y="{y - 0.2:.2f}" width="{WW - 2}" height="4.4" rx="0.5" fill="#2e2a17"/>'
-            f'<rect x="{X + 1}" y="{y - 0.2:.2f}" width="0.7" height="4.4" rx="0.3" fill="{ACC}"/>'
-            f'<rect x="{X + 1.7}" y="{y + 3.7:.2f}" width="{(WW - 2.7) * 0.4:.2f}" height="0.35" fill="{ACC}"/>')
+        put(f'<rect x="{X + 1}" y="{y - 0.2:.2f}" width="{WW - 2}" height="4.1" rx="0.5" fill="#2e2a17"/>'
+            f'<rect x="{X + 1}" y="{y - 0.2:.2f}" width="0.7" height="4.1" rx="0.3" fill="{ACC}"/>'
+            f'<rect x="{X + 1.7}" y="{y + 3.5:.2f}" width="{(WW - 2.7) * 0.4:.2f}" height="0.35" fill="{ACC}"/>')
     c = ACC if i == 3 else TXT
-    ptext(X + 2.5, y + 3.0, f"{i + 1:02d}", 1.55, ACC if i == 3 else DIM, 700, "start", 0.2)
-    ptext(X + 8.5, y + 3.0, pp, 1.7, c, 800, "start", 0.3)
-    ptext(X + 21, y + 3.0, str(bars), 1.7, c, 700, "middle", 0.2)
+    ptext(X + 2.2, y + 2.8, f"{i + 1:02d}", 1.4, ACC if i == 3 else DIM, 700, "start", 0.2)
+    ptext(X + 7, y + 2.8, pp, 1.5, c, 800, "start", 0.25)
+    ptext(X + 13.5, y + 2.8, nm, 1.5, c, 600, "start", 0.25)
+    ptext(X + 31, y + 2.8, str(bars), 1.5, c, 700, "middle", 0.2)
     for k, (n_, col) in enumerate(TR):
-        put(f'<rect x="{X + 30.4 + k * 3.6:.2f}" y="{y + 0.8:.2f}" width="3" height="2.6" rx="0.4" fill="{col if m[k] else "#24252c"}"/>')
-        ptext(X + 31.9 + k * 3.6, y + 2.75, n_, 1.25, "#07080a" if m[k] else "#4a4c57", 800, "middle", 0)
+        put(f'<circle cx="{X + 36.5 + k * 2.0:.2f}" cy="{y + 1.9:.2f}" r="0.7" fill="{col if m[k] else "#2a2b33"}"/>')
     if fill:
-        put(f'<circle cx="{X + 53}" cy="{y + 2.1:.2f}" r="0.9" fill="{ACC}"/>')
-    put(f'<rect x="{X + 59.5}" y="{y + 0.8:.2f}" width="1.2" height="2.6" rx="0.3" fill="{SECC[sec]}"/>')
-    ptext(X + 62, y + 3.0, sec, 1.5, SECC[sec] if i == 3 else TXT, 700, "start", 0.3)
-ptext(X + WW - 2.5, Y + HH - 1.2, "BAR 37 / 92  ·  ROW 4 / 9", 1.2, DIM, 700, "end", 0.3)
+        put(f'<rect x="{X + 43.6}" y="{y + 1.5:.2f}" width="0.8" height="0.8" rx="0.2" fill="{ACC}"/>')
+    put(f'<rect x="{X + 45.5}" y="{y + 0.7:.2f}" width="1.0" height="2.4" rx="0.3" fill="{SECC[sec]}"/>')
+    ptext(X + 47.4, y + 2.8, sec, 1.35, SECC[sec] if i == 3 else TXT, 700, "start", 0.25)
+ptext(X + WW - 2.2, Y + HH - 1.2, "BAR 37 / 92  ·  ROW 4 / 9", 1.15, DIM, 700, "end", 0.3)
 # banks, pads, info, reroll
 X, Y, WW, HH = areas["BANKS"]
 for k in range(4):
@@ -293,23 +295,31 @@ def tint(col, f):
     return "#" + "".join(f"{round(b[k] + (c[k] - b[k]) * f):02x}" for k in range(3))
 
 
-for n_ in range(16):
-    x, y = X + (n_ % 4) * 9.7, Y + (n_ // 4) * 9.7
-    used = n_ < 12
+TAGS = {0: "INTRO", 1: "BUILD", 2: "DROP", 3: "DROP", 4: "BREAK", 5: "VERSE", 7: "OUTRO", 9: "BUILD", 10: "DROP",
+        16: "INTRO", 17: "BUILD", 18: "DROP"}
+NAMES = {0: "ROOT", 1: "ROOT", 2: "ROOT", 3: "ROOT", 4: "ROOT", 5: "ROOT", 7: "ROOT", 8: "DUBBY", 9: "DUBBY",
+         10: "DUBBY", 11: "LATE", 16: "ACID", 17: "ACID", 18: "ACID"}
+USED = set(range(12)) | {16, 17, 18}
+stx, sty, pw_, ph_ = areas["PADSTEP"]
+for n_ in range(32):
+    x, y = X + (n_ % 8) * stx, Y + (n_ // 8) * sty
+    used = n_ in USED
     sec = TAGS.get(n_)
     fill = "#1a1b20" if not used else (tint(SECC[sec], 0.5 if n_ == 2 else 0.3) if sec else "#2a2b33")
     st = ' stroke="#ffffff" stroke-width="0.55"' if n_ == 2 else (' stroke="#ffffff" stroke-width="0.4" stroke-dasharray="0.8 0.5"' if n_ == 3 else "")
-    put(f'<rect x="{x:.2f}" y="{y:.2f}" width="8.6" height="8.6" rx="0.8" fill="{fill}"{st}/>')
+    put(f'<rect x="{x:.2f}" y="{y:.2f}" width="{pw_}" height="{ph_}" rx="0.8" fill="{fill}"{st}/>')
     if used and sec:
-        put(f'<rect x="{x + 0.6:.2f}" y="{y + 0.6:.2f}" width="7.4" height="0.8" rx="0.3" fill="{SECC[sec]}"/>')
-        ptext(x + 1, y + 5.6, sec, 1.0, SECC[sec], 800, "start", 0.15)
-    ptext(x + 1, y + 3.6, f"A{n_ + 1}", 1.35, TXT if used else "#4a4c57", 700, "start", 0.15)
+        put(f'<rect x="{x + 0.6:.2f}" y="{y + 0.6:.2f}" width="{pw_ - 1.2}" height="0.7" rx="0.3" fill="{SECC[sec]}"/>')
+        ptext(x + 0.9, y + 7.0, sec, 0.85, SECC[sec], 800, "start", 0.1)
+    ptext(x + 0.9, y + 3.2, f"A{n_ + 1}", 1.05, TXT if used else "#4a4c57", 700, "start", 0.1)
+    if used and NAMES.get(n_):
+        ptext(x + 0.9, y + 5.3, NAMES[n_], 1.35, "#ffffff", 800, "start", 0.15)
     for t in range(4):
         on = used and (t != 2 or n_ % 3)
-        put(f'<rect x="{x + 1 + t * 1.65:.2f}" y="{y + 6.7:.2f}" width="1.15" height="0.8" rx="0.3" fill="{TR[t][1] if on else "#2f3038"}"/>')
+        put(f'<rect x="{x + 0.9 + t * 1.5:.2f}" y="{y + 7.7:.2f}" width="1.05" height="0.6" rx="0.25" fill="{TR[t][1] if on else "#2f3038"}"/>')
 X, Y, WW, HH = areas["INFO"]
-ptext(X + 1.6, Y + 3.7, "A3", 1.45, TXT, 800, "start", 0.25)
-ptext(X + 6.0, Y + 3.7, "DROP", 1.45, SECC["DROP"], 800, "start", 0.25)
+ptext(X + 1.6, Y + 3.7, "A3  ROOT", 1.45, TXT, 800, "start", 0.25)
+ptext(X + 14.0, Y + 3.7, "DROP", 1.45, SECC["DROP"], 800, "start", 0.25)
 ptext(X + WW - 1.6, Y + 3.7, "> A4", 1.45, TXT, 700, "end", 0.25)
 X, Y, WW, HH = areas["REROLL"]
 for t in range(4):

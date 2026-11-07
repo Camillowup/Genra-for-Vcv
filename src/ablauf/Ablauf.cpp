@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// ABLAUF – song arranger for GENRA: 64 pattern places (4 banks of 4 x 4 pads), a song list (pattern, bars, part,
+// ABLAUF – song arranger for GENRA: 128 pattern places (4 banks of 8 x 4 pads, each with a name), a song list (pattern, bars, part,
 // tracks, fill per row), one button per song part that turns the pattern playing now into an intro, a build, ...
 // (Arranger.cpp), connected to GENRA like the grid editor (docked, or chosen with right-click › Verbinden mit…).
 //
@@ -17,7 +17,8 @@ namespace genra_ablauf {
 namespace L = ablayout;
 namespace ui = genra_ui;
 
-static const int NUM_SLOTS = 64, MAX_ROWS = 64, PADS_PER_BANK = 16;
+static const int NUM_SLOTS = 128, MAX_ROWS = 64, PADS_PER_BANK = 32, PAD_COLS = 8;
+static const int SAVE_VERSION = 2; // 1 (no field): 4 banks of 16 pads; 2: 4 banks of 32
 static const int ROW_BARS[6] = {1, 2, 4, 8, 16, 32};
 static const NVGcolor ACC = nvgRGB(0xff, 0xd2, 0x3d);
 // song parts (keep in step with SECS in tools/ablauf_panel.py)
@@ -29,6 +30,31 @@ static std::string slotName(int i) {
 	if (i < 0 || i >= NUM_SLOTS)
 		return "–";
 	return string::f("%c%d", 'A' + i / PADS_PER_BANK, i % PADS_PER_BANK + 1);
+}
+// an old patch's slot index (4 banks of 16) -> today's (4 banks of 32): A1–A16, B1–B16 … keep their labels
+static int slotFromV1(int i) { return i < 0 ? -1 : (i / 16) * PADS_PER_BANK + i % 16; }
+
+// pad names: up to 8 characters, A–Z 0–9 space and '-'
+static const int NAME_LEN = 8;
+static std::string cleanName(const std::string& in) {
+	std::string o;
+	for (char c : in) {
+		if (c >= 'a' && c <= 'z')
+			c = (char)(c - 'a' + 'A');
+		if ((c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == ' ' || c == '-')
+			o += c;
+		if ((int)o.size() >= NAME_LEN)
+			break;
+	}
+	while (!o.empty() && o.back() == ' ')
+		o.pop_back();
+	size_t a = o.find_first_not_of(' ');
+	return a == std::string::npos ? "" : o.substr(a);
+}
+static void setName(Slot& s, const std::string& n) {
+	std::string c = cleanName(n);
+	std::memset(s.name, 0, sizeof(s.name));
+	std::memcpy(s.name, c.data(), std::min(c.size(), sizeof(s.name) - 1));
 }
 
 struct Row {
@@ -144,13 +170,14 @@ struct Ablauf : Module {
 		bool active = false;
 		std::unique_ptr<Slot> source{new Slot};
 		Params P;
-		int result[NUM_SECTIONS];
-		uint32_t ver[NUM_SECTIONS];
+		int result[NUM_SECTIONS];                  // the last pad each part went to (lights)
+		std::vector<std::pair<int, uint32_t>> made; // every pad made from this source, and its version then
 		Session() { clear(); }
 		void clear() {
 			active = false;
+			made.clear();
 			for (int k = 0; k < NUM_SECTIONS; k++)
-				result[k] = -1, ver[k] = 0;
+				result[k] = -1;
 		}
 	} session;
 
@@ -213,17 +240,17 @@ struct Ablauf : Module {
 		configSwitch(BANK_PARAM, 0.f, 3.f, 0.f, "Bank", {"A", "B", "C", "D"});
 		static const char* PN[NUM_SECTIONS] = {"Intro", "Verse", "Build", "Drop", "Break", "Outro"};
 		for (int k = 0; k < NUM_SECTIONS; k++)
-			configButton(PART_PARAM + k, std::string(PN[k]) + " from the playing pattern (again: re-roll)");
+			configButton(PART_PARAM + k, std::string(PN[k]) + " from the playing pattern (each press: a new variant on the next free pad)");
 		configButton(STORE_PARAM, "STORE: then a pad – saves what GENRA is playing (overwrites; an empty pad stores on a tap)");
 		configButton(COPY_PARAM, "COPY: tap source, then target");
 		configButton(CLEAR_PARAM, "CLEAR: then a pad – clears the slot");
-		configButton(CLEARALL_PARAM, "CLR ALL: press twice – clears all 64 pads (UNDO brings them back)");
+		configButton(CLEARALL_PARAM, "CLR ALL: press twice – clears all 128 pads (UNDO brings them back)");
 		for (int i = 0; i < PARAMS_LEN; i++)
 			paramQuantities[i]->randomizeEnabled = false;
 		configInput(RUN_INPUT, "Run (trigger: play / stop)");
 		configInput(RESET_INPUT, "Reset (song to the start)");
 		configInput(NEXT_INPUT, "Next row / next pattern (trigger, at the next bar)");
-		configInput(PATT_INPUT, "Pattern CV (0–10 V across all 64 slots, pattern mode)");
+		configInput(PATT_INPUT, "Pattern CV (0–10 V across all 128 pads, pattern mode)");
 		configInput(ROW_INPUT, "Row CV (0–10 V across the song list, jumps at the next bar)");
 		configOutput(END_OUTPUT, "End (trigger at song end and on loop)");
 		configOutput(ROW_OUTPUT, "Row (trigger on every new row)");
@@ -342,6 +369,12 @@ struct Ablauf : Module {
 			if (playable(r))
 				return r;
 		return -1;
+	}
+	bool allEmpty() {
+		for (int k = 0; k < NUM_SLOTS; k++)
+			if (slots[k].used)
+				return false;
+		return true;
 	}
 	int freeSlot() {
 		for (int k = 0; k < NUM_SLOTS; k++) {
@@ -623,6 +656,17 @@ struct Ablauf : Module {
 		if (!songMode() && g)
 			cuePattern(i, g);
 	}
+	void rename(int i, const std::string& n) {
+		if (i < 0 || i >= NUM_SLOTS || !slots[i].used)
+			return;
+		std::string c = cleanName(n);
+		if (c == slots[i].name)
+			return;
+		AblaufAction* a = beginChange(c.empty() ? "clear name" : "rename", i);
+		setName(slots[i], c);
+		endChange(a);
+		say(slotName(i) + (c.empty() ? ": name cleared" : " → " + c));
+	}
 	void setTag(int i, int tag) {
 		AblaufAction* a = beginChange("part", i);
 		slots[i].tag = (int8_t)tag;
@@ -671,13 +715,13 @@ struct Ablauf : Module {
 			say("No GENRA connected");
 			return;
 		}
-		// still on one of this session's results (unchanged)? then the same source: "this pattern is great – an intro,
-		// a break, ..." always starts from the great one, and a second press re-rolls the same pad
+		// still on one of this session's variants (unchanged)? then the same source: "this pattern is great – an intro,
+		// a break, ..." always starts from the great one; every press writes a new variant on the next free pad
 		bool same = false;
 		if (session.active) {
 			int playing = clamp(g->arrSlotPub.load(), -1, NUM_SLOTS - 1);
-			for (int j = 0; j < NUM_SECTIONS; j++)
-				if (session.result[j] >= 0 && session.result[j] == playing && slotVer[playing] == session.ver[j])
+			for (auto& mv : session.made)
+				if (playing >= 0 && mv.first == playing && slotVer[playing] == mv.second)
 					same = true;
 			if (same && g->patChanges.load() != g->patChangesAtCue.load())
 				same = false; // GENRA's pattern was changed since (NEW, MUTATE, grid edits)
@@ -690,18 +734,16 @@ struct Ablauf : Module {
 		requestSnap(g);
 	}
 	void makePart(int k, Genra* g) {
-		int target = session.result[k];
-		if (target < 0 || slotVer[target] != session.ver[k] || !slots[target].used)
-			target = freeSlot();
+		int target = freeSlot(); // the next free pad: from this bank on, then the following banks
 		if (target < 0) {
-			say("No free slot");
+			say("All 128 pads are full");
 			return;
 		}
 		AblaufAction* a = beginChange(SECTION_NAMES[k], target);
 		makeSection(*session.source, slots[target], k, rerollMask(), session.P, rng);
 		endChange(a);
 		session.result[k] = target;
-		session.ver[k] = slotVer[target];
+		session.made.push_back({target, slotVer[target]});
 		selSlot = target;
 		params[BANK_PARAM].setValue((float)(target / PADS_PER_BANK));
 		say(std::string(SECTION_NAMES[k]) + " → " + slotName(target));
@@ -904,8 +946,15 @@ struct Ablauf : Module {
 				slotSilent[i] |= (uint8_t)(1 << t);
 	}
 
+	bool remapGenraSlot = false; // loaded from an old patch: GENRA still names the pad it plays the old way
 	void uiFrame(float dt) {
 		Genra* g = genra();
+		if (g && remapGenraSlot) {
+			remapGenraSlot = false;
+			int o = g->arrSlotPub.load();
+			if (o >= 0 && o < 64)
+				g->arrSlotPub.store(slotFromV1(o));
+		}
 		if (g != attached) {
 			letGo(attached, id);
 			attached = g;
@@ -953,17 +1002,27 @@ struct Ablauf : Module {
 				int i = pendingStore;
 				AblaufAction* a = beginChange("store", i);
 				int8_t tag = slots[i].used ? slots[i].tag : -1;
+				std::string keep = slots[i].used ? slots[i].name : "";
+				bool first = allEmpty();
 				slots[i] = g->snap;
 				slots[i].tag = tag;
 				slots[i].used = true;
+				setName(slots[i], first ? "ROOT" : keep); // the very first pattern is the root of the song
 				endChange(a);
 				selSlot = i;
 				say(slotName(i) + " stored");
 				session.clear();
 			}
 			if (pendingPart >= 0) {
+				std::string src;
+				int pl = g->patChanges.load() == g->patChangesAtCue.load() ? g->arrSlotPub.load() : -1;
+				if (pl >= 0 && pl < NUM_SLOTS && slots[pl].used)
+					src = slots[pl].name;
+				else if (allEmpty())
+					src = "ROOT";
 				session.clear();
 				*session.source = g->snap;
+				setName(*session.source, src); // variants carry the name of the pattern they come from
 				session.P = g->snapP;
 				session.active = true;
 				makePart(pendingPart, g);
@@ -1186,6 +1245,7 @@ struct Ablauf : Module {
 	// ------------------------------------------------------------ persistence
 	json_t* dataToJson() override {
 		json_t* root = json_object();
+		json_object_set_new(root, "version", json_integer(SAVE_VERSION));
 		json_object_set_new(root, "linkedId", json_integer(linkedId));
 		json_object_set_new(root, "curRow", json_integer(curRow));
 		json_object_set_new(root, "selSlot", json_integer(selSlot));
@@ -1210,6 +1270,8 @@ struct Ablauf : Module {
 			json_object_set_new(o, "ghost", json_real(s.mods.ghost));
 			json_object_set_new(o, "fill", json_real(s.mods.fill));
 			json_object_set_new(o, "tag", json_integer(s.tag));
+			if (s.name[0])
+				json_object_set_new(o, "name", json_string(s.name));
 			json_array_append_new(sl, o);
 		}
 		json_object_set_new(root, "slots", sl);
@@ -1233,6 +1295,10 @@ struct Ablauf : Module {
 		json_t* j;
 		if ((j = json_object_get(root, "linkedId")))
 			linkedId = json_integer_value(j);
+		json_t* jv = json_object_get(root, "version");
+		bool v1 = !jv || json_integer_value(jv) < 2; // 4 banks of 16 pads
+		auto fromSaved = [&](int i) { return v1 ? slotFromV1(i) : i; };
+		remapGenraSlot = v1;
 		for (int i = 0; i < NUM_SLOTS; i++) {
 			slots[i] = Slot();
 			slotVer[i]++;
@@ -1245,8 +1311,9 @@ struct Ablauf : Module {
 			if (!ji || !jp || !json_is_string(jp))
 				continue;
 			int i = (int)json_integer_value(ji);
-			if (i < 0 || i >= NUM_SLOTS)
+			if (i < 0 || i >= (v1 ? 64 : NUM_SLOTS))
 				continue;
+			i = fromSaved(i);
 			Slot& s = slots[i];
 			if (!loadPattern(string::fromBase64(json_string_value(jp)), s.pat))
 				continue;
@@ -1268,6 +1335,8 @@ struct Ablauf : Module {
 				s.mods.fill = (float)json_number_value(j);
 			if ((j = json_object_get(o, "tag")))
 				s.tag = (int8_t)clamp((int)json_integer_value(j), -1, NUM_SECTIONS - 1);
+			if ((j = json_object_get(o, "name")) && json_is_string(j))
+				setName(s, json_string_value(j));
 			s.used = true;
 		}
 		rows.clear();
@@ -1276,7 +1345,7 @@ struct Ablauf : Module {
 			json_t* o = json_array_get(rs, k);
 			Row w;
 			if ((j = json_object_get(o, "slot")))
-				w.slot = (int8_t)clamp((int)json_integer_value(j), -1, NUM_SLOTS - 1);
+				w.slot = (int8_t)clamp(fromSaved(clamp((int)json_integer_value(j), -1, v1 ? 63 : NUM_SLOTS - 1)), -1, NUM_SLOTS - 1);
 			if ((j = json_object_get(o, "bars")))
 				w.barsIdx = (int8_t)clamp((int)json_integer_value(j), 0, 5);
 			if ((j = json_object_get(o, "section")))
@@ -1294,7 +1363,7 @@ struct Ablauf : Module {
 		session.clear();
 		song = Song();
 		if ((j = json_object_get(root, "selSlot")))
-			selSlot = clamp((int)json_integer_value(j), -1, NUM_SLOTS - 1);
+			selSlot = clamp(fromSaved(clamp((int)json_integer_value(j), -1, v1 ? 63 : NUM_SLOTS - 1)), -1, NUM_SLOTS - 1);
 		curRow = 0;
 		if ((j = json_object_get(root, "curRow")))
 			curRow = clamp((int)json_integer_value(j), 0, std::max(0, (int)rows.size() - 1));
@@ -1359,7 +1428,7 @@ struct AbWidget : Widget {
 /** The song list: one line per row; click selects, right-click edits CV A / CV B. */
 struct SongList : AbWidget {
 	int firstVisible = 0;
-	static constexpr float ROWH = 4.6f, HEAD = 6.f;
+	static constexpr float ROWH = 4.3f, HEAD = 5.2f;
 	int visible() { return (int)((box.size.y / mm2px(1.f) - HEAD - 4.f) / ROWH); }
 
 	void drawLayer(const DrawArgs& args, int layer) override {
@@ -1374,15 +1443,14 @@ struct SongList : AbWidget {
 		auto t = [&](float x, float y, const std::string& s, float size, NVGcolor c, int al = NVG_ALIGN_LEFT, float sp = 0.3f) {
 			ui::text(vg, bold, x * u, y * u, s, size * u, c, al, sp * u);
 		};
-		t(2.5f, 3.6f, "#", 1.3f, ui::DIM);
-		t(8.5f, 3.6f, "PATT", 1.3f, ui::DIM);
-		t(21.f, 3.6f, "BARS", 1.3f, ui::DIM, NVG_ALIGN_CENTER);
-		t(37.f, 3.6f, "TRACKS", 1.3f, ui::DIM, NVG_ALIGN_CENTER);
-		t(53.f, 3.6f, "FILL", 1.3f, ui::DIM, NVG_ALIGN_CENTER);
-		t(60.f, 3.6f, "PART", 1.3f, ui::DIM);
+		t(2.2f, 3.4f, "#", 1.2f, ui::DIM);
+		t(7.f, 3.4f, "PATTERN", 1.2f, ui::DIM);
+		t(31.f, 3.4f, "BARS", 1.2f, ui::DIM, NVG_ALIGN_CENTER);
+		t(39.5f, 3.4f, "TRK", 1.2f, ui::DIM, NVG_ALIGN_CENTER);
+		t(46.f, 3.4f, "PART", 1.2f, ui::DIM);
 		nvgBeginPath(vg);
-		nvgMoveTo(vg, 1.5f * u, 5.f * u);
-		nvgLineTo(vg, (w - 1.5f) * u, 5.f * u);
+		nvgMoveTo(vg, 1.5f * u, 4.6f * u);
+		nvgLineTo(vg, (w - 1.5f) * u, 4.6f * u);
 		nvgStrokeColor(vg, nvgRGB(0x25, 0x26, 0x2d));
 		nvgStrokeWidth(vg, 0.25f * u);
 		nvgStroke(vg);
@@ -1416,39 +1484,40 @@ struct SongList : AbWidget {
 				roundRect(vg, 1.f * u, (y - 0.2f) * u, (w - 2.f) * u, (ROWH - 0.2f) * u, 0.5f * u, nvgRGB(0x2e, 0x2a, 0x17));
 				roundRect(vg, 1.f * u, (y - 0.2f) * u, 0.7f * u, (ROWH - 0.2f) * u, 0.3f * u, ACC);
 			}
+			if (play && !sel)
+				roundRect(vg, 1.f * u, (y - 0.2f) * u, 0.7f * u, (ROWH - 0.2f) * u, 0.3f * u, ACC);
 			if (play && m->genraRunning) {
 				int n2 = ROW_BARS[clamp((int)row.barsIdx, 0, 5)];
 				float f = clamp((float)(m->barNow - m->song.rowStart) / n2, 0.f, 1.f);
-				roundRect(vg, 1.7f * u, (y + ROWH - 0.9f) * u, (w - 2.7f) * f * u, 0.35f * u, 0.15f * u, ACC);
-				nvgBeginPath(vg); // play marker
-				nvgMoveTo(vg, (w - 3.6f) * u, (y + 0.7f) * u);
-				nvgLineTo(vg, (w - 3.6f) * u, (y + 3.1f) * u);
-				nvgLineTo(vg, (w - 1.8f) * u, (y + 1.9f) * u);
-				nvgClosePath(vg);
-				nvgFillColor(vg, ACC);
-				nvgFill(vg);
+				roundRect(vg, 1.7f * u, (y + ROWH - 0.85f) * u, (w - 2.7f) * f * u, 0.35f * u, 0.15f * u, ACC);
 			}
 			NVGcolor c = sel ? ACC : (ok ? ui::TXT : ui::DIM);
-			t(2.5f, y + 3.f, string::f("%02d", r + 1), 1.55f, sel ? ACC : ui::DIM, NVG_ALIGN_LEFT, 0.2f);
-			t(8.5f, y + 3.f, slotName(row.slot) + (ok ? "" : " –"), 1.7f, c, NVG_ALIGN_LEFT, 0.3f);
-			t(21.f, y + 3.f, std::to_string(ROW_BARS[clamp((int)row.barsIdx, 0, 5)]), 1.7f, c, NVG_ALIGN_CENTER, 0.2f);
+			t(2.2f, y + 2.8f, string::f("%02d", r + 1), 1.4f, sel ? ACC : ui::DIM, NVG_ALIGN_LEFT, 0.2f);
+			t(7.f, y + 2.8f, slotName(row.slot), 1.5f, c, NVG_ALIGN_LEFT, 0.25f);
+			if (row.slot >= 0 && m->slots[row.slot].used && m->slots[row.slot].name[0])
+				ui::text(vg, ui::boldFont(), 13.5f * u, (y + 2.8f) * u, m->slots[row.slot].name, 1.5f * u, c, NVG_ALIGN_LEFT, 0.25f * u);
+			else if (!ok)
+				t(13.5f, y + 2.8f, "–", 1.5f, ui::DIM);
+			t(31.f, y + 2.8f, std::to_string(ROW_BARS[clamp((int)row.barsIdx, 0, 5)]), 1.5f, c, NVG_ALIGN_CENTER, 0.2f);
 			for (int k = 0; k < 4; k++) {
 				bool on = (row.on >> k) & 1;
-				roundRect(vg, (30.4f + k * 3.6f) * u, (y + 0.8f) * u, 3.f * u, 2.6f * u, 0.4f * u,
-				          on ? TRACK_COLORS[k] : nvgRGB(0x24, 0x25, 0x2c));
-				t(31.9f + k * 3.6f, y + 2.75f, TRACK_LETTER[k], 1.25f, on ? DARK : nvgRGB(0x4a, 0x4c, 0x57), NVG_ALIGN_CENTER, 0.f);
-			}
-			if (row.fill) {
 				nvgBeginPath(vg);
-				nvgCircle(vg, 53.f * u, (y + 2.1f) * u, 0.9f * u);
-				nvgFillColor(vg, ACC);
+				nvgCircle(vg, (36.5f + k * 2.f) * u, (y + 1.9f) * u, 0.7f * u);
+				nvgFillColor(vg, on ? TRACK_COLORS[k] : nvgRGB(0x2a, 0x2b, 0x33));
 				nvgFill(vg);
 			}
+			if (row.fill)
+				roundRect(vg, 43.6f * u, (y + 1.5f) * u, 0.8f * u, 0.8f * u, 0.2f * u, ACC);
 			int sec = clamp((int)row.sec, 0, NUM_SECTIONS - 1);
-			roundRect(vg, 59.5f * u, (y + 0.8f) * u, 1.2f * u, 2.6f * u, 0.3f * u, SEC_COL[sec]);
-			t(62.f, y + 3.f, SECTION_NAMES[sec], 1.5f, sel ? SEC_COL[sec] : ui::TXT, NVG_ALIGN_LEFT, 0.3f);
-			if (row.cvA != 0.f || row.cvB != 0.f)
-				t(w - 5.f, y + 3.f, "CV", 1.2f, ui::DIM, NVG_ALIGN_RIGHT, 0.2f);
+			roundRect(vg, 45.5f * u, (y + 0.7f) * u, 1.f * u, 2.4f * u, 0.3f * u, SEC_COL[sec]);
+			t(47.4f, y + 2.8f, SECTION_NAMES[sec], 1.35f, sel ? SEC_COL[sec] : ui::TXT, NVG_ALIGN_LEFT, 0.25f);
+			if (row.cvA != 0.f || row.cvB != 0.f) { // the row carries CV A / CV B
+				nvgBeginPath(vg);
+				nvgCircle(vg, (w - 2.4f) * u, (y + 1.9f) * u, 0.45f * u);
+				nvgStrokeColor(vg, ui::DIM);
+				nvgStrokeWidth(vg, 0.2f * u);
+				nvgStroke(vg);
+			}
 		}
 		// status line
 		std::string st;
@@ -1467,7 +1536,7 @@ struct SongList : AbWidget {
 		else if (n)
 			st = string::f("ROW %d / %d", m->curRow + 1, n);
 		if (!st.empty())
-			ui::text(vg, mono, (w - 2.5f) * u, (box.size.y / u - 1.2f) * u, st, 2.2f * u, ui::DIM, NVG_ALIGN_RIGHT, 0.f);
+			ui::text(vg, mono, (w - 2.2f) * u, (box.size.y / u - 1.2f) * u, st, 2.f * u, ui::DIM, NVG_ALIGN_RIGHT, 0.f);
 		if (n > vis) { // scroll bar
 			float h = box.size.y / u - HEAD - 4.f;
 			float y0 = HEAD + h * firstVisible / n, y1 = HEAD + h * (firstVisible + vis) / n;
@@ -1589,17 +1658,17 @@ struct BankButtons : AbWidget {
 	}
 };
 
-/** 4 x 4 pads of the current bank, tinted in the colour of their song part. */
+/** 8 x 4 pads of the current bank, tinted in the colour of their song part, with their names. */
 struct Pads : AbWidget {
-	float step = 9.7f, size = 8.6f;
+	float stepX = L::PADSTEP[0], stepY = L::PADSTEP[1], pw = L::PADSTEP[2], ph = L::PADSTEP[3];
 	int padAt(Vec p) {
 		float u = mm2px(1.f);
-		int c = (int)(p.x / u / step), r = (int)(p.y / u / step);
-		if (c < 0 || c > 3 || r < 0 || r > 3)
+		int c = (int)(p.x / u / stepX), r = (int)(p.y / u / stepY);
+		if (c < 0 || c >= PAD_COLS || r < 0 || r >= PADS_PER_BANK / PAD_COLS)
 			return -1;
-		if (p.x / u - c * step > size || p.y / u - r * step > size)
+		if (p.x / u - c * stepX > pw || p.y / u - r * stepY > ph)
 			return -1;
-		return r * 4 + c;
+		return r * PAD_COLS + c;
 	}
 	void drawLayer(const DrawArgs& args, int layer) override {
 		if (layer == 1) {
@@ -1611,14 +1680,14 @@ struct Pads : AbWidget {
 			int queued = module ? module->queuedSlot : -1;
 			for (int n = 0; n < PADS_PER_BANK; n++) {
 				int i = bk * PADS_PER_BANK + n;
-				float x = (n % 4) * step, y = (n / 4) * step;
+				float x = (n % PAD_COLS) * stepX, y = (n / PAD_COLS) * stepY;
 				const Slot* s = module ? &module->slots[i] : nullptr;
 				bool used = s && s->used;
 				int tag = used ? s->tag : -1;
 				NVGcolor fill = !used ? nvgRGB(0x1a, 0x1b, 0x20)
 				                      : (tag >= 0 ? mixc(SEC_COL[tag], PLATE, i == playing ? 0.5f : 0.3f) : nvgRGB(0x2a, 0x2b, 0x33));
 				nvgBeginPath(vg);
-				nvgRoundedRect(vg, x * u, y * u, size * u, size * u, 0.8f * u);
+				nvgRoundedRect(vg, x * u, y * u, pw * u, ph * u, 0.8f * u);
 				nvgFillColor(vg, fill);
 				nvgFill(vg);
 				bool sel = module && i == module->selSlot;
@@ -1636,10 +1705,10 @@ struct Pads : AbWidget {
 								int side = (int)f;
 								float t2 = f - side;
 								switch (side) {
-									case 0: return Vec(x + t2 * size, y);
-									case 1: return Vec(x + size, y + t2 * size);
-									case 2: return Vec(x + size - t2 * size, y + size);
-									default: return Vec(x, y + size - t2 * size);
+									case 0: return Vec(x + t2 * pw, y);
+									case 1: return Vec(x + pw, y + t2 * ph);
+									case 2: return Vec(x + pw - t2 * pw, y + ph);
+									default: return Vec(x, y + ph - t2 * ph);
 								}
 							};
 							Vec p0 = pt(a), p1 = pt(b2);
@@ -1651,22 +1720,31 @@ struct Pads : AbWidget {
 					}
 					else {
 						nvgBeginPath(vg);
-						nvgRoundedRect(vg, x * u, y * u, size * u, size * u, 0.8f * u);
+						nvgRoundedRect(vg, x * u, y * u, pw * u, ph * u, 0.8f * u);
 						nvgStroke(vg);
 					}
 				}
 				if (used && tag >= 0)
-					roundRect(vg, (x + 0.6f) * u, (y + 0.6f) * u, (size - 1.2f) * u, 0.8f * u, 0.3f * u, SEC_COL[tag]);
-				ui::text(vg, bold, (x + 1.f) * u, (y + 3.6f) * u, slotName(i), 1.35f * u,
-				         used ? ui::TXT : nvgRGB(0x4a, 0x4c, 0x57), NVG_ALIGN_LEFT, 0.15f * u);
+					roundRect(vg, (x + 0.6f) * u, (y + 0.6f) * u, (pw - 1.2f) * u, 0.7f * u, 0.3f * u, SEC_COL[tag]);
+				ui::text(vg, bold, (x + 0.9f) * u, (y + 3.2f) * u, slotName(i), 1.05f * u,
+				         used ? ui::TXT : nvgRGB(0x4a, 0x4c, 0x57), NVG_ALIGN_LEFT, 0.1f * u);
+				if (used && s->name[0]) {
+					// the name, as much of it as fits the pad
+					std::string nm = s->name;
+					nvgFontFaceId(vg, bold->handle);
+					nvgFontSize(vg, 1.35f * u);
+					nvgTextLetterSpacing(vg, 0.15f * u);
+					while (nm.size() > 1 && nvgTextBounds(vg, 0, 0, nm.c_str(), NULL, NULL) > (pw - 1.4f) * u)
+						nm.pop_back();
+					ui::text(vg, bold, (x + 0.9f) * u, (y + 5.3f) * u, nm, 1.35f * u, nvgRGB(0xff, 0xff, 0xff), NVG_ALIGN_LEFT, 0.15f * u);
+				}
 				if (used && tag >= 0)
-					ui::text(vg, bold, (x + 1.f) * u, (y + 5.6f) * u, SECTION_NAMES[tag], 1.f * u, SEC_COL[tag], NVG_ALIGN_LEFT, 0.15f * u);
-				float bw = (size - 2.f - 1.5f) / 4.f;
+					ui::text(vg, bold, (x + 0.9f) * u, (y + 7.f) * u, SECTION_NAMES[tag], 0.85f * u, SEC_COL[tag], NVG_ALIGN_LEFT, 0.1f * u);
 				for (int t = 0; t < 4; t++) {
 					bool on = false;
 					if (used) // a track with something in it
 						on = s->pat.trackGenre[t] >= 0 && !(module->slotSilent[i] & (1 << t));
-					roundRect(vg, (x + 1.f + t * (bw + 0.5f)) * u, (y + size - 1.9f) * u, bw * u, 0.8f * u, 0.3f * u,
+					roundRect(vg, (x + 0.9f + t * 1.5f) * u, (y + ph - 1.3f) * u, 1.05f * u, 0.6f * u, 0.25f * u,
 					          on ? TRACK_COLORS[t] : nvgRGB(0x2f, 0x30, 0x38));
 				}
 			}
@@ -1689,13 +1767,59 @@ struct Pads : AbWidget {
 			e.consume(this);
 		}
 	}
+	/** The name field in the pad's menu: Enter renames (one undo step). */
+	struct NameField : rack::ui::TextField {
+		Ablauf* m = nullptr;
+		int i = -1;
+		void onSelectKey(const SelectKeyEvent& e) override {
+			if (e.action == GLFW_PRESS && (e.key == GLFW_KEY_ENTER || e.key == GLFW_KEY_KP_ENTER)) {
+				m->rename(i, getText());
+				if (rack::ui::MenuOverlay* o = getAncestorOfType<rack::ui::MenuOverlay>())
+					o->requestDelete();
+				e.consume(this);
+				return;
+			}
+			rack::ui::TextField::onSelectKey(e);
+			if (!e.getTarget())
+				e.consume(this);
+		}
+		void onChange(const ChangeEvent& e) override {
+			std::string t = getText(), c;
+			for (char ch : t) { // as you type: capitals, at most 8 characters
+				if (ch >= 'a' && ch <= 'z')
+					ch = (char)(ch - 'a' + 'A');
+				if (((ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch == ' ' || ch == '-') && (int)c.size() < NAME_LEN)
+					c += ch;
+			}
+			if (c != t) {
+				int cur = cursor;
+				setText(c);
+				cursor = selection = std::min(cur, (int)c.size());
+			}
+			rack::ui::TextField::onChange(e);
+		}
+	};
 	void openMenu(int i) {
 		Ablauf* m = module;
 		Menu* menu = createMenu();
-		menu->addChild(createMenuLabel("Pad " + slotName(i) + (m->slots[i].used ? "" : " (empty)")));
-		if (!m->slots[i].used)
+		const Slot& sl = m->slots[i];
+		menu->addChild(createMenuLabel("Pad " + slotName(i) + (sl.used ? (sl.name[0] ? std::string(" · ") + sl.name : "") : " (empty)")));
+		if (!sl.used)
 			return;
-		menu->addChild(createSubmenuItem("Part", m->slots[i].tag >= 0 ? SECTION_NAMES[m->slots[i].tag] : "none", [=](Menu* sm) {
+		menu->addChild(createMenuLabel("Rename (Enter):"));
+		NameField* f = new NameField;
+		f->m = m;
+		f->i = i;
+		f->box.size.x = 140.f;
+		f->setText(sl.name);
+		f->placeholder = "NAME";
+		f->selectAll();
+		menu->addChild(f);
+		APP->event->setSelectedWidget(f);
+		if (sl.name[0])
+			menu->addChild(createMenuItem("Clear name", "", [=]() { m->rename(i, ""); }));
+		menu->addChild(new MenuSeparator);
+		menu->addChild(createSubmenuItem("Part", sl.tag >= 0 ? SECTION_NAMES[sl.tag] : "none", [=](Menu* sm) {
 			sm->addChild(createCheckMenuItem("None", "", [=]() { return m->slots[i].tag < 0; }, [=]() { m->setTag(i, -1); }));
 			for (int k = 0; k < NUM_SECTIONS; k++)
 				sm->addChild(createCheckMenuItem(SECTION_NAMES[k], "", [=]() { return m->slots[i].tag == k; }, [=]() { m->setTag(i, k); }));
@@ -1725,10 +1849,13 @@ struct InfoLine : AbWidget {
 			else {
 				int p = m->playingSlot;
 				if (p >= 0) {
-					float x = 1.6f + ui::text(vg, bold, 1.6f * u, 3.7f * u, slotName(p), 1.45f * u, ui::TXT, NVG_ALIGN_LEFT, 0.25f * u) / u;
+					std::string lab = slotName(p);
+					if (m->slots[p].used && m->slots[p].name[0])
+						lab += std::string("  ") + m->slots[p].name;
+					float x = 1.6f + ui::text(vg, bold, 1.6f * u, 3.7f * u, lab, 1.45f * u, ui::TXT, NVG_ALIGN_LEFT, 0.25f * u) / u;
 					int tag = m->slots[p].used ? m->slots[p].tag : -1;
 					if (tag >= 0)
-						ui::text(vg, bold, (x + 1.5f) * u, 3.7f * u, SECTION_NAMES[tag], 1.45f * u, SEC_COL[tag], NVG_ALIGN_LEFT, 0.25f * u);
+						ui::text(vg, bold, (x + 2.5f) * u, 3.7f * u, SECTION_NAMES[tag], 1.45f * u, SEC_COL[tag], NVG_ALIGN_LEFT, 0.25f * u);
 				}
 				else
 					ui::text(vg, bold, 1.6f * u, 3.7f * u, m->armed == 1 ? "STORE: tap a pad" : "GENRA plays freely", 1.4f * u,
@@ -1891,7 +2018,7 @@ struct AblaufWidget : ModuleWidget {
 		addParam(createLightParamCentered<VCVLightBezel<ALight<0xff, 0xd2, 0x3d>>>(ui::mm(L::FILL), module, A::FILL_PARAM, A::FILL_LIGHT));
 		ui::LampRow* mode = createParam<ui::LampRow>(Vec(), module, A::MODE_PARAM);
 		mode->accent = ACC;
-		const float mp[3] = {L::MODE[0], L::MODE[1], 7.5f};
+		const float mp[3] = {L::MODE[0], L::MODE[1], 8.f};
 		mode->place(mp, 2);
 		addParam(mode);
 		addParam(createLightParamCentered<VCVLightBezel<ALight<0x5d, 0xff, 0x8a>>>(ui::mm(L::PLAY), module, A::PLAY_PARAM, A::PLAY_LIGHT));
@@ -1960,7 +2087,8 @@ struct AblaufWidget : ModuleWidget {
 			m->endChange(a);
 		}));
 		menu->addChild(createMenuLabel("Store: tap an empty pad (or STORE, then any pad) · Song: tap a pad, then INSERT"));
-		menu->addChild(createMenuLabel("Variations: pattern playing, then INTRO … OUTRO (again = re-roll)"));
+		menu->addChild(createMenuLabel("Variations: pattern playing, then INTRO … OUTRO (each press: a new pad)"));
+		menu->addChild(createMenuLabel("Names: right-click a pad › Rename (the first pattern is ROOT)"));
 	}
 };
 

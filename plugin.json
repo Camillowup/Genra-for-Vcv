@@ -1,7 +1,7 @@
 {
   "slug": "Genra",
   "name": "GENRA",
-  "version": "2.18.0",
+  "version": "2.19.0",
   "license": "GPL-3.0-only",
   "brand": "Genra",
   "author": "Bastian Ofner",
@@ -37,7 +37,7 @@
     {
       "slug": "GenraAblauf",
       "name": "ABLAUF Song Arranger",
-      "description": "Song arranger for GENRA: 64 pattern places in 4 banks, a song list with bars, parts, track mutes and fills, one button per song part that turns the playing pattern into an intro, build, drop, break or outro",
+      "description": "Song arranger for GENRA: 128 named pattern places in 4 banks, a song list with bars, parts, track mutes and fills, one button per song part that turns the playing pattern into an intro, build, drop, break or outro",
       "tags": [
         "Sequencer",
         "Expander"

@@ -1354,7 +1354,7 @@ struct Genra : Module {
 			if ((j = json_object_get(a, "section")))
 				arrSecPub = (int)json_integer_value(j);
 			if ((j = json_object_get(a, "slot")))
-				arrSlotPub = clamp((int)json_integer_value(j), -1, 63);
+				arrSlotPub = clamp((int)json_integer_value(j), -1, 127); // ABLAUF: 4 banks of 32
 			arrAlive = 3.f; // ABLAUF has a few seconds to show up
 		}
 	}

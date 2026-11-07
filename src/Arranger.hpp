@@ -30,6 +30,7 @@ struct Slot {
 	int8_t lengthIdx = 2;                      // index into LENGTH_BARS
 	ArrMods mods;
 	int8_t tag = -1;                           // Section, -1 = none yet
+	char name[9] = {};                         // the user's name for it (ABLAUF), "" = none
 	bool used = false;
 	Slot() { initPattern(pat); }
 };
