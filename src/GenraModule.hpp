@@ -1360,9 +1360,14 @@ struct Genra : Module {
 	}
 
 	// ------------------------------------------------------------ MIDI file actions (UI thread)
-	void exportMidi() {
+	// onlyTrack: -1 = all four tracks, 0..3 = just drums / bass / melody / pads
+	void exportMidi(int onlyTrack = -1) {
+		static const char* TRK[4] = {"drums", "bass", "melody", "pads"};
 		osdialog_filters* filters = osdialog_filters_parse("MIDI file:mid,midi");
-		std::string name = std::string("genra-") + prof(curGenre).name + ".mid";
+		std::string name = std::string("genra-") + prof(curGenre).name;
+		if (onlyTrack >= 0 && onlyTrack < 4)
+			name += std::string("-") + TRK[onlyTrack];
+		name += ".mid";
 		for (char& c : name)
 			if (c == ' ' || c == '&')
 				c = '_';
@@ -1379,7 +1384,11 @@ struct Genra : Module {
 		float bpm = inputs[CLOCK_INPUT].isConnected() && stepPeriod > 0.f
 		                ? 60.f * APP->engine->getSampleRate() / (stepPeriod * 4.f)
 		                : params[BPM_PARAM].getValue();
-		std::vector<uint8_t> data = writeSmf(renderLoop(pat, P, L), bpm, prof(curGenre).name, L, &pat);
+		std::vector<MidiNote> notes = renderLoop(pat, P, L);
+		if (onlyTrack >= 0)
+			notes.erase(std::remove_if(notes.begin(), notes.end(), [=](const MidiNote& n) { return n.track != onlyTrack; }),
+			            notes.end());
+		std::vector<uint8_t> data = writeSmf(notes, bpm, prof(curGenre).name, L, &pat);
 		try {
 			system::writeFile(path, data);
 		}

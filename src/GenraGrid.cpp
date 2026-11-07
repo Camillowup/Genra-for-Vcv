@@ -1632,6 +1632,17 @@ struct GenraGridWidget : ModuleWidget {
 			menu->addChild(createCheckMenuItem(label, "", [=]() { return m->linkedId == id; }, [=]() { m->linkedId = id; }));
 		}
 		menu->addChild(new MenuSeparator);
+		menu->addChild(createMenuLabel("MIDI"));
+		if (Genra* g = m->genra()) {
+			static const char* TN[4] = {"drums", "bass", "melody", "pads"};
+			int tr = clamp(m->track, 0, 3);
+			menu->addChild(createMenuItem("Export as MIDI file…", "all tracks", [=]() { g->exportMidi(); }));
+			menu->addChild(createMenuItem(std::string("Export ") + TN[tr] + " only…", "", [=]() { g->exportMidi(tr); }));
+			menu->addChild(createMenuItem("Import MIDI file…", "", [=]() { g->importMidi(); }));
+		}
+		else
+			menu->addChild(createMenuLabel("Connect a GENRA to export or import"));
+		menu->addChild(new MenuSeparator);
 		menu->addChild(createMenuLabel("Controls"));
 		menu->addChild(createMenuLabel("Click: set note / hit · Drag: move, length at the right edge"));
 		menu->addChild(createMenuLabel("Double-click: delete · Scroll: velocity · Right-click: accent, slide, roll, chance"));
