@@ -207,7 +207,11 @@ bool loadPattern(const std::vector<uint8_t>& data, Pattern& out) {
 	unsigned seen = 0; // bit per record tag
 	while (r.ok(5)) {
 		uint8_t tag = r.u8();
-		uint32_t len = r.u8() | (r.u8() << 8) | (r.u8() << 16) | ((uint32_t)r.u8() << 24);
+		// one read per statement: the order of operands in one expression is unspecified
+		uint32_t len = r.u8();
+		len |= (uint32_t)r.u8() << 8;
+		len |= (uint32_t)r.u8() << 16;
+		len |= (uint32_t)r.u8() << 24;
 		if (!r.ok(len))
 			return false;
 		Reader q(data.data() + r.p, len);
