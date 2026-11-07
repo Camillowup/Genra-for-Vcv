@@ -30,7 +30,7 @@ jobs:
 
       - name: Tests (engines, without Rack)
         run: |
-          for t in test/test_mono.cpp test/test_schmelz.cpp test/test_mix.cpp test/test_funke.cpp test/test_stotter.cpp; do
+          for t in test/test_mono.cpp test/test_schmelz.cpp test/test_mix.cpp test/test_funke.cpp test/test_stotter.cpp test/test_grund.cpp; do
             g++ -std=gnu++17 -O2 "$t" -o t.exe && ./t.exe || exit 1
           done
           gcc -std=gnu11 -O2 -w -ffreestanding -fno-builtin -fno-tree-loop-distribute-patterns -Ikwasub/firmware/src -Ikwasub/firmware/gen -Ikwasub/firmware/hal test/kwcore_test.c -o kt.exe -lm

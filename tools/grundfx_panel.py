@@ -207,9 +207,8 @@ if not PREVIEW:
         lines.append(f"static const float {n}[3] = {{{x:.3f}f, {y:.3f}f, {dx:.3f}f}};  // first lamp x, y, distance")
     for n, (x, y, w, h) in fields.items():
         lines.append(f"static const float {n}[4] = {{{x:.3f}f, {y:.3f}f, {w:.3f}f, {h:.3f}f}};  // field x, y, w, h")
-    pass  # no display
-    lines.append(f"// static const float DISPLAY[4] = {{{DISPLAY[0]:.3f}f, {DISPLAY[1]:.3f}f, {DISPLAY[2]:.3f}f, "
-                 f"{DISPLAY[3]:.3f}f}};")
+    lines.append(f"static const float GR[4] = {{{W - 27:.3f}f, {Y1 + 3.4:.3f}f, 20.000f, 1.100f}};  // gain reduction meter")
+    lines.append(f"static const float LINK[4] = {{{W - 16.2:.3f}f, 5.300f, 5.000f, 1.080f}};  // the LINK bar")
     lines.append(f"static const int HP = {HP};")
     lines.append("}")
     os.makedirs(os.path.join(ROOT, "src", "grund"), exist_ok=True)

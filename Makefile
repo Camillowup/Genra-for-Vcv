@@ -12,6 +12,7 @@ SOURCES += $(wildcard src/kwasub/*.cpp)
 SOURCES += $(wildcard src/umlauf/*.cpp)
 SOURCES += $(wildcard src/stotter/*.cpp)
 SOURCES += $(wildcard src/ablauf/*.cpp)
+SOURCES += $(wildcard src/grund/*.cpp)
 
 DISTRIBUTABLES += res
 DISTRIBUTABLES += $(wildcard LICENSE*)

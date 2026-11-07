@@ -37,3 +37,5 @@ extern Model* modelUmlauf;
 extern Model* modelUmlaufFx;
 extern Model* modelStotter;
 extern Model* modelAblauf;
+extern Model* modelGrund;
+extern Model* modelGrundFx;

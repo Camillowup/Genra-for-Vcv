@@ -1,6 +1,6 @@
 # GENRA – Projektstand
 
-**Stand:** 6. November 2026 · **Plugin 2.15.2: 16 Module** (GENRA, GRID, ABLAUF, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, SCHMELZ, MIX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `CamilloGF/genra-v3`
+**Stand:** 7. November 2026 · **Plugin 2.16.0: 18 Module** (GENRA, GRID, ABLAUF, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, GRUND, GRUND FX, SCHMELZ, MIX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `CamilloGF/genra-v3`
 
 > Design-Leitfaden für neue Module (Aussehen, GENRA-Leiste, Leuchtsegmente, Follow, englische UI): **docs/DESIGN.md**
 
@@ -326,3 +326,9 @@ GENRA MONO: `g++ -std=c++17 -O2 test/test_mono.cpp -o tm && ./tm`
 
 ### 2.15.2
 - Ausgänge (GENRA, Instrumente, STOTTER) zeigen die Verbindung ohne Kabel als kleines Leuchtsegment über der Buchse statt als Ring, wie die Eingänge.
+
+### 2.16.0 – GRUND und GRUND FX
+- GRUND (`src/grund/`, 30 HP, Bassgrün): 10 Modelle (Saiten als Karplus-Strong mit Allpass-Bruchteil, Synth polyBLEP, Reese, 2-Op-FM, 808 mit Pitch-Drop), Stimme 2× überabgetastet, Bus in Samplerate (Oktaver, Amp mit Cab, Drive, Kompressor mit Sidechain, 3-Band-EQ, Chorus/Width nur Höhen, Reverb aus SCHMELZ), Bus schläft nach 4 s Stille, Reverb-Ausklang als Zähler. Pegel pro Modell (`LEVEL`), Softlimit ±10 V.
+- Presets wie GENRA MONO (30 ab Werk, Stil-Untermenüs, User-JSON in `Genra/GrundPresets` mit `params` und `fx`); Laden ist ein Undo-Schritt für GRUND und Expander (`ComplexAction`).
+- GRUND FX (`gfx`, 14 HP): nur Regler; GRUND hält die FX-Einstellungen (`fxStore`, im Patch-JSON), liest beim Andocken Knöpfe + CV und schreibt beim ersten Andocken bzw. beim Preset-Laden die Knöpfe. SC-Eingang wird von GRUND pro Sample gelesen, GR zurück über `std::atomic`.
+- Expander-Layout: CV-Eingänge in den Sektionen statt in einer Buchsenreihe (schmaler). Panels: `tools/grund_panel.py`, `tools/grundfx_panel.py`. Test: `test/test_grund.cpp` (Modelle, Presets, Stabilität 44,1–192 kHz, Oktaver, Sidechain).

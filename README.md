@@ -1,6 +1,6 @@
 # GENRA – Plugin für VCV Rack 2
 
-Ein generativer, genreabhängiger 4-Spur-Sequencer mit MIDI-Grid, Performance-Effekten und passenden Instrumenten, alle im selben Look. Plugin-Version **2.13.0**, 16 Module. Projektstand und Entscheidungen: `PROJEKT.md`.
+Ein generativer, genreabhängiger 4-Spur-Sequencer mit MIDI-Grid, Performance-Effekten und passenden Instrumenten, alle im selben Look. Plugin-Version **2.16.0**, 18 Module. Projektstand und Entscheidungen: `PROJEKT.md`.
 
 | Modul | Breite | Farbe | Was es ist |
 |---|---|---|---|
@@ -242,6 +242,47 @@ Melodie-Ausgängen: V/OCT, GATE, VEL, ACC, SLIDE und CLOCK.
   Clock 120 BPM; Pingpong, FDBK), VERB. CLOCK-Auflösung im Kontextmenü (Standard 16tel wie GENRA).
 - **CV:** MODEL, TIMBRE, BITE, CUT (1 V/Okt.), RES, MOD (Vibrato-Tiefe wie ein Modrad, früher VIB), RESET (Tempo neu messen), ECHO, LO-FI, ATK, REL.
   **Ausgänge:** ENV (Hüllkurve der neuesten Note), L, R (nur L gesteckt: mono).
+
+### GRUND: Bassstimme
+
+![GRUND](docs/entwuerfe/grund.png)
+
+Die Stimme für GENRAs Bassspur, 30 HP, Farbe **grün** (GENRAs Bassfarbe). Eingänge wie bei FUNKE: V/OCT, GATE, VEL,
+ACC, SLIDE, MOD; ohne Kabel über Rechtsklick → Follow GENRA → Bass.
+
+- **MODEL** (Feld, Klick = Liste, Mausrad blättert; CV): UPRIGHT (Kontrabass gezupft) · ARCO (Kontrabass gestrichen) ·
+  FINGER (E-Bass mit Fingern) · PICK (Plektrum) · SLAP (Daumen und Pop) · FRETLESS (mit „Mwah“) · SYNTH (Säge/Puls) ·
+  REESE (verstimmte Sägen) · FM (2-Op, DX-Bass) · 808 (Sinus mit Pitch-Drop). Saiten als Karplus-Strong-Modell.
+- **TIMBRE / BITE** je nach Modell (Tooltip), **BODY** (Holz, Box), **SUB** (Oktave tiefer), **MUTE** (Handballen:
+  kürzer, trockener), **MONO · LEGATO**, **GLIDE** auf SLIDE, **ACCENT** (bei SLAP: Pop).
+- **AMP:** DI · FLIP-TOP · STACK · FUZZ (Feld), TONE (Tiefpass), RES, F.ENV/F.DEC, DRIVE, COMP, KEY.
+- **ENVELOPE** ADSR. **FX:** CHORUS, OCTAVE (Oktaver), WIDTH (nur die Höhen), VERB.
+- **Presets:** 30 ab Werk nach Stil (Feld oben rechts, Klick = Liste, Mausrad blättert, Punkt = verändert),
+  eigene über Rechtsklick → Save preset as … (`Rack2/Genra/GrundPresets`). Presets speichern auch die FX-Einstellungen.
+- **CV:** MODEL, TIMBRE, BITE, CUT (1 V/Okt.), MUTE, DRIVE, SUB, ATK, REL. **Ausgänge:** ENV, L, R (nur L: mono).
+
+| Stil | Presets (Modell) |
+|---|---|
+| FUNK · SOUL · DISCO | MOTOWN P-BASS (FINGER) · FUNK SLAP (SLAP) · DISCO PICK (PICK) · FRETLESS SING (FRETLESS) |
+| JAZZ · LO-FI · TRIP-HOP | JAZZ UPRIGHT (UPRIGHT) · WALKING BASS (UPRIGHT) · LO-FI FINGER (FINGER) · ARCO DARK (ARCO) |
+| DUB · REGGAE | DUB ROOTS (FINGER) · STEPPERS SUB (SYNTH) |
+| HOUSE · GARAGE | DEEP HOUSE (SYNTH) · ORGAN BASS (FM) · 2-STEP SUB (808) |
+| TECHNO | TECHNO ROLL (SYNTH) · RUMBLE (808) · HARD RUMBLE (808) · HYPNOTIC PLUCK (SYNTH) · OFFBEAT SUB (SYNTH) · DUB TECHNO (SYNTH) · INDUSTRIAL (FM) |
+| DRUM'N'BASS · JUNGLE | REESE (REESE) · NEURO REESE (REESE) · JUNGLE SUB (808) |
+| HIP-HOP · TRAP · DRILL | 808 BOOM (808) · DRILL SLIDE (808) · BOOM BAP (UPRIGHT) |
+| DUBSTEP · GRIME | GRIME SQUARE (SYNTH) · GROWL (FM) |
+| ROCK · POP | ROCK PICK (PICK) · 80S DX BASS (FM) |
+
+### GRUND FX: Effekt-Expander
+
+![GRUND FX](docs/entwuerfe/grund_fx.png)
+
+14 HP, rechts an GRUND andocken (LINK leuchtet). Fünf Sektionen, jede mit Ein/Aus-Taster und ihrem CV-Eingang direkt
+in der Sektion: **COMP** (THRESH, RATIO, ATK, REL, Sidechain-Eingang SC: eine Kick duckt den Bass, GR-Anzeige) ·
+**DRIVE** (TUBE, FET, FUZZ, CRUSH; TONE, MIX) · **EQ** (HPF 20–200 Hz, LOW, MID, HIGH ±12 dB) · **CHORUS** (RATE,
+DEPTH) · **VERB** (SIZE, DAMP, PRE). Chorus und Reverb wirken standardmässig nur auf die Höhen (Kontextmenü), der Bass
+bleibt mono. Die Einstellungen gehören zu GRUND: Ohne Expander klingen die Presets gleich, beim Andocken übernimmt der
+Expander GRUNDs Werte.
 
 ### SCHMELZ: String Machine
 

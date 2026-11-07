@@ -1,7 +1,7 @@
 {
   "slug": "Genra",
   "name": "GENRA",
-  "version": "2.15.2",
+  "version": "2.16.0",
   "license": "GPL-3.0-only",
   "brand": "Genra",
   "author": "Bastian Ofner",
@@ -118,6 +118,30 @@
         "Polyphonic",
         "Filter",
         "Delay",
+        "Reverb"
+      ]
+    },
+    {
+      "slug": "Grund",
+      "name": "GRUND",
+      "description": "Bass voice for GENRA's bass track: 10 models (upright, arco, finger, pick, slap, fretless, synth, reese, FM, 808), 4 amps, tone filter with envelope, drive, compressor, octaver, chorus, reverb, glide on SLIDE, accent, 30 presets by style",
+      "tags": [
+        "Synth voice",
+        "Physical modeling",
+        "Filter",
+        "Distortion",
+        "Compressor"
+      ]
+    },
+    {
+      "slug": "GrundFx",
+      "name": "GRUND FX",
+      "description": "Expander for GRUND (dock it on the right): compressor with sidechain, drive (tube, FET, fuzz, crush), 3-band EQ with high-pass, chorus, reverb, each with on/off and CV",
+      "tags": [
+        "Expander",
+        "Compressor",
+        "Distortion",
+        "Equalizer",
         "Reverb"
       ]
     },
