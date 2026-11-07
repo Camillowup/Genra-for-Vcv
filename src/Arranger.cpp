@@ -11,6 +11,8 @@
 namespace genra {
 
 const char* const SECTION_NAMES[NUM_SECTIONS] = {"INTRO", "VERSE", "BUILD", "DROP", "BREAK", "OUTRO"};
+const char* const BREAK_BASS_NAMES[NUM_BREAK_BASS] = {"Long roots", "Thinned line", "Pulse", "Dub offbeats", "Bass out"};
+const char* const INTRO_BASS_NAMES[NUM_INTRO_BASS] = {"Legato roots", "Thinned line", "Pulse"};
 
 static inline int clampi(int x, int a, int b) { return x < a ? a : (x > b ? b : x); }
 static inline float clampf(float x, float a, float b) { return x < a ? a : (x > b ? b : x); }
@@ -68,15 +70,15 @@ static void scaleNote(NoteStep& n, float k) {
 }
 static bool noteOn(const NoteStep& n) { return n.force == 1 && n.absNote != NO_ABS; }
 
-// the bass root of the chord at step s as an exact note of len steps
-static void bassRoot(Pattern& pat, const Params& P, int s, int len, int vel) {
+// the bass root of the chord at step s (plus semis: 7 = its fifth, 12 = an octave up) as an exact note of len steps
+static void bassRoot(Pattern& pat, const Params& P, int s, int len, int vel, int semis = 0) {
 	Chord ch = chordAt(pat, P, s);
 	int keyPc = mod12(P.key + P.transp);
 	int base = 36 + keyPc;
 	if (base > 41)
 		base -= 12;
-	int n = base + ch.root;
-	while (n > 55)
+	int n = base + ch.root + semis;
+	while (n > (semis >= 12 ? 67 : 55))
 		n -= 12;
 	while (n < 28)
 		n += 12;
@@ -125,6 +127,69 @@ static Params partP(const Params& P, int t, float densOff, float densMin, float 
 // last bar of the loop (the second half of a one-bar loop)
 static int lastBar(int L) { return L >= 32 ? L - 16 : L / 2; }
 
+// ================================================================= bass styles (BREAK, INTRO)
+// the frozen line, only on strong beats (1 and 3) and chord changes, shorter and softer; from step `from` on
+static void bassThin(Pattern& p, const Params& P, int L, int from) {
+	for (int s = 0; s < L; s++) {
+		NoteStep& n = p.bass[s];
+		bool strong = s % 8 == 0 || isEventStart(p, s);
+		if (s < from || !strong || !noteOn(n)) {
+			noteOff(n);
+			continue;
+		}
+		n.flen = (uint8_t)clampi(std::min((int)n.flen, 6), 1, 6);
+		n.fflags = (uint8_t)((n.fflags | FF_SET) & ~FF_SLIDE);
+		scaleNote(n, 0.8f);
+	}
+	for (int b = (from / 16) * 16; b < L; b += 16) // no empty bar: the root on the one
+		if (countNotes(p.bass, b, std::min(L, b + 16)) == 0)
+			bassRoot(p, P, std::max(b, from), 4, 74);
+}
+// short roots on quarters or 8ths, now and then an octave up; from step `from` on
+static void bassPulse(Pattern& p, const Params& P, int L, int from, Rng& rng) {
+	for (int s = 0; s < L; s++)
+		noteOff(p.bass[s]);
+	int rate = rng.range(2) ? 4 : 2;
+	float oct = 0.08f + 0.12f * rng.uni();
+	for (int s = from; s < L; s += rate) {
+		bool up = s % 16 != 0 && rng.uni() < oct;
+		int vel = s % 8 == 0 ? 90 : 72;
+		bassRoot(p, P, s, std::max(1, rate / 2 + (rate == 4 ? 1 : 0)), vel, up ? 12 : 0);
+	}
+}
+// sparse single notes off the beat, roots and fifths, lots of space
+static void bassDub(Pattern& p, const Params& P, int L, Rng& rng) {
+	for (int s = 0; s < L; s++)
+		noteOff(p.bass[s]);
+	static const int SPOTS[6] = {6, 14, 3, 11, 7, 15}; // the "and" of 2 and 4 first, then 16th offsets
+	for (int b = 0; b < L; b += 16) {
+		int want = 1 + rng.range(2) + (rng.uni() < 0.2f ? 1 : 0);
+		int placed = 0;
+		for (int k = 0; k < 6 && placed < want; k++) {
+			int s = b + SPOTS[k];
+			if (s >= L || (k >= 2 && rng.uni() < 0.5f))
+				continue;
+			if (s > b && noteOn(p.bass[s - 1]))
+				continue;
+			bassRoot(p, P, s, 2 + rng.range(2), 88, rng.uni() < 0.3f ? 7 : 0);
+			placed++;
+		}
+		if (!placed && b + 6 < L)
+			bassRoot(p, P, b + 6, 2, 88);
+		else if (!placed)
+			bassRoot(p, P, b, 2, 88);
+	}
+}
+// the bass is out: only a pickup of one or two short notes on the last beat, into the loop's start
+static void bassOut(Pattern& p, const Params& P, int L, Rng& rng) {
+	for (int s = 0; s < L; s++)
+		noteOff(p.bass[s]);
+	int last = L - 2;
+	if (rng.range(2) && L >= 4)
+		bassRoot(p, P, L - 4, 2, 80, 7);
+	bassRoot(p, P, last, 2, 92);
+}
+
 // ================================================================= INTRO
 // sparse drums that come in over the loop, the bass enters halfway on the chords, a thin melody, pads in front
 static void introDrums(Pattern& p, const Params& P, int L) {
@@ -163,9 +228,19 @@ static void introDrums(Pattern& p, const Params& P, int L) {
 	tile(p, T_DRUMS, L);
 }
 
-static void introBass(Pattern& p, const Params& P, int L) {
-	freezeTrack(p, partP(P, T_BASS, -0.25f, 0.12f), T_BASS, L);
+static void introBass(Pattern& p, const Params& P, int L, int style, Rng& rng) {
+	freezeTrack(p, partP(P, T_BASS, style == IB_THIN ? 0.f : -0.25f, 0.12f), T_BASS, L);
 	int from = L >= 32 ? L / 2 : 0;
+	if (style == IB_THIN || style == IB_PULSE) {
+		if (style == IB_THIN)
+			bassThin(p, P, L, from);
+		else
+			bassPulse(p, P, L, from, rng);
+		for (int s = 0; s < L; s++)
+			scaleNote(p.bass[s], 0.9f);
+		tile(p, T_BASS, L);
+		return;
+	}
 	for (int s = 0; s < L; s++)
 		if (s < from || !(s % 8 == 0 || isEventStart(p, s)))
 			noteOff(p.bass[s]);
@@ -297,8 +372,18 @@ static void breakDrums(Pattern& p, const Params& P, int L) {
 	tile(p, T_DRUMS, L);
 }
 
-static void breakBass(Pattern& p, const Params& P, int L) {
+static void breakBass(Pattern& p, const Params& P, int L, int style, Rng& rng) {
 	freezeTrack(p, partP(P, T_BASS, 0.f, 0.1f), T_BASS, L);
+	if (style != BB_ROOTS) {
+		switch (style) {
+			case BB_THIN: bassThin(p, P, L, 0); break;
+			case BB_PULSE: bassPulse(p, P, L, 0, rng); break;
+			case BB_DUB: bassDub(p, P, L, rng); break;
+			default: bassOut(p, P, L, rng); break;
+		}
+		tile(p, T_BASS, L);
+		return;
+	}
 	for (int s = 0; s < L; s++)
 		noteOff(p.bass[s]);
 	for (int s = 0; s < L; s++) {
@@ -307,7 +392,8 @@ static void breakBass(Pattern& p, const Params& P, int L) {
 		int e = s + 1;
 		while (e < L && !isEventStart(p, e))
 			e++;
-		bassRoot(p, P, s, std::min(e - s, 32), 84);
+		for (int q = s; q < e; q += 32) // a chord longer than two bars: the root again, no silent bar
+			bassRoot(p, P, q, std::min(e - q, 32), q == s ? 84 : 76);
 	}
 	tile(p, T_BASS, L);
 }
@@ -407,7 +493,7 @@ static bool baked(int sec, int t) {
 	return sec == SEC_INTRO || sec == SEC_BUILD || sec == SEC_BREAK || sec == SEC_OUTRO;
 }
 
-void makeSection(const Slot& src, Slot& out, int sec, unsigned reroll, const Params& P0, Rng& rng) {
+void makeSection(const Slot& src, Slot& out, int sec, unsigned reroll, const Params& P0, Rng& rng, const PartOpts& opts) {
 	sec = clampi(sec, 0, NUM_SECTIONS - 1);
 	if (&out != &src)
 		out = src;
@@ -423,13 +509,21 @@ void makeSection(const Slot& src, Slot& out, int sec, unsigned reroll, const Par
 		if (!(reroll & (1u << t)))
 			continue; // kept exactly, its offsets too
 		Pattern& p = out.pat;
-		generateTrack(p, t, p.trackGenre[t], rng, P);
+		// the bass style of a break / an intro: fixed in the menu, or one at random on every press
+		int bassStyle = 0;
+		if (t == T_BASS && sec == SEC_BREAK)
+			bassStyle = opts.breakBass >= 0 && opts.breakBass < NUM_BREAK_BASS ? opts.breakBass : rng.range(NUM_BREAK_BASS);
+		if (t == T_BASS && sec == SEC_INTRO)
+			bassStyle = opts.introBass >= 0 && opts.introBass < NUM_INTRO_BASS ? opts.introBass : rng.range(NUM_INTRO_BASS);
+		bool thin = t == T_BASS && ((sec == SEC_BREAK && bassStyle == BB_THIN) || (sec == SEC_INTRO && bassStyle == IB_THIN));
+		if (!thin) // a thinned line comes from the source's own bass, not a new one
+			generateTrack(p, t, p.trackGenre[t], rng, P);
 		if (baked(sec, t)) {
 			out.mods.dens[t] = 0.f;
 			switch (sec) {
-				case SEC_INTRO: t == T_DRUMS ? introDrums(p, P, L) : (t == T_BASS ? introBass(p, P, L) : introMelody(p, P, L)); break;
+				case SEC_INTRO: t == T_DRUMS ? introDrums(p, P, L) : (t == T_BASS ? introBass(p, P, L, bassStyle, rng) : introMelody(p, P, L)); break;
 				case SEC_BUILD: t == T_DRUMS ? buildDrums(p, P, L) : (t == T_BASS ? buildBass(p, P, L) : buildMelody(p, P, L)); break;
-				case SEC_BREAK: t == T_DRUMS ? breakDrums(p, P, L) : (t == T_BASS ? breakBass(p, P, L) : breakMelody(p, P, L)); break;
+				case SEC_BREAK: t == T_DRUMS ? breakDrums(p, P, L) : (t == T_BASS ? breakBass(p, P, L, bassStyle, rng) : breakMelody(p, P, L)); break;
 				default: t == T_DRUMS ? outroDrums(p, P, L) : (t == T_BASS ? outroBass(p, P, L) : outroMelody(p, P, L)); break;
 			}
 		}

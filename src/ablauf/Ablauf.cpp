@@ -153,6 +153,7 @@ struct Ablauf : Module {
 	int armed = 0; // 1 STORE, 2 COPY, 3 CLEAR: waits for a pad
 	int copySrc = -1;
 	int64_t linkedId = -1;
+	PartOpts partOpts; // the bass styles of BREAK / INTRO (-1: one at random on every press)
 	Rng rng{random::u64()};
 	std::string msg;
 	float msgTime = 0.f;
@@ -740,7 +741,7 @@ struct Ablauf : Module {
 			return;
 		}
 		AblaufAction* a = beginChange(SECTION_NAMES[k], target);
-		makeSection(*session.source, slots[target], k, rerollMask(), session.P, rng);
+		makeSection(*session.source, slots[target], k, rerollMask(), session.P, rng, partOpts);
 		endChange(a);
 		session.result[k] = target;
 		session.made.push_back({target, slotVer[target]});
@@ -1247,6 +1248,8 @@ struct Ablauf : Module {
 		json_t* root = json_object();
 		json_object_set_new(root, "version", json_integer(SAVE_VERSION));
 		json_object_set_new(root, "linkedId", json_integer(linkedId));
+		json_object_set_new(root, "breakBass", json_integer(partOpts.breakBass));
+		json_object_set_new(root, "introBass", json_integer(partOpts.introBass));
 		json_object_set_new(root, "curRow", json_integer(curRow));
 		json_object_set_new(root, "selSlot", json_integer(selSlot));
 		json_t* sl = json_array();
@@ -1295,6 +1298,11 @@ struct Ablauf : Module {
 		json_t* j;
 		if ((j = json_object_get(root, "linkedId")))
 			linkedId = json_integer_value(j);
+		partOpts = PartOpts();
+		if ((j = json_object_get(root, "breakBass")))
+			partOpts.breakBass = clamp((int)json_integer_value(j), -1, NUM_BREAK_BASS - 1);
+		if ((j = json_object_get(root, "introBass")))
+			partOpts.introBass = clamp((int)json_integer_value(j), -1, NUM_INTRO_BASS - 1);
 		json_t* jv = json_object_get(root, "version");
 		bool v1 = !jv || json_integer_value(jv) < 2; // 4 banks of 16 pads
 		auto fromSaved = [&](int i) { return v1 ? slotFromV1(i) : i; };
@@ -1385,6 +1393,7 @@ struct Ablauf : Module {
 		}
 		rows.clear();
 		session.clear();
+		partOpts = PartOpts();
 		song = Song();
 		curRow = 0;
 		selSlot = -1;
@@ -2074,6 +2083,16 @@ struct AblaufWidget : ModuleWidget {
 			std::string label = string::f("GENRA #%d", n);
 			menu->addChild(createCheckMenuItem(label, "", [=]() { return m->linkedId == id; }, [=]() { m->linkedId = id; }));
 		}
+		menu->addChild(new MenuSeparator);
+		auto styleMenu = [=](const char* label, int* opt, const char* const* names, int n) {
+			menu->addChild(createSubmenuItem(label, *opt < 0 ? "Random" : names[*opt], [=](Menu* sm) {
+				sm->addChild(createCheckMenuItem("Random (each press)", "", [=]() { return *opt < 0; }, [=]() { *opt = -1; }));
+				for (int k = 0; k < n; k++)
+					sm->addChild(createCheckMenuItem(names[k], "", [=]() { return *opt == k; }, [=]() { *opt = k; }));
+			}));
+		};
+		styleMenu("Break bass", &m->partOpts.breakBass, BREAK_BASS_NAMES, NUM_BREAK_BASS);
+		styleMenu("Intro bass", &m->partOpts.introBass, INTRO_BASS_NAMES, NUM_INTRO_BASS);
 		menu->addChild(new MenuSeparator);
 		for (int b = 0; b < 4; b++)
 			menu->addChild(createMenuItem(string::f("Clear bank %c", 'A' + b), "", [=]() {

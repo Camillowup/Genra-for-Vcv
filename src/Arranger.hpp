@@ -35,11 +35,22 @@ struct Slot {
 	Slot() { initPattern(pat); }
 };
 
+/** How a part's bass is made, when the bass is re-rolled. -1: a style at random on every press. */
+enum BreakBass { BB_ROOTS, BB_THIN, BB_PULSE, BB_DUB, BB_OUT, NUM_BREAK_BASS };
+enum IntroBass { IB_ROOTS, IB_THIN, IB_PULSE, NUM_INTRO_BASS };
+extern const char* const BREAK_BASS_NAMES[NUM_BREAK_BASS];
+extern const char* const INTRO_BASS_NAMES[NUM_INTRO_BASS];
+struct PartOpts {
+	int breakBass = -1;
+	int introBass = -1;
+};
+
 /** Make a song part from src.
  * reroll: bit per track (1 << T_DRUMS ...): these tracks get new material in the part's style (same genre as in src),
  * the others are copied exactly, offsets included. P: GENRA's knobs without any arranger offsets.
  * The result is tagged with the part. */
-void makeSection(const Slot& src, Slot& out, int section, unsigned reroll, const Params& P, Rng& rng);
+void makeSection(const Slot& src, Slot& out, int section, unsigned reroll, const Params& P, Rng& rng,
+                 const PartOpts& opts = PartOpts());
 
 /** Params as GENRA plays a slot: P (the knobs) plus the slot's offsets. */
 Params withMods(const Params& P, const ArrMods& m);

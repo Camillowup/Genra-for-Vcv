@@ -171,6 +171,67 @@ int main() {
 			(void)c0;
 		}
 	}
+	// bass styles of BREAK and INTRO: every bar (from the entry on) has bass, except "bass out" (only a pickup);
+	// each note sits on the chord's root, fifth or octave unless it comes from the source's own line (thinned)
+	int styled = 0;
+	for (int g = 0; g < numProfiles(); g += 3) {
+		for (int li = 0; li < 4; li++) {
+			int L = LENGTH_BARS[li] * 16;
+			makeSource(*src, g, li, rng);
+			Params P = baseP(g, LENGTH_BARS[li]);
+			for (int sec : {SEC_BREAK, SEC_INTRO}) {
+				int ns = sec == SEC_BREAK ? (int)NUM_BREAK_BASS : (int)NUM_INTRO_BASS;
+				for (int st = 0; st < ns; st++) {
+					PartOpts o;
+					if (sec == SEC_BREAK)
+						o.breakBass = st;
+					else
+						o.introBass = st;
+					makeSection(*src, *out, sec, 1u << T_BASS, P, rng, o);
+					Params Q = withMods(P, out->mods);
+					int from = sec == SEC_INTRO && L >= 32 ? L / 2 : 0;
+					bool silentOk = sec == SEC_BREAK && st == BB_OUT;
+					int total = 0, heldTo = -1; // a long root held over a bar line sounds in that bar too
+					for (int b = 0; b < L; b += 16) {
+						int notes = heldTo > b ? 1 : 0;
+						for (int s = b; s < b + 16 && s < L; s++) {
+							NoteEv nn = bassAt(out->pat, Q, s, L);
+							if (!nn.on)
+								continue;
+							notes++;
+							heldTo = std::max(heldTo, s + nn.len);
+							CHECK(s >= from, "%s L%d %s bass %d: note before the entry", prof(g).name, L, SECTION_NAMES[sec], st);
+						}
+						total += notes;
+						if (b >= from && !silentOk)
+							CHECK(notes > 0, "%s L%d %s bass style %d: empty bar %d", prof(g).name, L, SECTION_NAMES[sec], st, b / 16);
+					}
+					if (silentOk) {
+						CHECK(total >= 1 && total <= 2, "%s L%d bass out: pickup of 1-2 notes (%d)", prof(g).name, L, total);
+						for (int s = 0; s < L - 4; s++)
+							CHECK(!bassAt(out->pat, Q, s, L).on, "bass out: a note before the last beat");
+					}
+					CHECK(sameTrack(src->pat, out->pat, T_DRUMS), "bass style: drums kept");
+					styled++;
+				}
+			}
+		}
+	}
+	// random style: different presses give different break basses
+	{
+		Rng r(11);
+		makeSource(*src, 2, 2, r);
+		Params P = baseP(2, 4);
+		std::unique_ptr<Slot> a(new Slot);
+		int diff = 0;
+		makeSection(*src, *out, SEC_BREAK, 1u << T_BASS, P, r);
+		for (int k = 0; k < 8; k++) {
+			makeSection(*src, *a, SEC_BREAK, 1u << T_BASS, P, r);
+			diff += std::memcmp(a->pat.bass, out->pat.bass, sizeof(a->pat.bass)) != 0;
+		}
+		CHECK(diff >= 6, "random break bass should vary (%d of 8)", diff);
+	}
+	printf("%d bass styles checked\n", styled);
 	// the same source and seed state give a different result on the second press (re-roll)
 	{
 		Rng r(5);
