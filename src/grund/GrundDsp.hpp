@@ -184,6 +184,8 @@ struct Ring {
 		if (rp < 0.f)
 			rp += n;
 		int i = (int) rp;
+		if (i >= n) // (w - d a hair below 0 rounds to n after += n: index n is past the end)
+			i -= n, rp -= n;
 		float f = rp - i;
 		int j = i + 1 >= n ? 0 : i + 1;
 		return b[i] + (b[j] - b[i]) * f;
