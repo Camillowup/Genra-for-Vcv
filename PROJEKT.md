@@ -267,7 +267,7 @@ GENRA MONO: `g++ -std=c++17 -O2 test/test_mono.cpp -o tm && ./tm`
 - Tooltips, Menüs und Meldungen von GENRA, GRID und ABLAUF auf Englisch (wie die übrigen Module).
 
 ## GENRA-Leiste und Aufräumen (2.13.0) – Stand 6. November 2026
-- Entscheidungen (Bericht „GENRA-Plugin: Zusammenarbeit und Streamlining“): einheitliche GENRA-Leiste an allen Instrumenten, alle Ein-/Ausgänge bleiben (auch für fremde Module), Verbindung *Spur von GENRA* per Rechtsklick zusätzlich (folgt), Tooltips/Menüs Englisch, Sound-Snapshots in ABLAUF später.
+- Entscheidungen (Bericht „GENRA-Plugin: Zusammenarbeit und Streamlining“): einheitliche GENRA-Leiste an allen Instrumenten, alle Ein-/Ausgänge bleiben (auch für fremde Module), Verbindung *Spur von GENRA* per Rechtsklick zusätzlich (folgt), Tooltips/Menüs Englisch. Sound-Snapshots in ABLAUF gestrichen (Klangwahl bleibt frei bei den Instrumenten).
 - Leiste: `tools/panellib.py` (`genra_strip`): V/OCT · GATE · VEL · ACC · SLIDE · MOD (Spurfarbe), CLOCK · RESET (grau), Raster 9,4 mm, unten links. Umgesetzt in MONO, K-WASUB, FUNKE, SCHMELZ, UMLAUF; VOICE, ANIMAL, MONK (Leistenoptik in px); DRUM-X: Poly-Eingang DRUMS.
 - Neue Buchsen (hinten an die Listen gehängt, alte Patches laden): GENRA `DRUMS_OUTPUT` (8 Kanäle), DRUM-X `GENRA_INPUT` (GENRA-Reihenfolge → Spuren 0,1,2,6,3,4,5,7), SCHMELZ `MOD_INPUT` (Ziel im Menü, im Patch), FUNKE `RESET_INPUT` (Tempo neu messen), K-WASUB `ACC_INPUT` (Velocity +30) und `SLIDE_INPUT` (Glide +35 % des Bereichs, solange hoch).
 - Eigene dunkle Regler `res/knob/{large,medium,small,trim}{,_bg}.svg` in Rack-Grössen, Klassen `GLargeKnob`, `GKnob`, `GSmallKnob`, `GTrimpot` in `plugin.hpp` – ersetzen Rack's Round*BlackKnob/Trimpot in allen Modulen (MONK wirkte mit Rack's Reglern silbern).
