@@ -51,5 +51,6 @@ static const float EDIV[3] = {113.000f, 82.800f, 7.200f};  // first lamp x, y, d
 static const float MODELF[4] = {6.000f, 33.500f, 66.000f, 5.400f};  // field x, y, w, h
 static const float FTYPEF[4] = {80.000f, 33.500f, 66.400f, 5.400f};  // field x, y, w, h
 static const float DISPLAY[4] = {3.000f, 10.500f, 146.400f, 15.000f};
+static const float PRESETF[4] = {82.400f, 3.400f, 46.000f, 5.400f};  // field x, y, w, h
 static const int HP = 30;
 }

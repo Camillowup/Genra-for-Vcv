@@ -125,7 +125,13 @@ e(f'<svg xmlns="http://www.w3.org/2000/svg" width="{W:.2f}mm" height="{H}mm" vie
 e(f'<rect width="{W:.2f}" height="{H}" fill="{BG}"/>')
 text(12.9, 7.6, "SCHMELZ", 5.1, TITLE, 800, "start", 1.08)
 text(12.9 + width("SCHMELZ", 5.1, 800, 1.08) + 3.4, 7.45, "GENRA · STRING MACHINE", 1.76, DIM, 600, "start", 0.47)
-e(f'<rect x="{W - 27.1:.2f}" y="5.55" width="11.5" height="1.08" rx="0.54" fill="{ACC}"/>')
+# presets: a field in the header (as on GENRA MONO and GRUND), the accent bar after it
+PF = (W - 70, 3.4, 46, 5.4)
+e(f'<rect x="{PF[0]:.2f}" y="{PF[1]}" width="{PF[2]}" height="{PF[3]}" rx="0.9" fill="{DARK}" stroke="{LINE}" stroke-width="0.4"/>')
+e(f'<polyline points="{PF[0] + PF[2] - 4.2:.2f},{PF[1] + 2.1:.2f} {PF[0] + PF[2] - 3:.2f},{PF[1] + 3.4:.2f} '
+  f'{PF[0] + PF[2] - 1.8:.2f},{PF[1] + 2.1:.2f}" fill="none" stroke="{ACC}" stroke-width="0.4" stroke-linecap="round" '
+  f'stroke-linejoin="round"/>')
+e(f'<rect x="{W - 21.5:.2f}" y="5.55" width="8" height="1.08" rx="0.54" fill="{ACC}"/>')
 
 DISPLAY = (3, 10.5, W - 6, 14)
 e(f'<rect x="{DISPLAY[0]}" y="{DISPLAY[1]}" width="{DISPLAY[2]:.2f}" height="{DISPLAY[3]}" rx="1.6" fill="{DARK}" '
@@ -196,6 +202,7 @@ if not PREVIEW:
         lines.append(f"static const float {n}[3] = {{{x:.3f}f, {y:.3f}f, {dx:.3f}f}};  // first lamp x, y, distance")
     lines.append(f"static const float DISPLAY[4] = {{{DISPLAY[0]:.3f}f, {DISPLAY[1]:.3f}f, {DISPLAY[2]:.3f}f, "
                  f"{DISPLAY[3]:.3f}f}};")
+    lines.append(f"static const float PRESETF[4] = {{{PF[0]:.3f}f, {PF[1]:.3f}f, {PF[2]:.3f}f, {PF[3]:.3f}f}};  // field x, y, w, h")
     lines.append(f"static const int HP = {HP};")
     lines.append("}")
     os.makedirs(os.path.join(ROOT, "src", "schmelz"), exist_ok=True)
@@ -251,17 +258,18 @@ ptext(dx + 4, dy + 7.6, "VIOLA", 4.4, "#ffffff", 800, "start", 0.3)
 ptext(dx + 4, dy + 11.7, "> CELLO 40%", 1.8, ACC, 700, "start", 0.3)
 bx, bw = dx + 45, 56
 out.insert(-1, f'<line x1="{bx}" y1="{dy + 5.5}" x2="{bx + bw}" y2="{dy + 5.5}" stroke="{LINE}" stroke-width="0.5"/>')
-for i, n in enumerate(["VLN", "VLA", "CEL", "BAS", "BRS", "ORG", "CHO", "SYN"]):
+for i, n in enumerate(["BAS", "CEL", "VLA", "VLN", "BRS", "ORG", "CHO", "SYN"]):
     x = bx + i * bw / 7
     out.insert(-1, f'<circle cx="{x:.2f}" cy="{dy + 5.5}" r="0.7" fill="#3a3c46"/>')
     ptext(x, dy + 10.9, n, 1.6, TXT if i in (1, 2) else DIM, 600, "middle", 0.2)
-out.insert(-1, f'<circle cx="{bx + 1.4 * bw / 7:.2f}" cy="{dy + 5.5}" r="1.4" fill="{ACC}"/>')
+out.insert(-1, f'<circle cx="{bx + 1.6 * bw / 7:.2f}" cy="{dy + 5.5}" r="1.4" fill="{ACC}"/>')
 ptext(dx + 109, dy + 5.1, "SOLO", 1.7, DIM, 700, "start", 0.3)
 ptext(dx + 109, dy + 10.7, "E-PIANO", 3.0, "#ffffff", 800, "start", 0.3)
 ptext(dx + 133, dy + 5.1, "VOICES 4", 1.6, DIM, 600, "start", 0.3)
 for i in range(16):
     out.insert(-1, f'<rect x="{dx + 133 + i * 1.3:.2f}" y="{dy + 8.5}" width="0.9" height="2.2" rx="0.2" '
                    f'fill="{ACC if i < 4 else "#2a2b33"}"/>')
+ptext(PF[0] + 2, PF[1] + 3.75, "01  SOLINA DREAM", 1.9, TXT, 700, "start", 0.35)
 svg = sys.argv[2].rsplit(".", 1)[0] + ".svg"
 open(svg, "w").write("\n".join(out))
 subprocess.run(["rsvg-convert", "-w", "1400", svg, "-o", sys.argv[2]], check=True)

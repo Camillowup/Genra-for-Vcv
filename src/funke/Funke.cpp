@@ -6,6 +6,8 @@
 #include "../ui/GenraUI.hpp"
 #include "FunkeDsp.hpp"
 #include "FunkeLayout.hpp"
+#include "FunkePresets.hpp"
+#include "../ui/PresetBank.hpp"
 #include <memory>
 
 namespace genra_funke {
@@ -87,6 +89,18 @@ struct Funke : Module, follow::Host {
 	int scopeW = 0, scopeDiv = 0;
 	float showScope[SCOPE] = {};
 
+	static_assert(NUM_PRESET_PARAMS == NUM_PARAMS, "presets must cover every knob");
+	genra_presets::Bank bank;  // presets: the factory list (FunkePresets.hpp), then the user presets
+	void initPresets() {
+		genra_presets::Factory f;
+		f.count = NUM_PRESETS;
+		f.style = [](int i) { return PRESETS[i].style; };
+		f.name = [](int i) { return PRESETS[i].name; };
+		f.info = [](int i) { return MODEL_NAMES[PRESETS[i].model]; };
+		f.values = [](int i, float* v) { PRESETS[i].values(v); };
+		bank.init(this, f, asset::user("Genra/FunkePresets"));
+	}
+
 	Funke() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 		srcName = "FUNKE";
@@ -161,6 +175,7 @@ struct Funke : Module, follow::Host {
 		configOutput(ENV_OUTPUT, "Envelope of the newest note (0–10 V)");
 		configOutput(L_OUTPUT, "Left");
 		configOutput(R_OUTPUT, "Right");
+		initPresets();
 	}
 
 	void onAdd(const AddEvent& e) override { engine->setSampleRate(APP->engine->getSampleRate()); }
@@ -168,6 +183,7 @@ struct Funke : Module, follow::Host {
 	void onReset(const ResetEvent& e) override {
 		Module::onReset(e);
 		engine->allOff();
+		bank.reset();
 	}
 
 	float kv(int param, int input) { return clamp(params[param].getValue() + inputs[input].getVoltage() * 0.1f, 0.f, 1.f); }
@@ -268,6 +284,7 @@ struct Funke : Module, follow::Host {
 	json_t* dataToJson() override {
 		json_t* j = json_object();
 		json_object_set_new(j, "ppqn", json_integer(ppqn));
+		bank.toJson(j);
 		fol.toJson(j);
 		return j;
 	}
@@ -275,6 +292,7 @@ struct Funke : Module, follow::Host {
 		fol.fromJson(j);
 		if (json_t* v = json_object_get(j, "ppqn"))
 			ppqn = std::max(1, (int) json_integer_value(v));
+		bank.fromJson(j);
 	}
 };
 
@@ -429,6 +447,12 @@ struct FunkeWidget : ModuleWidget {
 		field(L::MODELF, M::MODEL_PARAM, MODEL_NAMES, MODEL_INFO, NUM_MODELS, "Model", "change model");
 		field(L::FTYPEF, M::FTYPE_PARAM, gmono::FILTER_NAMES, gmono::FILTER_INFO, gmono::NUM_FILTERS, "Filter type",
 		      "change filter type");
+		genra_presets::PresetField* pf = createWidget<genra_presets::PresetField>(mm2px(Vec(L::PRESETF[0], L::PRESETF[1])));
+		pf->box.size = mm2px(Vec(L::PRESETF[2], L::PRESETF[3]));
+		pf->bank = module ? &module->bank : nullptr;
+		pf->accent = ACCENT;
+		pf->sample = PRESETS[0].name;
+		addChild(pf);
 
 		auto large = [&](const float* p, int id) { addParam(createParamCentered<GLargeKnob>(ui::mm(p), module, id)); };
 		auto knob = [&](const float* p, int id) { addParam(createParamCentered<GKnob>(ui::mm(p), module, id)); };
@@ -486,6 +510,8 @@ struct FunkeWidget : ModuleWidget {
 		Funke* m = dynamic_cast<Funke*>(module);
 		if (!m)
 			return;
+		menu->addChild(new MenuSeparator);
+		genra_presets::appendMenu(menu, &m->bank);
 		menu->addChild(new MenuSeparator);
 		menu->addChild(createIndexSubmenuItem(
 		    "CLOCK input", {"Quarters (1 PPQN)", "8ths (2 PPQN)", "16ths (4 PPQN, GENRA)", "24 PPQN"},

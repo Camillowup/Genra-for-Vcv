@@ -50,5 +50,6 @@ static const float OCT[3] = {42.000f, 58.500f, 11.000f};  // first lamp x, y, di
 static const float ENS[3] = {40.000f, 68.500f, 10.500f};  // first lamp x, y, distance
 static const float SPLIT[3] = {123.000f, 58.500f, 12.000f};  // first lamp x, y, distance
 static const float DISPLAY[4] = {3.000f, 10.500f, 156.560f, 14.000f};
+static const float PRESETF[4] = {92.560f, 3.400f, 46.000f, 5.400f};  // field x, y, w, h
 static const int HP = 32;
 }

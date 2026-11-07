@@ -1,8 +1,9 @@
 // SCHMELZ engine: pitch of every registration, octave and solo sound, envelope times, split, level, and stability of
 // the whole chain at all sample rates and extreme settings.
 // g++ -O2 -std=c++17 test/test_schmelz.cpp -o /tmp/test_schmelz && /tmp/test_schmelz
-#include "../src/schmelz/SchmelzDsp.hpp"
+#include "../src/schmelz/SchmelzPresets.hpp"
 #include <cstdio>
+#include <cstring>
 #include <memory>
 #include <vector>
 using namespace gschmelz;
@@ -133,7 +134,7 @@ int main() {
 					float s = 0.f, o = 0.f;
 					for (int c = 0; c < voices; c++) {
 						StringsParams p = sp;
-						p.reg = clampf((extreme ? c / 15.f : 0.15f) + an, 0.f, 1.f);
+						p.reg = clampf((extreme ? c / 15.f : 2.f / 7.f) + an, 0.f, 1.f);
 						p.oct = extreme ? c % 3 : OCT_BASE;
 						op.sound = extreme ? (c % 5) / 4.f : 0.25f;
 						float f = C4 * std::pow(2.f, chord[c % 4] + (extreme ? (c / 4) - 1 : 0));
@@ -152,6 +153,73 @@ int main() {
 				if (!extreme)
 					CHECK(rms > 0.8f && peak < 9.f, "level sr %.0f ens %d: rms %.2f V, peak %.2f V", sr, ens, rms, peak);
 			}
+
+	// 6. every preset: a four-note chord for 2 s (with the solo where its BALANCE lets it in), then 10 s of tail,
+	//    mapped as Schmelz::process does. Finite, audible, a sane peak, even loudness, silent at the end.
+	{
+		const float sr = 48000.f;
+		float lvl[NUM_PRESETS];
+		for (int i = 0; i < NUM_PRESETS; i++) {
+			const Preset& pr = PRESETS[i];
+			StringsParams sp;
+			SoloParams op;
+			BusParams bp;
+			pr.apply(sp, op, bp);
+			std::unique_ptr<StringsVoice[]> sv(new StringsVoice[4]);
+			std::unique_ptr<SoloVoice[]> so(new SoloVoice[4]);
+			auto bus = std::make_unique<Bus>();
+			bus->setSampleRate(sr);
+			for (int c = 0; c < 4; c++)
+				sv[c].setSampleRate(sr), so[c].setSampleRate(sr), sv[c].seed(0x1234u * (c + 1)), so[c].seed(0x777u * (c + 3));
+			const float chord[4] = {-0.75f, -0.4167f, -0.1667f, 0.f};
+			int on = (int) (2.f * sr), n = (int) (12.f * sr), w = (int) (0.05f * sr);
+			bool fin = true;
+			float peak = 0.f, lv = 0.f, tail = 0.f, acc = 0.f;
+			int cnt = 0;
+			for (int k = 0; k < n; k++) {
+				float an = bus->animate(bp);
+				bool g = k < on;
+				float s = 0.f, o = 0.f;
+				for (int c = 0; c < 4; c++) {
+					StringsParams p = sp;
+					p.reg = clampf(pr.reg + an, 0.f, 1.f);
+					float f = C4 * std::pow(2.f, chord[c]);
+					s += sv[c].process(p, f, g, k == 0, 0.8f);
+					if (stringsTakes(pr.split, chord[c]) || soloTakes(pr.split, chord[c]))
+						o += so[c].process(op, f, g || pr.hold, k == 0, 0.8f);
+				}
+				float L, R, so_, st;
+				bus->process(bp, s, o, L, R, st, so_);
+				fin &= std::isfinite(L) && std::isfinite(R);
+				peak = std::max(peak, std::max(std::fabs(L), std::fabs(R)));
+				acc += 0.5f * (L * L + R * R);
+				if (++cnt == w) {
+					float r = std::sqrt(acc / w);
+					if (k < on)
+						lv = std::max(lv, r);
+					if (k >= n - 6 * w)
+						tail = std::max(tail, r);
+					acc = 0.f, cnt = 0;
+				}
+			}
+			lvl[i] = lv;
+			printf("  %02d %-18s rms %.2f V  peak %.2f V  tail %.4f V\n", i + 1, pr.name, lv, peak, tail);
+			CHECK(fin, "preset %s: not finite", pr.name);
+			CHECK(lv > 0.8f, "preset %s: too quiet (%.2f V rms)", pr.name, lv);
+			CHECK(peak <= 10.001f && peak < 9.5f, "preset %s: peak %.2f V", pr.name, peak);
+			CHECK(tail < 0.01f * lv + 1e-4f, "preset %s: still sounding after the release (%.4f V)", pr.name, tail);
+		}
+		float lo = 1e9f, hi = 0.f;
+		for (float v : lvl)
+			lo = std::min(lo, v), hi = std::max(hi, v);
+		CHECK(hi / lo < 1.5f, "preset levels too far apart (%.2f .. %.2f V rms)", lo, hi);
+		for (int i = 0; i < NUM_PRESETS; i++)
+			for (int j = 0; j < i; j++)
+				CHECK(std::strcmp(PRESETS[i].name, PRESETS[j].name) != 0, "preset name twice: %s", PRESETS[i].name);
+	}
+	// 7. the registrations run low to high: BASS first, the violin above the cello
+	CHECK(std::strcmp(REG_NAMES[0], "BASS") == 0 && std::strcmp(REG_NAMES[3], "VIOLIN") == 0, "registration order");
+	CHECK(REGS[0].lp < REGS[1].lp && REGS[1].lp < REGS[2].lp && REGS[2].lp < REGS[3].lp, "strings not low to high");
 
 	printf(fails ? "%d FAILED\n" : "all SCHMELZ tests passed\n", fails);
 	return fails != 0;

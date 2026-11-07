@@ -39,8 +39,8 @@ inline float tremRate(float k) { return 1.f * std::pow(12.f, clampf(k, 0.f, 1.f)
 
 // ---------------------------------------------------------------- registrations and solo sounds
 enum { NUM_REGS = 8, NUM_SOUNDS = 5 };
-static const char* const REG_NAMES[NUM_REGS] = {"VIOLIN", "VIOLA", "CELLO", "BASS", "BRASS", "ORGAN", "CHOIR", "SYNTH"};
-static const char* const REG_SHORT[NUM_REGS] = {"VLN", "VLA", "CEL", "BAS", "BRS", "ORG", "CHO", "SYN"};
+static const char* const REG_NAMES[NUM_REGS] = {"BASS", "CELLO", "VIOLA", "VIOLIN", "BRASS", "ORGAN", "CHOIR", "SYNTH"};
+static const char* const REG_SHORT[NUM_REGS] = {"BAS", "CEL", "VLA", "VLN", "BRS", "ORG", "CHO", "SYN"};
 static const char* const SOUND_NAMES[NUM_SOUNDS] = {"BASS", "E-PIANO", "CLAVI", "SYNTH", "BELL"};
 enum Oct { OCT_BASE, OCT_BOTH, OCT_8VA, NUM_OCT };
 enum Ens { ENS_OFF, ENS_ENS, ENS_BOTH, ENS_CHORUS, NUM_ENS };
@@ -55,12 +55,13 @@ struct Reg {
 	float sweep;                    // brass: the lowpass opens by this many octaves at the start of a note
 	float level;                    // loudness match
 };
+/** Low to high strings, then the others (2.17: BASS was fourth, after VIOLIN · VIOLA · CELLO). */
 static const Reg REGS[NUM_REGS] = {
     // saw  pulse  pw    sub   up    lp     hp    form  det   sweep level
-    {1.0f, 0.0f, 0.5f, 0.0f, 0.15f, 6000, 300, 0.15f, 4.f, 0.f, 1.10f},   // VIOLIN
-    {1.0f, 0.1f, 0.5f, 0.1f, 0.05f, 4200, 180, 0.20f, 4.f, 0.f, 1.00f},   // VIOLA
-    {1.0f, 0.2f, 0.5f, 0.35f, 0.0f, 2800, 90, 0.15f, 3.f, 0.f, 0.95f},    // CELLO
     {0.8f, 0.2f, 0.5f, 0.8f, 0.0f, 1600, 40, 0.05f, 2.f, 0.f, 0.95f},     // BASS
+    {1.0f, 0.2f, 0.5f, 0.35f, 0.0f, 2800, 90, 0.15f, 3.f, 0.f, 0.95f},    // CELLO
+    {1.0f, 0.1f, 0.5f, 0.1f, 0.05f, 4200, 180, 0.20f, 4.f, 0.f, 1.00f},   // VIOLA
+    {1.0f, 0.0f, 0.5f, 0.0f, 0.15f, 6000, 300, 0.15f, 4.f, 0.f, 1.10f},   // VIOLIN
     {1.0f, 0.3f, 0.4f, 0.2f, 0.1f, 1300, 80, 0.0f, 6.f, 2.2f, 1.00f},     // BRASS
     {0.0f, 1.0f, 0.5f, 0.6f, 0.6f, 5000, 60, 0.0f, 0.f, 0.f, 0.60f},      // ORGAN
     {0.7f, 0.3f, 0.5f, 0.1f, 0.0f, 3500, 150, 1.0f, 7.f, 0.f, 1.25f},     // CHOIR
@@ -180,7 +181,7 @@ struct Rng {
 
 // ---------------------------------------------------------------- strings voice
 struct StringsParams {
-	float reg = 0.15f;  // 0..1 (after ANIMATE)
+	float reg = 2.f / 7.f;  // 0..1 (after ANIMATE)
 	int oct = OCT_BASE;
 	float cresc = 0.3f, rel = 0.45f, tone = 0.5f;
 };

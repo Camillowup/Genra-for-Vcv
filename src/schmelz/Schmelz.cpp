@@ -6,6 +6,8 @@
 #include "../ui/GenraUI.hpp"
 #include "SchmelzDsp.hpp"
 #include "SchmelzLayout.hpp"
+#include "SchmelzPresets.hpp"
+#include "../ui/PresetBank.hpp"
 #include <memory>
 
 namespace genra_schmelz {
@@ -92,9 +94,20 @@ struct Schmelz : Module, follow::Host {
 	SoloParams op;
 
 	// for the display
-	float dispReg = 0.15f, dispSound = 0.25f;
+	float dispReg = 2.f / 7.f, dispSound = 0.25f;
 	int voicesOn = 0;
 	bool voiceOn[MAXV] = {};
+
+	genra_presets::Bank bank;  // presets: the factory list (SchmelzPresets.hpp), then the user presets
+	void initPresets() {
+		genra_presets::Factory f;
+		f.count = NUM_PRESETS;
+		f.style = [](int i) { return PRESETS[i].style; };
+		f.name = [](int i) { return PRESETS[i].name; };
+		f.info = [](int i) { return regName(PRESETS[i].reg); };
+		f.values = [](int i, float* v) { PRESETS[i].values(v); };
+		bank.init(this, f, asset::user("Genra/SchmelzPresets"));
+	}
 
 	Schmelz() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
@@ -105,7 +118,7 @@ struct Schmelz : Module, follow::Host {
 		fol.bind(STR_GATE_INPUT, follow::GATE);
 		fol.bind(STR_VEL_INPUT, follow::VEL);
 		fol.bind(MOD_INPUT, follow::MOD);
-		configParam<RegQuantity>(REG_PARAM, 0.f, 1.f, 0.15f, "Registration");
+		configParam<RegQuantity>(REG_PARAM, 0.f, 1.f, 2.f / 7.f, "Registration");
 		paramQuantities[REG_PARAM]->description = "Violin, viola, cello, bass, brass, organ, choir, synth – morphing";
 		configParam<TimeQuantity<crescSeconds>>(CRESC_PARAM, 0.f, 1.f, 0.35f, "Crescendo");
 		configParam<TimeQuantity<releaseSeconds>>(REL_PARAM, 0.f, 1.f, 0.5f, "Release");
@@ -166,6 +179,8 @@ struct Schmelz : Module, follow::Host {
 			sv[i].seed(0x9e3779b9u * (i + 1));
 			so[i].seed(0x85ebca6bu * (i + 7));
 		}
+		static_assert(NUM_PRESET_PARAMS == NUM_PARAMS, "presets must cover every knob");
+		initPresets();
 	}
 
 	void setRate(float sr) {
@@ -184,6 +199,7 @@ struct Schmelz : Module, follow::Host {
 			so[i].stage = 0;
 			gate[i] = soloGate[i] = held[i] = soloOwnGate[i] = false;
 		}
+		bank.reset();
 	}
 
 	int modTarget = 0; // MOD onto: 0 crescendo, 1 animate, 2 tone
@@ -191,6 +207,7 @@ struct Schmelz : Module, follow::Host {
 	json_t* dataToJson() override {
 		json_t* root = json_object();
 		json_object_set_new(root, "modTarget", json_integer(modTarget));
+		bank.toJson(root);
 		fol.toJson(root);
 		return root;
 	}
@@ -198,6 +215,7 @@ struct Schmelz : Module, follow::Host {
 		fol.fromJson(root);
 		if (json_t* j = json_object_get(root, "modTarget"))
 			modTarget = clamp((int) json_integer_value(j), 0, 2);
+		bank.fromJson(root);
 	}
 
 	float kv(int param, int input, int c = 0) {
@@ -364,7 +382,7 @@ struct Display : Widget {
 		}
 		NVGcontext* vg = args.vg;
 		auto bold = ui::boldFont();
-		float reg = module ? module->dispReg : 0.2f;
+		float reg = module ? module->dispReg : 1.6f / 7.f;
 		float snd = module ? module->dispSound : 0.25f;
 
 		// registration: the nearer name big, the blend towards the other below
@@ -435,6 +453,12 @@ struct SchmelzWidget : ModuleWidget {
 		d->box.pos = mm2px(Vec(L::DISPLAY[0], L::DISPLAY[1]));
 		d->box.size = mm2px(Vec(L::DISPLAY[2], L::DISPLAY[3]));
 		addChild(d);
+		genra_presets::PresetField* pf = createWidget<genra_presets::PresetField>(mm2px(Vec(L::PRESETF[0], L::PRESETF[1])));
+		pf->box.size = mm2px(Vec(L::PRESETF[2], L::PRESETF[3]));
+		pf->bank = module ? &module->bank : nullptr;
+		pf->accent = ACCENT;
+		pf->sample = PRESETS[0].name;
+		addChild(pf);
 
 		using M = Schmelz;
 		auto large = [&](const float* p, int id) { addParam(createParamCentered<GLargeKnob>(ui::mm(p), module, id)); };
@@ -489,6 +513,10 @@ struct SchmelzWidget : ModuleWidget {
 	void appendContextMenu(Menu* menu) override {
 		if (follow::Host* h = follow::host(module))
 			h->fol.appendMenu(menu, module);
+		if (Schmelz* s = dynamic_cast<Schmelz*>(module)) {
+			menu->addChild(new MenuSeparator);
+			genra_presets::appendMenu(menu, &s->bank);
+		}
 		menu->addChild(new MenuSeparator);
 		menu->addChild(createMenuLabel("String machine: strings + solo, up to 16 voices each"));
 		menu->addChild(createMenuLabel("SOLO GATE unplugged: the solo plays the strings notes (SPLIT at C4)"));

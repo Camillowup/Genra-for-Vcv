@@ -1,6 +1,6 @@
 # GENRA – Projektstand
 
-**Stand:** 7. November 2026 · **Plugin 2.16.2: 18 Module** (GENRA, GRID, ABLAUF, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, GRUND, GRUND FX, SCHMELZ, MIX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `CamilloGF/genra-v3`
+**Stand:** 7. November 2026 · **Plugin 2.17.0: 18 Module** (GENRA, GRID, ABLAUF, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, GRUND, GRUND FX, SCHMELZ, MIX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `CamilloGF/genra-v3`
 
 > Design-Leitfaden für neue Module (Aussehen, GENRA-Leiste, Leuchtsegmente, Follow, englische UI): **docs/DESIGN.md**
 
@@ -341,3 +341,9 @@ GENRA MONO: `g++ -std=c++17 -O2 test/test_mono.cpp -o tm && ./tm`
 - TIMBRE verschiebt zusätzlich den TONE (±1,2 Oktaven); BITE öffnet den TONE beim Anschlag (eigene kurze Hüllkurve, alle Modelle); BODY-Resonanzen stärker; MUTE 2,5 s bis 60 ms, auch bei den Saiten; SYNTH: Säge → Rechteck → schmaler Puls; REESE: Verstimmung bis 0,9 Halbtöne; 808: mehr Drive.
 - Presets: Chorus- und Hall-Sektion immer an, die Regler auf GRUND bestimmen die Menge.
 - Danach ändern alle VOICE-Regler bei Saiten, SYNTH, FM und REESE typisch 5–15 dB; bei stark verzerrten Presets (RUMBLE, NEURO REESE, GROWL) prägen DRIVE/TONE den Klang, VOICE-Regler wirken dort weniger.
+
+### 2.17.0 – Presets für FUNKE und SCHMELZ
+- FUNKE: 26 Werks-Presets (`src/funke/FunkePresets.hpp`, Stile SOUL · JAZZ · LO-FI, HOUSE · GARAGE, DUB · REGGAE, TECHNO · ELECTRO, GRIME · DUBSTEP · DRILL, POP · SYNTHWAVE · TRANCE, AMBIENT); SCHMELZ: 25 (`src/schmelz/SchmelzPresets.hpp`, STRING MACHINE CLASSICS bis POP · SYNTHWAVE · TRANCE). Jedes Preset setzt alle Regler und Schalter.
+- Gemeinsamer Rack-Teil `src/ui/PresetBank.hpp` (Bank, Header-Feld, Kontextmenü): Liste nach Stil, Nummer + Name + Punkt bei Änderung, Mausrad blättert, User-Presets als JSON in `Genra/FunkePresets` bzw. `Genra/SchmelzPresets` (Save preset as …, Delete user preset, Open user preset folder). Laden ist ein Undo-Schritt (`ModuleChange`), Name und geladene Werte im Patch-JSON (`preset`, `loaded`); Patches ohne Preset zeigen „--“/INIT.
+- SCHMELZ-Registrierungen neu sortiert: BASS · CELLO · VIOLA · VIOLIN · BRASS · ORGAN · CHOIR · SYNTH (vorher BASS an vierter Stelle, das Drehen überblendete schlecht). Keine Umrechnung alter Patches (Entwicklungsphase, siehe DESIGN.md).
+- Pegel abgestimmt per Rendering: Tests spielen jedes Preset (FUNKE Akkord bzw. Einzelton bei MONO/LEGATO, SCHMELZ Vierklang), prüfen endlich, hörbar, Spitze, Lautheit (lautestes 50-ms-Fenster; SCHMELZ alle ≈ 1,3 V über VOLUME, FUNKE 1,0–2,4 V, Einzeltöne leiser als Akkorde) und Stille nach dem Release. Auch unter ASan/UBSan sauber.

@@ -1,8 +1,9 @@
 // FUNKE engine: pitch of every model, level match between the models, glide on SLIDE, the voice modes, the echo
 // time from the clock, and stability of every model × filter at all sample rates and extreme settings.
 // g++ -O2 -std=c++17 test/test_funke.cpp -o /tmp/test_funke && /tmp/test_funke [wav-dir]
-#include "../src/funke/FunkeDsp.hpp"
+#include "../src/funke/FunkePresets.hpp"
 #include <cstdio>
+#include <cstring>
 #include <memory>
 #include <vector>
 using namespace gfunke;
@@ -305,6 +306,59 @@ int main(int argc, char** argv) {
 			snprintf(fn, sizeof fn, "%s/funke_%d_%s.wav", dir, m, MODEL_NAMES[m]);
 			wav(fn, L, R, (int) fs);
 		}
+	}
+
+	// every preset: a chord (Poly) or a note (Mono, Legato) for 1.5 s, then 7 s of tail. Finite, audible, a sane
+	// peak, close in loudness to the others, and silent at the end (echo and reverb have died away).
+	{
+		float lvl[NUM_PRESETS];
+		for (int i = 0; i < NUM_PRESETS; i++) {
+			const Preset& pr = PRESETS[i];
+			Params p = pr.params();
+			auto e = std::make_unique<Engine>();
+			e->setSampleRate(fs);
+			int n = pr.mode == MODE_POLY ? 3 : 1;
+			Channel c[3];
+			const float chord[3] = {0.f, 4.f / 12.f, 7.f / 12.f};
+			size_t on = (size_t) (1.5f * fs), len = (size_t) (8.5f * fs);
+			std::vector<float> L(len), R(len);
+			bool fin = true;
+			float peak = 0.f;
+			for (size_t k = 0; k < len; k++) {
+				for (int v = 0; v < n; v++) {
+					c[v].voct = chord[v];
+					c[v].gate = k < on;
+					c[v].vel = 0.8f;
+				}
+				float env;
+				e->process(p, c, n, false, 0.375f, L[k], R[k], env);
+				fin &= std::isfinite(L[k]) && std::isfinite(R[k]);
+				peak = std::max(peak, std::max(std::fabs(L[k]), std::fabs(R[k])));
+			}
+			// loudness: the loudest 50 ms while the keys are held (plucks and pads alike)
+			float lv = 0.f;
+			for (size_t a = 0, w = (size_t) (0.05f * fs); a + w <= on; a += w / 2)
+				lv = std::max(lv, 0.5f * (rms(L, a, a + w) + rms(R, a, a + w)));
+			float tail = 0.5f * (rms(L, len - (size_t) (0.3f * fs), len) + rms(R, len - (size_t) (0.3f * fs), len));
+			lvl[i] = lv;
+			printf("  %02d %-18s rms %.2f V  peak %.2f V  tail %.4f V\n", i + 1, pr.name, lv, peak, tail);
+			CHECK(fin, "preset %s: not finite", pr.name);
+			CHECK(lv > 0.5f, "preset %s: too quiet (%.2f V rms)", pr.name, lv);
+			CHECK(peak < 10.f, "preset %s: peak %.2f V", pr.name, peak);
+			CHECK(tail < 0.01f * lv + 1e-4f, "preset %s: still sounding after the release (%.4f V)", pr.name, tail);
+			if (dir) {
+				char fn[256];
+				snprintf(fn, sizeof fn, "%s/funke_preset_%02d.wav", dir, i + 1);
+				wav(fn, L, R, (int) fs);
+			}
+		}
+		float lo = 1e9f, hi = 0.f;
+		for (float v : lvl)
+			lo = std::min(lo, v), hi = std::max(hi, v);
+		CHECK(hi / lo < 2.5f, "preset levels too far apart (%.2f .. %.2f V rms)", lo, hi);
+		for (int i = 0; i < NUM_PRESETS; i++)
+			for (int j = 0; j < i; j++)
+				CHECK(std::strcmp(PRESETS[i].name, PRESETS[j].name) != 0, "preset name twice: %s", PRESETS[i].name);
 	}
 
 	printf(fails ? "%d FAILED\n" : "all FUNKE tests passed\n", fails);

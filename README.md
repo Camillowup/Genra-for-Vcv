@@ -242,6 +242,19 @@ Melodie-Ausgängen: V/OCT, GATE, VEL, ACC, SLIDE und CLOCK.
   Clock 120 BPM; Pingpong, FDBK), VERB. CLOCK-Auflösung im Kontextmenü (Standard 16tel wie GENRA).
 - **CV:** MODEL, TIMBRE, BITE, CUT (1 V/Okt.), RES, MOD (Vibrato-Tiefe wie ein Modrad, früher VIB), RESET (Tempo neu messen), ECHO, LO-FI, ATK, REL.
   **Ausgänge:** ENV (Hüllkurve der neuesten Note), L, R (nur L gesteckt: mono).
+- **Presets:** 26 ab Werk nach Stil (Feld oben rechts, Klick = Liste, Mausrad blättert, Punkt = verändert), eigene
+  über Rechtsklick → Save preset as … (`Rack2/Genra/FunkePresets`), dort auch Delete user preset und Open user preset
+  folder. Laden lässt sich rückgängig machen; der Patch merkt sich den Namen.
+
+| Stil | Presets (Modell) |
+|---|---|
+| SOUL · JAZZ · LO-FI | CLASSIC RHODES (RHODES) · NEO SOUL KEYS (RHODES) · LO-FI KEYS (RHODES) · JAZZ ORGAN (ORGAN) · VIBES (MARIMBA) |
+| HOUSE · GARAGE | M1 ORGAN (ORGAN) · GARAGE BELL (BELL) · DEEP CHORD STAB (SAW LEAD) · FILTER HOUSE STAB (SAW LEAD) |
+| DUB · REGGAE | DUB SKANK (ORGAN) · DUB MELODICA (FLUTE) |
+| TECHNO · ELECTRO | ACID LEAD (SQUARE) · HYPNOTIC BLIP (MARIMBA) · DETROIT STRINGS (SAW LEAD) · DUB TECHNO STAB (SAW LEAD) · ELECTRO ZAP (SQUARE) |
+| GRIME · DUBSTEP · DRILL | GRIME PULSE (SQUARE) · DRILL BELL (BELL) · DUBSTEP PLUCK (PLUCK) |
+| POP · SYNTHWAVE · TRANCE | SUPERSAW (SAW LEAD) · 80S POLY (SAW LEAD) · KALIMBA (PLUCK) · FLUTE SOLO (FLUTE) |
+| AMBIENT | AMBIENT BELLS (BELL) · SPACE RHODES (RHODES) · AIR PAD (FLUTE) |
 
 ### GRUND: Bassstimme
 
@@ -291,7 +304,8 @@ Expander GRUNDs Werte.
 String Machine im Geist der 70er/80er (Vorbild: Waldorf Streichfett), 32 HP, Farbe **rosa** (GENRAs Pad-Farbe). Zwei Klangteile, je bis
 16 Stimmen, dazu Effekte.
 
-- **Strings:** REGISTRATION überblendet stufenlos VIOLIN · VIOLA · CELLO · BASS · BRASS · ORGAN · CHOIR · SYNTH.
+- **Strings:** REGISTRATION überblendet stufenlos BASS · CELLO · VIOLA · VIOLIN · BRASS · ORGAN · CHOIR · SYNTH (ab 2.17
+  von tief nach hoch; vorher stand BASS in der Mitte).
   CRESC (Einschwingen 3 ms … 6 s), RELEASE (10 ms … 8 s), TONE (dunkel … hell). OCT: BASE · BOTH · 8VA.
   ENS: OFF · ENS (Ensemble, drei modulierte Verzögerungen wie bei den String-Ensembles) · E+C (Ensemble + Chorus) ·
   CHO (Chorus); ENS DEPTH.
@@ -306,6 +320,17 @@ String Machine im Geist der 70er/80er (Vorbild: Waldorf Streichfett), 32 HP, Far
 - **Ausgänge:** ENV (Strings-Hüllkurve, polyphon, 0–10 V), STR (Strings mit Ensemble, ohne Phaser/Hall), SOLO
   (trocken), L, R.
 - **Mit GENRA:** PADS (V/OCT + GATE, poly) → Strings, MELODY → Solo, MOD → REG oder ANIM.
+- **Presets:** 25 ab Werk nach Stil, wie bei FUNKE und GRUND (Feld oben rechts; eigene in `Rack2/Genra/SchmelzPresets`).
+
+| Stil | Presets (Registration) |
+|---|---|
+| STRING MACHINE CLASSICS | SOLINA DREAM (VIOLIN) · CRUMAR STRINGS (VIOLA) · ANALOG CELLO (CELLO) · STRING + BRASS (VIOLIN) · PHASED STRINGS (VIOLIN) |
+| HOUSE · GARAGE · DISCO | DISCO STRINGS (VIOLIN) · DEEP HOUSE PAD (ORGAN) · GARAGE CHORDS (ORGAN) · PIANO HOUSE STAB (ORGAN) |
+| AMBIENT · LO-FI · TRIP-HOP | AMBIENT CLOUD (CHOIR) · LO-FI TAPE PAD (VIOLA) · TRIP-HOP NOIR (CELLO) · EP + STRINGS (VIOLA) · GLASS CHOIR (CHOIR) |
+| TECHNO · DUB TECHNO | DUB TECHNO CHORD (SYNTH) · DETROIT PAD (SYNTH) · DARK DRONE (BASS) · HYPNOTIC SWEEP (CHOIR) |
+| DUB · REGGAE | DUB ORGAN PAD (ORGAN) |
+| GRIME · DRILL · DUBSTEP | GRIME STRINGS (VIOLIN) · DRILL CHOIR (CHOIR) |
+| POP · SYNTHWAVE · TRANCE | SYNTHWAVE PAD (SYNTH) · TRANCE SWELL (SYNTH) · CINEMATIC (CELLO) · ANALOG BRASS (BRASS) |
 
 ### JIANT-Stimmen: DRUM-X, VOICE, ANIMAL
 
@@ -439,9 +464,10 @@ src/monk/             MONK: Modul (Monk.cpp), Klang-Engine (MonkDsp.hpp), Sänge
 res/Monk.svg          Frontplatte (tools/monk_panel.py real), Vorschau: tools/monk_panel.py preview <ordner> [Rack]
 src/mono/             GENRA MONO: Modul (GenraMono.cpp), Klang-Engine (MonoDsp.hpp, ohne Rack testbar), Presets (MonoPresets.hpp)
 res/GenraMono.svg     Frontplatte (tools/mono_panel.py real), Vorschau: tools/mono_panel.py preview <datei.png> <Rack> [menu|presets]
-src/funke/            FUNKE: Modul (Funke.cpp) und Klang-Engine (FunkeDsp.hpp, ohne Rack testbar), Frontplatte: tools/funke_panel.py
+src/funke/            FUNKE: Modul (Funke.cpp), Klang-Engine (FunkeDsp.hpp, ohne Rack testbar), Presets (FunkePresets.hpp), Frontplatte: tools/funke_panel.py
 src/ui/GenraUI.hpp    GENRA-Look für SCHMELZ, MIX, K-WASUB, UMLAUF (Farben, Schriften, Lampenreihe)
-src/schmelz/          SCHMELZ: Modul und Klang-Engine (SchmelzDsp.hpp, ohne Rack testbar)
+src/ui/PresetBank.hpp Presets für FUNKE und SCHMELZ (Liste, Header-Feld, User-Presets, Kontextmenü)
+src/schmelz/          SCHMELZ: Modul, Klang-Engine (SchmelzDsp.hpp, ohne Rack testbar), Presets (SchmelzPresets.hpp)
 src/mix/              MIX: Modul und Engine (MixDsp.hpp, ohne Rack testbar)
 src/kwasub/           K-WASUB und K-WASUB FX: Module, Kern-Lader (KwCore), Parameter-Ids der Firmware
 kwcore/               der K-WASUB-Kern: die Firmware als Bibliothek (res/kwcore.dll beim Build)
