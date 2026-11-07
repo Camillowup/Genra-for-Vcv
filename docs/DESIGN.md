@@ -36,9 +36,9 @@ bedient wie die anderen. Stand: Plugin 2.16.0.
   Weitere CV-Eingänge rechts davon, dann L/R.
 - **Alle Ein- und Ausgänge bleiben immer erhalten** (auch für fremde VCV-Module); Neues wird nur ergänzt.
 - **Enums nur hinten anhängen** (Params, Inputs, Outputs, Lights): alte Patches behalten ihre Kabel.
-- Während der Entwicklung (bis der Nutzer ein Modul freigibt) müssen alte Patches nicht weiter laden; Enums dürfen
-  umgestellt werden. **Vor einem Release:** den Nutzer daran erinnern, diese Regel wieder auf „alte Patches müssen
-  laden“ zurückzustellen.
+- **Alte Patches müssen laden.** Nichts umsortieren, was gespeichert wird (Enum-Reihenfolge, Auswahllisten wie
+  Register, Modelle, Presets, JSON-Schlüssel); Neues hinten anhängen. Wenn eine Umstellung nötig ist, alte Patches
+  beim Laden umrechnen (z. B. Versionsfeld im JSON).
 - Polyphone Eingänge wie bei GENRA: Pads poly 4, DRUMS poly 8 (Reihenfolge Kick, Snare, Clap, Rim, CH, OH, Tom, Perc;
   Spannung = Velocity).
 
