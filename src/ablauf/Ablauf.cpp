@@ -735,8 +735,9 @@ struct Ablauf : Module {
 		requestSnap(g);
 	}
 	/** A variant's name: the part and the next free number of that part (INTRO 1, INTRO 2, BREAK 1 ...). */
-	std::string partName(int k, int skip) {
-		std::string base = SECTION_NAMES[k];
+	std::string partName(int k, int skip) { return nextName(SECTION_NAMES[k], skip); }
+	/** base + the next free number among the pads (skip: the pad being written). */
+	std::string nextName(const std::string& base, int skip) {
 		int top = 0;
 		for (int i = 0; i < NUM_SLOTS; i++) {
 			if (i == skip || !slots[i].used)
@@ -1017,12 +1018,12 @@ struct Ablauf : Module {
 				int i = pendingStore;
 				AblaufAction* a = beginChange("store", i);
 				int8_t tag = slots[i].used ? slots[i].tag : -1;
-				std::string keep = slots[i].used ? slots[i].name : "";
-				bool first = allEmpty();
+				// a pattern from GENRA: an empty pad gets the next GENRA number (GENRA 1, GENRA 2 ...), a stored-over pad keeps its name
+				std::string keep = slots[i].used ? slots[i].name : nextName("GENRA", i);
 				slots[i] = g->snap;
 				slots[i].tag = tag;
 				slots[i].used = true;
-				setName(slots[i], first ? "ROOT" : keep); // the very first pattern is the root of the song
+				setName(slots[i], keep);
 				endChange(a);
 				selSlot = i;
 				say(slotName(i) + " stored");
@@ -1034,7 +1035,7 @@ struct Ablauf : Module {
 				if (pl >= 0 && pl < NUM_SLOTS && slots[pl].used)
 					src = slots[pl].name;
 				else if (allEmpty())
-					src = "ROOT";
+					src = "GENRA 1";
 				session.clear();
 				*session.source = g->snap;
 				setName(*session.source, src); // variants carry the name of the pattern they come from
@@ -2121,7 +2122,7 @@ struct AblaufWidget : ModuleWidget {
 		}));
 		menu->addChild(createMenuLabel("Store: tap an empty pad (or STORE, then any pad) · Song: tap a pad, then INSERT"));
 		menu->addChild(createMenuLabel("Variations: pattern playing, then INTRO … OUTRO (each press: a new pad)"));
-		menu->addChild(createMenuLabel("Names: right-click a pad › Rename (first pattern ROOT, variants INTRO 1, 2 ...)"));
+		menu->addChild(createMenuLabel("Names: right-click a pad › Rename (GENRA 1, 2 ... and INTRO 1, 2 ...)"));
 	}
 };
 
