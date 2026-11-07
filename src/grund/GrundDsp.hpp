@@ -234,6 +234,8 @@ struct Voice {
 	float fmIdx = 0.f, fmK = 0.f;
 	float click = 0.f, clickK = 0.f, pop = 0.f, popK = 0.f, thump = 0.f, thumpK = 0.f;
 	float muteEnv = 1.f;
+	float muteTauC = -1.f, muteDtC = -1.f, muteMul = 1.f;
+	float biteEnv = 0.f, biteK = 0.f, biteAmt = 0.f;  // BITE: the tone opens on the attack, then closes (all models)
 	uint32_t rng = 0x9e3779b9u;
 
 	gmono::Filter filter;
@@ -299,6 +301,9 @@ struct Voice {
 		thumpK = std::exp(-1.f / (0.012f * fsOs));
 		pop = (model == SLAP && a) ? 1.4f : 0.f;  // the popped string on an accent
 		popK = std::exp(-1.f / (0.02f * fsOs));
+		biteEnv = 1.f;
+		biteAmt = bite;
+		biteK = std::exp(-1.f / ((0.015f + 0.06f * (1.f - bite)) * fsOs));
 		drop = model == B808 ? 1.6f * bite : 0.f;
 		dropK = std::exp(-1.f / (0.045f * fsOs));
 		fmIdx = model == FM ? 1.f + 5.f * bite : 0.f;
@@ -358,7 +363,7 @@ struct Voice {
 		float bright = model == UPRIGHT ? 0.35f : model == ARCO ? 0.45f : model == FRETLESS ? 0.5f
 		             : model == PICK ? 0.8f : model == SLAP ? 0.85f : 0.6f;
 		bright *= 0.6f + 0.6f * clampf(p.timbre, 0.f, 1.f);
-		float a = clampf(0.05f + 0.9f * bright * (1.f - 0.6f * p.mute), 0.03f, 0.98f);
+		float a = clampf(0.05f + 0.9f * bright * (1.f - 0.85f * p.mute), 0.02f, 0.98f);
 		ksLp += (y - ksLp) * a;
 		float sustain = model == UPRIGHT ? 0.9965f : model == FRETLESS ? 0.9993f : model == ARCO ? 0.9995f : 0.9988f;
 		sustain = 1.f - (1.f - sustain) * muteK;
@@ -395,9 +400,12 @@ struct Voice {
 		float fe = fenv.process(gate, 0.001f, tFd, 0.f, tFd, dt);
 		lastEnv = ae;
 		// MUTE: the palm on the strings – everything dies away faster
-		float muteK = 1.f + 14.f * p.mute * p.mute;
-		float muteTau = 3.5f / muteK;
-		muteEnv *= std::exp(-dt / muteTau * (isString(model) ? 0.3f : 1.f));
+		float mu = clampf(p.mute, 0.f, 1.f);
+		float muteK = 1.f + 14.f * mu * mu;
+		float muteTau = 2.5f / (1.f + 40.f * mu * mu);  // 2.5 s .. 60 ms: from ringing to a dead, palm-muted thud
+		if (muteTau != muteTauC || dt != muteDtC)
+			muteTauC = muteTau, muteDtC = dt, muteMul = std::exp(-dt / muteTau);
+		muteEnv *= muteMul;
 		float tim = clampf(p.timbre, 0.f, 1.f);
 		float f = C4 * std::pow(2.f, pitch + drop);
 		float y = 0.f;
@@ -430,12 +438,14 @@ struct Voice {
 				float dtp = f / fsOs;
 				ph[0] = wrap(ph[0] + dtp);
 				float saw = 2.f * ph[0] - 1.f - blep(ph[0], dtp);
-				float p2 = wrap(ph[0] + 0.5f);
+				float pw = tim < 0.5f ? 0.5f : 0.5f - 0.4f * (tim - 0.5f) * 2.f;  // square, then narrower pulses
+				float p2 = wrap(ph[0] + pw);
 				float sq = saw - (2.f * p2 - 1.f - blep(p2, dtp));
-				x = 0.6f * ((1.f - tim) * saw + tim * sq * 0.8f);
+				float mixSq = std::min(1.f, tim * 2.f);
+				x = 0.6f * ((1.f - mixSq) * saw + mixSq * sq * 0.8f);
 			}
 			else if (model == REESE) {
-				float det = std::pow(2.f, (0.04f + 0.36f * tim) / 12.f);
+				float det = std::pow(2.f, (0.03f + 0.9f * tim * tim) / 12.f);  // from a slow beat to a wide, nasty reese
 				float d0 = f / fsOs, d2 = f * det / fsOs;
 				ph[0] = wrap(ph[0] + d0);
 				ph[1] = wrap(ph[1] + d2);
@@ -454,8 +464,8 @@ struct Voice {
 			else {  // 808
 				ph[0] = wrap(ph[0] + f / fsOs);
 				float s = sin2pi(ph[0]);
-				float drv = 1.f + 6.f * tim * tim;
-				x = 0.8f * sat(s * drv) / std::min(drv, 2.2f);
+				float drv = 1.f + 14.f * tim * tim;  // clean sine to a square-ish, distorted 808
+				x = 0.8f * sat(s * drv) / std::min(drv, 1.6f);
 				drop *= dropK;
 			}
 			// clicks, thumps, pops
@@ -478,10 +488,13 @@ struct Voice {
 			}
 			// BODY
 			float bd = clampf(p.body, 0.f, 1.f);
-			x += bd * (1.4f * body1.process(x) + 0.6f * body2.process(x));
+			x += bd * (3.2f * body1.process(x) + 1.4f * body2.process(x));
 			// TONE: the amp's low-pass, with its envelope, key tracking and ACC
 			float oct = std::log2(20.f) + clampf(p.tone, 0.f, 1.f) * std::log2(1000.f)
-			            + (p.fenv + 0.5f * acc * p.accent) * 6.f * fe * (0.6f + 0.4f * vel) + p.key * (pitch + 2.f) + p.cutCv;
+			            + (p.fenv + 0.5f * acc * p.accent) * 6.f * fe * (0.6f + 0.4f * vel) + p.key * (pitch + 2.f) + p.cutCv
+			            + (tim - 0.5f) * 2.4f                 // TIMBRE: darker .. brighter, on every model
+			            + biteAmt * 4.5f * biteEnv;           // BITE: the attack opens the tone
+			biteEnv *= biteK;
 			float fc = std::pow(2.f, clampf(oct, 3.f, 15.f));
 			float g = gmono::Filter::coef(fc, fsOs);
 			x = filter.processG(x, g, p.res, gmono::LADDER12);

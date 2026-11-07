@@ -1,6 +1,6 @@
 # GENRA – Projektstand
 
-**Stand:** 7. November 2026 · **Plugin 2.16.1: 18 Module** (GENRA, GRID, ABLAUF, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, GRUND, GRUND FX, SCHMELZ, MIX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `CamilloGF/genra-v3`
+**Stand:** 7. November 2026 · **Plugin 2.16.2: 18 Module** (GENRA, GRID, ABLAUF, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, GRUND, GRUND FX, SCHMELZ, MIX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `CamilloGF/genra-v3`
 
 > Design-Leitfaden für neue Module (Aussehen, GENRA-Leiste, Leuchtsegmente, Follow, englische UI): **docs/DESIGN.md**
 
@@ -335,3 +335,9 @@ GENRA MONO: `g++ -std=c++17 -O2 test/test_mono.cpp -o tm && ./tm`
 
 ### 2.16.1 – GRUND: Rauschen behoben
 - `ggrund::Ring::read` konnte einen Index hinter dem Pufferende lesen (w − d knapp unter 0, nach += n auf n gerundet). Unter Linux stehen dort meist Nullen, unter Windows Speicherreste → Rauschen/Zerren je nach Speicherinhalt, auch ohne Note. Gefunden mit AddressSanitizer; alle Engine-Tests (GRUND, FUNKE, MONO, SCHMELZ, MIX, STOTTER) laufen jetzt auch unter ASan/UBSan sauber.
+
+### 2.16.2 – GRUND: VOICE-Regler wirken deutlich
+- Gemessen (Spektrum + Pegel, Regler 0 gegen 1, jedes Preset): TIMBRE/BITE/BODY/MUTE änderten oft < 3 dB, BITE bei SYNTH/REESE nichts, CHORUS bei fast allen Presets nichts (Chorus-Sektion in den Presets aus).
+- TIMBRE verschiebt zusätzlich den TONE (±1,2 Oktaven); BITE öffnet den TONE beim Anschlag (eigene kurze Hüllkurve, alle Modelle); BODY-Resonanzen stärker; MUTE 2,5 s bis 60 ms, auch bei den Saiten; SYNTH: Säge → Rechteck → schmaler Puls; REESE: Verstimmung bis 0,9 Halbtöne; 808: mehr Drive.
+- Presets: Chorus- und Hall-Sektion immer an, die Regler auf GRUND bestimmen die Menge.
+- Danach ändern alle VOICE-Regler bei Saiten, SYNTH, FM und REESE typisch 5–15 dB; bei stark verzerrten Presets (RUMBLE, NEURO REESE, GROWL) prägen DRIVE/TONE den Klang, VOICE-Regler wirken dort weniger.

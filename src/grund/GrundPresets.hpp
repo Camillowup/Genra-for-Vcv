@@ -10,14 +10,16 @@ namespace ggrund {
 static const int NUM_PRESET_PARAMS = 25;
 
 /** GRUND FX: comp (on, thresh, ratio, attack, release), drive (on, type, tone, mix), EQ (hpf, low, mid, high),
- *  chorus (on, rate, depth), reverb (size, damp, pre-delay). EQ and reverb on, HI ONLY on. */
+ *  chorus (on, rate, depth), reverb (size, damp, pre-delay). EQ, chorus and reverb on (GRUND's knobs say how much),
+ *  HI ONLY on. */
 inline FxSettings fx(bool cOn, float th, float ra, float ca, float cr, bool dOn, int dt, float dto, float dmx, float hpf,
                      float lo, float mi, float hi, bool chOn, float rate, float depth, float vs, float vd, float vp) {
 	FxSettings f;
 	f.compOn = cOn, f.thresh = th, f.ratio = ra, f.cAtk = ca, f.cRel = cr;
 	f.driveOn = dOn, f.dType = dt, f.dTone = dto, f.dMix = dmx;
 	f.eqOn = true, f.hpf = hpf, f.low = lo, f.mid = mi, f.high = hi;
-	f.choOn = chOn, f.choRate = rate, f.choDepth = depth;
+	(void) chOn;  // chorus section on: the CHORUS knob on GRUND sets how much (0 = none), in every preset
+	f.choOn = true, f.choRate = rate, f.choDepth = depth;
 	f.verbOn = true, f.vSize = vs, f.vDamp = vd, f.vPre = vp;
 	f.choHi = f.verbHi = true;
 	return f;
