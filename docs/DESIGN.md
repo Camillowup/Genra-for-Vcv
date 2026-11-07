@@ -1,7 +1,7 @@
 # GENRA-Plugin: Design-Leitfaden für neue Module
 
 Alle Entscheidungen, die über die Module hinweg gelten. Ein neues Modul hält sich daran, damit es aussieht und sich
-bedient wie die anderen. Stand: Plugin 2.15.2.
+bedient wie die anderen. Stand: Plugin 2.16.0.
 
 ## Ablauf bei einem neuen Modul
 
