@@ -1,6 +1,6 @@
 # GENRA – Projektstand
 
-**Stand:** 7. November 2026 · **Plugin 2.17.0: 18 Module** (GENRA, GRID, ABLAUF, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, GRUND, GRUND FX, SCHMELZ, MIX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `CamilloGF/genra-v3`
+**Stand:** 7. November 2026 · **Plugin 2.19.1: 18 Module** (GENRA, GRID, ABLAUF, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, GRUND, GRUND FX, SCHMELZ, MIX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `Camillowup/Genra-for-Vcv` (vorher `CamilloGF/genra-v3`, Account nicht mehr erreichbar)
 
 > Design-Leitfaden für neue Module (Aussehen, GENRA-Leiste, Leuchtsegmente, Follow, englische UI): **docs/DESIGN.md**
 
