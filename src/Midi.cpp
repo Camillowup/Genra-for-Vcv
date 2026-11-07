@@ -12,47 +12,63 @@ static const int GM_DRUM[NUM_DRUMS] = {36, 38, 39, 37, 42, 46, 45, 70};
 static inline int clampi(int x, int a, int b) { return x < a ? a : (x > b ? b : x); }
 static inline int mod12(int x) { return ((x % 12) + 12) % 12; }
 
-std::vector<MidiNote> renderLoop(const Pattern& pat, const Params& P, int L) {
-	std::vector<MidiNote> out;
+// nSteps steps of a pattern with a loop of L steps, from tick0 on; the drums fill over the last bar if fillLast;
+// tracks in mute (bit per track) stay silent
+static void renderRange(const Pattern& pat, const Params& P0, int L, int nSteps, int tick0, bool fillLast, uint8_t mute,
+                        std::vector<MidiNote>& out) {
 	L = clampi(L, 1, MAX_STEPS);
+	Params P = P0;
 	// every track swings like the genre it plays
 	int swingTicks[NUM_TRACKS];
 	for (int t = 0; t < NUM_TRACKS; t++)
 		swingTicks[t] = (int)std::lround((effSwing(P, pat.trackGenre[t]) - 0.5f) * 2.f * TPS);
 	int prev[4] = {0, 0, 0, 0};
 	bool hasPrev = false;
-	const int loopEnd = L * TPS;
+	const int endTick = tick0 + nSteps * TPS;
 	auto add = [&](int track, int step, int tick, int lenTicks, int note, float vel) {
+		if ((mute >> track) & 1)
+			return;
 		MidiNote m;
 		m.track = track;
 		m.start = step;
 		m.startTick = tick;
-		// notes end at the loop boundary at the latest (a swung last step would otherwise spill into the next bar)
-		m.len = std::max(1, std::min(std::max(3, lenTicks), loopEnd - tick));
+		// notes end at the range end at the latest (a swung last step would otherwise spill over)
+		m.len = std::max(1, std::min(std::max(3, lenTicks), endTick - tick));
 		m.note = clampi(note, 0, 127);
 		m.vel = clampi((int)std::lround(vel * 127.f), 1, 127);
 		out.push_back(m);
 	};
-	for (int s = 0; s < L; s++) {
+	const int fillFrom = fillLast ? std::max(0, nSteps - STEPS_PER_BAR) : nSteps;
+	for (int g = 0; g < nSteps; g++) {
+		int s = g % L;
+		P.pass = P0.pass + g / L;
+		bool fill = g >= fillFrom;
+		P.fillActive = fillLast ? fill : P0.fillActive;
+		int base = tick0 + g * TPS;
 		int t0s[NUM_TRACKS];
 		for (int t = 0; t < NUM_TRACKS; t++)
-			t0s[t] = s * TPS + ((s % 2 == 1) ? swingTicks[t] : 0);
+			t0s[t] = base + ((s % 2 == 1) ? swingTicks[t] : 0);
 		int t0 = t0s[T_DRUMS];
 		Hit hits[NUM_DRUMS];
-		drumStep(pat, P, s, L, false, hits);
+		if (fill) { // like GENRA: the fill runs up to the end of the bar it started in
+			int barStart = s - (s % STEPS_PER_BAR);
+			drumStep(pat, P, s, barStart + STEPS_PER_BAR, true, hits);
+		}
+		else
+			drumStep(pat, P, s, L, false, hits);
 		for (int v = 0; v < NUM_DRUMS; v++) {
 			if (!hits[v].on)
 				continue;
 			int n = std::max(1, hits[v].ratchet);
 			for (int i = 0; i < n; i++)
-				add(0, s, t0 + i * TPS / n, TPS / n / 2, GM_DRUM[v], hits[v].vel);
+				add(0, tick0 / TPS + g, t0 + i * TPS / n, TPS / n / 2, GM_DRUM[v], hits[v].vel);
 		}
 		NoteEv b = bassAt(pat, P, s, L);
 		if (b.on)
-			add(1, s, t0s[T_BASS], (int)(b.len * TPS * b.gate), b.pitch, b.vel);
+			add(1, tick0 / TPS + g, t0s[T_BASS], (int)(b.len * TPS * b.gate), b.pitch, b.vel);
 		NoteEv m = melAt(pat, P, s, L);
 		if (m.on)
-			add(2, s, t0s[T_MELODY], (int)(m.len * TPS * m.gate), m.pitch, m.vel);
+			add(2, tick0 / TPS + g, t0s[T_MELODY], (int)(m.len * TPS * m.gate), m.pitch, m.vel);
 		PadEv p = padAt(pat, P, s, L, prev, hasPrev);
 		if (p.on) {
 			for (int k = 0; k < 4; k++) {
@@ -61,9 +77,30 @@ std::vector<MidiNote> renderLoop(const Pattern& pat, const Params& P, int L) {
 					if (p.notes[j] == p.notes[k])
 						dup = true;
 				if (!dup)
-					add(3, s, t0s[T_PADS], (int)(p.len * TPS * p.gate), p.notes[k], p.vel);
+					add(3, tick0 / TPS + g, t0s[T_PADS], (int)(p.len * TPS * p.gate), p.notes[k], p.vel);
 			}
 		}
+	}
+}
+
+std::vector<MidiNote> renderLoop(const Pattern& pat, const Params& P, int L) {
+	std::vector<MidiNote> out;
+	L = clampi(L, 1, MAX_STEPS);
+	renderRange(pat, P, L, L, 0, false, 0, out);
+	return out;
+}
+
+std::vector<MidiNote> renderSong(const std::vector<SongPart>& parts, std::vector<SongMarker>* markers) {
+	std::vector<MidiNote> out;
+	int tick = 0;
+	for (const SongPart& sp : parts) {
+		if (!sp.pat || sp.bars <= 0)
+			continue;
+		if (markers)
+			markers->push_back({tick, sp.label});
+		int n = sp.bars * STEPS_PER_BAR;
+		renderRange(*sp.pat, sp.P, sp.L, n, tick, sp.fill, sp.mute, out);
+		tick += n * TPS;
 	}
 	return out;
 }
@@ -170,7 +207,8 @@ static bool parseChordMeta(const uint8_t* d, size_t n, Pattern& pat) {
 	return true;
 }
 
-std::vector<uint8_t> writeSmf(const std::vector<MidiNote>& notes, float bpm, const char* genreName, int loopSteps, const Pattern* pat) {
+std::vector<uint8_t> writeSmf(const std::vector<MidiNote>& notes, float bpm, const char* genreName, int loopSteps, const Pattern* pat,
+                              const std::vector<SongMarker>* markers) {
 	const int loopEnd = std::max(0, loopSteps) * TPS;
 	std::vector<uint8_t> file;
 	std::vector<uint8_t> hdr;
@@ -207,7 +245,18 @@ std::vector<uint8_t> writeSmf(const std::vector<MidiNote>& notes, float bpm, con
 			putVlq(t, (uint32_t)meta.size());
 			t.insert(t.end(), meta.begin(), meta.end());
 		}
-		putVlq(t, (uint32_t)loopEnd); // track end = loop end, so the importer knows the loop length
+		int last = 0;
+		if (markers)
+			for (const SongMarker& mk : *markers) { // the song's parts as markers
+				int at = std::max(last, mk.tick);
+				putVlq(t, (uint32_t)(at - last));
+				last = at;
+				t.push_back(0xff);
+				t.push_back(0x06);
+				putVlq(t, (uint32_t)mk.text.size());
+				t.insert(t.end(), mk.text.begin(), mk.text.end());
+			}
+		putVlq(t, (uint32_t)std::max(0, loopEnd - last)); // track end = loop end, so the importer knows the loop length
 		t.push_back(0xff);
 		t.push_back(0x2f);
 		t.push_back(0);

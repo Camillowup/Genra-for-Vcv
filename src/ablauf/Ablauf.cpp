@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// ABLAUF – song arranger for GENRA: 128 pattern places (4 banks of 8 x 4 pads, each with a name), a song list (pattern, bars, part,
-// tracks, fill per row), one button per song part that turns the pattern playing now into an intro, a build, ...
-// (Arranger.cpp), connected to GENRA like the grid editor (docked, or chosen with right-click › Verbinden mit…).
+// ABLAUF – song arranger for GENRA: 128 pattern places (4 banks of 8 x 4 pads, each with a name and the colour of the
+// GENRA original it comes from), a song list (pattern, bars, part, fill per row), one button per song part that turns the
+// pattern playing now into an intro, a build, ... (Arranger.cpp), MAKE SONG (a whole song in a genre's typical form), MIDI
+// export of pads and of the song; connected to GENRA like the grid editor (docked, or right-click › Connect to…).
 //
 // Threads: everything that edits the bank or the song runs on the UI thread (ModuleWidget::step -> Ablauf::uiStep),
 // like the grid editor. GENRA takes patterns over through its cue mailbox and applies them on its audio thread at a bar
@@ -25,6 +26,26 @@ static const NVGcolor ACC = nvgRGB(0xff, 0xd2, 0x3d);
 static const NVGcolor SEC_COL[NUM_SECTIONS] = {nvgRGB(0x6f, 0x86, 0xb8), nvgRGB(0x9b, 0x7b, 0xd4), nvgRGB(0xe0, 0xa5, 0x26),
                                                nvgRGB(0xff, 0x5a, 0x4f), nvgRGB(0x3f, 0xae, 0x9a), nvgRGB(0x8a, 0x8d, 0x99)};
 static const char* const TRACK_LETTER[4] = {"D", "B", "M", "P"};
+static const char* const TRACK_FILE[4] = {"drums", "bass", "melody", "pads"};
+// family colours: the GENRA original a pad comes from (GENRA n -> colour n-1), apart from part and track colours
+static const NVGcolor FAMILY_COL[8] = {nvgRGB(0xff, 0x9d, 0x2e), nvgRGB(0xe8, 0xe8, 0xee), nvgRGB(0x3f, 0xd0, 0xc9),
+                                       nvgRGB(0xc8, 0xe6, 0x4a), nvgRGB(0xff, 0x5f, 0xd2), nvgRGB(0x6a, 0xa8, 0xff),
+                                       nvgRGB(0xd8, 0xa0, 0x50), nvgRGB(0xb0, 0x8c, 0xff)};
+static const NVGcolor NO_FAMILY = nvgRGB(0x4a, 0x4c, 0x57);
+static NVGcolor familyColor(int f) { return f > 0 ? FAMILY_COL[(f - 1) % 8] : NO_FAMILY; }
+// the number in a name like "INTRO 12" / "GENRA 3" (after base + space), 0 if it has none
+static int nameNumber(const char* name, const char* base) {
+	size_t n = std::strlen(base);
+	if (std::strncmp(name, base, n) != 0 || name[n] != ' ')
+		return 0;
+	return std::max(0, std::atoi(name + n + 1));
+}
+static int rowBarsIdx(int bars) {
+	for (int k = 5; k >= 0; k--)
+		if (ROW_BARS[k] <= bars)
+			return k;
+	return 0;
+}
 
 static std::string slotName(int i) {
 	if (i < 0 || i >= NUM_SLOTS)
@@ -106,6 +127,7 @@ struct Ablauf : Module {
 		COPY_PARAM,
 		CLEAR_PARAM,
 		CLEARALL_PARAM, // (appended: saved patches keep their ids)
+		MAKESONG_PARAM,
 		PARAMS_LEN
 	};
 	enum InputId { RUN_INPUT, RESET_INPUT, NEXT_INPUT, PATT_INPUT, ROW_INPUT, INPUTS_LEN };
@@ -125,6 +147,7 @@ struct Ablauf : Module {
 		COPY_LIGHT,
 		CLEAR_LIGHT,
 		CLEARALL_LIGHT,
+		MAKESONG_LIGHT,
 		LIGHTS_LEN
 	};
 	// momentary buttons: the audio thread counts presses, the UI thread acts on them
@@ -154,6 +177,9 @@ struct Ablauf : Module {
 	int copySrc = -1;
 	int64_t linkedId = -1;
 	PartOpts partOpts; // the bass styles of BREAK / INTRO (-1: one at random on every press)
+	int songForm = -1;  // MAKE SONG: SongFormId, -1 = AUTO (the form typical for the pattern's genre)
+	int dragSlot = -1;  // a pad being dragged into the song list
+	float bpmNow = 120.f;
 	Rng rng{random::u64()};
 	std::string msg;
 	float msgTime = 0.f;
@@ -242,10 +268,11 @@ struct Ablauf : Module {
 		static const char* PN[NUM_SECTIONS] = {"Intro", "Verse", "Build", "Drop", "Break", "Outro"};
 		for (int k = 0; k < NUM_SECTIONS; k++)
 			configButton(PART_PARAM + k, std::string(PN[k]) + " from the playing pattern (each press: a new variant on the next free pad)");
-		configButton(STORE_PARAM, "STORE: then a pad – saves what GENRA is playing (overwrites; an empty pad stores on a tap)");
+		configButton(STORE_PARAM, "Store (right-click a pad › Overwrite with GENRA)");
 		configButton(COPY_PARAM, "COPY: tap source, then target");
 		configButton(CLEAR_PARAM, "CLEAR: then a pad – clears the slot");
 		configButton(CLEARALL_PARAM, "CLR ALL: press twice – clears all 128 pads (UNDO brings them back)");
+		configButton(MAKESONG_PARAM, "Make song from the selected pad (in the SONG FORM next to it; UNDO takes it back)");
 		for (int i = 0; i < PARAMS_LEN; i++)
 			paramQuantities[i]->randomizeEnabled = false;
 		configInput(RUN_INPUT, "Run (trigger: play / stop)");
@@ -265,7 +292,7 @@ struct Ablauf : Module {
 	// ------------------------------------------------------------ audio thread
 	void process(const ProcessArgs& args) override {
 		for (int p : {(int)INS_PARAM, (int)DEL_PARAM, (int)UNDO_PARAM, (int)FILL_PARAM, (int)PLAY_PARAM, (int)STOP_PARAM,
-		              (int)STORE_PARAM, (int)COPY_PARAM, (int)CLEAR_PARAM, (int)CLEARALL_PARAM})
+		              (int)STORE_PARAM, (int)COPY_PARAM, (int)CLEAR_PARAM, (int)CLEARALL_PARAM, (int)MAKESONG_PARAM})
 			if (btn[p].process(params[p].getValue() > 0.5f))
 				presses[p]++;
 		for (int t = 0; t < 4; t++)
@@ -529,15 +556,20 @@ struct Ablauf : Module {
 
 	// ---- song list edits
 	void insertRow() {
+		int s = selSlot >= 0 ? selSlot : (rows.empty() ? -1 : rows[curRow].slot);
+		insertRowAt(rows.empty() ? 0 : curRow + 1, s);
+	}
+	/** A new row at position at (0..rows) with pad s: length and part from the pad. */
+	void insertRowAt(int at, int s) {
 		if ((int)rows.size() >= MAX_ROWS) {
 			say("64 rows at most");
 			return;
 		}
-		int s = selSlot >= 0 ? selSlot : (rows.empty() ? -1 : rows[curRow].slot);
+		at = clamp(at, 0, (int)rows.size());
 		AblaufAction* a = beginChange("insert row", s);
 		Row w;
 		if (!rows.empty())
-			w = rows[curRow], w.fill = false, w.on = 0xF, w.cvA = w.cvB = 0.f;
+			w = rows[clamp(at - 1, 0, (int)rows.size() - 1)], w.fill = false, w.on = 0xF, w.cvA = w.cvB = 0.f;
 		w.slot = (int8_t)s;
 		if (s >= 0 && slots[s].used) {
 			w.barsIdx = (int8_t)barsIdxFor(slots[s].lengthIdx);
@@ -546,7 +578,6 @@ struct Ablauf : Module {
 			else
 				slots[s].tag = w.sec;
 		}
-		int at = rows.empty() ? 0 : curRow + 1;
 		rows.insert(rows.begin() + at, w);
 		if (song.playing && song.row >= at)
 			song.row++;
@@ -557,6 +588,18 @@ struct Ablauf : Module {
 		setRow(at);
 		endChange(a);
 		say("Row " + std::to_string(at + 1) + ": " + slotName(s));
+	}
+	/** Row r plays pad s from now on (dropped onto the row). */
+	void replaceRowSlot(int r, int s) {
+		if (r < 0 || r >= (int)rows.size() || s < 0 || s >= NUM_SLOTS || !slots[s].used)
+			return;
+		AblaufAction* a = beginChange("replace pattern", s);
+		rows[r].slot = (int8_t)s;
+		if (slots[s].tag < 0)
+			slots[s].tag = rows[r].sec;
+		setRow(r);
+		endChange(a);
+		say("Row " + std::to_string(r + 1) + ": " + slotName(s));
 	}
 	void deleteRow() {
 		if (rows.empty())
@@ -657,6 +700,28 @@ struct Ablauf : Module {
 		if (!songMode() && g)
 			cuePattern(i, g);
 	}
+	/** Right-click › Overwrite with GENRA: the pad takes what GENRA plays now, keeps its name, part and family. */
+	void overwrite(int i, Genra* g) {
+		if (i < 0 || i >= NUM_SLOTS)
+			return;
+		if (!g) {
+			say("No GENRA connected");
+			return;
+		}
+		if (pendingStore >= 0 || pendingPart >= 0)
+			return;
+		selSlot = i;
+		pendingStore = i;
+		requestSnap(g);
+	}
+	/** A new family number: one past every family and every "GENRA n" name in use. */
+	int newFamily() {
+		int top = 0;
+		for (int i = 0; i < NUM_SLOTS; i++)
+			if (slots[i].used)
+				top = std::max(top, std::max((int)slots[i].family, nameNumber(slots[i].name, "GENRA")));
+		return std::min(top + 1, 127);
+	}
 	void rename(int i, const std::string& n) {
 		if (i < 0 || i >= NUM_SLOTS || !slots[i].used)
 			return;
@@ -735,16 +800,15 @@ struct Ablauf : Module {
 		requestSnap(g);
 	}
 	/** A variant's name: the part and the next free number of that part (INTRO 1, INTRO 2, BREAK 1 ...). */
-	std::string partName(int k, int skip) { return nextName(SECTION_NAMES[k], skip); }
-	/** base + the next free number among the pads (skip: the pad being written). */
-	std::string nextName(const std::string& base, int skip) {
+	std::string partName(int k, int skip, int family) { return nextName(SECTION_NAMES[k], skip, family); }
+	/** base + the next free number among the pads of one family (skip: the pad being written). Every family counts
+	 * on its own: INTRO 1, INTRO 2 from GENRA 1, again INTRO 1 from GENRA 2. */
+	std::string nextName(const std::string& base, int skip, int family) {
 		int top = 0;
 		for (int i = 0; i < NUM_SLOTS; i++) {
-			if (i == skip || !slots[i].used)
+			if (i == skip || !slots[i].used || slots[i].family != family)
 				continue;
-			std::string n = slots[i].name;
-			if (n.size() > base.size() + 1 && n.compare(0, base.size() + 1, base + " ") == 0)
-				top = std::max(top, std::atoi(n.c_str() + base.size() + 1));
+			top = std::max(top, nameNumber(slots[i].name, base.c_str()));
 		}
 		return base + " " + std::to_string(top + 1);
 	}
@@ -756,7 +820,7 @@ struct Ablauf : Module {
 		}
 		AblaufAction* a = beginChange(SECTION_NAMES[k], target);
 		makeSection(*session.source, slots[target], k, rerollMask(), session.P, rng, partOpts);
-		setName(slots[target], partName(k, target));
+		setName(slots[target], partName(k, target, slots[target].family));
 		endChange(a);
 		session.result[k] = target;
 		session.made.push_back({target, slotVer[target]});
@@ -765,6 +829,203 @@ struct Ablauf : Module {
 		say(std::string(SECTION_NAMES[k]) + " → " + slotName(target));
 		if (!song.playing)
 			cuePattern(target, g);
+	}
+
+	// ---- MAKE SONG
+	/** The pad a family started with (the GENRA original), or i itself. */
+	int familySource(int i) {
+		if (i < 0 || i >= NUM_SLOTS || !slots[i].used)
+			return -1;
+		int f = slots[i].family;
+		if (f >= 0)
+			for (int k = 0; k < NUM_SLOTS; k++)
+				if (slots[k].used && slots[k].family == f && slots[k].tag < 0)
+					return k;
+		return i;
+	}
+	static int slotGenre(const Slot& s) {
+		int g = s.pat.trackGenre[T_DRUMS] >= 0 ? s.pat.trackGenre[T_DRUMS] : s.pat.chordGenre;
+		return clamp(g, 0, numProfiles() - 1);
+	}
+	/** The form MAKE SONG uses now: the chosen one, or (AUTO) the one typical for the selected pad's genre; -1: none yet. */
+	int effectiveForm() {
+		if (songForm >= 0 && songForm < NUM_SONG_FORMS)
+			return songForm;
+		int src = familySource(selSlot);
+		return src < 0 ? -1 : songFormForGenre(prof(slotGenre(slots[src])).name);
+	}
+	/** GENRA's knobs as a slot plays them (offsets, length, its native scale unless GENRA's SCALE overrides it). */
+	static Params slotParams(Params P, const Slot& s) {
+		P.lengthBars = LENGTH_BARS[clamp((int)s.lengthIdx, 0, 3)];
+		if (!P.scaleOverride)
+			P.scale = prof(s.pat.chordGenre).scale;
+		P.fillActive = false;
+		P.pass = 0;
+		return withMods(P, s.mods);
+	}
+	/** The selected pad becomes a whole song: every part of the form from the family's existing variants (a part that
+	 * comes twice takes another one) or made new like the part buttons; replaces the song list, one undo step. */
+	void makeSong(Genra* g) {
+		int sel = selSlot;
+		if (sel < 0 || sel >= NUM_SLOTS || !slots[sel].used) {
+			say("Tap a pad with a pattern first");
+			return;
+		}
+		int src = familySource(sel);
+		int fam = slots[src].family;
+		int form = clamp(effectiveForm(), 0, NUM_SONG_FORMS - 1);
+		const SongForm& F = SONG_FORMS[form];
+		// the family's variants, part by part, lowest number first
+		std::vector<int> have[NUM_SECTIONS];
+		if (fam >= 0)
+			for (int i = 0; i < NUM_SLOTS; i++)
+				if (i != src && slots[i].used && slots[i].family == fam && slots[i].tag >= 0 && slots[i].tag < NUM_SECTIONS)
+					have[slots[i].tag].push_back(i);
+		for (int k = 0; k < NUM_SECTIONS; k++)
+			std::stable_sort(have[k].begin(), have[k].end(), [&](int a, int b) {
+				return nameNumber(slots[a].name, SECTION_NAMES[k]) < nameNumber(slots[b].name, SECTION_NAMES[k]);
+			});
+		// GENRA's knobs (density, complexity ...) as the part buttons use them; parts are made from the stored original
+		Params P;
+		if (g)
+			P = g->buildParams(false);
+		history::ComplexAction* ca = new history::ComplexAction;
+		ca->name = "ABLAUF: make song";
+		int taken[NUM_SECTIONS] = {};
+		int fallback = 0;
+		bool full = false;
+		std::vector<Row> made;
+		for (int k = 0; k < F.n; k++) {
+			int sec = clamp(F.sec[k], 0, NUM_SECTIONS - 1);
+			int slot = -1;
+			if (taken[sec] < (int)have[sec].size())
+				slot = have[sec][taken[sec]];
+			else if (g && !full) {
+				int t = freeSlot();
+				if (t < 0)
+					full = true;
+				else { // a new variant, like the part button, on the next free pad
+					AblaufAction* a = new AblaufAction;
+					a->name = ca->name;
+					a->moduleId = id;
+					a->rowsBefore = a->rowsAfter = rows;
+					a->curBefore = a->curAfter = curRow;
+					a->slot = t;
+					a->slotBefore = std::make_shared<Slot>(slots[t]);
+					makeSection(slots[src], slots[t], sec, rerollMask(), slotParams(P, slots[src]), rng, partOpts);
+					setName(slots[t], partName(sec, t, slots[t].family));
+					a->slotAfter = std::make_shared<Slot>(slots[t]);
+					slotVer[t]++;
+					ca->push(a);
+					have[sec].push_back(t);
+					slot = t;
+				}
+			}
+			if (slot < 0)
+				slot = src, fallback++; // no GENRA to make it, or the pads are full: the original plays there
+			taken[sec]++;
+			Row w;
+			w.slot = (int8_t)slot;
+			w.sec = (int8_t)sec;
+			w.barsIdx = (int8_t)rowBarsIdx(F.bars[k]);
+			w.on = 0xF;
+			made.push_back(w);
+		}
+		AblaufAction* ra = new AblaufAction;
+		ra->name = ca->name;
+		ra->moduleId = id;
+		ra->rowsBefore = rows;
+		ra->curBefore = curRow;
+		ra->slot = -1;
+		rows = made;
+		rowsReplaced();
+		setRow(0);
+		ra->rowsAfter = rows;
+		ra->curAfter = curRow;
+		ca->push(ra);
+		APP->history->push(ca);
+		session.clear();
+		std::string m = string::f("Song made: %s, %d bars", F.name, songFormBars(form));
+		if (fallback)
+			m += full ? string::f(" – pads full: %d parts play the original", fallback)
+			          : string::f(" – no GENRA: %d parts play the original", fallback);
+		say(m);
+		msgTime = 4.f;
+	}
+
+	// ---- MIDI files (UI thread)
+	float bpmFor(Genra* g) { return g ? clamp(g->currentBpm(), 20.f, 400.f) : 120.f; }
+	static bool saveMidi(std::string name, const std::vector<uint8_t>& data) {
+		for (char& c : name)
+			if (c == ' ' || c == '&' || c == '/' || c == '\\')
+				c = '-';
+		osdialog_filters* filters = osdialog_filters_parse("MIDI file:mid,midi");
+		char* pathC = osdialog_file(OSDIALOG_SAVE, NULL, name.c_str(), filters);
+		osdialog_filters_free(filters);
+		if (!pathC)
+			return false;
+		std::string path = pathC;
+		std::free(pathC);
+		if (system::getExtension(path) != ".mid" && system::getExtension(path) != ".midi")
+			path += ".mid";
+		try {
+			system::writeFile(path, data);
+		}
+		catch (Exception& e) {
+			osdialog_message(OSDIALOG_ERROR, OSDIALOG_OK, ("Saving failed: " + std::string(e.what())).c_str());
+			return false;
+		}
+		return true;
+	}
+	/** Pad i as a MIDI file: all four tracks (track -1) or one (0 drums ... 3 pads). */
+	void exportPad(int i, int track) {
+		if (i < 0 || i >= NUM_SLOTS || !slots[i].used)
+			return;
+		Genra* g = genra();
+		const Slot& s = slots[i];
+		Params P = slotParams(g ? g->buildParams(false) : Params(), s);
+		int L = P.lengthBars * STEPS_PER_BAR;
+		std::vector<MidiNote> notes = renderLoop(s.pat, P, L);
+		if (track >= 0)
+			notes.erase(std::remove_if(notes.begin(), notes.end(), [=](const MidiNote& n) { return n.track != track; }), notes.end());
+		std::string name = slotName(i);
+		if (s.name[0])
+			name += std::string("-") + s.name;
+		if (track >= 0 && track < 4)
+			name += std::string("-") + TRACK_FILE[track];
+		saveMidi(name + ".mid", writeSmf(notes, bpmFor(g), prof(slotGenre(s)).name, L, &s.pat));
+	}
+	/** The whole song as one MIDI file: every row in order, its length, fill and silent tracks; a marker per row. */
+	void exportSong() {
+		Genra* g = genra();
+		Params base = g ? g->buildParams(false) : Params();
+		std::vector<SongPart> parts;
+		for (int r = 0; r < (int)rows.size(); r++) {
+			if (!playable(r))
+				continue;
+			const Row& w = rows[r];
+			const Slot& s = slots[w.slot];
+			SongPart sp;
+			sp.pat = &s.pat;
+			sp.P = slotParams(base, s);
+			sp.L = sp.P.lengthBars * STEPS_PER_BAR;
+			sp.bars = ROW_BARS[clamp((int)w.barsIdx, 0, 5)];
+			sp.mute = (uint8_t)(~w.on & 0xF);
+			sp.fill = w.fill;
+			sp.label = s.name[0] ? std::string(s.name) : slotName(w.slot) + " " + SECTION_NAMES[clamp((int)w.sec, 0, NUM_SECTIONS - 1)];
+			parts.push_back(sp);
+		}
+		if (parts.empty()) {
+			say("Song is empty – nothing to export");
+			return;
+		}
+		std::vector<SongMarker> marks;
+		std::vector<MidiNote> notes = renderSong(parts, &marks);
+		int total = 0;
+		for (const SongPart& sp : parts)
+			total += sp.bars * STEPS_PER_BAR;
+		if (saveMidi("genra-song.mid", writeSmf(notes, bpmFor(g), "Song", total, nullptr, &marks)))
+			say(string::f("Song exported: %d rows", (int)parts.size()));
 	}
 
 	// ---- song playback
@@ -981,6 +1242,7 @@ struct Ablauf : Module {
 		}
 		genraLinked = g != nullptr;
 		genraRunning = g && g->running;
+		bpmNow = bpmFor(g);
 		barNow = g ? g->barPub.load() : 0;
 		playingSlot = -1;
 		queuedSlot = -1;
@@ -1017,11 +1279,15 @@ struct Ablauf : Module {
 			if (pendingStore >= 0) {
 				int i = pendingStore;
 				AblaufAction* a = beginChange("store", i);
-				int8_t tag = slots[i].used ? slots[i].tag : -1;
-				// a pattern from GENRA: an empty pad gets the next GENRA number (GENRA 1, GENRA 2 ...), a stored-over pad keeps its name
-				std::string keep = slots[i].used ? slots[i].name : nextName("GENRA", i);
+				bool was = slots[i].used;
+				int8_t tag = was ? slots[i].tag : -1;
+				// a pattern from GENRA on an empty pad starts a family: GENRA 1, GENRA 2 ... in their own colour;
+				// a pad stored over (Overwrite with GENRA) keeps its name, part and family
+				int8_t fam = was ? slots[i].family : (int8_t)newFamily();
+				std::string keep = was ? std::string(slots[i].name) : "GENRA " + std::to_string(fam);
 				slots[i] = g->snap;
 				slots[i].tag = tag;
+				slots[i].family = fam;
 				slots[i].used = true;
 				setName(slots[i], keep);
 				endChange(a);
@@ -1031,14 +1297,14 @@ struct Ablauf : Module {
 			}
 			if (pendingPart >= 0) {
 				std::string src;
+				int8_t fam = -1;
 				int pl = g->patChanges.load() == g->patChangesAtCue.load() ? g->arrSlotPub.load() : -1;
 				if (pl >= 0 && pl < NUM_SLOTS && slots[pl].used)
-					src = slots[pl].name;
-				else if (allEmpty())
-					src = "GENRA 1";
+					src = slots[pl].name, fam = slots[pl].family;
 				session.clear();
 				*session.source = g->snap;
-				setName(*session.source, src); // variants carry the name of the pattern they come from
+				setName(*session.source, src);
+				session.source->family = fam; // variants belong to the family of the pattern they come from
 				session.P = g->snapP;
 				session.active = true;
 				makePart(pendingPart, g);
@@ -1076,6 +1342,8 @@ struct Ablauf : Module {
 		for (int k = 0; k < NUM_SECTIONS; k++)
 			if (pressed(PART_PARAM + k))
 				part(k, g);
+		if (pressed(MAKESONG_PARAM))
+			makeSong(g);
 		if (pressed(INS_PARAM))
 			insertRow();
 		if (pressed(DEL_PARAM))
@@ -1247,6 +1515,7 @@ struct Ablauf : Module {
 		lights[COPY_LIGHT].setBrightness(armed == 2 ? bl : 0.f);
 		lights[CLEAR_LIGHT].setBrightness(armed == 3 ? bl : 0.f);
 		lights[CLEARALL_LIGHT].setBrightness(clrAllArm > 0.f ? bl : 0.f);
+		lights[MAKESONG_LIGHT].setBrightness(selSlot >= 0 && selSlot < NUM_SLOTS && slots[selSlot].used ? 0.9f : 0.f);
 		int sec = hasRow ? rows[curRow].sec : -1;
 		for (int k = 0; k < NUM_SECTIONS; k++) {
 			bool mine = session.active && session.result[k] >= 0;
@@ -1265,6 +1534,7 @@ struct Ablauf : Module {
 		json_object_set_new(root, "linkedId", json_integer(linkedId));
 		json_object_set_new(root, "breakBass", json_integer(partOpts.breakBass));
 		json_object_set_new(root, "introBass", json_integer(partOpts.introBass));
+		json_object_set_new(root, "songForm", json_integer(songForm));
 		json_object_set_new(root, "curRow", json_integer(curRow));
 		json_object_set_new(root, "selSlot", json_integer(selSlot));
 		json_t* sl = json_array();
@@ -1290,6 +1560,8 @@ struct Ablauf : Module {
 			json_object_set_new(o, "tag", json_integer(s.tag));
 			if (s.name[0])
 				json_object_set_new(o, "name", json_string(s.name));
+			if (s.family >= 0)
+				json_object_set_new(o, "family", json_integer(s.family));
 			json_array_append_new(sl, o);
 		}
 		json_object_set_new(root, "slots", sl);
@@ -1318,6 +1590,9 @@ struct Ablauf : Module {
 			partOpts.breakBass = clamp((int)json_integer_value(j), -1, NUM_BREAK_BASS - 1);
 		if ((j = json_object_get(root, "introBass")))
 			partOpts.introBass = clamp((int)json_integer_value(j), -1, NUM_INTRO_BASS - 1);
+		songForm = -1;
+		if ((j = json_object_get(root, "songForm")))
+			songForm = clamp((int)json_integer_value(j), -1, NUM_SONG_FORMS - 1);
 		json_t* jv = json_object_get(root, "version");
 		bool v1 = !jv || json_integer_value(jv) < 2; // 4 banks of 16 pads
 		auto fromSaved = [&](int i) { return v1 ? slotFromV1(i) : i; };
@@ -1360,6 +1635,11 @@ struct Ablauf : Module {
 				s.tag = (int8_t)clamp((int)json_integer_value(j), -1, NUM_SECTIONS - 1);
 			if ((j = json_object_get(o, "name")) && json_is_string(j))
 				setName(s, json_string_value(j));
+			s.family = -1;
+			if ((j = json_object_get(o, "family")))
+				s.family = (int8_t)clamp((int)json_integer_value(j), -1, 127);
+			else if (int n = nameNumber(s.name, "GENRA")) // older patches: a "GENRA n" pad starts family n
+				s.family = (int8_t)std::min(n, 127);
 			s.used = true;
 		}
 		rows.clear();
@@ -1409,6 +1689,7 @@ struct Ablauf : Module {
 		rows.clear();
 		session.clear();
 		partOpts = PartOpts();
+		songForm = -1;
 		song = Song();
 		curRow = 0;
 		selSlot = -1;
@@ -1449,9 +1730,30 @@ struct AbWidget : Widget {
 	static float mm(float v) { return mm2px(v); }
 };
 
-/** The song list: one line per row; click selects, right-click edits CV A / CV B. */
+/** The song list: one line per row; click selects, right-click edits CV A / CV B; a pad dragged in is inserted between
+ * rows or replaces the pattern of the row it is dropped on. */
 struct SongList : AbWidget {
 	int firstVisible = 0;
+	bool dragOver = false;
+	float dragY = 0.f; // mm, in the list
+	/** Where a pad dropped at y (mm) goes: insert at pos (0..rows) or replace row pos. */
+	void dropTarget(float y, bool& insert, int& pos) {
+		int n = module ? (int)module->rows.size() : 0;
+		float f = (y - HEAD - 1.f) / ROWH;
+		int idx = firstVisible + (int)std::floor(f);
+		float frac = f - std::floor(f);
+		insert = true;
+		if (n == 0 || idx >= n)
+			pos = n;
+		else if (f < 0.f || idx < firstVisible)
+			pos = firstVisible;
+		else if (frac < 0.28f)
+			pos = idx;
+		else if (frac > 0.72f)
+			pos = idx + 1;
+		else
+			insert = false, pos = idx;
+	}
 	static constexpr float ROWH = 4.3f, HEAD = 5.2f;
 	int visible() { return (int)((box.size.y / mm2px(1.f) - HEAD - 4.f) / ROWH); }
 
@@ -1469,8 +1771,7 @@ struct SongList : AbWidget {
 		};
 		t(2.2f, 3.4f, "#", 1.2f, ui::DIM);
 		t(7.f, 3.4f, "PATTERN", 1.2f, ui::DIM);
-		t(31.f, 3.4f, "BARS", 1.2f, ui::DIM, NVG_ALIGN_CENTER);
-		t(39.5f, 3.4f, "TRK", 1.2f, ui::DIM, NVG_ALIGN_CENTER);
+		t(36.f, 3.4f, "BARS", 1.2f, ui::DIM, NVG_ALIGN_CENTER);
 		t(46.f, 3.4f, "PART", 1.2f, ui::DIM);
 		nvgBeginPath(vg);
 		nvgMoveTo(vg, 1.5f * u, 4.6f * u);
@@ -1494,9 +1795,9 @@ struct SongList : AbWidget {
 			firstVisible = want - vis + 1;
 		firstVisible = clamp(firstVisible, 0, std::max(0, n - vis));
 		if (n == 0) {
-			t(w / 2, 18.f, "No song yet", 1.8f, ui::DIM, NVG_ALIGN_CENTER);
-			t(w / 2, 23.f, "Tap a pad, then INSERT – row by row", 1.4f, ui::DIM, NVG_ALIGN_CENTER);
-			t(w / 2, 27.f, "Variations: pattern playing, then INTRO, BUILD …", 1.4f, ui::DIM, NVG_ALIGN_CENTER);
+			t(w / 2, 17.f, "No song yet", 1.8f, ui::DIM, NVG_ALIGN_CENTER);
+			t(w / 2, 22.f, "Drag pads in here, or tap a pad, then INSERT", 1.3f, ui::DIM, NVG_ALIGN_CENTER);
+			t(w / 2, 26.f, "MAKE SONG: a whole song from the selected pad", 1.3f, ui::DIM, NVG_ALIGN_CENTER);
 		}
 		for (int i = 0; i < vis && firstVisible + i < n; i++) {
 			int r = firstVisible + i;
@@ -1518,20 +1819,17 @@ struct SongList : AbWidget {
 			NVGcolor c = sel ? ACC : (ok ? ui::TXT : ui::DIM);
 			t(2.2f, y + 2.8f, string::f("%02d", r + 1), 1.4f, sel ? ACC : ui::DIM, NVG_ALIGN_LEFT, 0.2f);
 			t(7.f, y + 2.8f, slotName(row.slot), 1.5f, c, NVG_ALIGN_LEFT, 0.25f);
-			if (row.slot >= 0 && m->slots[row.slot].used && m->slots[row.slot].name[0])
-				ui::text(vg, ui::boldFont(), 13.5f * u, (y + 2.8f) * u, m->slots[row.slot].name, 1.5f * u, c, NVG_ALIGN_LEFT, 0.25f * u);
+			if (ok) // the colour of the GENRA original it comes from
+				roundRect(vg, 13.2f * u, (y + 0.7f) * u, 1.f * u, 2.4f * u, 0.3f * u, familyColor(m->slots[row.slot].family));
+			if (ok && m->slots[row.slot].name[0])
+				ui::text(vg, ui::boldFont(), 15.2f * u, (y + 2.8f) * u, m->slots[row.slot].name, 1.5f * u, c, NVG_ALIGN_LEFT, 0.25f * u);
 			else if (!ok)
-				t(13.5f, y + 2.8f, "–", 1.5f, ui::DIM);
-			t(31.f, y + 2.8f, std::to_string(ROW_BARS[clamp((int)row.barsIdx, 0, 5)]), 1.5f, c, NVG_ALIGN_CENTER, 0.2f);
-			for (int k = 0; k < 4; k++) {
-				bool on = (row.on >> k) & 1;
-				nvgBeginPath(vg);
-				nvgCircle(vg, (36.5f + k * 2.f) * u, (y + 1.9f) * u, 0.7f * u);
-				nvgFillColor(vg, on ? TRACK_COLORS[k] : nvgRGB(0x2a, 0x2b, 0x33));
-				nvgFill(vg);
-			}
+				t(15.2f, y + 2.8f, "–", 1.5f, ui::DIM);
+			t(36.f, y + 2.8f, std::to_string(ROW_BARS[clamp((int)row.barsIdx, 0, 5)]), 1.5f, c, NVG_ALIGN_CENTER, 0.2f);
+			if ((row.on & 0xF) != 0xF) // an older row with silent tracks (they stay silent)
+				t(39.6f, y + 2.6f, "M", 1.0f, ui::DIM, NVG_ALIGN_CENTER, 0.f);
 			if (row.fill)
-				roundRect(vg, 43.6f * u, (y + 1.5f) * u, 0.8f * u, 0.8f * u, 0.2f * u, ACC);
+				roundRect(vg, 42.4f * u, (y + 1.5f) * u, 0.8f * u, 0.8f * u, 0.2f * u, ACC);
 			int sec = clamp((int)row.sec, 0, NUM_SECTIONS - 1);
 			roundRect(vg, 45.5f * u, (y + 0.7f) * u, 1.f * u, 2.4f * u, 0.3f * u, SEC_COL[sec]);
 			t(47.4f, y + 2.8f, SECTION_NAMES[sec], 1.35f, sel ? SEC_COL[sec] : ui::TXT, NVG_ALIGN_LEFT, 0.25f);
@@ -1545,22 +1843,54 @@ struct SongList : AbWidget {
 		}
 		// status line
 		std::string st;
+		int total = 0, done = 0;
+		for (int r = 0; r < n; r++)
+			if (m->playable(r)) {
+				int b = ROW_BARS[clamp((int)m->rows[r].barsIdx, 0, 5)];
+				total += b;
+				if (m->song.playing && r < m->song.row)
+					done += b;
+			}
+		float secPerBar = 240.f / std::max(20.f, m->bpmNow); // 4/4: a bar is four beats
+		auto mmss = [](float sec) {
+			int v = (int)std::lround(std::max(0.f, sec));
+			return string::f("%d:%02d", v / 60, v % 60);
+		};
 		if (m->song.playing && m->song.row >= 0) {
-			int total = 0, done = 0;
-			for (int r = 0; r < n; r++)
-				if (m->playable(r)) {
-					int b = ROW_BARS[clamp((int)m->rows[r].barsIdx, 0, 5)];
-					total += b;
-					if (r < m->song.row)
-						done += b;
-				}
 			int into = clamp((int)(m->barNow - m->song.rowStart), 0, 99) + 1;
-			st = string::f("BAR %d / %d  ·  ROW %d / %d", done + into, total, m->song.row + 1, n);
+			st = string::f("BAR %d / %d  ·  %s / %s", done + into, total, mmss((done + into - 1) * secPerBar).c_str(),
+			               mmss(total * secPerBar).c_str());
 		}
 		else if (n)
-			st = string::f("ROW %d / %d", m->curRow + 1, n);
+			st = string::f("ROW %d / %d  ·  %d BARS  ·  %s", m->curRow + 1, n, total, mmss(total * secPerBar).c_str());
 		if (!st.empty())
 			ui::text(vg, mono, (w - 2.2f) * u, (box.size.y / u - 1.2f) * u, st, 2.f * u, ui::DIM, NVG_ALIGN_RIGHT, 0.f);
+		if (m->dragSlot < 0)
+			dragOver = false;
+		if (dragOver && m->dragSlot >= 0) { // where the dragged pad lands: a line between rows, or a frame round a row
+			bool ins;
+			int pos;
+			dropTarget(dragY, ins, pos);
+			float yy = HEAD + 1.f + (pos - firstVisible) * ROWH;
+			if (ins) {
+				yy = clamp(yy - 0.2f, HEAD + 0.6f, box.size.y / u - 3.6f);
+				roundRect(vg, 1.f * u, (yy - 0.25f) * u, (w - 2.f) * u, 0.5f * u, 0.25f * u, ACC);
+			}
+			else {
+				nvgBeginPath(vg);
+				nvgRoundedRect(vg, 1.f * u, (yy - 0.2f) * u, (w - 2.f) * u, (ROWH - 0.2f) * u, 0.5f * u);
+				nvgStrokeColor(vg, ACC);
+				nvgStrokeWidth(vg, 0.4f * u);
+				nvgStroke(vg);
+			}
+			// the pad itself, next to the pointer
+			const Slot& ds = m->slots[clamp(m->dragSlot, 0, NUM_SLOTS - 1)];
+			std::string lab = slotName(m->dragSlot) + (ds.name[0] ? std::string("  ") + ds.name : "");
+			float gy = clamp(dragY - 2.4f, 0.f, box.size.y / u - 4.4f);
+			roundRect(vg, (w - 25.f) * u, gy * u, 23.f * u, 4.2f * u, 0.7f * u, nvgRGBA(0x3a, 0x35, 0x20, 0xf0));
+			roundRect(vg, (w - 24.4f) * u, (gy + 0.5f) * u, 0.9f * u, 3.2f * u, 0.3f * u, familyColor(ds.family));
+			t(w - 22.6f, gy + 2.9f, lab, 1.4f, ACC, NVG_ALIGN_LEFT, 0.2f);
+		}
 		if (n > vis) { // scroll bar
 			float h = box.size.y / u - HEAD - 4.f;
 			float y0 = HEAD + h * firstVisible / n, y1 = HEAD + h * (firstVisible + vis) / n;
@@ -1577,6 +1907,10 @@ struct SongList : AbWidget {
 		return r < (int)module->rows.size() ? r : -1;
 	}
 	void onButton(const ButtonEvent& e) override {
+		if (module && e.action == GLFW_RELEASE && e.button == GLFW_MOUSE_BUTTON_LEFT && module->dragSlot >= 0) {
+			e.consume(this); // a pad dragged here: the drop follows (onDragDrop)
+			return;
+		}
 		if (!module || e.action != GLFW_PRESS)
 			return;
 		int r = rowAt(e.pos);
@@ -1597,6 +1931,28 @@ struct SongList : AbWidget {
 			return;
 		int d = e.scrollDelta.y > 0 ? -1 : 1;
 		module->setRow(module->curRow + d);
+		e.consume(this);
+	}
+	void onDragHover(const DragHoverEvent& e) override {
+		if (!module || module->dragSlot < 0)
+			return;
+		dragOver = true;
+		dragY = e.pos.y / mm2px(1.f);
+		e.consume(this);
+	}
+	void onDragLeave(const DragLeaveEvent& e) override { dragOver = false; }
+	void onDragDrop(const DragDropEvent& e) override {
+		if (!module || module->dragSlot < 0)
+			return;
+		bool ins;
+		int pos;
+		dropTarget(dragY, ins, pos);
+		int s = module->dragSlot;
+		if (ins)
+			module->insertRowAt(pos, s);
+		else
+			module->replaceRowSlot(pos, s);
+		dragOver = false;
 		e.consume(this);
 	}
 	struct CvQuantity : Quantity {
@@ -1682,9 +2038,15 @@ struct BankButtons : AbWidget {
 	}
 };
 
-/** 8 x 4 pads of the current bank, tinted in the colour of their song part, with their names. */
+/** 8 x 4 pads of the current bank, tinted in the colour of their song part, a bar on top in the colour of the GENRA
+ * original they come from, with their names. Tap: play (or store, if empty); drag into the song list; double-click:
+ * rename. */
 struct Pads : AbWidget {
 	float stepX = L::PADSTEP[0], stepY = L::PADSTEP[1], pw = L::PADSTEP[2], ph = L::PADSTEP[3];
+	int pressPad = -1;   // a filled pad pressed: tap on release, unless it was dragged
+	Vec lastPress;       // where the last press was (double-click)
+	float dragDist = 0.f;
+	bool dragging = false;
 	int padAt(Vec p) {
 		float u = mm2px(1.f);
 		int c = (int)(p.x / u / stepX), r = (int)(p.y / u / stepY);
@@ -1748,8 +2110,8 @@ struct Pads : AbWidget {
 						nvgStroke(vg);
 					}
 				}
-				if (used && tag >= 0)
-					roundRect(vg, (x + 0.6f) * u, (y + 0.6f) * u, (pw - 1.2f) * u, 0.7f * u, 0.3f * u, SEC_COL[tag]);
+				if (used) // the GENRA original it comes from
+					roundRect(vg, (x + 0.6f) * u, (y + 0.6f) * u, (pw - 1.2f) * u, 1.f * u, 0.4f * u, familyColor(s->family));
 				ui::text(vg, bold, (x + 0.9f) * u, (y + 3.2f) * u, slotName(i), 1.05f * u,
 				         used ? ui::TXT : nvgRGB(0x4a, 0x4c, 0x57), NVG_ALIGN_LEFT, 0.1f * u);
 				if (used && s->name[0]) {
@@ -1762,8 +2124,6 @@ struct Pads : AbWidget {
 						nm.pop_back();
 					ui::text(vg, bold, (x + 0.9f) * u, (y + 5.3f) * u, nm, 1.35f * u, nvgRGB(0xff, 0xff, 0xff), NVG_ALIGN_LEFT, 0.15f * u);
 				}
-				if (used && tag >= 0)
-					ui::text(vg, bold, (x + 0.9f) * u, (y + 7.f) * u, SECTION_NAMES[tag], 0.85f * u, SEC_COL[tag], NVG_ALIGN_LEFT, 0.1f * u);
 				for (int t = 0; t < 4; t++) {
 					bool on = false;
 					if (used) // a track with something in it
@@ -1781,15 +2141,47 @@ struct Pads : AbWidget {
 		int n = padAt(e.pos);
 		if (n < 0)
 			return;
+		lastPress = e.pos;
 		int i = module->bank() * PADS_PER_BANK + n;
 		if (e.button == GLFW_MOUSE_BUTTON_LEFT) {
-			module->padTap(i, module->genra());
+			if (!module->slots[i].used) // empty: stores at once
+				module->padTap(i, module->genra());
+			else // filled: tap on release (it may become a drag into the song list)
+				pressPad = i, dragDist = 0.f, dragging = false;
 			e.consume(this);
 		}
 		else if (e.button == GLFW_MOUSE_BUTTON_RIGHT) {
 			openMenu(i);
 			e.consume(this);
 		}
+	}
+	void onDragMove(const DragMoveEvent& e) override {
+		if (!module || pressPad < 0)
+			return;
+		dragDist += e.mouseDelta.norm();
+		if (!dragging && dragDist > mm2px(1.5f)) {
+			dragging = true;
+			module->dragSlot = pressPad;
+		}
+	}
+	void onDragEnd(const DragEndEvent& e) override {
+		if (module && pressPad >= 0 && !dragging)
+			module->padTap(pressPad, module->genra());
+		pressPad = -1;
+		dragging = false;
+		if (module)
+			module->dragSlot = -1;
+	}
+	void onDoubleClick(const DoubleClickEvent& e) override {
+		if (!module)
+			return;
+		int n = padAt(lastPress);
+		if (n < 0)
+			return;
+		int i = module->bank() * PADS_PER_BANK + n;
+		if (module->slots[i].used)
+			openRename(i);
+		e.consume(this);
 	}
 	/** The name field in the pad's menu: Enter renames (one undo step). */
 	struct NameField : rack::ui::TextField {
@@ -1823,6 +2215,20 @@ struct Pads : AbWidget {
 			rack::ui::TextField::onChange(e);
 		}
 	};
+	void openRename(int i) {
+		Ablauf* m = module;
+		Menu* menu = createMenu();
+		menu->addChild(createMenuLabel("Rename " + slotName(i) + " (Enter):"));
+		NameField* f = new NameField;
+		f->m = m;
+		f->i = i;
+		f->box.size.x = 140.f;
+		f->setText(m->slots[i].name);
+		f->placeholder = "NAME";
+		f->selectAll();
+		menu->addChild(f);
+		APP->event->setSelectedWidget(f);
+	}
 	void openMenu(int i) {
 		Ablauf* m = module;
 		Menu* menu = createMenu();
@@ -1852,6 +2258,13 @@ struct Pads : AbWidget {
 			m->selSlot = i;
 			m->insertRow();
 		}));
+		menu->addChild(createMenuItem("Overwrite with GENRA", "what GENRA plays now", [=]() { m->overwrite(i, m->genra()); }));
+		menu->addChild(new MenuSeparator);
+		menu->addChild(createMenuItem("Export as MIDI…", "all tracks", [=]() { m->exportPad(i, -1); }));
+		static const char* TN[4] = {"drums", "bass", "melody", "pads"};
+		for (int t = 0; t < 4; t++)
+			menu->addChild(createMenuItem(std::string("Export ") + TN[t] + " only…", "", [=]() { m->exportPad(i, t); }));
+		menu->addChild(new MenuSeparator);
 		menu->addChild(createMenuItem("Clear", "", [=]() { m->clearSlot(i); }));
 	}
 };
@@ -1882,8 +2295,7 @@ struct InfoLine : AbWidget {
 						ui::text(vg, bold, (x + 2.5f) * u, 3.7f * u, SECTION_NAMES[tag], 1.45f * u, SEC_COL[tag], NVG_ALIGN_LEFT, 0.25f * u);
 				}
 				else
-					ui::text(vg, bold, 1.6f * u, 3.7f * u, m->armed == 1 ? "STORE: tap a pad" : "GENRA plays freely", 1.4f * u,
-					         m->armed == 1 ? ACC : ui::DIM, NVG_ALIGN_LEFT, 0.25f * u);
+					ui::text(vg, bold, 1.6f * u, 3.7f * u, "GENRA plays freely", 1.4f * u, ui::DIM, NVG_ALIGN_LEFT, 0.25f * u);
 				if (m->armed == 2)
 					ui::text(vg, bold, (w - 1.6f) * u, 3.7f * u, m->copySrc < 0 ? "COPY: source" : "COPY: target", 1.4f * u, ACC, NVG_ALIGN_RIGHT, 0.25f * u);
 				else if (m->armed == 3)
@@ -1893,6 +2305,55 @@ struct InfoLine : AbWidget {
 			}
 		}
 		Widget::drawLayer(args, layer);
+	}
+};
+
+/** SONG FORM: the structure MAKE SONG builds – AUTO (typical for the pattern's genre) or one chosen. Click: the list,
+ * wheel: steps. */
+struct SongFormField : AbWidget {
+	void drawLayer(const DrawArgs& args, int layer) override {
+		if (layer == 1) {
+			NVGcontext* vg = args.vg;
+			auto bold = ui::boldFont();
+			float u = mm2px(1.f), w = box.size.x / u;
+			int sf = module ? module->songForm : -1;
+			float x = 1.6f;
+			if (sf < 0)
+				x += ui::text(vg, bold, x * u, 3.65f * u, "AUTO", 1.7f * u, ACC, NVG_ALIGN_LEFT, 0.4f * u) / u + 2.f;
+			int f = module ? module->effectiveForm() : SF_HOUSE;
+			std::string nm = f >= 0 ? SONG_FORMS[f].name : "by the pattern's genre";
+			float size = 1.6f;
+			nvgFontFaceId(vg, bold->handle);
+			while (size > 1.1f) { // long names get smaller
+				nvgFontSize(vg, size * u);
+				nvgTextLetterSpacing(vg, 0.3f * u);
+				if (nvgTextBounds(vg, 0, 0, nm.c_str(), NULL, NULL) <= (w - x - 6.f) * u)
+					break;
+				size -= 0.1f;
+			}
+			ui::text(vg, bold, x * u, 3.65f * u, nm, size * u, f >= 0 ? ui::TXT : ui::DIM, NVG_ALIGN_LEFT, 0.3f * u);
+		}
+		Widget::drawLayer(args, layer);
+	}
+	void onButton(const ButtonEvent& e) override {
+		if (!module || e.action != GLFW_PRESS || e.button != GLFW_MOUSE_BUTTON_LEFT)
+			return;
+		Ablauf* m = module;
+		Menu* menu = createMenu();
+		menu->addChild(createMenuLabel("Song form for MAKE SONG"));
+		menu->addChild(createCheckMenuItem("AUTO (typical for the pattern's genre)", "", [=]() { return m->songForm < 0; },
+		                                   [=]() { m->songForm = -1; }));
+		for (int k = 0; k < NUM_SONG_FORMS; k++)
+			menu->addChild(createCheckMenuItem(SONG_FORMS[k].name, string::f("%d bars", songFormBars(k)),
+			                                   [=]() { return m->songForm == k; }, [=]() { m->songForm = k; }));
+		e.consume(this);
+	}
+	void onHoverScroll(const HoverScrollEvent& e) override {
+		if (!module)
+			return;
+		int d = e.scrollDelta.y > 0 ? -1 : 1;
+		module->songForm = clamp(module->songForm + d, -1, NUM_SONG_FORMS - 1);
+		e.consume(this);
 	}
 };
 
@@ -2019,6 +2480,7 @@ struct AblaufWidget : ModuleWidget {
 		add(new Pads, L::PADS);
 		add(new InfoLine, L::INFO);
 		add(new RerollBoxes, L::REROLL);
+		add(new SongFormField, L::SONGFORM);
 		SectionRing* ring = new SectionRing;
 		add(ring, L::SECRING);
 		SectionRing* nm = new SectionRing;
@@ -2030,15 +2492,12 @@ struct AblaufWidget : ModuleWidget {
 		addParam(createParamCentered<RowKnob<GSmallKnob>>(ui::mm(L::TAKTE), module, A::TAKTE_PARAM));
 		addParam(createParamCentered<RowKnob<GSmallKnob>>(ui::mm(L::ABSCHNITT), module, A::ABSCHNITT_PARAM));
 
-		const float* tr[4] = {L::TRACK0, L::TRACK1, L::TRACK2, L::TRACK3};
-		addParam(createLightParamCentered<VCVLightBezel<ALight<0x7b, 0x6c, 0xff>>>(ui::mm(tr[0]), module, A::TRACK_PARAM + 0, A::TRACK_LIGHT + 0));
-		addParam(createLightParamCentered<VCVLightBezel<ALight<0xb8, 0xf2, 0x3a>>>(ui::mm(tr[1]), module, A::TRACK_PARAM + 1, A::TRACK_LIGHT + 1));
-		addParam(createLightParamCentered<VCVLightBezel<ALight<0x3d, 0xc9, 0xff>>>(ui::mm(tr[2]), module, A::TRACK_PARAM + 2, A::TRACK_LIGHT + 2));
-		addParam(createLightParamCentered<VCVLightBezel<ALight<0xe0, 0x77, 0x9e>>>(ui::mm(tr[3]), module, A::TRACK_PARAM + 3, A::TRACK_LIGHT + 3));
+		// (the track buttons D B M P and STORE are gone from the panel; their ids stay for old patches)
 
 		addParam(createLightParamCentered<VCVLightBezel<WhiteLight>>(ui::mm(L::INS), module, A::INS_PARAM, A::INS_LIGHT));
 		addParam(createLightParamCentered<VCVLightBezel<WhiteLight>>(ui::mm(L::DEL), module, A::DEL_PARAM, A::DEL_LIGHT));
 		addParam(createLightParamCentered<VCVLightBezel<WhiteLight>>(ui::mm(L::UNDO), module, A::UNDO_PARAM, A::UNDO_LIGHT));
+		addParam(createLightParamCentered<VCVLightBezel<ALight<0xff, 0xd2, 0x3d>>>(ui::mm(L::MAKESONG), module, A::MAKESONG_PARAM, A::MAKESONG_LIGHT));
 		addParam(createLightParamCentered<VCVLightBezel<ALight<0xff, 0xd2, 0x3d>>>(ui::mm(L::FILL), module, A::FILL_PARAM, A::FILL_LIGHT));
 		ui::LampRow* mode = createParam<ui::LampRow>(Vec(), module, A::MODE_PARAM);
 		mode->accent = ACC;
@@ -2056,7 +2515,6 @@ struct AblaufWidget : ModuleWidget {
 		addParam(createLightParamCentered<VCVLightBezel<ALight<0xff, 0x5a, 0x4f>>>(ui::mm(pp[3]), module, A::PART_PARAM + 3, A::PART_LIGHT + 3));
 		addParam(createLightParamCentered<VCVLightBezel<ALight<0x3f, 0xae, 0x9a>>>(ui::mm(pp[4]), module, A::PART_PARAM + 4, A::PART_LIGHT + 4));
 		addParam(createLightParamCentered<VCVLightBezel<ALight<0x8a, 0x8d, 0x99>>>(ui::mm(pp[5]), module, A::PART_PARAM + 5, A::PART_LIGHT + 5));
-		addParam(createLightParamCentered<VCVLightBezel<RedLight>>(ui::mm(L::STORE), module, A::STORE_PARAM, A::STORE_LIGHT));
 		addParam(createLightParamCentered<VCVLightBezel<WhiteLight>>(ui::mm(L::COPY), module, A::COPY_PARAM, A::COPY_LIGHT));
 		addParam(createLightParamCentered<VCVLightBezel<WhiteLight>>(ui::mm(L::CLEAR), module, A::CLEAR_PARAM, A::CLEAR_LIGHT));
 		addParam(createLightParamCentered<VCVLightBezel<RedLight>>(ui::mm(L::CLEARALL), module, A::CLEARALL_PARAM, A::CLEARALL_LIGHT));
@@ -2113,6 +2571,8 @@ struct AblaufWidget : ModuleWidget {
 			menu->addChild(createMenuItem(string::f("Clear bank %c", 'A' + b), "", [=]() {
 				m->clearSlots(b * PADS_PER_BANK, (b + 1) * PADS_PER_BANK, string::f("clear bank %c", 'A' + b).c_str());
 			}));
+		menu->addChild(createMenuItem("Export song as MIDI…", "all rows, a marker per part", [=]() { m->exportSong(); }));
+		menu->addChild(new MenuSeparator);
 		menu->addChild(createMenuItem("Clear song", "", [=]() {
 			AblaufAction* a = m->beginChange("clear song");
 			m->rows.clear();
@@ -2120,9 +2580,10 @@ struct AblaufWidget : ModuleWidget {
 			m->setRow(0);
 			m->endChange(a);
 		}));
-		menu->addChild(createMenuLabel("Store: tap an empty pad (or STORE, then any pad) · Song: tap a pad, then INSERT"));
+		menu->addChild(createMenuLabel("Store: tap an empty pad (right-click a pad › Overwrite with GENRA)"));
+		menu->addChild(createMenuLabel("Song: drag a pad into the list, or tap a pad, then INSERT · MAKE SONG builds it all"));
 		menu->addChild(createMenuLabel("Variations: pattern playing, then INTRO … OUTRO (each press: a new pad)"));
-		menu->addChild(createMenuLabel("Names: right-click a pad › Rename (GENRA 1, 2 ... and INTRO 1, 2 ...)"));
+		menu->addChild(createMenuLabel("Names: double-click a pad (GENRA 1, 2 … and per family INTRO 1, 2 …)"));
 	}
 };
 

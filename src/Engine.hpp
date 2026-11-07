@@ -328,9 +328,27 @@ struct MidiNote {
 	int vel;
 };
 std::vector<MidiNote> renderLoop(const Pattern& pat, const Params& P, int L);
-// loopSteps: track end is written at the loop end; pat: chord progression stored as GENRA metadata
+/** One row of a song (ABLAUF): a pattern played for `bars` bars (its loop of L steps repeats or is cut), tracks in
+ * `mute` (bit per track) silent, a fill over the last bar if `fill`. */
+struct SongPart {
+	const Pattern* pat = nullptr;
+	Params P;
+	int L = 64;
+	int bars = 4;
+	uint8_t mute = 0;
+	bool fill = false;
+	std::string label; // marker text at the row's start
+};
+struct SongMarker {
+	int tick;
+	std::string text;
+};
+/** All rows one after another; markers (if given) receive one entry per row. Total length in steps: sum of bars * 16. */
+std::vector<MidiNote> renderSong(const std::vector<SongPart>& parts, std::vector<SongMarker>* markers = nullptr);
+// loopSteps: track end is written at the loop end; pat: chord progression stored as GENRA metadata;
+// markers: marker meta events (song parts) in the tempo track
 std::vector<uint8_t> writeSmf(const std::vector<MidiNote>& notes, float bpm, const char* genreName, int loopSteps = 0,
-                              const Pattern* pat = nullptr);
+                              const Pattern* pat = nullptr, const std::vector<SongMarker>* markers = nullptr);
 // returns number of bars imported (0 on failure); err receives a message
 int importSmf(const std::vector<uint8_t>& data, Pattern& pat, const Params& P, std::string& err);
 

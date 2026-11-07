@@ -242,6 +242,76 @@ int main() {
 		makeSection(*src, *b, SEC_DROP, 0xF, P, r);
 		CHECK(std::memcmp(a->pat.drums, b->pat.drums, sizeof(a->pat.drums)) != 0, "second press must differ");
 	}
+	// MAKE SONG: every genre has a typical form; a few by name; the forms fit the row lengths (1-32 bars)
+	{
+		CHECK(songFormForGenre("Deep House") == SF_HOUSE && songFormForGenre("Trance") == SF_TRANCE &&
+		          songFormForGenre("2-Step") == SF_GARAGE && songFormForGenre("Dubstep") == SF_BASS &&
+		          songFormForGenre("Drum & Bass") == SF_JUNGLE && songFormForGenre("Lo-Fi") == SF_HIPHOP &&
+		          songFormForGenre("Amapiano") == SF_AFRO && songFormForGenre("Ambient") == SF_DUB,
+		      "song form by genre");
+		CHECK(songFormForGenre("nonsense") == SF_HOUSE && songFormForGenre(nullptr) == SF_HOUSE, "unknown genre form");
+		int mapped = 0;
+		for (int g = 0; g < numProfiles(); g++) {
+			const char* gname = prof(g).name;
+			bool house = std::strstr(gname, "House") || std::strstr(gname, "Techno") || !std::strcmp(gname, "Minimal") ||
+			             !std::strcmp(gname, "Acid");
+			int f = songFormForGenre(gname);
+			if (f != SF_HOUSE || house)
+				mapped++;
+			else
+				CHECK(false, "genre %s has no song form of its own\n", gname);
+		}
+		CHECK(songFormBars(SF_HOUSE) == 144, "house form length %d", songFormBars(SF_HOUSE));
+		for (int f = 0; f < NUM_SONG_FORMS; f++) {
+			CHECK(SONG_FORMS[f].n > 0 && SONG_FORMS[f].n <= MAX_FORM_PARTS, "form %d parts", f);
+			for (int k = 0; k < SONG_FORMS[f].n; k++) {
+				int b = SONG_FORMS[f].bars[k];
+				CHECK(b == 4 || b == 8 || b == 16 || b == 32, "form %d part %d: %d bars", f, k, b);
+				CHECK(SONG_FORMS[f].sec[k] >= 0 && SONG_FORMS[f].sec[k] < NUM_SECTIONS, "form %d part %d section", f, k);
+			}
+		}
+		printf("%d genres with a song form\n", mapped);
+	}
+	// song MIDI: one row the length of the loop renders like the loop; rows in order, markers per row, muted tracks silent
+	{
+		Rng r(11);
+		std::unique_ptr<Slot> a(new Slot), b(new Slot);
+		makeSource(*a, 0, 2, r); // 4 bars
+		makeSource(*b, 5, 1, r); // 2 bars
+		Params Pa = baseP(0, 4), Pb = baseP(5, 2);
+		std::vector<MidiNote> loop = renderLoop(a->pat, Pa, 64);
+		std::vector<SongPart> parts(1);
+		parts[0].pat = &a->pat, parts[0].P = Pa, parts[0].L = 64, parts[0].bars = 4;
+		std::vector<MidiNote> one = renderSong(parts);
+		bool same = loop.size() == one.size();
+		for (size_t i = 0; same && i < loop.size(); i++)
+			same = loop[i].startTick == one[i].startTick && loop[i].note == one[i].note && loop[i].len == one[i].len;
+		CHECK(same, "song of one loop-long row = the loop (%d vs %d notes)", (int)loop.size(), (int)one.size());
+		parts.resize(3);
+		parts[0].bars = 8; // the 4-bar loop twice
+		parts[0].label = "INTRO 1";
+		parts[1].pat = &b->pat, parts[1].P = Pb, parts[1].L = 32, parts[1].bars = 4, parts[1].mute = 1u << T_DRUMS;
+		parts[1].label = "DROP 1";
+		parts[2].pat = &a->pat, parts[2].P = Pa, parts[2].L = 64, parts[2].bars = 2, parts[2].fill = true;
+		parts[2].label = "OUTRO 1";
+		std::vector<SongMarker> marks;
+		std::vector<MidiNote> song = renderSong(parts, &marks);
+		const int TPB = 16 * 24;
+		CHECK(marks.size() == 3 && marks[0].tick == 0 && marks[1].tick == 8 * TPB && marks[2].tick == 12 * TPB, "markers");
+		CHECK(marks.size() == 3 && marks[1].text == "DROP 1", "marker text");
+		bool inRange = true, drumsInDrop = false;
+		for (const MidiNote& m : song) {
+			inRange &= m.startTick >= 0 && m.startTick + m.len <= 14 * TPB;
+			if (m.track == 0 && m.startTick >= 8 * TPB && m.startTick < 12 * TPB)
+				drumsInDrop = true;
+		}
+		CHECK(inRange, "song notes inside the song");
+		CHECK(!drumsInDrop, "muted drums in the second row");
+		std::vector<uint8_t> smf = writeSmf(song, 124.f, "Song", 14 * 16, nullptr, &marks);
+		std::string blob(smf.begin(), smf.end());
+		CHECK(blob.find("INTRO 1") != std::string::npos && blob.find("OUTRO 1") != std::string::npos, "markers in the file");
+		printf("song MIDI: %d notes, %d bytes\n", (int)song.size(), (int)smf.size());
+	}
 	printf("%d parts made, %s\n", n, fails ? "FAILED" : "all ABLAUF tests passed");
 	return fails != 0;
 }

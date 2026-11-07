@@ -1,6 +1,6 @@
 # GENRA – Projektstand
 
-**Stand:** 7. November 2026 · **Plugin 2.19.1: 18 Module** (GENRA, GRID, ABLAUF, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, GRUND, GRUND FX, SCHMELZ, MIX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `Camillowup/Genra-for-Vcv` (vorher `CamilloGF/genra-v3`, Account nicht mehr erreichbar)
+**Stand:** 7. November 2026 · **Plugin 2.20.0: 18 Module** (GENRA, GRID, ABLAUF, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, GRUND, GRUND FX, SCHMELZ, MIX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `Camillowup/Genra-for-Vcv` (vorher `CamilloGF/genra-v3`, Account nicht mehr erreichbar)
 
 > Design-Leitfaden für neue Module (Aussehen, GENRA-Leiste, Leuchtsegmente, Follow, englische UI): **docs/DESIGN.md**
 
@@ -361,3 +361,17 @@ GENRA MONO: `g++ -std=c++17 -O2 test/test_mono.cpp -o tm && ./tm`
 - Teil-Taster: jeder Druck schreibt eine neue Variante auf das nächste freie Pad (ab der aktuellen Bank, dann die folgenden), nichts wird mehr überschrieben; alle 128 voll → Hinweis „All 128 pads are full“. Die Quelle bleibt das ursprüngliche Pattern, solange eine der Varianten unverändert läuft (`Session::made`).
 - Bass in BREAK und INTRO variiert pro Druck (`PartOpts`, `BREAK_BASS_NAMES`/`INTRO_BASS_NAMES` in `Arranger.hpp`): BREAK zufällig aus lange Grundtöne (bei Akkorden über 2 Takte jetzt alle 2 Takte neu angeschlagen, kein stiller Takt), ausgedünnte Original-Linie (Quell-Bass ohne Neu-Würfeln, nur 1/3 und Akkordwechsel, max. 6 Steps, ×0,8), Puls (Viertel oder Achtel, gelegentlich Oktave), Dub-Offbeats (1–3 Töne pro Takt auf „und“ von 2/4 bzw. 16tel-Versätzen, Grundton/Quinte), Bass raus (1–2 Töne Auftakt im letzten Schlag); INTRO aus gebundene Grundtöne, ausgedünnte Linie, Puls – jeweils ab der Hälfte. Rechtsklick › Break bass / Intro bass (Random oder fest), JSON `breakBass`/`introBass`. `test_ablauf` prüft jede Art (kein leerer Takt ab dem Einsatz außer „Bass raus“, Drums unberührt) und dass Random variiert.
 
+
+### 2.19.1 / 2.19.2 – Namen
+- Varianten heissen nach ihrem Teil mit laufender Nummer (INTRO 1, INTRO 2 …); Patterns von GENRA auf leeren Pads heissen GENRA 1, GENRA 2 … (statt ROOT). `Store.cpp`: Record-Länge Byte für Byte gelesen (Operanden-Reihenfolge war nicht festgelegt).
+
+### 2.20.0 – ABLAUF: MAKE SONG, SONG FORM, Familien, MIDI-Export, Pads in den Song ziehen
+- Panel: Taster D B M P und STORE sind weg (Param-Ids bleiben für alte Patches, ohne Widget). Song-Fenster: FILL, PATT/SONG, PLAY/STOP/LOOP in der Mitte; INSERT/DELETE/UNDO und **MAKE SONG** (neuer `MAKESONG_PARAM`/`_LIGHT`, angehängt) unten. Pattern-Fenster unten: **SONG FORM**-Feld (`SONGFORM`), daneben COPY/CLEAR/CLR ALL.
+- Familien: `Slot::family` (JSON `family`). Ein Pattern von GENRA auf leerem Pad beginnt Familie n (Name „GENRA n“, n = eins über allen Familien und GENRA-Namen). Varianten (Teil-Taster, MAKE SONG) und COPY übernehmen sie, Umbenennen nicht. Nummern der Varianten zählen pro Familie. Balken oben auf dem Pad und Strich in der Song-Liste in der Familienfarbe (8 Farben, getrennt von Teil- und Spurfarben); ohne Familie grau. Alte Patches: „GENRA n“ → Familie n, sonst keine.
+- MAKE SONG: aus dem gewählten Pad (Quelle = Original seiner Familie, `tag < 0`), Form = SONG FORM (AUTO: `songFormForGenre` nach dem Genre der Drum-Spur bzw. der Akkorde). Pro Teil eine vorhandene Variante der Familie (kleinste Nummer, Wiederholung nimmt die nächste) oder neu per `makeSection` mit GENRAs Reglern (`buildParams(false)`), RE-ROLL und Bass-Arten. Song-Liste ersetzt, ein `ComplexAction` (neue Pads + Liste). Ohne GENRA bzw. bei vollen Pads spielt dort das Original (Meldung). Formen in `Arranger.cpp` (`SONG_FORMS`, 8 Stück, Tabelle in der README), JSON `songForm` (-1 = AUTO).
+- Stumme Spuren pro Zeile: nicht mehr einstellbar; Zeilen aus alten Patches behalten sie (Liste zeigt ein kleines M), neue Zeilen spielen alle Spuren.
+- Rechtsklick aufs Pad: *Overwrite with GENRA* (statt STORE; Name, Teil, Familie bleiben), *Export as MIDI…* und *Export drums/bass/melody/pads only…*. Doppelklick aufs Pad: Umbenennen.
+- Rechtsklick aufs Modul: *Export song as MIDI…* (`renderSong` in `Midi.cpp`: Zeilen hintereinander, Loop wiederholt bzw. abgeschnitten, Fill im letzten Takt, stumme Spuren, Marker pro Zeile im Tempo-Track; `writeSmf` hat dafür einen optionalen `markers`-Parameter). `renderLoop` nutzt intern denselben Weg (`renderRange`), Ergebnis unverändert.
+- Pads per Drag & Drop in die Song-Liste: zwischen Zeilen einfügen (Linie), auf eine Zeile ersetzen (Rahmen), Undo. Ein belegtes Pad löst sein Antippen jetzt beim Loslassen aus (sonst wäre jeder Drag ein Antippen); leere Pads speichern weiter beim Drücken.
+- Song-Liste unten: Takte und Spieldauer aus GENRAs Tempo (`Genra::currentBpm`, auch für GENRAs MIDI-Export), z. B. „BAR 37 / 92 · 1:12 / 2:59“.
+- `test_ablauf`: jede Genre-Variante hat eine Form, Formlängen, `renderSong` (eine Zeile = Loop, Marker, stumme Drums, Notenbereich, Marker in der Datei).

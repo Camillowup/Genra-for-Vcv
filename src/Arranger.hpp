@@ -31,6 +31,7 @@ struct Slot {
 	ArrMods mods;
 	int8_t tag = -1;                           // Section, -1 = none yet
 	char name[9] = {};                         // the user's name for it (ABLAUF), "" = none
+	int8_t family = -1;                        // ABLAUF: the GENRA original it comes from (GENRA n -> n), -1 = none
 	bool used = false;
 	Slot() { initPattern(pat); }
 };
@@ -51,6 +52,20 @@ struct PartOpts {
  * The result is tagged with the part. */
 void makeSection(const Slot& src, Slot& out, int section, unsigned reroll, const Params& P, Rng& rng,
                  const PartOpts& opts = PartOpts());
+
+/** A song structure for ABLAUF's MAKE SONG: the parts in order with their length in bars. */
+static const int MAX_FORM_PARTS = 10;
+struct SongForm {
+	const char* name;  // shown in the SONG FORM field
+	int n;
+	int sec[MAX_FORM_PARTS];
+	int bars[MAX_FORM_PARTS];
+};
+enum SongFormId { SF_HOUSE, SF_TRANCE, SF_GARAGE, SF_BASS, SF_JUNGLE, SF_HIPHOP, SF_AFRO, SF_DUB, NUM_SONG_FORMS };
+extern const SongForm SONG_FORMS[NUM_SONG_FORMS];
+/** The form typical for a genre (by its name, e.g. "Deep House"); unknown genres: House · Techno. */
+int songFormForGenre(const char* genreName);
+int songFormBars(int form);
 
 /** Params as GENRA plays a slot: P (the knobs) plus the slot's offsets. */
 Params withMods(const Params& P, const ArrMods& m);

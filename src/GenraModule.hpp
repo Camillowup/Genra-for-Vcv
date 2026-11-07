@@ -1359,6 +1359,13 @@ struct Genra : Module {
 		}
 	}
 
+	/** The tempo: from the clock input when patched, else the BPM knob (UI thread: an estimate is fine). */
+	float currentBpm() {
+		if (inputs[CLOCK_INPUT].isConnected() && stepPeriod > 0.f)
+			return 60.f * APP->engine->getSampleRate() / (stepPeriod * 4.f);
+		return params[BPM_PARAM].getValue();
+	}
+
 	// ------------------------------------------------------------ MIDI file actions (UI thread)
 	// onlyTrack: -1 = all four tracks, 0..3 = just drums / bass / melody / pads
 	void exportMidi(int onlyTrack = -1) {
@@ -1381,9 +1388,7 @@ struct Genra : Module {
 			path += ".mid";
 		Params P = buildParams();
 		int L = lengthSteps();
-		float bpm = inputs[CLOCK_INPUT].isConnected() && stepPeriod > 0.f
-		                ? 60.f * APP->engine->getSampleRate() / (stepPeriod * 4.f)
-		                : params[BPM_PARAM].getValue();
+		float bpm = currentBpm();
 		std::vector<MidiNote> notes = renderLoop(pat, P, L);
 		if (onlyTrack >= 0)
 			notes.erase(std::remove_if(notes.begin(), notes.end(), [=](const MidiNote& n) { return n.track != onlyTrack; }),

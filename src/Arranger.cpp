@@ -540,4 +540,61 @@ void makeSection(const Slot& src, Slot& out, int sec, unsigned reroll, const Par
 	}
 }
 
+// ---------------------------------------------------------------- song forms (MAKE SONG)
+#define I SEC_INTRO
+#define V SEC_VERSE
+#define B SEC_BUILD
+#define D SEC_DROP
+#define K SEC_BREAK
+#define O SEC_OUTRO
+const SongForm SONG_FORMS[NUM_SONG_FORMS] = {
+	{"HOUSE · TECHNO", 8, {I, V, B, D, K, B, D, O}, {16, 16, 8, 32, 16, 8, 32, 16}},
+	{"TRANCE · SYNTHWAVE", 8, {I, V, B, D, K, B, D, O}, {16, 16, 8, 16, 32, 16, 32, 16}},
+	{"GARAGE", 9, {I, V, B, D, K, V, B, D, O}, {16, 16, 8, 16, 8, 16, 8, 16, 16}},
+	{"BASS MUSIC", 7, {I, B, D, K, B, D, O}, {16, 8, 16, 16, 8, 16, 8}},
+	{"JUNGLE · DNB", 7, {I, B, D, K, B, D, O}, {32, 8, 32, 16, 8, 32, 16}},
+	{"HIP-HOP", 8, {I, V, D, V, D, K, D, O}, {4, 16, 8, 16, 8, 4, 8, 4}},
+	{"AFRO · LATIN", 7, {I, V, D, V, K, D, O}, {8, 16, 16, 16, 8, 16, 8}},
+	{"DUB · DOWNTEMPO · AMBIENT", 6, {I, V, K, V, K, O}, {8, 16, 16, 16, 16, 8}},
+};
+#undef I
+#undef V
+#undef B
+#undef D
+#undef K
+#undef O
+
+int songFormForGenre(const char* name) {
+	if (!name)
+		return SF_HOUSE;
+	static const struct {
+		const char* genre;
+		int form;
+	} MAP[] = {
+	    {"House", SF_HOUSE}, {"Deep House", SF_HOUSE}, {"Tech House", SF_HOUSE}, {"Afro House", SF_HOUSE},
+	    {"Techno", SF_HOUSE}, {"Minimal", SF_HOUSE}, {"Acid", SF_HOUSE}, {"Detroit Techno", SF_HOUSE},
+	    {"Melodic Techno", SF_HOUSE}, {"Hard Techno", SF_HOUSE}, {"Dub Techno", SF_HOUSE},
+	    {"Trance", SF_TRANCE}, {"Synthwave", SF_TRANCE}, {"Electro", SF_TRANCE},
+	    {"UK Garage", SF_GARAGE}, {"2-Step", SF_GARAGE}, {"Speed Garage", SF_GARAGE},
+	    {"Dubstep", SF_BASS}, {"Grime", SF_BASS}, {"Breakbeat", SF_BASS},
+	    {"Jungle", SF_JUNGLE}, {"Drum & Bass", SF_JUNGLE}, {"Footwork", SF_JUNGLE}, {"Breakcore", SF_JUNGLE},
+	    {"Hip-Hop", SF_HIPHOP}, {"Lo-Fi", SF_HIPHOP}, {"Trap", SF_HIPHOP}, {"Drill", SF_HIPHOP}, {"Trip-Hop", SF_HIPHOP},
+	    {"Afrobeat", SF_AFRO}, {"Afrobeats", SF_AFRO}, {"Amapiano", SF_AFRO}, {"Baile Funk", SF_AFRO}, {"Reggaeton", SF_AFRO},
+	    {"Dub", SF_DUB}, {"Downtempo", SF_DUB}, {"Ambient", SF_DUB},
+	};
+	for (const auto& m : MAP)
+		if (std::strcmp(m.genre, name) == 0)
+			return m.form;
+	return SF_HOUSE;
+}
+
+int songFormBars(int form) {
+	if (form < 0 || form >= NUM_SONG_FORMS)
+		return 0;
+	int n = 0;
+	for (int k = 0; k < SONG_FORMS[form].n; k++)
+		n += SONG_FORMS[form].bars[k];
+	return n;
+}
+
 } // namespace genra
