@@ -734,6 +734,19 @@ struct Ablauf : Module {
 		pendingPart = k;
 		requestSnap(g);
 	}
+	/** A variant's name: the part and the next free number of that part (INTRO 1, INTRO 2, BREAK 1 ...). */
+	std::string partName(int k, int skip) {
+		std::string base = SECTION_NAMES[k];
+		int top = 0;
+		for (int i = 0; i < NUM_SLOTS; i++) {
+			if (i == skip || !slots[i].used)
+				continue;
+			std::string n = slots[i].name;
+			if (n.size() > base.size() + 1 && n.compare(0, base.size() + 1, base + " ") == 0)
+				top = std::max(top, std::atoi(n.c_str() + base.size() + 1));
+		}
+		return base + " " + std::to_string(top + 1);
+	}
 	void makePart(int k, Genra* g) {
 		int target = freeSlot(); // the next free pad: from this bank on, then the following banks
 		if (target < 0) {
@@ -742,6 +755,7 @@ struct Ablauf : Module {
 		}
 		AblaufAction* a = beginChange(SECTION_NAMES[k], target);
 		makeSection(*session.source, slots[target], k, rerollMask(), session.P, rng, partOpts);
+		setName(slots[target], partName(k, target));
 		endChange(a);
 		session.result[k] = target;
 		session.made.push_back({target, slotVer[target]});
@@ -2107,7 +2121,7 @@ struct AblaufWidget : ModuleWidget {
 		}));
 		menu->addChild(createMenuLabel("Store: tap an empty pad (or STORE, then any pad) · Song: tap a pad, then INSERT"));
 		menu->addChild(createMenuLabel("Variations: pattern playing, then INTRO … OUTRO (each press: a new pad)"));
-		menu->addChild(createMenuLabel("Names: right-click a pad › Rename (the first pattern is ROOT)"));
+		menu->addChild(createMenuLabel("Names: right-click a pad › Rename (first pattern ROOT, variants INTRO 1, 2 ...)"));
 	}
 };
 
