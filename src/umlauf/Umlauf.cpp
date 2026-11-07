@@ -10,8 +10,10 @@
 #include "../plugin.hpp"
 #include "../Follow.hpp"
 #include "../ui/GenraUI.hpp"
+#include "../ui/StateBank.hpp"
 #include "UmlaufFx.hpp"
 #include "UmlaufLayout.hpp"
+#include "UmlaufPresets.h"
 #include "VaderApi.hpp"
 #include <osdialog.h>
 #include <atomic>
@@ -181,8 +183,12 @@ struct Umlauf : Module, follow::Host {
 	std::atomic<double> shownAt{-1e9};
 	void markShown() { shownAt.store(system::getTime(), std::memory_order_relaxed); }
 	bool shown() const { return system::getTime() - shownAt.load(std::memory_order_relaxed) < 0.2; }
-	int presetIdx = 0;
-	std::vector<std::string> presetNames;  // read once, before the engine runs
+	int presetIdx = 0;  // VADER's preset last loaded (the patch keeps it, for UMLAUF before 2.18)
+	std::vector<std::string> presetNames;  // VADER's, read once, before the engine runs
+	// presets in the header field (StateBank.hpp): UMLAUF's own (UmlaufPresets.h), then VADER's, then the user's
+	enum { NOWN = UMLAUF_NPRESETS, NVADER = 22 };
+	genra_states::Bank bank;
+	std::atomic<int> loadSerial{0}, loadedPos{-1};
 	// the engine's whole state, as the audio thread last wrote it (dataToJson reads this, never the engine)
 	std::mutex stateMutex;
 	std::string stateCache;
@@ -193,15 +199,17 @@ struct Umlauf : Module, follow::Host {
 	std::vector<char> stateBuf;
 	void stateChanged(int n = 2) { stateOwed = std::max(stateOwed, n); }
 	/** The engine's state into stateCache; false (still owed) when dataToJson holds the lock just now. */
-	bool refreshState() {
+	bool refreshState(bool wait = false) {
 		int need = E->get_param(inst, "state", nullptr, 0);
 		if (need <= 0)
 			return true;
 		stateBuf.assign((size_t) need + 1, 0);
 		if (E->get_param(inst, "state", stateBuf.data(), need) <= 0)
 			return true;
-		std::unique_lock<std::mutex> lock(stateMutex, std::try_to_lock);
-		if (!lock.owns_lock())
+		std::unique_lock<std::mutex> lock(stateMutex, std::defer_lock);
+		if (wait)
+			lock.lock();
+		else if (!lock.try_lock())
 			return false;
 		stateCache = stateBuf.data();
 		return true;
@@ -417,8 +425,17 @@ struct Umlauf : Module, follow::Host {
 		addKey("focus_y", 0, 1, false);
 
 		if (inst) {
-			for (int i = 0; i < 22; i++)
+			for (int i = 0; i < NVADER; i++)
 				presetNames.push_back(engText(string::f("preset:%d", i)));
+			genra_states::Factory f;
+			f.count = NOWN + NVADER;
+			f.style = [](int i) { return i < NOWN ? UMLAUF_PRESETS[i].style : "VADER"; };
+			f.name = [this](int i) { return i < NOWN ? UMLAUF_PRESETS[i].name : presetNames[i - NOWN].c_str(); };
+			f.info = [](int i) { return i < NOWN ? UMLAUF_PRESETS[i].info : (i - NOWN >= 16 ? "SAMPLES" : ""); };
+			bank.init(this, f, asset::user("Genra/UmlaufPresets"), &loadSerial, &loadedPos,
+			          [this](int i) { loadFactory(i); });
+			bank.preset = NOWN;  // (INIT ORBIT, as the engine starts)
+			bank.presetName = bank.nameOf(NOWN);
 			refreshState();
 			pullAll(true, false);
 			for (int i = 0; i < 8; i++)
@@ -853,11 +870,25 @@ struct Umlauf : Module, follow::Host {
 	}
 
 	// ---------------------------------------------------------------- presets, files
-	void loadPreset(int n) {
+	/** VADER's preset n. */
+	void loadPreset(int n) { loadFactory(NOWN + clamp(n, 0, NVADER - 1)); }
+	/** Factory preset i of the field's list (on the audio thread): UMLAUF's own are INIT ORBIT and their values. */
+	void loadFactory(int i) {
 		post([=]() {
-			presetIdx = n;
-			engSet("preset", (float) n);
+			if (i < NOWN) {
+				presetIdx = 0;
+				engSet("preset", 1.f);  // (the engine loads only a preset other than its own: INIT afresh)
+				engSet("preset", 0.f);
+				for (const ukv_t* kv = UMLAUF_PRESETS[i].kv; kv->key; kv++)
+					engSet(kv->key, kv->v);
+			} else {
+				presetIdx = i - NOWN;
+				engSet("preset", (float) presetIdx);
+			}
 			pullAll(true, true);
+			refreshState(true);  // (the patch, and the undo step, have it at once)
+			loadedPos = i;
+			loadSerial++;
 		});
 	}
 	void pickShapeFile(const std::string& path) {
@@ -916,17 +947,23 @@ struct Umlauf : Module, follow::Host {
 			if (!stateCache.empty())
 				json_object_set_new(r, "state", json_string(stateCache.c_str()));
 		}
+		if (inst)
+			bank.toJson(r);
 		fol.toJson(r);
 		return r;
 	}
 	void dataFromJson(json_t* r) override {
 		fol.fromJson(r);
+		// a preset or an undo step (StateBank.hpp): the engine's state is the whole sound, the expander follows it
+		bool engineWins = json_is_true(json_object_get(r, "engineWins"));
 		if (json_t* j = json_object_get(r, "ppqn"))
 			ppqn = clamp((int) json_integer_value(j), 1, 24);
 		if (json_t* j = json_object_get(r, "delaySync"))
 			delaySync = json_boolean_value(j);
 		if (json_t* j = json_object_get(r, "preset"))
-			presetIdx = clamp((int) json_integer_value(j), 0, 21);
+			presetIdx = clamp((int) json_integer_value(j), 0, NVADER - 1);
+		if (inst)  // (a patch from before 2.18 has VADER's number only)
+			bank.fromJson(r, json_object_get(r, "preset") ? NOWN + presetIdx : -1);
 		if (json_t* j = json_object_get(r, "userShape"))
 			if (const char* v = json_string_value(j))
 				userShape = v;
@@ -963,6 +1000,8 @@ struct Umlauf : Module, follow::Host {
 				}
 			}
 			fxWasThere = fxModule() != nullptr;  // an expander saved with the patch keeps its own knobs
+			if (engineWins && fxWasThere)
+				pullAll(false, true);              // … a preset's sound: the expander shows it
 			refreshState();
 			if (!userShape.empty() && (int) std::lround(params[SHAPE_PARAM].getValue()) == SHAPE_USER)
 				pickShapeFile(userShape);
@@ -1287,6 +1326,14 @@ struct UmlaufWidget : ModuleWidget {
 		addChild(createWidget<ScrewBlack>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 		addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
+		genra_states::PresetField* pf = createWidget<genra_states::PresetField>(mm2px(Vec(L::PRESETF[0], L::PRESETF[1])));
+		pf->box.size = mm2px(Vec(L::PRESETF[2], L::PRESETF[3]));
+		pf->bank = module && module->inst ? &module->bank : nullptr;
+		pf->accent = ACCENT;
+		pf->sample = UMLAUF_PRESETS[0].name;
+		pf->sampleStyle = UMLAUF_PRESETS[0].style;
+		addChild(pf);
+
 		OrbitDisplay* d = new OrbitDisplay;
 		d->module = module;
 		d->box.pos = mm2px(Vec(L::DISPLAY[0], L::DISPLAY[1]));
@@ -1352,13 +1399,8 @@ struct UmlaufWidget : ModuleWidget {
 		if (!m || !m->inst)
 			return;
 		menu->addChild(new MenuSeparator);
-		std::vector<std::string> presets = m->presetNames;
-		menu->addChild(createSubmenuItem("Preset", presets[clamp(m->presetIdx, 0, 21)], [=](Menu* sub) {
-			for (int i = 0; i < 22; i++)
-				sub->addChild(createCheckMenuItem(string::f("%02d  %s%s", i + 1, presets[i].c_str(),
-				                                            i >= 16 ? "  (samples)" : ""),
-				                                  "", [=]() { return m->presetIdx == i; }, [=]() { m->loadPreset(i); }));
-		}));
+		genra_states::appendMenu(menu, &m->bank);
+		menu->addChild(new MenuSeparator);
 		std::vector<std::string> files;
 		{
 			std::lock_guard<std::mutex> lock(m->listMutex);

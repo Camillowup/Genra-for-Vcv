@@ -13,6 +13,7 @@
 #include <time.h>
 #include "engine.h"
 #include "overlay.h"
+#include "../src/umlauf/UmlaufPresets.h"
 
 void vader_render_f(void *inst, float *l, float *r, int frames);
 void *vader_view_bus(void *inst);
@@ -182,6 +183,37 @@ int main(int argc, char **argv) {
         run(s, 44100 * 4, &bad, NULL);
         CHECK(!bad && pk < 3.0f, "preset %d %s: peak %.3f bad %d", p, name, pk, bad);
         printf("preset %2d %-16s peak %.3f\n", p, name, pk);
+    }
+
+    /* UMLAUF's own presets (src/umlauf/UmlaufPresets.h), loaded as the module does: INIT ORBIT, then the values.
+     * Each sounds (a chord and a low note), stays clear of the module's soft clip (1.0 here = 10 V there) and dies
+     * away after the keys are let go. */
+    for (int p = 0; p < UMLAUF_NPRESETS; p++) {
+        const upreset_t *P = &UMLAUF_PRESETS[p];
+        setf(s, "preset", 1);
+        setf(s, "preset", 0);
+        for (const ukv_t *kv = P->kv; kv->key; kv++) {
+            char cur[32] = "";
+            CHECK(E->get_param(s, kv->key, cur, sizeof cur) > 0, "preset %s: unknown key %s", P->name, kv->key);
+            setf(s, kv->key, kv->v);
+        }
+        double rc, rn, rt;
+        bad = 0;
+        note(s, 48, 1); note(s, 55, 1); note(s, 63, 1);
+        float pc = run(s, 44100, &bad, &rc);
+        note(s, 48, 0); note(s, 55, 0); note(s, 63, 0);
+        run(s, 44100 * 6, &bad, NULL);
+        float pt = run(s, 22050, &bad, &rt);
+        note(s, 36, 1);
+        float pn = run(s, 44100 * 3 / 2, &bad, &rn);
+        note(s, 36, 0);
+        run(s, 44100 * 6, &bad, NULL);
+        CHECK(!bad, "preset %s: not finite", P->name);
+        CHECK(pc > 0.08f && pc < 0.9f, "preset %s: chord peak %.3f", P->name, pc);
+        CHECK(pn > 0.04f && pn < 0.9f, "preset %s: note peak %.3f", P->name, pn);
+        CHECK(pt < 0.02f, "preset %s: still sounding %.4f after release", P->name, pt);
+        printf("umlauf %2d %-17s chord %.3f (rms %.3f)  low note %.3f (rms %.3f)  tail %.4f\n", p + 1, P->name, pc, rc,
+               pn, rn, pt);
     }
 
     /* state round trip */

@@ -167,12 +167,16 @@ def strips(groups, y, ytop, h, x_of):
           f'fill="{STRIP}"/>')
 
 
-def header(title, sub):
+def header(title, sub, preset=False):
     e(f'<svg xmlns="http://www.w3.org/2000/svg" width="{W:.2f}mm" height="{H}mm" viewBox="0 0 {W:.2f} {H}">')
     e(f'<rect width="{W:.2f}" height="{H}" fill="{BG}"/>')
     text(12.9, 7.6, title, 5.1, TITLE, 800, "start", 1.08)
     text(12.9 + width(title, 5.1, 800, 1.08) + 6.0, 7.45, sub, 1.76, DIM, 600, "start", 0.47)
-    e(f'<rect x="{W - 27.1:.2f}" y="5.55" width="11.5" height="1.08" rx="0.54" fill="{ACC}"/>')
+    if preset:  # presets: a field in the header (as on GRUND, FUNKE, SCHMELZ, GENRA MONO), the accent bar after it
+        field("PRESETF", W - 70, 3.4, 46)
+        e(f'<rect x="{W - 21.5:.2f}" y="5.55" width="8" height="1.08" rx="0.54" fill="{ACC}"/>')
+    else:
+        e(f'<rect x="{W - 27.1:.2f}" y="5.55" width="11.5" height="1.08" rx="0.54" fill="{ACC}"/>')
 
 
 def jack_groups(rowsets, y, ytop, sh=14.3, SL=11.0, x0=None):
@@ -212,7 +216,7 @@ def write(svgname, hdr, ns):
 # ================================================================ K-WASUB
 def build_main():
     reset()
-    header("K-WASUB", "GENRA · MODERN BASS · FIRMWARE BY OMNIPOTARD")
+    header("K-WASUB", "GENRA · MODERN BASS · FIRMWARE BY OMNIPOTARD", preset=True)
     rects["DISPLAY"] = (3, 10.5, W - 6, 16)
     e(f'<rect x="3" y="10.5" width="{W - 6:.2f}" height="16" rx="1.6" fill="{DARK}" stroke="{LINE}" stroke-width="0.4"/>')
     for i, o in enumerate(("A", "B")):
@@ -227,22 +231,25 @@ def build_main():
     knob("F_CUT", 140, 54, "CUTOFF", "large", hot=True)
     row([("F_RES", "RES"), ("F_DRV", "DRIVE"), ("F_ENV", "ENV")], 158, 14, 49.5, "knob")
     row([("F_KEY", "KEY"), ("FE_A", "F.ATK"), ("FE_D", "F.DEC")], 158, 14, 65.5, "small")
-    section(3, 77.5, 34, 23, "SUB · X")
-    row([("S_LVL", "SUB"), ("N_LVL", "NOISE"), ("X_AMT", "X-MOD")], 9.5, 10.5, 88.5, "small")
-    section(39, 77.5, 46, 23, "WOBBLE")
-    knob("L_RATE", 46.5, 88.5, "RATE", "knob", hot=True)
-    row([("L_DEP", "DEPTH"), ("L_SHP", "SHAPE"), ("L_DST", "DEST")], 58.5, 10, 88.5, "small")
-    section(87, 77.5, 44, 23, "AMP")
-    row([("AE_A", "A"), ("AE_D", "D"), ("AE_S", "S"), ("AE_R", "R")], 93.7, 10.2, 88.5, "small")
-    section(133, 77.5, 44, 23, "FX")
-    row([("FX_SAT", "SAT"), ("FX_DLY", "DELAY"), ("FX_VERB", "VERB"), ("FX_GLUE", "GLUE")], 139.7, 10.2, 88.5, "small")
-    section(179, 77.5, W - 182, 23, "PRESET")
-    # the preset selector: the module writes the number and the name, a click opens the list, the wheel steps
-    px, py, pw, ph = 181.0, 84.0, W - 186.0, 12.0
-    rects["PRESET_FIELD"] = (px, py, pw, ph)
-    e(f'<rect x="{px}" y="{py}" width="{pw:.2f}" height="{ph}" rx="0.9" fill="{DARK}" stroke="{LINE}" stroke-width="0.4"/>')
-    e(f'<polyline points="{px + pw - 4.2:.2f},{py + 2.1} {px + pw - 3:.2f},{py + 3.4} {px + pw - 1.8:.2f},{py + 2.1}" '
-      f'fill="none" stroke="{ACC}" stroke-width="0.4" stroke-linecap="round" stroke-linejoin="round"/>')
+    # the bottom row: four sections over the full width (the preset moved into the header)
+    SW = (W - 6 - 3 * 2) / 4
+    def sx(i): return 3 + i * (SW + 2)
+    def spread(names, i, hot=None):
+        n = len(names) + (1 if hot else 0)
+        dx = min(11.5, (SW - 8) / max(1, n - 1))
+        x0 = sx(i) + SW / 2 - dx * (n - 1) / 2
+        if hot:
+            knob(hot[0], x0, 88.5, hot[1], "knob", hot=True)
+            x0 += dx
+        row(names, x0, dx, 88.5, "small")
+    section(sx(0), 77.5, SW, 23, "SUB · X")
+    spread([("S_LVL", "SUB"), ("N_LVL", "NOISE"), ("X_AMT", "X-MOD")], 0)
+    section(sx(1), 77.5, SW, 23, "WOBBLE")
+    spread([("L_DEP", "DEPTH"), ("L_SHP", "SHAPE"), ("L_DST", "DEST")], 1, hot=("L_RATE", "RATE"))
+    section(sx(2), 77.5, SW, 23, "AMP")
+    spread([("AE_A", "A"), ("AE_D", "D"), ("AE_S", "S"), ("AE_R", "R")], 2)
+    section(sx(3), 77.5, SW, 23, "FX")
+    spread([("FX_SAT", "SAT"), ("FX_DLY", "DELAY"), ("FX_VERB", "VERB"), ("FX_GLUE", "GLUE")], 3)
     e(f'<rect x="3" y="102.2" width="{W - 6:.2f}" height="25" rx="1.2" fill="{PLATE}"/>')
     # the GENRA strip (as on every instrument): ACC and SLIDE are new, MOD moved here (mod wheel)
     def jk(name, x, y, label):
@@ -363,6 +370,10 @@ def place():
 def render(png):
     _cache.clear()
     place()
+    if "PRESETF" in rects:  # the preset field (the module writes number, name and style)
+        x, y, w, h = rects["PRESETF"]
+        ptext(x + 2, y + 3.65, "12  ACID ROLLER", 1.9, "#e6e7ec", 800, "start", 0.5)
+        ptext(x + w - 6, y + 3.55, "TECHNO", 1.45, DIM, 600, "end", 0.4)
     svg = png.rsplit(".", 1)[0] + ".svg"
     open(svg, "w").write("\n".join(out))
     subprocess.run(["rsvg-convert", "-w", "1600", svg, "-o", png], check=True)

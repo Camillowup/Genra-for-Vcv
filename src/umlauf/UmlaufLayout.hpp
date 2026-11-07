@@ -115,5 +115,6 @@ static const float CDISP_B[4] = {73.580f, 55.500f, 59.580f, 7.500f};
 static const float CDISP_C[4] = {141.160f, 55.500f, 59.580f, 7.500f};
 static const float CDISP_D[4] = {208.740f, 55.500f, 59.580f, 7.500f};
 static const float DISPLAY[4] = {3.000f, 10.500f, 100.000f, 36.000f};
+static const float PRESETF[4] = {204.320f, 3.400f, 46.000f, 5.400f};
 static const int HP = 54;
 }

@@ -59,7 +59,8 @@ bedient wie die anderen. Stand: Plugin 2.16.0.
 - Tooltips, Menüs und Panel-Beschriftung **auf Englisch**; README/PROJEKT auf Deutsch.
 - Verbindung zu GENRA/anderen Modulen per **Rechtsklick** („Connect to…“, „Follow GENRA“), nicht nur per Andocken.
 - Löschen von viel (z. B. CLR ALL): zweimal drücken, mit UNDO zurückholbar.
-- Presets per Dropdown im Kopf des Panels (Werks-Presets nach Stil, eigene speicherbar).
+- Presets per Dropdown im Kopf des Panels (Werks-Presets nach Stil, eigene speicherbar): `src/ui/PresetBank.hpp`, wenn die
+  Regler den ganzen Klang tragen; `src/ui/StateBank.hpp`, wenn er in einer Engine liegt (K-WASUB, UMLAUF).
 
 ## Rechenzeit
 

@@ -7,6 +7,7 @@
 #include "../plugin.hpp"
 #include "../Follow.hpp"
 #include "../ui/GenraUI.hpp"
+#include "../ui/StateBank.hpp"
 #include "KwCore.hpp"
 #include "KwIds.hpp"
 #include "KwLayout.hpp"
@@ -119,6 +120,15 @@ struct Kwasub : Module, follow::Host {
 		int n = (int) o.size();
 		return o[((pos + d) % n + n) % n];
 	}
+	/** Where firmware preset k stands in the sorted order (the field's numbers). */
+	int posOf(int k) {
+		const std::vector<int>& o = sorted();
+		int p = (int) (std::find(o.begin(), o.end(), k) - o.begin());
+		return p < (int) o.size() ? p : -1;
+	}
+	// presets in the header field (StateBank.hpp): the sorted factory list, then the user presets
+	genra_states::Bank bank;
+	std::atomic<int> loadSerial{0}, loadedPos{-1};  // each preset the engine loads: its place in the sorted list
 	dsp::BooleanTrigger prevTrig, nextTrig;
 	int ppqn = 4;  // clock pulses a beat (GENRA's CLOCK: 16ths)
 
@@ -326,6 +336,16 @@ struct Kwasub : Module, follow::Host {
 			written[k] = INT32_MIN;
 		if (ok) {
 			loadPreset(0);
+			sorted();
+			genra_states::Factory f;
+			f.count = (int) order.size();
+			f.style = [this](int i) { return styleOf[order[i]].c_str(); };
+			f.name = [this](int i) { return core.api->preset_name(order[i]); };
+			f.info = [](int) { return ""; };
+			bank.init(this, f, asset::user("Genra/KwasubPresets"), &loadSerial, &loadedPos,
+			          [this](int i) { presetReq = order[clamp(i, 0, (int) order.size() - 1)]; });
+			bank.preset = posOf(presetIdx);
+			bank.presetName = bank.nameOf(bank.preset);
 		} else {
 			disp.error = core.error;
 		}
@@ -423,6 +443,8 @@ struct Kwasub : Module, follow::Host {
 		presetIdx = ((i % n) + n) % n;
 		core.api->load_preset(presetIdx);
 		pull(true, true);
+		loadedPos = posOf(presetIdx);
+		loadSerial++;
 	}
 
 	/** Knobs and CV → the firmware, once per core block. */
@@ -722,6 +744,8 @@ struct Kwasub : Module, follow::Host {
 					json_array_append_new(eq, json_integer(core.api->eq_get(k, w)));
 			json_object_set_new(r, "eq", eq);
 		}
+		if (core.api)
+			bank.toJson(r);
 		fol.toJson(r);
 		return r;
 	}
@@ -729,6 +753,8 @@ struct Kwasub : Module, follow::Host {
 		fol.fromJson(r);
 		if (json_t* j = json_object_get(r, "preset"))
 			presetIdx = std::max(0, (int) json_integer_value(j));
+		// a preset or an undo step (StateBank.hpp): the sound in the patch is the whole sound, the expander follows
+		bool engineWins = json_is_true(json_object_get(r, "engineWins"));
 		if (json_t* j = json_object_get(r, "ppqn"))
 			ppqn = clamp((int) json_integer_value(j), 1, 24);
 		if (!core.api)
@@ -744,9 +770,16 @@ struct Kwasub : Module, follow::Host {
 		}
 		pull(false, false);  // (base and written from the firmware; the knobs then push their saved values)
 		pushMain = true;
-		pushFx = true;
-		pushFxTicks = 40;
-		fxWasThere = false;
+		if (engineWins) {
+			pull(false, true);
+			pushFx = false;
+			fxWasThere = fxModule() != nullptr;
+		} else {
+			pushFx = true;
+			pushFxTicks = 40;
+			fxWasThere = false;
+		}
+		bank.fromJson(r, posOf(presetIdx));
 	}
 };
 
@@ -814,85 +847,15 @@ struct Field : app::ParamWidget {
 	}
 };
 
-/** The presets by style (a submenu each, names A–Z), the one playing ticked; picking one asks the engine to load it. */
-static void appendPresets(Menu* menu, Kwasub* m) {
-	const std::vector<int>& o = m->sorted();
-	for (size_t i = 0; i < o.size();) {
-		std::string st = m->styleOf[o[i]];
-		size_t j = i;
-		bool here = false;
-		while (j < o.size() && m->styleOf[o[j]] == st) here |= o[j++] == m->presetIdx;
-		std::vector<int> group(o.begin() + i, o.begin() + j);
-		menu->addChild(createSubmenuItem(st, string::f("%s%d", here ? "✔ " : "", (int) group.size()), [=](Menu* sub) {
-			for (int k : group)
-				sub->addChild(createCheckMenuItem(m->core.api->preset_name(k), "", [=]() { return m->presetIdx == k; },
-				                                  [=]() { m->presetReq = k; }));
-		}));
-		i = j;
-	}
-}
+/** The preset list (StateBank.hpp), opened by a click on the display's name too. */
 static void presetMenu(Kwasub* m) {
 	if (!m || !m->core.api)
 		return;
+	m->bank.scan();
 	Menu* menu = createMenu();
 	menu->addChild(createMenuLabel("Preset"));
-	appendPresets(menu, m);
+	genra_states::appendList(menu, &m->bank);
 }
-
-/** The preset selector: number and name, a click opens the list, the wheel steps through it. */
-struct PresetField : OpaqueWidget {
-	Kwasub* module = nullptr;
-	void onButton(const ButtonEvent& e) override {
-		if (e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_LEFT && module) {
-			presetMenu(module);
-			e.consume(this);
-			return;
-		}
-		OpaqueWidget::onButton(e);
-	}
-	void onHoverScroll(const HoverScrollEvent& e) override {
-		if (module && module->core.api && e.scrollDelta.y != 0.f) {
-			module->presetReq = module->stepPreset(e.scrollDelta.y < 0.f ? 1 : -1);
-			e.consume(this);
-			return;
-		}
-		OpaqueWidget::onHoverScroll(e);
-	}
-	void draw(const DrawArgs& args) override {}
-	void drawLayer(const DrawArgs& args, int layer) override {
-		if (layer == 1) {
-			auto f = ui::boldFont();
-			std::string name = "NEURO GROWL", style = "NEUROFUNK";
-			if (module && module->core.api) {
-				std::lock_guard<std::mutex> lock(module->dispMutex);
-				name = module->disp.preset;
-				int idx = module->disp.idx;
-				const std::vector<int>& o = module->sorted();
-				if (idx >= 0 && idx < (int) o.size()) style = module->styleOf[idx];
-			}
-			float x = mm2px(1.6f);
-			ui::text(args.vg, f, x, mm2px(3.6f), style, 5.0f, ACCENT, NVG_ALIGN_LEFT, 0.8f);
-			// the name on two lines, split at the space nearest the middle
-			std::string l1 = name, l2;
-			if (name.size() > 7) {
-				size_t best = std::string::npos;
-				for (size_t i = 0; i < name.size(); i++)
-					if (name[i] == ' ' && (best == std::string::npos ||
-					                       std::abs((int) i - (int) name.size() / 2) < std::abs((int) best - (int) name.size() / 2)))
-						best = i;
-				if (best != std::string::npos) {
-					l1 = name.substr(0, best);
-					l2 = name.substr(best + 1);
-				}
-			}
-			float size = std::max(l1.size(), l2.size()) > 9 ? 5.6f : 6.8f;
-			ui::text(args.vg, f, x, mm2px(l2.empty() ? 9.f : 7.4f), l1, size, ui::WHITE, NVG_ALIGN_LEFT, 0.6f);
-			if (!l2.empty())
-				ui::text(args.vg, f, x, mm2px(10.4f), l2, size, ui::WHITE, NVG_ALIGN_LEFT, 0.6f);
-		}
-		OpaqueWidget::drawLayer(args, layer);
-	}
-};
 
 struct Display : Widget {
 	Kwasub* module = nullptr;
@@ -931,9 +894,21 @@ struct Display : Widget {
 			Widget::drawLayer(args, layer);
 			return;
 		}
-		ui::text(vg, bold, mm(4), mm(4.7f), string::f("PRESET %d / %d", d.idx + 1, d.n), 5.4f, ui::DIM, NVG_ALIGN_LEFT, 1.f);
-		ui::text(vg, bold, mm(4), mm(11.1f), d.preset, 15.f, ui::WHITE, NVG_ALIGN_LEFT, 0.8f);
-		ui::text(vg, bold, mm(4), mm(14.5f), d.style, 5.4f, ACCENT, NVG_ALIGN_LEFT, 1.2f);
+		// the preset as the header field has it (the sorted list's number; a user preset by its name)
+		std::string pname = d.preset, pstyle = d.style, pnum = string::f("PRESET %d / %d", d.idx + 1, d.n);
+		if (module) {
+			const genra_states::Bank& b = module->bank;
+			if (b.preset >= b.f.count) {
+				pname = b.nameOf(b.preset);
+				pstyle = "USER PRESET";
+				pnum = "PRESET U";
+			} else if (b.preset >= 0) {
+				pnum = string::f("PRESET %d / %d", b.preset + 1, b.f.count);
+			}
+		}
+		ui::text(vg, bold, mm(4), mm(4.7f), pnum, 5.4f, ui::DIM, NVG_ALIGN_LEFT, 1.f);
+		ui::text(vg, bold, mm(4), mm(11.1f), pname, 15.f, ui::WHITE, NVG_ALIGN_LEFT, 0.8f);
+		ui::text(vg, bold, mm(4), mm(14.5f), pstyle, 5.4f, ACCENT, NVG_ALIGN_LEFT, 1.2f);
 		// the oscillators
 		ui::text(vg, bold, mm(59), mm(4.7f), "A", 5.4f, ui::DIM);
 		ui::text(vg, bold, mm(63), mm(4.7f), d.engA, 6.2f, ui::TXT, NVG_ALIGN_LEFT, 0.9f);
@@ -1060,10 +1035,12 @@ struct KwasubWidget : ModuleWidget {
 		small(L::FX_DLY, M::DLY_PARAM);
 		small(L::FX_VERB, M::VERB_PARAM);
 		small(L::FX_GLUE, M::GLUE_PARAM);
-		PresetField* pf = new PresetField;
-		pf->module = module;
-		pf->box.pos = mm2px(Vec(L::PRESET_FIELD[0], L::PRESET_FIELD[1]));
-		pf->box.size = mm2px(Vec(L::PRESET_FIELD[2], L::PRESET_FIELD[3]));
+		genra_states::PresetField* pf = createWidget<genra_states::PresetField>(mm2px(Vec(L::PRESETF[0], L::PRESETF[1])));
+		pf->box.size = mm2px(Vec(L::PRESETF[2], L::PRESETF[3]));
+		pf->bank = module && module->core.api ? &module->bank : nullptr;
+		pf->accent = ACCENT;
+		pf->sample = "NEURO GROWL";
+		pf->sampleStyle = "NEUROFUNK";
 		addChild(pf);
 
 		const float* ins[M::NUM_INPUTS] = {L::IN_VOCT, L::IN_GATE,  L::IN_VEL,   L::IN_CLOCK, L::IN_RESET, L::IN_CUT,
@@ -1085,8 +1062,7 @@ struct KwasubWidget : ModuleWidget {
 		if (!m || !m->core.api)
 			return;
 		menu->addChild(new MenuSeparator);
-		menu->addChild(createSubmenuItem("Preset", m->core.api->preset_name(m->presetIdx),
-		                                 [=](Menu* sub) { appendPresets(sub, m); }));
+		genra_states::appendMenu(menu, &m->bank);
 		menu->addChild(createIndexSubmenuItem(
 		    "Voices", {"Mono", "Legato", "Poly (4)"}, [=]() { return (size_t) m->core.api->get(V_MODE); },
 		    [=](size_t i) { m->core.api->set(V_MODE, (int32_t) i); }));

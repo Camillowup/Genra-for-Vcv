@@ -113,6 +113,17 @@ def lamps(name, x0, dx, y, names, label):
         text(x0 + i * dx, y + 4.4, n, 1.5, TXT, 600, "middle", 0.25)
 
 
+def field(name, x, y, w):
+    """A dark selection field (the module draws its text); the chevron marks it as a list."""
+    extra_rects[name] = (x, y, w, 5.4)
+    e(f'<rect x="{x}" y="{y}" width="{w:.2f}" height="5.4" rx="0.9" fill="{DARK}" stroke="{LINE}" stroke-width="0.4"/>')
+    e(f'<polyline points="{x + w - 4.2:.2f},{y + 2.1:.2f} {x + w - 3:.2f},{y + 3.4:.2f} {x + w - 1.8:.2f},{y + 2.1:.2f}" '
+      f'fill="none" stroke="{ACC}" stroke-width="0.4" stroke-linecap="round" stroke-linejoin="round"/>')
+
+
+extra_rects = {}
+
+
 def jack(name, x, y, label, out_=False):
     comps.append(("output" if out_ else "input", name, x, y))
     if out_:
@@ -126,7 +137,9 @@ e(f'<rect width="{W:.2f}" height="{H}" fill="{BG}"/>')
 text(12.9, 7.6, "UMLAUF", 5.1, TITLE, 800, "start", 1.08)
 text(12.9 + width("UMLAUF", 5.1, 800, 1.08) + 3.4, 7.45, "GENRA · ORBIT VECTOR SYNTH · AFTER VADER", 1.76, DIM, 600,
      "start", 0.47)
-e(f'<rect x="{W - 27.1:.2f}" y="5.55" width="11.5" height="1.08" rx="0.54" fill="{ACC}"/>')
+# presets: a field in the header (as on GRUND, FUNKE, SCHMELZ, GENRA MONO), the accent bar after it
+field("PRESETF", W - 70, 3.4, 46)
+e(f'<rect x="{W - 21.5:.2f}" y="5.55" width="8" height="1.08" rx="0.54" fill="{ACC}"/>')
 
 DISPLAY = (3, 10.5, 100, 36)
 e(f'<rect x="{DISPLAY[0]}" y="{DISPLAY[1]}" width="{DISPLAY[2]:.2f}" height="{DISPLAY[3]}" rx="1.6" fill="{DARK}" '
@@ -212,6 +225,8 @@ if not PREVIEW:
         lines.append(f"static const float CDISP_{L_}[4] = {{{x_:.3f}f, {y_:.3f}f, {w_:.3f}f, {h_:.3f}f}};")
     lines.append(f"static const float DISPLAY[4] = {{{DISPLAY[0]:.3f}f, {DISPLAY[1]:.3f}f, {DISPLAY[2]:.3f}f, "
                  f"{DISPLAY[3]:.3f}f}};")
+    for n, (x_, y_, w_, h_) in extra_rects.items():
+        lines.append(f"static const float {n}[4] = {{{x_:.3f}f, {y_:.3f}f, {w_:.3f}f, {h_:.3f}f}};")
     lines.append(f"static const int HP = {HP};")
     lines.append("}")
     os.makedirs(os.path.join(ROOT, "src", "umlauf"), exist_ok=True)
@@ -296,7 +311,11 @@ for L, eng, names in (("A", "SYNTH", "SAW · GLASS · 42% · +7"), ("B", "VOICE"
     x, y, w, h = CORNER[L]
     ptext(x + 2, y + 3.3, eng, 2.2, "#ffffff", 800, "start", 0.2)
     ptext(x + 2, y + 6.3, names, 1.4, ACC, 600, "start", 0.15)
+# the preset field (the module writes number, name and style)
+ptext(W - 68, 7.05, "04  DARK ORBIT", 1.9, "#e6e7ec", 800, "start", 0.5)
+ptext(W - 30.5, 6.95, "TECHNO", 1.45, DIM, 600, "end", 0.4)
 svg = sys.argv[2].rsplit(".", 1)[0] + ".svg"
 open(svg, "w").write("\n".join(out))
 subprocess.run(["rsvg-convert", "-w", "2000", svg, "-o", sys.argv[2]], check=True)
 print("wrote", sys.argv[2])
+
