@@ -499,15 +499,16 @@ Ein riesiges Dankeschön an **[L'Cronx](https://github.com/sunskiefer)**! UMLAUF
 
 ---
 
-## Installation unter Windows (über GitHub)
+## Installation unter Windows
 
-1. Änderungen ins Repository pushen (oder die Dateien hochladen).
-2. Unter **Actions** startet der Build automatisch (4–6 Minuten).
-3. Grünen Lauf öffnen → unten bei **Artifacts** `genra-windows` laden → Zip entpacken.
-4. **Nur** die neue `Genra-2.x.x-win-x64.vcvplugin` nach `%LOCALAPPDATA%\Rack2\plugins-win-x64\` kopieren. Ältere `Genra-2.x-…vcvplugin`-Dateien und den Ordner `Genra` dort vorher löschen.
-5. Rack neu starten.
+**Fertige Version (empfohlen):** Unter [**Releases**](https://github.com/Camillowup/Genra-for-Vcv/releases) die neueste `Genra-2.x.x-win-x64.vcvplugin` herunterladen.
 
-Die Versionsnummer liest der Workflow selbst aus `plugin.json`; für eine neue Version genügt es, sie dort zu erhöhen (Hauptversion bleibt 2).
+1. Die Datei nach `%LOCALAPPDATA%\Rack2\plugins-win-x64\` kopieren (in Rack: *Help › Open user folder*, dort `plugins-win-x64`). Ältere `Genra-2.x-…vcvplugin`-Dateien und den Ordner `Genra` dort vorher löschen.
+2. Rack neu starten.
+
+**Testversion aus der Entwicklung:** Jeder Push baut automatisch (4–6 Minuten). Unter **Actions** den grünen Lauf öffnen → unten bei **Artifacts** `genra-windows` laden → Zip entpacken → wie oben installieren. Diese Builds löscht GitHub nach 90 Tagen; Releases bleiben.
+
+**Neue Version veröffentlichen:** Versionsnummer in `plugin.json` erhöhen (Hauptversion bleibt 2), testen, `main` auf den Branch `release` pushen. Der Workflow baut, legt den Tag `v<Version>` an und veröffentlicht den Release mit der `.vcvplugin`-Datei. Entwickelt wird auf `dev`, `main` wird einmal am Tag aktualisiert.
 
 ---
 
