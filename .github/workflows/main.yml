@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write   # a tag v* publishes a GitHub release with the plugin attached
+  contents: write   # a push to the branch "release" publishes GitHub release v<version> with the plugin
 
 jobs:
   windows:
@@ -71,11 +71,19 @@ jobs:
           name: genra-windows
           path: dist/*.vcvplugin
 
-      - name: Release (tags v*)
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Release version (branch "release")
+        if: github.ref == 'refs/heads/release'
+        run: |
+          VER=$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' plugin.json)
+          echo "RELVER=$VER" >> $GITHUB_ENV
+
+      - name: Release (branch "release": tag v<version> + the .vcvplugin)
+        if: github.ref == 'refs/heads/release'
         uses: softprops/action-gh-release@v2
         with:
-          name: GENRA ${{ github.ref_name }}
+          tag_name: v${{ env.RELVER }}
+          target_commitish: ${{ github.sha }}
+          name: GENRA ${{ env.RELVER }}
           files: dist/*.vcvplugin
           body: |
             GENRA plugin for VCV Rack 2 (Windows x64).
