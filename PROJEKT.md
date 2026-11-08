@@ -384,7 +384,9 @@ GENRA MONO: `g++ -std=c++17 -O2 test/test_mono.cpp -o tm && ./tm`
   - FILL: Fill über den nächsten Takt (`fillPadReq` → am Taktstrich `arrFillEnd = step + 16`, danach gilt wieder die Entscheidung des Durchlaufs, `fillWas`).
   - TAP: Mittel der letzten bis zu 4 Abstände, Pause > 2 s beginnt neu; setzt BPM nur ohne Kabel an CLOCK. Leuchtet im Takt.
   - MAKE SONG: leuchtet, wenn ein ABLAUF angedockt ist (`arrAlive`). ABLAUF liest `makeSongReq`: ist der Loop ein unverändertes Pad, MAKE SONG von dort; sonst erst auf das nächste freie Pad speichern („GENRA n“), dann MAKE SONG (`songAfterStore`). Ohne ABLAUF: Meldung im Display.
-- **Genre sets tempo:** Rechtsklick, Standard aus, JSON `genreTempo`. Wechselt das globale Genre (bzw. die Variante), setzt der Widget-`step()` BPM auf das typische Tempo des Profils (nicht mit Kabel an CLOCK).
+- **Clock output:** Rechtsklick › *Clock output* 16tel/8tel/Viertel/24 PPQN (`clockOutMode`, JSON, alte Patches 16tel). Gerade Pulse ab Schritt 1; 24 PPQN: 6 Pulse pro Schritt, 5 davon zwischen den Ticks (`ppqnLeft/ppqnIv`).
+- **Modul-Reihenfolge** in `plugin.json` und `plugin.cpp`: GENRA, GRID, ABLAUF, MIX, GENRA FX, STOTTER, DRUM-X, GRUND, GRUND FX, GENRA MONO, K-WASUB, K-WASUB FX, FUNKE, UMLAUF, UMLAUF FX, MONK, VOICE, ANIMAL, SCHMELZ.
+- **Genre sets tempo:** Rechtsklick-Untermenü On/Off, Standard Off, JSON `genreTempo`. Wechselt das globale Genre (bzw. die Variante), setzt der Widget-`step()` BPM auf das typische Tempo des Profils (nicht mit Kabel an CLOCK).
 - **Swing pro Spur / Drum-Stimme:** `Pattern::tSwing[NUM_TRACKS]`, `vSwing[NUM_DRUMS]` in Prozent 50–75, 0 = global (Genre + SWING-Regler). `swingOf()`/`ownSwing()`/`setSwing()`, Record `ST_SWING = 10`, `copyTrack` nimmt sie mit, `generateTrack` lässt sie stehen. GENRA: Drum-Stimmen mit eigenem Swing laufen wie genudgte Treffer einzeln (`queueDrum`). MIDI-Export: Swing pro Stimme. Grid: Badges rechts vom Raster (Raster 9,5 mm schmaler), hoch/runter ziehen, Doppelklick = global; „SW -“ zeigt beim Überfahren den aktuellen Wert. Test: `test_cycle` Teil 7.
 
 ### 2.24.0 – 22 neue Genres

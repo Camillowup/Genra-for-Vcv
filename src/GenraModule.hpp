@@ -199,6 +199,9 @@ struct Genra : Module {
 	int lastTarget[4] = {-1, -1, -1, -1};
 	int lastGenre = -1;
 	int clockMode = 0;
+	int clockOutMode = 0; // CLOCK output: 0 16ths, 1 8ths, 2 quarters, 3 24 PPQN (CLOCK_MODES)
+	int ppqnLeft = 0;     // 24 PPQN: pulses still to come within this step
+	float ppqnIv = 0.f, ppqnCnt = 0.f;
 	int chordMode = CM_MIXED;
 	int templateSel = -1;
 	int genreCvMode = 0;
@@ -567,7 +570,7 @@ struct Genra : Module {
 		configInput(SWING_INPUT, "Swing CV (0–10 V, added)");
 		configInput(BPM_INPUT, "Tempo CV (internal clock, 10 BPM per volt, added)");
 		configInput(LENGTH_INPUT, "Loop length CV (0–10 V, added)");
-		configOutput(CLOCK_OUTPUT, "Clock (16ths)");
+		configOutput(CLOCK_OUTPUT, "Clock (16ths; other resolutions: right-click › Clock output)");
 		configOutput(RESET_OUTPUT, "Reset (loop start)");
 		configOutput(RUN_OUTPUT, "Run (gate while GENRA is running)");
 		configOutput(BAR_OUTPUT, "Bar (pulse per bar)");
@@ -1038,7 +1041,13 @@ struct Genra : Module {
 			passCount++;
 		P.pass = passCount;
 		// sync outputs (unswung grid)
-		clockPulse.trigger(2e-3f);
+		// CLOCK output in the chosen resolution (straight, from the first step of the loop)
+		if (clockOutMode == 0 || clockOutMode == 3 || (clockOutMode == 1 && step % 2 == 0) || (clockOutMode == 2 && step % 4 == 0))
+			clockPulse.trigger(2e-3f);
+		if (clockOutMode == 3) { // 24 PPQN: 6 pulses per step, the other 5 between the ticks
+			ppqnLeft = 5;
+			ppqnIv = ppqnCnt = stepPeriod / 6.f;
+		}
 		if (step == 0)
 			resetPulse.trigger(2e-3f);
 		if (step % STEPS_PER_BAR == 0)
@@ -1137,6 +1146,7 @@ struct Genra : Module {
 		firstPass = true;
 		running = false;
 		genreTempo = false;
+		clockOutMode = 0;
 		chordMode = CM_MIXED;
 		templateSel = -1;
 		genreCvMode = 0;
@@ -1368,7 +1378,14 @@ struct Genra : Module {
 			processQueued(sr);
 			if (tick)
 				doTick(sr);
+			else if (ppqnLeft > 0 && (ppqnCnt -= 1.f) <= 0.f) {
+				clockPulse.trigger(2e-3f);
+				ppqnLeft--;
+				ppqnCnt += ppqnIv;
+			}
 		}
+		else
+			ppqnLeft = 0;
 		sinceTick += 1.f;
 		posPub.store(running && step >= 0 ? step + std::min(0.999f, sinceTick / std::max(1.f, stepPeriod)) : -1.f,
 		             std::memory_order_relaxed);
@@ -1497,6 +1514,7 @@ struct Genra : Module {
 		json_object_set_new(root, "running", json_boolean(running)); // informative only: GENRA loads stopped
 		json_object_set_new(root, "genreTempo", json_boolean(genreTempo));
 		json_object_set_new(root, "clockMode", json_integer(clockMode));
+		json_object_set_new(root, "clockOutMode", json_integer(clockOutMode));
 		json_object_set_new(root, "chordMode", json_integer(chordMode));
 		json_object_set_new(root, "templateSel", json_integer(templateSel));
 		json_object_set_new(root, "genreCvMode", json_integer(genreCvMode));
@@ -1540,6 +1558,9 @@ struct Genra : Module {
 			genreTempo = json_boolean_value(j);
 		if ((j = json_object_get(root, "clockMode")))
 			clockMode = clamp((int)json_integer_value(j), 0, 3);
+		clockOutMode = 0; // older patches: 16ths
+		if ((j = json_object_get(root, "clockOutMode")))
+			clockOutMode = clamp((int)json_integer_value(j), 0, 3);
 		if ((j = json_object_get(root, "chordMode")))
 			chordMode = clamp((int)json_integer_value(j), 0, 2);
 		if ((j = json_object_get(root, "templateSel")))

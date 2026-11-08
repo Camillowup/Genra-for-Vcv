@@ -766,7 +766,8 @@ struct GenraWidget : ModuleWidget {
 		}));
 		menu->addChild(createMenuItem("Re-roll chords only", "", [=]() { m->chordRegenRequested = true; }));
 		menu->addChild(new MenuSeparator);
-		menu->addChild(createBoolPtrMenuItem("Genre sets tempo", "internal clock", &m->genreTempo));
+		menu->addChild(createIndexSubmenuItem("Genre sets tempo", {"Off", "On"}, [=]() { return (size_t)(m->genreTempo ? 1 : 0); },
+		                                      [=](size_t v) { m->genreTempo = v == 1; }));
 		menu->addChild(createIndexSubmenuItem("Genre CV inputs", {GENRE_CV_MODES[0], GENRE_CV_MODES[1]},
 		                                      [=]() { return (size_t)m->genreCvMode; },
 		                                      [=](size_t v) { m->genreCvMode = (int)v; }));
@@ -779,6 +780,9 @@ struct GenraWidget : ModuleWidget {
 		menu->addChild(createIndexSubmenuItem("Clock input", {CLOCK_MODES[0], CLOCK_MODES[1], CLOCK_MODES[2], CLOCK_MODES[3]},
 		                                      [=]() { return (size_t)m->clockMode; },
 		                                      [=](size_t v) { m->clockMode = (int)v; }));
+		menu->addChild(createIndexSubmenuItem("Clock output", {CLOCK_MODES[0], CLOCK_MODES[1], CLOCK_MODES[2], CLOCK_MODES[3]},
+		                                      [=]() { return (size_t)m->clockOutMode; },
+		                                      [=](size_t v) { m->clockOutMode = (int)v; }));
 	}
 };
 
