@@ -8,3 +8,5 @@ plugin.so
 plugin.dll
 plugin.dylib
 *.vcvplugin
+
+schlag_*.wav

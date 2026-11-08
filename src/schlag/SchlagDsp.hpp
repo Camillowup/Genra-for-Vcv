@@ -40,28 +40,11 @@ struct Sample {
 	}
 };
 
-/** Reads a WAV file (PCM 8/16/24/32 bit, float 32/64, mono or more channels: the first two are kept).
- * maxSeconds: longer files are cut. Returns nullptr (and err) when the file cannot be read. */
-inline std::shared_ptr<Sample> readWav(const std::string& path, std::string& err, float maxSeconds = 30.f) {
-	FILE* f = std::fopen(path.c_str(), "rb");
-	if (!f) {
-		err = "cannot open";
-		return nullptr;
-	}
-	std::vector<uint8_t> buf;
-	std::fseek(f, 0, SEEK_END);
-	long len = std::ftell(f);
-	std::fseek(f, 0, SEEK_SET);
-	if (len < 44 || len > 512L * 1024 * 1024) {
-		std::fclose(f);
+/** Reads a WAV file from memory (PCM 8/16/24/32 bit, float 32/64, mono or more channels: the first two are kept).
+ * maxSeconds: longer files are cut. Returns nullptr (and err) when the data cannot be read. */
+inline std::shared_ptr<Sample> readWavData(const std::vector<uint8_t>& buf, std::string& err, float maxSeconds = 30.f) {
+	if (buf.size() < 44) {
 		err = "not a WAV file";
-		return nullptr;
-	}
-	buf.resize((size_t) len);
-	size_t got = std::fread(buf.data(), 1, buf.size(), f);
-	std::fclose(f);
-	if (got != buf.size()) {
-		err = "read error";
 		return nullptr;
 	}
 	auto u16 = [&](size_t o) { return (uint32_t) buf[o] | ((uint32_t) buf[o + 1] << 8); };
@@ -150,6 +133,27 @@ inline std::shared_ptr<Sample> readWav(const std::string& path, std::string& err
 	}
 	s->makePeaks();
 	return s;
+}
+
+/** The same from a file (plain fopen: the module reads its files with Rack's system::readFile, which knows UTF-8
+ * paths on Windows). */
+inline std::shared_ptr<Sample> readWav(const std::string& path, std::string& err, float maxSeconds = 30.f) {
+	FILE* f = std::fopen(path.c_str(), "rb");
+	if (!f) {
+		err = "cannot open";
+		return nullptr;
+	}
+	std::vector<uint8_t> buf;
+	std::fseek(f, 0, SEEK_END);
+	long len = std::ftell(f);
+	std::fseek(f, 0, SEEK_SET);
+	if (len > 0 && len < 512L * 1024 * 1024) {
+		buf.resize((size_t) len);
+		if (std::fread(buf.data(), 1, buf.size(), f) != buf.size())
+			buf.clear();
+	}
+	std::fclose(f);
+	return readWavData(buf, err, maxSeconds);
 }
 
 // ---------------------------------------------------------------- the knob functions (the dropdowns)

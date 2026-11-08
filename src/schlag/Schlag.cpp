@@ -42,12 +42,7 @@ static void loadSettings() {
 	if (done)
 		return;
 	done = true;
-	FILE* f = std::fopen(settingsPath().c_str(), "rb");
-	if (!f)
-		return;
-	json_error_t err;
-	json_t* j = json_loadf(f, 0, &err);
-	std::fclose(f);
+	json_t* j = json_load_file(settingsPath().c_str(), 0, nullptr);
 	if (!j)
 		return;
 	if (json_t* r = json_object_get(j, "sampleRoot"))
@@ -58,11 +53,7 @@ static void saveSettings() {
 	system::createDirectories(asset::user("Genra"));
 	json_t* j = json_object();
 	json_object_set_new(j, "sampleRoot", json_string(rootDir().c_str()));
-	FILE* f = std::fopen(settingsPath().c_str(), "wb");
-	if (f) {
-		json_dumpf(j, f, JSON_INDENT(2));
-		std::fclose(f);
-	}
+	json_dump_file(j, settingsPath().c_str(), JSON_INDENT(2));
 	json_decref(j);
 }
 static std::string slashes(std::string s) {
@@ -203,7 +194,15 @@ struct Loader {
 							break;
 					}
 					std::string err;
-					std::shared_ptr<Sample> s = readWav(p, err);
+					std::shared_ptr<Sample> s;
+					try {
+						std::vector<uint8_t> data = system::readFile(p);
+						if (data.size() < 512u * 1024 * 1024)
+							s = readWavData(data, err);
+					}
+					catch (std::exception& e) {
+						s = nullptr;
+					}
 					if (s)
 						s->name = system::getFilename(p);
 					b->files.push_back(s);
@@ -826,8 +825,8 @@ struct Schlag : Module, follow::Host {
 				dry += 0.5f * (l + r);
 				// pan: equal power, on top of a stereo sample's own image
 				float p = clamp((v[F_PAN] - 0.5f) * 2.f + vc->hp.panOffset, -1.f, 1.f);
-				float pl = std::cos((p + 1.f) * 0.25f * float(M_PI)) * float(M_SQRT2);
-				float pr = std::sin((p + 1.f) * 0.25f * float(M_PI)) * float(M_SQRT2);
+				float pl = std::cos((p + 1.f) * 0.7853982f) * 1.4142136f;
+				float pr = std::sin((p + 1.f) * 0.7853982f) * 1.4142136f;
 				tl += l * std::min(1.f, pl);
 				trr += r * std::min(1.f, pr);
 			}
@@ -1150,22 +1149,14 @@ struct Schlag : Module, follow::Host {
 				c = '_';
 		system::createDirectories(kitDir());
 		json_t* j = kitToJson();
-		FILE* f = std::fopen(system::join(kitDir(), n + ".json").c_str(), "wb");
-		if (f) {
-			json_dumpf(j, f, JSON_INDENT(2));
-			std::fclose(f);
+		if (json_dump_file(j, system::join(kitDir(), n + ".json").c_str(), JSON_INDENT(2)) == 0) {
 			kitName = n;
 			say("KIT SAVED");
 		}
 		json_decref(j);
 	}
 	void loadKit(const std::string& path) {
-		FILE* f = std::fopen(path.c_str(), "rb");
-		if (!f)
-			return;
-		json_error_t err;
-		json_t* j = json_loadf(f, 0, &err);
-		std::fclose(f);
+		json_t* j = json_load_file(path.c_str(), 0, nullptr);
 		if (!j)
 			return;
 		for (int i = 0; i < NUM_SLOTS; i++)

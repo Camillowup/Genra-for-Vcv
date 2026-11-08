@@ -54,19 +54,19 @@ static void writeWav(const char* path, int n, int ch, int bits, bool flt, int ra
 int main() {
 	// ---- WAV
 	std::string err;
-	writeWav("/tmp/s16.wav", 4410, 1, 16, false);
-	writeWav("/tmp/s24.wav", 2000, 2, 24, false, 48000);
-	writeWav("/tmp/sf.wav", 1000, 2, 32, true);
-	auto a = readWav("/tmp/s16.wav", err);
+	writeWav("schlag_s16.wav", 4410, 1, 16, false);
+	writeWav("schlag_s24.wav", 2000, 2, 24, false, 48000);
+	writeWav("schlag_sf.wav", 1000, 2, 32, true);
+	auto a = readWav("schlag_s16.wav", err);
 	CHECK(a && a->frames == 4410 && a->channels == 1 && a->rate == 44100.f);
 	CHECK(a && std::fabs(a->data[20] - 0.8f * std::sin(1.f) * std::exp(-20 / 4410.f * 3.f)) < 1e-3f);
-	auto b = readWav("/tmp/s24.wav", err);
+	auto b = readWav("schlag_s24.wav", err);
 	CHECK(b && b->frames == 2000 && b->channels == 2 && b->rate == 48000.f);
 	CHECK(b && std::fabs(b->data[2 * 30] + b->data[2 * 30 + 1]) < 1e-4f); // right = -left
-	auto c = readWav("/tmp/sf.wav", err);
+	auto c = readWav("schlag_sf.wav", err);
 	CHECK(c && c->frames == 1000 && c->channels == 2);
-	CHECK(!readWav("/tmp/does-not-exist.wav", err));
-	auto cut = readWav("/tmp/s16.wav", err, 0.05f);
+	CHECK(!readWav("schlag_does_not_exist.wav", err));
+	auto cut = readWav("schlag_s16.wav", err, 0.05f);
 	CHECK(cut && cut->frames == 2205);
 	CHECK(a && a->peaks[0] > 0.3f && a->peaks[63] < a->peaks[0]);
 
