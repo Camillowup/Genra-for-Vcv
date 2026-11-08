@@ -39,3 +39,4 @@ extern Model* modelStotter;
 extern Model* modelAblauf;
 extern Model* modelGrund;
 extern Model* modelGrundFx;
+extern Model* modelGenraFx;

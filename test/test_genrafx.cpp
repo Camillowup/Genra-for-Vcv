@@ -81,7 +81,7 @@ int main() {
 		rv.setSampleRate(48000.f);
 		float rt = measureRt60(rv, 48000.f, c.decay * 1.6f + 1.f);
 		printf("reverb %-5s decay %.1f s: measured RT60 %.2f s\n", gfx::REVERB_TYPE_NAMES[c.type], c.decay, rt);
-		CHECK(rt > c.decay * 0.6f && rt < c.decay * 1.4f, "%s: RT60 %.2f s for %.1f s", gfx::REVERB_TYPE_NAMES[c.type], rt, c.decay);
+		CHECK(rt > c.decay * 0.85f && rt < c.decay * 1.15f, "%s: RT60 %.2f s for %.1f s", gfx::REVERB_TYPE_NAMES[c.type], rt, c.decay);
 	}
 
 	// ---- delay hits its division (120 bpm)

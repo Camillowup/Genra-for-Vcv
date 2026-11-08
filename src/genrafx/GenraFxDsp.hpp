@@ -165,13 +165,14 @@ struct Reverb {
 		float driftMs;    // read drift depth
 		float dampBias;   // added to DAMP (plate brighter, space darker)
 		float outGain;    // the wet level: continuous material comes back about 3 dB under its input
+		float rtCorr;     // the damping shortens the broadband decay: the loop is set this much longer, so RT60 ~ DECAY
 	};
 	static const TypeDef& def(int t) {
 		static const TypeDef D[NUM_REVERB_TYPES] = {
-		    {{43.7f, 53.9f, 61.3f, 71.9f, 83.1f, 97.3f, 107.9f, 121.7f}, {4.77f, 3.59f, 12.73f, 9.31f}, 0.70f, 0.55f, 0.f, 1.8f},
-		    {{13.1f, 16.7f, 19.3f, 23.9f, 27.1f, 31.7f, 35.3f, 41.9f}, {2.91f, 2.13f, 6.37f, 4.79f}, 0.62f, 0.22f, 0.05f, 1.6f},
-		    {{17.3f, 23.1f, 29.9f, 34.7f, 41.3f, 47.9f, 53.9f, 61.1f}, {3.71f, 2.67f, 9.13f, 6.97f}, 0.76f, 0.32f, -0.2f, 1.25f},
-		    {{89.3f, 107.1f, 127.9f, 149.3f, 173.1f, 199.7f, 229.3f, 263.9f}, {6.11f, 4.43f, 17.9f, 13.3f}, 0.72f, 1.2f, 0.12f, 2.3f}};
+		    {{43.7f, 53.9f, 61.3f, 71.9f, 83.1f, 97.3f, 107.9f, 121.7f}, {4.77f, 3.59f, 12.73f, 9.31f}, 0.70f, 0.55f, 0.f, 1.8f, 1.12f},
+		    {{13.1f, 16.7f, 19.3f, 23.9f, 27.1f, 31.7f, 35.3f, 41.9f}, {2.91f, 2.13f, 6.37f, 4.79f}, 0.62f, 0.22f, 0.05f, 1.6f, 1.11f},
+		    {{17.3f, 23.1f, 29.9f, 34.7f, 41.3f, 47.9f, 53.9f, 61.1f}, {3.71f, 2.67f, 9.13f, 6.97f}, 0.76f, 0.32f, -0.2f, 1.25f, 1.18f},
+		    {{89.3f, 107.1f, 127.9f, 149.3f, 173.1f, 199.7f, 229.3f, 263.9f}, {6.11f, 4.43f, 17.9f, 13.3f}, 0.72f, 1.2f, 0.12f, 2.3f, 1.16f}};
 		return D[std::min(std::max(t, 0), NUM_REVERB_TYPES - 1)];
 	}
 
@@ -231,7 +232,7 @@ struct Reverb {
 		P = p;
 		const TypeDef& D = def(p.type);
 		float scale = 0.5f + clampf(p.size, 0.f, 1.f);
-		float rt = clampf(p.decay, 0.1f, 30.f);
+		float rt = clampf(p.decay, 0.1f, 30.f) * D.rtCorr;
 		float dmp = clampf(p.damp + D.dampBias, 0.f, 1.f);
 		float hz = 16000.f * std::pow(0.07f, dmp); // 16 kHz .. ~1.1 kHz
 		for (int i = 0; i < 8; i++) {

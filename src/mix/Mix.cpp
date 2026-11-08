@@ -8,6 +8,7 @@
 #include <map>
 #include "MixDsp.hpp"
 #include "MixLayout.hpp"
+#include "../genrafx/GenraFx.hpp"
 
 namespace genra_mix {
 
@@ -67,6 +68,11 @@ struct Mix : Module {
 		follow::Drive dl, dr;
 		float timer = 0.f;
 	} src[NCH];
+	// RETURN A / B without cables: 0 cables only, 1 auto (GENRA FX's OUT A / OUT B)
+	std::atomic<int> retMode[2] = {{1}, {1}};
+	follow::Ref fxRef;
+	follow::Drive dret[2][2]; // [A/B][L/R]
+	float fxTimer = 0.f;
 	std::atomic<int> duckMode{0}; // 0 off, 1 GENRA's KICK
 	follow::Ref duckRef;
 	follow::Drive dd;
@@ -103,6 +109,21 @@ struct Mix : Module {
 				Output& oR = m->outputs[orr];
 				s.dr.feed(ir, oR.voltages, std::max(1, (int) oR.channels));
 			}
+		}
+		{ // the returns from GENRA FX
+			Module* fx = fxRef.to.load();
+			static const int RIN[2][2] = {{RET_L_INPUT, RET_R_INPUT}, {RETB_L_INPUT, RETB_R_INPUT}};
+			for (int k = 0; k < 2; k++)
+				for (int lr = 0; lr < 2; lr++) {
+					Input& in = inputs[RIN[k][lr]];
+					int oid = k * 2 + lr; // genrafx: OUT_AL, OUT_AR, OUT_BL, OUT_BR
+					if (fx && retMode[k].load() && oid < (int) fx->outputs.size()) {
+						if (dret[k][lr].feed(in, fx->outputs[oid].voltages, 1) && lr == 0)
+							static_cast<genrafx::GenraFx*>(fx)->returnPulledAt[k].store(frame, std::memory_order_relaxed);
+					}
+					else if (dret[k][lr].ch >= 0)
+						dret[k][lr].release(in);
+				}
 		}
 		Module* g = duckMode.load() ? duckRef.to.load() : nullptr;
 		if (g) {
@@ -154,6 +175,22 @@ struct Mix : Module {
 				follow::point(s.ref, this, want);
 			}
 		}
+		fxTimer -= dt;
+		Module* fx = fxRef.to.load();
+		if (!retMode[0].load() && !retMode[1].load()) {
+			if (fx)
+				follow::point(fxRef, this, nullptr);
+		}
+		else if (!fx && fxTimer <= 0.f) {
+			fxTimer = 0.5f;
+			for (int64_t id : APP->engine->getModuleIds()) {
+				Module* m = APP->engine->getModule(id);
+				if (genrafx::isFx(m)) {
+					follow::point(fxRef, this, m);
+					break;
+				}
+			}
+		}
 		duckTimer -= dt;
 		Module* g = duckRef.to.load();
 		if (!duckMode.load()) {
@@ -183,6 +220,10 @@ struct Mix : Module {
 		}
 		json_object_set_new(r, "inputFrom", a);
 		json_object_set_new(r, "duckFrom", json_integer(duckMode.load()));
+		json_t* rf = json_array();
+		for (int k = 0; k < 2; k++)
+			json_array_append_new(rf, json_integer(retMode[k].load()));
+		json_object_set_new(r, "returnFrom", rf);
 		return r;
 	}
 	void dataFromJson(json_t* r) override {
@@ -197,6 +238,10 @@ struct Mix : Module {
 			}
 		if (json_t* j = json_object_get(r, "duckFrom"))
 			duckMode = clamp((int) json_integer_value(j), 0, 1);
+		if (json_t* a = json_object_get(r, "returnFrom"))
+			for (int k = 0; k < 2 && k < (int) json_array_size(a); k++)
+				retMode[k] = clamp((int) json_integer_value(json_array_get(a, k)), 0, 1);
+		fxTimer = 0.f;
 	}
 	void onRemove(const RemoveEvent& e) override { follow::gone(this); }
 	// a real cable wins (exact, from the engine; see Follow.hpp)
@@ -211,6 +256,14 @@ struct Mix : Module {
 		}
 		if (e.portId == DUCK_INPUT)
 			dd.cable = e.connecting;
+		if (e.portId == RET_L_INPUT)
+			dret[0][0].cable = e.connecting;
+		if (e.portId == RET_R_INPUT)
+			dret[0][1].cable = e.connecting;
+		if (e.portId == RETB_L_INPUT)
+			dret[1][0].cable = e.connecting;
+		if (e.portId == RETB_R_INPUT)
+			dret[1][1].cable = e.connecting;
 	}
 
 	std::unique_ptr<Mixer> mx{new Mixer};
@@ -318,6 +371,7 @@ struct Mix : Module {
 struct SourceTags : widget::TransparentWidget {
 	Mix* module = nullptr;
 	Vec duck;
+	Vec ret[2][2], snd[2][2];
 	Vec inL[NCH], inR[NCH];
 	bool found = false;
 	void step() override {
@@ -335,6 +389,17 @@ struct SourceTags : widget::TransparentWidget {
 			inL[c] = l->box.getCenter();
 			inR[c] = r->box.getCenter();
 		}
+		static const int RIN[2][2] = {{Mix::RET_L_INPUT, Mix::RET_R_INPUT}, {Mix::RETB_L_INPUT, Mix::RETB_R_INPUT}};
+		static const int SOUT[2][2] = {{Mix::SEND_L_OUTPUT, Mix::SEND_R_OUTPUT}, {Mix::SENDB_L_OUTPUT, Mix::SENDB_R_OUTPUT}};
+		for (int k = 0; k < 2; k++)
+			for (int lr = 0; lr < 2; lr++) {
+				PortWidget* p = mw->getInput(RIN[k][lr]);
+				PortWidget* o = mw->getOutput(SOUT[k][lr]);
+				if (!p || !o)
+					return;
+				ret[k][lr] = p->box.getCenter();
+				snd[k][lr] = o->box.getCenter();
+			}
 		found = true;
 	}
 	static Rect field(int c) {
@@ -394,6 +459,26 @@ struct SourceTags : widget::TransparentWidget {
 			}
 			std::string t = std::string("\xe2\x80\xb9 ") + h->srcName + (cable ? " \xc2\xb7 CABLE" : "");
 			ui::text(vg, font, cx, cy + hh * 0.22f, t, cable ? 6.5f : 7.5f, col, NVG_ALIGN_CENTER, 0.4f);
+		}
+		// the send effects (GENRA FX): its ice blue over RETURN A/B it feeds and over SEND A/B it takes
+		if (found) {
+			genrafx::GenraFx* fx = static_cast<genrafx::GenraFx*>(module->fxRef.to.load());
+			NVGcolor ice = nvgRGB(0x8f, 0xd3, 0xff);
+			for (int k = 0; k < 2; k++) {
+				bool any = false;
+				for (int lr = 0; lr < 2; lr++)
+					if (module->dret[k][lr].owned) {
+						follow::segment(vg, ret[k][lr], ice);
+						any = true;
+					}
+				if (any)
+					ui::text(vg, font, 0.5f * (ret[k][0].x + ret[k][1].x), ret[k][0].y - mm2px(6.2f), "\xe2\x80\xb9 GENRA FX", 6.5f,
+					         ice, NVG_ALIGN_CENTER, 0.4f);
+				if (fx)
+					for (int lr = 0; lr < 2; lr++)
+						if (fx->drv[k * 2 + lr].owned)
+							follow::segment(vg, snd[k][lr], ice);
+			}
 		}
 		if (module->duckMode.load() && module->duckRef.to.load() && module->dd.owned) {
 			NVGcolor k = TRACK[0];
@@ -576,6 +661,18 @@ struct MixWidget : ModuleWidget {
 						sub->addChild(createMenuLabel("(no GENRA instrument in the patch)"));
 					sub->addChild(new MenuSeparator);
 					sub->addChild(createMenuLabel("A cable in IN L / IN R always wins"));
+				}));
+			}
+			for (int k = 0; k < 2; k++) {
+				const char* rn = k ? "RETURN B from" : "RETURN A from";
+				menu->addChild(createSubmenuItem(rn, m->retMode[k].load() ? "GENRA FX" : "Cables only", [=](Menu* sub) {
+					sub->addChild(createCheckMenuItem(k ? "Auto: GENRA FX's OUT B (delay)" : "Auto: GENRA FX's OUT A (reverb)", "",
+					                                  [=]() { return m->retMode[k].load() == 1; },
+					                                  [=]() { m->retMode[k] = 1, m->fxTimer = 0.f; }));
+					sub->addChild(createCheckMenuItem("Off (cables only)", "", [=]() { return m->retMode[k].load() == 0; },
+					                                  [=]() { m->retMode[k] = 0; }));
+					sub->addChild(new MenuSeparator);
+					sub->addChild(createMenuLabel("A cable in RET L / RET R always wins"));
 				}));
 			}
 			menu->addChild(createSubmenuItem("DUCK from", m->duckMode.load() ? "GENRA KICK" : "Off", [=](Menu* sub) {

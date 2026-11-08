@@ -38,6 +38,8 @@ struct Src {
 };
 Src genraOut(int track, int sig);
 bool isGenra(Module* m);
+/** GENRA's tempo right now (from its clock: the internal BPM or the CLOCK input), for the tempo-synced effects. */
+float genraBpm(Module* genra, float sampleRate);
 /** GENRA's outputs as of the last complete frame (one sample later than a cable, never half a frame). */
 const float* genraFrame(Module* genra, int outputId, int64_t frame);
 

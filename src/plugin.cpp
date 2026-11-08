@@ -29,4 +29,5 @@ void init(Plugin* p) {
 	p->addModel(modelAblauf);
 	p->addModel(modelGrund);
 	p->addModel(modelGrundFx);
+	p->addModel(modelGenraFx);
 }

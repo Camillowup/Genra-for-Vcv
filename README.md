@@ -1,6 +1,6 @@
 # GENRA – Plugin für VCV Rack 2
 
-Ein generativer, genreabhängiger 4-Spur-Sequencer mit MIDI-Grid, Performance-Effekten und passenden Instrumenten, alle im selben Look. Plugin-Version **2.21.0**, 18 Module. Projektstand und Entscheidungen: `PROJEKT.md`.
+Ein generativer, genreabhängiger 4-Spur-Sequencer mit MIDI-Grid, Performance-Effekten und passenden Instrumenten, alle im selben Look. Plugin-Version **2.22.0**, 19 Module. Projektstand und Entscheidungen: `PROJEKT.md`.
 
 | Modul | Breite | Farbe | Was es ist |
 |---|---|---|---|
@@ -18,6 +18,7 @@ Ein generativer, genreabhängiger 4-Spur-Sequencer mit MIDI-Grid, Performance-Ef
 | **MONK** | 26 HP | safran | Vokal-Synth aus der FM-1-Firmware MONK-1 |
 | **UMLAUF** + **FX** | 54 / 36 HP | Sith-Rot | Orbit-Vektor-Synth mit der Engine von VADER, mit Expander |
 | **MIX** | 28 HP | Spurfarben | 4-Kanal-Stereomixer für die GENRA-Spuren |
+| **GENRA FX** | 24 HP | eisblau | Send-Effekte für MIX: Hall (Send A) und Delay im Tempo (Send B) |
 
 Die Farben folgen GENRAs Spuren: **Drums blau-violett**, **Bass säuregrün**, **Melodie cyan**, **Pads rosa**.
 
@@ -177,7 +178,19 @@ Alle Instrumente mit GENRA-Leiste (MONO, K-WASUB, FUNKE, SCHMELZ, UMLAUF, MONK, 
 - **Die Leiste zeigt es an:** Die Linie über den Buchsen ist gedimmt gedruckt. Kommt ein Signal von GENRA, leuchtet das Segment über dieser Buchse in der Spurfarbe (CLOCK/RESET weiss) und flackert bei jeder Note kurz auf.
 - **Ein Kabel hat immer Vorrang:** Steckt ein Kabel in einer Buchse, gilt das Kabel, das Segment darüber geht aus. Alle Buchsen bleiben, andere Sequenzer und Module funktionieren wie bisher.
 
-**MIX:** **Rechtsklick › CH 1–4 input from** › Off, **Auto** oder ein Instrument aus dem Patch (auch STOTTER). „Auto“ nimmt das Instrument, das der Spur des Kanals folgt (CH 1 Drums, CH 2 Bass, CH 3 Melody, CH 4 Pad). Der Name der Quelle steht dann im Kanal statt „CH n“; steckt ein Kabel in IN L/R, wird er dunkel mit „CABLE“. **DUCK from › GENRA KICK** lässt DUCK ohne Kabel der Kick folgen. Die Verbindung klingt wie ein Kabel (auch ein Kabel verzögert in Rack um ein Sample); Effekte dazwischen (z. B. STOTTER) werden wie gewohnt verkabelt oder im MIX als Quelle gewählt.
+**MIX:** **Rechtsklick › CH 1–4 input from** › Off, **Auto** oder ein Instrument aus dem Patch (auch STOTTER). „Auto“ nimmt das Instrument, das der Spur des Kanals folgt (CH 1 Drums, CH 2 Bass, CH 3 Melody, CH 4 Pad). Der Name der Quelle steht dann im Kanal statt „CH n“; steckt ein Kabel in IN L/R, wird er dunkel mit „CABLE“. **DUCK from › GENRA KICK** lässt DUCK ohne Kabel der Kick folgen. Die Verbindung klingt wie ein Kabel (auch ein Kabel verzögert in Rack um ein Sample); Effekte dazwischen (z. B. STOTTER) werden wie gewohnt verkabelt oder im MIX als Quelle gewählt. **RETURN A/B from › GENRA FX** (Grundeinstellung „Auto“) holt die Ausgänge von GENRA FX ohne Kabel in die Returns; über RET und SND leuchten dann eisblaue Segmente, über den Returns steht „‹ GENRA FX“.
+
+## GENRA FX: Hall und Delay für die Sends (ab 2.22.0)
+
+![GENRA FX](docs/entwuerfe/genra_fx.png)
+
+Die Send-Effekte für MIX, 24 HP, eisblau: **REVERB** bearbeitet IN A (MIX SEND A) und gibt OUT A aus, **DELAY** bearbeitet IN B (MIX SEND B) und gibt OUT B aus. Beide geben nur das Effektsignal aus (Send/Return), stereo; ein Signal nur an IN L geht auf beide Seiten.
+
+- **Ohne Kabel:** Das Tempo kommt von GENRA (Rechtsklick › *Follow GENRA*, an; der SYNC-Balken oben leuchtet). Ohne GENRA gilt das freie Tempo (Rechtsklick › *Free tempo*). IN A und IN B nehmen die Sends des MIX (Rechtsklick › *Input A/B from* › Auto), und MIX nimmt OUT A/B in RETURN A/B (dort Rechtsklick › *RETURN A/B from*). Eisblaue Segmente über den Buchsen zeigen es an beiden Enden; ein Kabel hat immer Vorrang.
+- **REVERB** (ein eigener FDN-Hall mit 8 Leitungen): Typ-Feld **HALL · ROOM · PLATE · SPACE** (Klick = Liste, Mausrad), daneben die Hallzeit. **DECAY** (0,1–30 s, gemessen wie eingestellt), **SIZE**, **PRE-DELAY** (0–250 ms), **DAMP** (hell … dunkel), **WIDTH**, **SHIMMER** (eine Oktave darüber im Nachhall), **LEVEL**. **FREEZE** (Taster oder Gate) hält den Nachhall endlos, der Eingang ist dann zu.
+- **DELAY:** Zeit-Feld: 1/32 … 1/1 gerade, punktiert oder triolisch im Tempo, oder **FREE** in ms (Klick = alle Werte in einer Liste); daneben die Zeit in ms. **TIME** wählt die Teilung (bzw. die ms), **FEEDBACK** bis 110 % (Selbstoszillation, gezähmt), **TONE** (dunkel … dünn), **TAPE** (Leiern und Sättigung wie ein Bandecho; Zeitwechsel gleiten), **DUCK** (das Echo tritt zurück, solange gespielt wird), **WIDTH**, **LEVEL**, **STEREO / PING-PONG**.
+- **CV:** DECAY und FREEZE (Gate) beim Hall, TIME und FDBK beim Delay (je ±5 V).
+- **Display:** Tempo und Quelle (FROM GENRA oder FREE), woher A und B kommen, zwei Pegelanzeigen.
 
 ## MIDI-Export ohne Dateidialog (ab 2.21.0)
 

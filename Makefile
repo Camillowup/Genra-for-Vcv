@@ -13,6 +13,7 @@ SOURCES += $(wildcard src/umlauf/*.cpp)
 SOURCES += $(wildcard src/stotter/*.cpp)
 SOURCES += $(wildcard src/ablauf/*.cpp)
 SOURCES += $(wildcard src/grund/*.cpp)
+SOURCES += $(wildcard src/genrafx/*.cpp)
 
 DISTRIBUTABLES += res
 DISTRIBUTABLES += $(wildcard LICENSE*)

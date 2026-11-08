@@ -63,6 +63,11 @@ void gone(Module* m) {
 
 bool isGenra(Module* m) { return m && m->model == modelGenra; }
 
+float genraBpm(Module* g, float sr) {
+	float sp = static_cast<Genra*>(g)->stepPeriod; // samples per 16th, set every sample (a benign racy read)
+	return sp > 1.f ? clamp(60.f * sr / (sp * 4.f), 20.f, 400.f) : 120.f;
+}
+
 const float* genraFrame(Module* g, int outputId, int64_t frame) {
 	Genra* gg = static_cast<Genra*>(g); // (only GENRAs are pointed at as such)
 	return gg->followPub[(frame + 1) & 1][outputId];

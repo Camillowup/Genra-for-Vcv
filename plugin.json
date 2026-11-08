@@ -1,7 +1,7 @@
 {
   "slug": "Genra",
   "name": "GENRA",
-  "version": "2.21.0",
+  "version": "2.22.0",
   "license": "GPL-3.0-only",
   "brand": "Genra",
   "author": "Bastian Ofner",
@@ -209,6 +209,16 @@
         "Filter",
         "Delay",
         "Distortion"
+      ]
+    },
+    {
+      "slug": "GenraFx",
+      "name": "GENRA FX",
+      "description": "Send effects for MIX: an 8-line FDN reverb (hall, room, plate, space, shimmer, freeze) and a tempo-synced tape delay, GENRA's tempo without cables",
+      "tags": [
+        "Effect",
+        "Reverb",
+        "Delay"
       ]
     }
   ]

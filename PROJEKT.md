@@ -1,6 +1,6 @@
 # GENRA – Projektstand
 
-**Stand:** 8. November 2026 · **Plugin 2.21.0: 18 Module** (GENRA, GRID, ABLAUF, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, GRUND, GRUND FX, SCHMELZ, MIX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `Camillowup/Genra-for-Vcv` (vorher `CamilloGF/genra-v3`, Account nicht mehr erreichbar)
+**Stand:** 8. November 2026 · **Plugin 2.22.0: 19 Module** (GENRA, GRID, ABLAUF, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, GRUND, GRUND FX, SCHMELZ, MIX, GENRA FX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `Camillowup/Genra-for-Vcv` (vorher `CamilloGF/genra-v3`, Account nicht mehr erreichbar)
 
 > Design-Leitfaden für neue Module (Aussehen, GENRA-Leiste, Leuchtsegmente, Follow, englische UI): **docs/DESIGN.md**
 
@@ -375,6 +375,11 @@ GENRA MONO: `g++ -std=c++17 -O2 test/test_mono.cpp -o tm && ./tm`
 - Pads per Drag & Drop in die Song-Liste: zwischen Zeilen einfügen (Linie), auf eine Zeile ersetzen (Rahmen), Undo. Ein belegtes Pad löst sein Antippen jetzt beim Loslassen aus (sonst wäre jeder Drag ein Antippen); leere Pads speichern weiter beim Drücken.
 - Song-Liste unten: Takte und Spieldauer aus GENRAs Tempo (`Genra::currentBpm`, auch für GENRAs MIDI-Export), z. B. „BAR 37 / 92 · 1:12 / 2:59“.
 - `test_ablauf`: jede Genre-Variante hat eine Form, Formlängen, `renderSong` (eine Zeile = Loop, Marker, stumme Drums, Notenbereich, Marker in der Datei).
+
+### 2.22.0 – GENRA FX
+- Neues Modul **GENRA FX** (24 HP, eisblau): Send-Effekte für MIX. REVERB (eigener FDN-Hall, 8 Leitungen; HALL/ROOM/PLATE/SPACE, DECAY 0,1–30 s, SIZE, PRE-DELAY, DAMP, WIDTH, SHIMMER, LEVEL, FREEZE mit Gate) auf A, DELAY (1/32–1/1 gerade/punktiert/triolisch oder FREE ms; FEEDBACK bis 110 %, TONE, TAPE, DUCK, WIDTH, LEVEL, Stereo/Ping-Pong) auf B. DSP: `src/genrafx/GenraFxDsp.hpp`, Test `test/test_genrafx.cpp` (in CI). Hallzeit pro Typ korrigiert (gemessene RT60 ≈ Einstellung ±5 %).
+- Ohne Kabel: Tempo von GENRA (`follow::genraBpm`), IN A/B von MIX SEND A/B, MIX RETURN A/B von GENRA FX OUT A/B (MIX › RETURN A/B from, Auto als Grundeinstellung). Eisblaue Segmente an beiden Enden; Kabel haben Vorrang.
+- Panel: `tools/genrafx_panel.py` → `res/GenraFx.svg`, `src/genrafx/GenraFxLayout.hpp`.
 
 ### 2.21.0 – Schalter PATT | SONG, MIDI-Ordner, lautere Presets, eigene MONK-Sänger, licenses/
 - ABLAUF: PATT/SONG-Lampen ersetzt durch grossen Zweiweg-Schalter (`ModeSwitch`, gelbe aktive Hälfte `#ffd84a`, Klick wählt die Hälfte; `MODE_PARAM` bleibt). Song-Export pro Spur: Rechtsklick *Export song – drums/bass/melody/pads only* (`exportSong(track)`).
