@@ -71,13 +71,13 @@ jobs:
           name: genra-windows
           path: dist/*.vcvplugin
 
-      - name: Release version (branch "release")
+      - name: Read the release version
         if: github.ref == 'refs/heads/release'
         run: |
           VER=$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' plugin.json)
           echo "RELVER=$VER" >> $GITHUB_ENV
 
-      - name: Release (branch "release": tag v<version> + the .vcvplugin)
+      - name: Publish the release (tag v-version with the plugin)
         if: github.ref == 'refs/heads/release'
         uses: softprops/action-gh-release@v2
         with:
