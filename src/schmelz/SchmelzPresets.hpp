@@ -24,7 +24,7 @@ struct Preset {
 	int hold;
 	// bus
 	float bal, anim, animRate, phaser, phaserRate, verb, size, volume;
-	float gain = 1.f;  // the output level that makes this preset loud and even with the others
+	float gain;  // the output level that makes this preset loud and even with the others
 
 	void values(float* v) const {
 		const float a[NUM_PRESET_PARAMS] = {reg,      cresc,      rel,      tone,   ensDepth, (float) oct, (float) ens,

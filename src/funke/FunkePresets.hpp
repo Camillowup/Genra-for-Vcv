@@ -22,7 +22,7 @@ struct Preset {
 	float vdepth, vrate, vdelay;
 	int div;
 	float chorus, echo, fdbk, lofi, verb;
-	float gain = 1.f;  // the output level that makes this preset loud and even with the others
+	float gain;  // the output level that makes this preset loud and even with the others
 
 	void values(float* v) const {
 		const float a[NUM_PRESET_PARAMS] = {(float) model, timbre, bite,  width, sub,   (float) mode, glide, accent,

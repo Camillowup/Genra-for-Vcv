@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // MONK: MONK-1 (Charles Vestal's FM-1 firmware: MonkSynth's formant voice, Jonathan Taylor) as a VCV Rack voice in the
-// GENRA look. The sound is MONK-1's engine (MonkDsp.hpp), the singers on the screen are drawn by MONK-1's own code
-// (monkface.c), and this file is the panel, the jacks and the glue: knobs and CV into the voice's parameters, GATE +
+// GENRA look. The sound is MONK-1's engine (MonkDsp.hpp), the twelve singers on the screen are GENRA's own drawings
+// (MonkSingers.hpp, res/monk/), and this file is the panel, the jacks and the glue: knobs and CV into the voice's parameters, GATE +
 // V/OCT into its note (mono, as the firmware sings), VEL and PRESS as the keys' velocity and aftertouch, the twelve
 // singers as presets of all the knobs.
 #include "../plugin.hpp"
 #include "../Follow.hpp"
 #include "MonkDsp.hpp"
 #include "MonkLayout.hpp"
-#include "monkface.h"
+#include "MonkSingers.hpp"
 #include "../jiant/JiantUI.hpp"
 #include <atomic>
 #include <array>
@@ -24,6 +24,11 @@ static const char* NOTE_NAMES[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", 
 using namespace monkdsp;
 
 // ------------------------------------------------------------------------------------------------ the module
+/** The singer buttons' tooltip names who sings now. */
+struct SingerQuantity : SwitchQuantity {
+	std::string getDescription() override;
+};
+
 struct Monk : Module, follow::Host {
 	enum ParamId {
 		ENUMS(K_PARAM, NK),
@@ -121,8 +126,8 @@ struct Monk : Module, follow::Host {
 		configParam<PctQuantity>(VELSENS_PARAM, 0.f, 1.f, 0.5f, "Velocity sensitivity");
 		configParam<PctQuantity>(LEVEL_PARAM, 0.f, 1.f, 1.f, "Level");
 		configSwitch(ROUTE_PARAM, 0.f, 3.f, 0.f, "Pressure goes to", {"Vowel", "Pitch (+2 st)", "Both", "Both, vowel inverted"});
-		configButton(PREV_PARAM, "Previous singer");
-		configButton(NEXT_PARAM, "Next singer");
+		configButton<SingerQuantity>(PREV_PARAM, "Previous singer");
+		configButton<SingerQuantity>(NEXT_PARAM, "Next singer");
 		for (int k = 0; k < NK; k++)
 			configInput(K_INPUT + k, string::f("%s CV (+-5 V: the knob's whole range)", K_NAMES[k]));
 		configInput(VOCT_INPUT, "V/OCT (C4 = 0 V)");
@@ -153,9 +158,9 @@ struct Monk : Module, follow::Host {
 
 	/** The singer's voice onto all the knobs (as PRESETS does on the FM-1). */
 	void loadSinger(int ch) {
-		int n = monkface_count();
+		int n = monksingers::COUNT;
 		singer = (ch % n + n) % n;
-		const float* p = monkface_voice(singer);
+		const float* p = monksingers::get(singer).voice;
 		for (int i = 0; i < PARAMS_LEN; i++) {
 			int id = engineId(i);
 			if (id >= 0 && id < 17)
@@ -166,7 +171,7 @@ struct Monk : Module, follow::Host {
 
 	/** Whether the knobs differ from the singer's voice ("edited"). */
 	bool edited() {
-		const float* p = monkface_voice(singer);
+		const float* p = monksingers::get(singer).voice;
 		for (int i = 0; i < PARAMS_LEN; i++) {
 			int id = engineId(i);
 			if (id >= 0 && id < 17 && std::fabs(toEngine(i, params[i].getValue()) - p[id]) > 0.004f)
@@ -197,7 +202,7 @@ struct Monk : Module, follow::Host {
 		if (nextTrig.process(params[NEXT_PARAM].getValue() > 0.f))
 			loadSinger(singer + 1);
 		if (inputs[SINGER_INPUT].isConnected()) {
-			int n = monkface_count();
+			int n = monksingers::COUNT;
 			int s = clamp((int) (inputs[SINGER_INPUT].getVoltage() / 10.f * n), 0, n - 1);
 			if (s != cvSinger) {
 				cvSinger = s;
@@ -267,9 +272,15 @@ struct Monk : Module, follow::Host {
 	void dataFromJson(json_t* root) override {
 		fol.fromJson(root);
 		if (json_t* s = json_object_get(root, "singer"))
-			singer = clamp((int) json_integer_value(s), 0, monkface_count() - 1);
+			singer = clamp((int) json_integer_value(s), 0, monksingers::COUNT - 1);
 	}
 };
+
+std::string SingerQuantity::getDescription() {
+	Monk* m = dynamic_cast<Monk*>(module);
+	const monksingers::Singer& g = monksingers::get(m ? m->singer : 0);
+	return string::f("Now singing: %s \xc2\xb7 %s", g.name, g.role);
+}
 
 // ------------------------------------------------------------------------------------------------ the widgets
 namespace L = monk;
@@ -280,58 +291,136 @@ static std::string noteName(float n) {
 	return string::f("%s%d", NOTE_NAMES[(k % 12 + 12) % 12], k / 12 - 1);
 }
 
-/** The singer on its stage, drawn by MONK-1's own code: the mouth follows the vowel, the brows the loudness; with
- * nothing sung it blinks and mouths its vowels to itself (the iOS port's idle animation). */
+/** One pose of a singer: the frame res/monk/sNN_BLV.svg (blink, brows 0..3 from the loudness, the nearest of the
+ * vowels OO OH AH EH EE), scaled into the box; BOLT's antenna glows with the loudness on top. */
+struct FaceWidget : Widget {
+	int singer = 0, blink = 0, brow = 0, vowel = 2;
+	float glow = 0.f;
+
+	void draw(const DrawArgs& args) override {
+		std::string path = asset::plugin(pluginInstance, string::f("res/monk/s%02d_%d%d%d.svg", singer, blink, brow, vowel));
+		std::shared_ptr<window::Svg> svg = APP->window->loadSvg(path);
+		if (!svg || !svg->handle)
+			return;
+		NVGcontext* vg = args.vg;
+		float k = std::max(box.size.x, box.size.y) / 320.f;   // the frame is 320 x 320, the face sits in its middle
+		nvgSave(vg);
+		nvgTranslate(vg, (box.size.x - 320.f * k) / 2.f, (box.size.y - 320.f * k) / 2.f);
+		nvgScale(vg, k, k);
+		window::svgDraw(vg, svg->handle);
+		if (singer == 0 && glow > 0.f) {   // BOLT's antenna bulb (at 160, 36 in the frame)
+			float r = 9.f + brow;
+			nvgBeginPath(vg);
+			nvgCircle(vg, 160.f, 36.f, r * 3.f);
+			nvgFillPaint(vg, nvgRadialGradient(vg, 160.f, 36.f, r * 0.5f, r * 3.f, nvgRGBAf(1.f, 0.55f, 0.5f, 0.75f * glow),
+			                                   nvgRGBAf(1.f, 0.37f, 0.37f, 0.f)));
+			nvgFill(vg);
+			nvgBeginPath(vg);
+			nvgCircle(vg, 160.f, 36.f, r * 0.55f);
+			nvgFillColor(vg, nvgRGBAf(1.f, 0.92f, 0.85f, glow));
+			nvgFill(vg);
+		}
+		nvgRestore(vg);
+	}
+};
+
+/** The face's picture, kept in a framebuffer and drawn in the lit layer: redrawn only when the pose changes. */
+struct LitFramebuffer : widget::FramebufferWidget {
+	void draw(const DrawArgs& args) override {}
+	void drawLayer(const DrawArgs& args, int layer) override {
+		if (layer == 1)
+			FramebufferWidget::draw(args);
+	}
+};
+
+/** The singer on its stage: the mouth follows the vowel, the brows the loudness; with nothing sung it blinks now and
+ * then and mouths its vowels to itself. The pose is worked out at most 30 times a second, the face redrawn only when
+ * it changes. */
 struct ScreenWidget : Widget {
 	Monk* module = nullptr;
-	jiant::Canvas565 canvas{240, 240};
-	std::vector<uint16_t> scene = std::vector<uint16_t>(240 * 240), px = std::vector<uint16_t>(240 * 240);
-	int sceneFor = -1;
-	uint32_t seq = 0;
-	int lastPose = -1;
-	monkface_idle_t idle{};
-	double idleT = 0.0;
+	LitFramebuffer* fb = nullptr;
+	FaceWidget* face = nullptr;
+	double last = 0.0, idleT = 0.0;
+	// the idle animation (100 ms a tick)
+	float idleVowel = 0.5f, idleTarget = 0.5f;
+	int blinkLeft = 0, nextBlink = 25, nextShuffle = 8;
+	uint32_t rng = 0x9e3779b9u;
 
-	void drawLayer(const DrawArgs& args, int layer) override {
-		if (layer != 1)
-			return;
-		int ch = module ? module->singer : 0;
-		if (ch != sceneFor) {
-			monkface_scene(ch, scene.data());
-			sceneFor = ch;
-			lastPose = -1;
+	ScreenWidget() {
+		fb = new LitFramebuffer;
+		face = new FaceWidget;
+		fb->addChild(face);
+		addChild(fb);
+	}
+
+	int rnd(int n) {
+		rng = rng * 1664525u + 1013904223u;
+		return (int) ((rng >> 8) % (uint32_t) n);
+	}
+
+	void idleTick() {
+		if (blinkLeft > 0)
+			blinkLeft--;
+		else if (--nextBlink <= 0) {   // a blink of 100..200 ms every 2..6 s, now and then a double one
+			blinkLeft = 1 + rnd(2);
+			nextBlink = rnd(5) == 0 ? 3 : 20 + rnd(40);
 		}
-		bool singing = module && module->uiSinging;
+		if (--nextShuffle <= 0) {   // another vowel every 0.6..2 s
+			idleTarget = rnd(5) / 4.f;
+			nextShuffle = 6 + rnd(14);
+		}
+		idleVowel += (idleTarget - idleVowel) * 0.5f;
+	}
+
+	void step() override {
+		fb->box.size = box.size;
+		face->box.size = box.size;
+		Widget::step();
 		double now = system::getTime();
+		if (now - last < 1.0 / 30.0)
+			return;
+		last = now;
+		int ch = module ? module->singer : 0;
+		bool singing = module && module->uiSinging;
 		if (idleT == 0.0)
 			idleT = now;
-		while (now - idleT >= 0.1) {   // the idle animation, 100 ms a tick, reset by singing
+		while (now - idleT >= 0.1) {
 			idleT += 0.1;
-			if (singing)
-				monkface_idle_reset(&idle);
+			if (singing) {
+				blinkLeft = 0;
+				idleVowel = idleTarget = 0.5f;
+			}
 			else
-				monkface_idle_tick(&idle);
+				idleTick();
 		}
 		float vowel, loud = 0.f;
 		int blink = 0;
 		if (singing) {
-			vowel = module->uiVowel;
+			vowel = clamp(module->uiVowel, 0.f, 1.f);
 			loud = clamp(module->uiAmp * module->uiEnv, 0.f, 1.f);
-		} else {
-			vowel = monkface_idle_vowel(&idle);
-			blink = monkface_idle_blink(&idle);
 		}
-		int pose = (int) (vowel * 23.f + 0.5f) * 100 + (int) (loud * 4.f + 0.5f) * 10 + blink;
-		if (pose != lastPose) {
-			lastPose = pose;
-			monkface_frame(ch, vowel, loud, blink, scene.data(), px.data());
-			seq++;
+		else {
+			vowel = idleVowel;
+			blink = blinkLeft > 0;
 		}
+		int v = clamp((int) (vowel * 4.f + 0.5f), 0, 4), brow = clamp((int) (loud * 3.f + 0.5f), 0, 3);
+		float glow = ch == 0 ? std::round(loud * 8.f) / 8.f : 0.f;
+		if (ch != face->singer || v != face->vowel || brow != face->brow || blink != face->blink || glow != face->glow) {
+			face->singer = ch;
+			face->vowel = v;
+			face->brow = brow;
+			face->blink = blink;
+			face->glow = glow;
+			fb->setDirty();
+		}
+	}
+
+	void drawLayer(const DrawArgs& args, int layer) override {
+		if (layer != 1)
+			return;
 		nvgSave(args.vg);
-		nvgBeginPath(args.vg);
-		nvgRoundedRect(args.vg, 0, 0, box.size.x, box.size.y, 2.f);
 		nvgScissor(args.vg, 0, 0, box.size.x, box.size.y);
-		canvas.draw(args.vg, px.data(), seq, box.size.x, box.size.y);
+		Widget::drawLayer(args, layer);
 		nvgRestore(args.vg);
 	}
 };
@@ -368,8 +457,8 @@ struct InfoWidget : Widget {
 		NVGcontext* vg = args.vg;
 		auto bold = jiant::boldFont(), mono = jiant::monoFont();
 		float w = box.size.x;
-		int ch = module ? module->singer : 0, n = monkface_count();
-		std::string name = monkface_name(ch);
+		int ch = module ? module->singer : 0, n = monksingers::COUNT;
+		std::string name = monksingers::get(ch).name;
 		for (auto& c : name)
 			c = (char) std::toupper((unsigned char) c);
 		jiant::text(vg, bold, 0, 20, name, 15.f, jiant::WHITE, NVG_ALIGN_LEFT, 0.6f);
@@ -469,9 +558,9 @@ struct MonkWidget : ModuleWidget {
 		if (!m)
 			return;
 		menu->addChild(new MenuSeparator);
-		menu->addChild(createSubmenuItem("Singer", monkface_name(m->singer), [=](Menu* sub) {
-			for (int i = 0; i < monkface_count(); i++)
-				sub->addChild(createCheckMenuItem(monkface_name(i), "", [=]() { return m->singer == i; },
+		menu->addChild(createSubmenuItem("Singer", monksingers::get(m->singer).name, [=](Menu* sub) {
+			for (int i = 0; i < monksingers::COUNT; i++)
+				sub->addChild(createCheckMenuItem(string::f("%s Â· %s", monksingers::get(i).name, monksingers::get(i).role), "", [=]() { return m->singer == i; },
 				                                  [=]() { m->singerReq = i; }));
 		}));
 		menu->addChild(createMenuItem("Singer's voice as it came", "", [=]() { m->singerReq = m->singer; }));

@@ -1,6 +1,6 @@
 # GENRA – Plugin für VCV Rack 2
 
-Ein generativer, genreabhängiger 4-Spur-Sequencer mit MIDI-Grid, Performance-Effekten und passenden Instrumenten, alle im selben Look. Plugin-Version **2.20.0**, 18 Module. Projektstand und Entscheidungen: `PROJEKT.md`.
+Ein generativer, genreabhängiger 4-Spur-Sequencer mit MIDI-Grid, Performance-Effekten und passenden Instrumenten, alle im selben Look. Plugin-Version **2.21.0**, 18 Module. Projektstand und Entscheidungen: `PROJEKT.md`.
 
 | Modul | Breite | Farbe | Was es ist |
 |---|---|---|---|
@@ -97,7 +97,7 @@ Das MIDI-Grid zu GENRA (50 HP): Hier bearbeitest du den erzeugten Loop Note für
 - **CHANCE:** Wahrscheinlichkeit neuer Noten (Regler). Jede Note/jeder Schlag kann eine eigene Wahrscheinlichkeit haben und „nur jeden 2. Durchlauf“ spielen (Rechtsklick). Solche Noten sind gestrichelt und zeigen ihren Wert. Die untere Spur schaltet per Klick auf „VEL“/„CHANCE“ um – dort zieht man Velocity bzw. Chance mit der Maus.
 - **Mehrfachauswahl:** Shift + Ziehen = Rahmen, Strg + Klick = Note an-/abwählen, Strg+A = alles. Ausgewählte Noten zusammen ziehen; Pfeile ↑↓ = Tonhöhe (Shift: Oktave; Drums: Stimme), ←→ = Position (Shift: ein Takt); Entf = löschen; Strg+C / Strg+V = kopieren / an der Mausposition einfügen; Strg+D = dahinter duplizieren; Esc = Auswahl aufheben. Mausrad und Rechtsklick-Menü wirken auf die ganze Auswahl.
 - **EDIT:** UNDO, REDO (64 Schritte), COPY/PASTE BAR (erster sichtbarer Takt), CLEAR TRACK, GEN TRACK (Spur wieder generativ).
-- **MIDI (Rechtsklick):** *Export as MIDI file…* speichert alle vier Spuren wie bei GENRA, *Export … only…* nur die gewählte Spur; *Import MIDI file…* wie bei GENRA.
+- **MIDI (Rechtsklick):** *Export as MIDI file* speichert alle vier Spuren wie bei GENRA, *Export … only* nur die gewählte Spur; *Import MIDI file…* wie bei GENRA.
 - **Was „bearbeitet“ heisst:** Sobald du etwas änderst, spielt die Spur feste Noten – genau das, was vorher zu hören war, plus deine Änderungen. DENSITY/COMPLEX wirken dann nicht mehr auf diese Spur, FILL (Fills und Drops) und Humanize schon. MUTATE verändert auch bearbeitete Spuren – LOCK schützt sie vor MUTATE und NEW ALL.
 
 ---
@@ -134,11 +134,11 @@ Song-Arranger für GENRA, 30 HP. Verbindung wie beim Grid Editor: links oder rec
 | AFRO · LATIN | Afrobeat, Afrobeats, Amapiano, Baile Funk, Reggaeton | INTRO 8 · VERSE 16 · DROP 16 · VERSE 16 · BREAK 8 · DROP 16 · OUTRO 8 |
 | DUB · DOWNTEMPO · AMBIENT | Dub, Downtempo, Ambient | INTRO 8 · VERSE 16 · BREAK 16 · VERSE 16 · BREAK 16 · OUTRO 8 |
 
-**MIDI-Export pro Pad:** Rechtsklick aufs Pad › *Export as MIDI…* (alle vier Spuren) oder *Export drums / bass / melody / pads only…*; Dateiname z. B. `A5-DROP-1-bass.mid`. Das Pad muss dafür nicht laufen.
+**MIDI-Export pro Pad:** Rechtsklick aufs Pad › *Export as MIDI* (alle vier Spuren) oder *Export drums / bass / melody / pads only*; Dateiname z. B. `A5-DROP-1-bass.mid`. Das Pad muss dafür nicht laufen.
 
 INTRO, BUILD, BREAK und OUTRO werden als exakte Noten gebaut (auch im Grid Editor bearbeitbar); VERSE und DROP bleiben generiert und bringen nur Dichte-Versätze mit, die zu GENRAs Reglern addiert werden, solange das Pattern läuft.
 
-**Song (links):** eine Liste von Zeilen: Pattern (mit Familienfarbe und Name) · Takte · Fill · Abschnitt. **Pad in die Liste ziehen:** zwischen zwei Zeilen fallen lassen fügt eine neue Zeile ein (Länge und Abschnitt vom Pad, eine gelbe Linie zeigt wo), auf eine Zeile fallen lassen ersetzt deren Pattern. Oder Pad antippen, dann **INSERT**: neue Zeile nach der gewählten. **ROW** wählt die Zeile (oder Klick in die Liste, Mausrad), **PATTERN**, **BARS** (1–32) und **PART** (Farbskala um den Regler) ändern sie, **FILL** setzt einen Fill am Ende der Zeile. Spuren stummschalten geht an GENRA, am MIX oder an den Instrumenten (Zeilen aus älteren Patches mit stummen Spuren bleiben so, sie tragen ein kleines M). Unten in der Liste: Takte und Spieldauer aus GENRAs Tempo, z. B. *BAR 37 / 92 · 1:12 / 2:59*. **DELETE** entfernt die Zeile, **UNDO** macht Schritte rückgängig (auch Strg+Z). Rechtsklick auf eine Zeile: CV A / CV B, duplizieren, löschen. Rechtsklick aufs Modul › *Export song as MIDI…*: der ganze Song in einer Datei (Zeilen hintereinander mit ihren Takten, Fills und stummen Spuren, Kanäle wie bei GENRA, ein Marker pro Zeile mit ihrem Namen). Im Modus **SONG** startet **PLAY** ab der gewählten Zeile, GENRA wechselt taktgenau. **STOP** lässt die Markierung auf der Zeile stehen, die gerade lief; **STOP** ein zweites Mal setzt sie an den Song-Anfang; **LOOP** wiederholt den Song, sonst stoppt er am Ende.
+**Song (links):** eine Liste von Zeilen: Pattern (mit Familienfarbe und Name) · Takte · Fill · Abschnitt. **Pad in die Liste ziehen:** zwischen zwei Zeilen fallen lassen fügt eine neue Zeile ein (Länge und Abschnitt vom Pad, eine gelbe Linie zeigt wo), auf eine Zeile fallen lassen ersetzt deren Pattern. Oder Pad antippen, dann **INSERT**: neue Zeile nach der gewählten. **ROW** wählt die Zeile (oder Klick in die Liste, Mausrad), **PATTERN**, **BARS** (1–32) und **PART** (Farbskala um den Regler) ändern sie, **FILL** setzt einen Fill am Ende der Zeile. Spuren stummschalten geht an GENRA, am MIX oder an den Instrumenten (Zeilen aus älteren Patches mit stummen Spuren bleiben so, sie tragen ein kleines M). Unten in der Liste: Takte und Spieldauer aus GENRAs Tempo, z. B. *BAR 37 / 92 · 1:12 / 2:59*. **DELETE** entfernt die Zeile, **UNDO** macht Schritte rückgängig (auch Strg+Z). Rechtsklick auf eine Zeile: CV A / CV B, duplizieren, löschen. Rechtsklick aufs Modul › *Export song as MIDI*: der ganze Song in einer Datei; *Export song – drums / bass / melody / pads only*: nur diese Spur (Zeilen hintereinander mit ihren Takten, Fills und stummen Spuren, Kanäle wie bei GENRA, ein Marker pro Zeile mit ihrem Namen). Der grosse Schalter **PATT | SONG** wählt den Modus (Klick auf eine Hälfte, die aktive leuchtet gelb). Im Modus **SONG** startet **PLAY** ab der gewählten Zeile, GENRA wechselt taktgenau. **STOP** lässt die Markierung auf der Zeile stehen, die gerade lief; **STOP** ein zweites Mal setzt sie an den Song-Anfang; **LOOP** wiederholt den Song, sonst stoppt er am Ende.
 
 **Eingänge:** RUN (Trigger: Play/Stop), RESET (Song an den Anfang), NEXT (nächste Zeile bzw. nächstes Pattern am nächsten Takt), PATT CV (0–10 V über die 128 Plätze, Pattern-Modus), ROW CV (0–10 V über die Song-Liste, springt am nächsten Takt).
 **Ausgänge:** END (Trigger am Song-Ende und beim Wiederholen), ROW (Trigger bei jeder neuen Zeile), BUILD und DROP (Gates, solange ein Build bzw. Drop läuft – auch im Pattern-Modus), POS (Song-Position 0–10 V), CV A / CV B (Werte der laufenden Zeile).
@@ -178,6 +178,14 @@ Alle Instrumente mit GENRA-Leiste (MONO, K-WASUB, FUNKE, SCHMELZ, UMLAUF, MONK, 
 - **Ein Kabel hat immer Vorrang:** Steckt ein Kabel in einer Buchse, gilt das Kabel, das Segment darüber geht aus. Alle Buchsen bleiben, andere Sequenzer und Module funktionieren wie bisher.
 
 **MIX:** **Rechtsklick › CH 1–4 input from** › Off, **Auto** oder ein Instrument aus dem Patch (auch STOTTER). „Auto“ nimmt das Instrument, das der Spur des Kanals folgt (CH 1 Drums, CH 2 Bass, CH 3 Melody, CH 4 Pad). Der Name der Quelle steht dann im Kanal statt „CH n“; steckt ein Kabel in IN L/R, wird er dunkel mit „CABLE“. **DUCK from › GENRA KICK** lässt DUCK ohne Kabel der Kick folgen. Die Verbindung klingt wie ein Kabel (auch ein Kabel verzögert in Rack um ein Sample); Effekte dazwischen (z. B. STOTTER) werden wie gewohnt verkabelt oder im MIX als Quelle gewählt.
+
+## MIDI-Export ohne Dateidialog (ab 2.21.0)
+
+GENRA, GRID und ABLAUF speichern MIDI-Dateien direkt, ohne Speichern-Dialog (der Dialog konnte mit manchen ASIO-Treibern die Audio-Engine anhalten). Ziel ist der Ordner **Dokumente › Midi Files from Genra**; Dateinamen wie `2026-11-08_genra.mid`, `2026-11-08_song-bass.mid` – gibt es den Namen schon, kommt `-2`, `-3` … dazu, nichts wird überschrieben. Das Modul zeigt kurz „Saved: <Datei>“. Rechtsklick › *MIDI export folder…* wählt einen anderen Ordner (gilt für alle GENRA-Module, gespeichert in `Rack2/Genra/plugin-settings.json`), *Open MIDI export folder* öffnet ihn. Der MIDI-**Import** behält seinen Dateidialog.
+
+## Lautstärke der Presets (ab 2.21.0)
+
+Alle Werks-Presets von GRUND, GENRA MONO, K-WASUB, FUNKE und SCHMELZ (auch die Pads) sind auf ähnliche, hohe Lautheit eingemessen: Spitzen um 5–6 V, jedes Preset trägt seinen eigenen, unsichtbaren Ausgangspegel (in Patches und eigenen Presets gespeichert). Am Ausgang jedes dieser Instrumente sitzt ein Sicherheitslimiter: bis 6 V unverändert, darüber weich begrenzt auf höchstens 8 V. Ausgleichen der Spuren gegeneinander: am MIX.
 
 ## Instrumente
 
@@ -368,14 +376,14 @@ Drei Klangerzeuger aus der Firmware von [JIANT FM](https://github.com/juanjiant-
 - **Gemeinsam (VOICE, ANIMAL):** CALL spielt einen Ton ohne Kabel (auch per Gate am CALL-Eingang), POLY · MONO · LEGATO per Klick auf die Lampen, Hüllkurve ATK–REL, FX DIST–REVERB, V/OCT, GATE, VEL polyphon, LEVEL und Stereo-Ausgang (nur L gesteckt = Mono).
 - Presets bzw. Kits gibt es auch im Rechtsklick-Menü. Alte Patches mit den einzelnen Plugins *JiantVoice*, *JiantDrumX*, *JiantAnimal* finden die Module hier nicht automatisch – dort einmal neu einsetzen.
 
-### MONK: der Sänger aus MONK-1
+### MONK: die zwölf Sänger
 
 ![MONK](docs/entwuerfe/monk.png)
 
 Der Vokal-Synthesizer (26 HP) aus der FM-1-Firmware [MONK-1](https://github.com/charlesvestal/fm1-monk) (Charles Vestal, GPL-3.0), dessen Klang [MonkSynth](https://github.com/JonET/monksynth) ist (Jonathan Taylor, MIT; eine Hommage an Delay Lama). FOF-Formantsynthese: pro Periode ein Korn aus drei abklingenden Formant-Sinus plus Atem, fünf Vokale OO–OH–AH–EH–EE. Farbe: **safran**.
 
-- **Display:** links singt der Sänger, gezeichnet vom Originalcode der Firmware (Mund folgt Vokal und Lautstärke, ohne Ton blinzelt er und probt Vokale), rechts Name, Note, Stimmen, ob die Stimme bearbeitet ist, Vokal-Chips (Klick setzt VOWEL), PRESS und ENV.
-- **◀ SING ▶:** die zwölf Sänger (Jerry, Guppo, Philip, Suze, Gerald, Bess, EeOo, Snider, Fipsy, Peppo, Marley, Razor). Ein Sänger lädt seine Stimme auf alle Regler. Auch per SINGER-CV (0–10 V) und Rechtsklick-Menü, dort auch *Stimme wie geliefert*.
+- **Display:** links singt der Sänger (eigene Zeichnungen, ab 2.21.0): der Mund formt den Vokal (OO, OH, AH, EH, EE), die Brauen heben sich mit der Lautstärke, bei BOLT glüht dazu die Antenne; ohne Ton blinzelt er ab und zu und probt Vokale. Rechts Name, Note, Stimmen, ob die Stimme bearbeitet ist, Vokal-Chips (Klick setzt VOWEL), PRESS und ENV.
+- **◀ SING ▶:** die zwölf Sänger: **BOLT** (Blech-Tenor, ein Roboter), **CROAK** (Sumpf-Bass, ein Frosch), **DIVA** (Opernstar), **HOOT** (Nacht-Alt, eine Eule), **ZORP** (Weltraum-Sopran, ein Ausserirdischer), **BONES** (Grab-Crooner, ein Skelett), **SPIKE** (Wüsten-Ballade, ein Kaktus), **BLUB** (Tiefsee-Bariton, ein Wal), **LOOP** (Tape-Looper, eine Kassette), **LUNA** (Wiegenlied-Mond), **SPORE** (Waldchor, ein Pilz), **EMBER** (Feuer-Belterin, ein Drache). Die Stimmen sind dieselben wie bisher auf denselben Plätzen, alte Patches singen gleich. Ein Sänger lädt seine Stimme auf alle Regler. Auch per SINGER-CV (0–10 V) und Rechtsklick-Menü, dort auch *Stimme wie geliefert*.
 - **SING · CHOIR** (je mit CV, ±5 V = ganzer Reglerweg): VOWEL, HEAD (Vokaltrakt in cm), BREATH, GLIDE, VOICES (Unisono 1–10), DETUNE (Cent), SPREAD (Kopfgrössen der Stimmen), TUNE (±12 Halbtöne).
 - **PRESS →** VOWEL · PITCH · BOTH · INV: wohin der PRESS-Eingang (Aftertouch, 0–10 V) wirkt; P.DEPTH wie weit, VEL wie stark VEL die Lautstärke setzt.
 - **ENVELOPE** ATK DEC SUS REL (bis 5 s), **VIBRATO · ECHO** DEPTH, RATE, ECHO (Menge), TIME, FDBK (neu, im Original fest 50 %).
@@ -510,7 +518,7 @@ src/jiant/            JIANT-Stimmen VOICE, DRUM-X, ANIMAL (Module, Kern-Lader, g
 jiantcore/            die drei Firmware-Kerne als eigene kleine Bibliotheken (res/*core.dll beim Build)
 jiant.tar.gz          Firmware-Quellen von JIANT FM (beim ersten Build nach jiant/ entpackt)
 res/Jiant*.svg        Frontplatten (tools/jiant_panel.py real), Vorschau: tools/jiant_panel.py preview <ordner> <Rack>
-src/monk/             MONK: Modul (Monk.cpp), Klang-Engine (MonkDsp.hpp), Sänger-Zeichnung der Firmware (monkface.c, fw/)
+src/monk/             MONK: Modul (Monk.cpp), Klang-Engine (MonkDsp.hpp), die zwölf Sänger (MonkSingers.hpp, Bilder in res/monk/ aus tools/monk_singers.py)
 res/Monk.svg          Frontplatte (tools/monk_panel.py real), Vorschau: tools/monk_panel.py preview <ordner> [Rack]
 src/mono/             GENRA MONO: Modul (GenraMono.cpp), Klang-Engine (MonoDsp.hpp, ohne Rack testbar), Presets (MonoPresets.hpp)
 res/GenraMono.svg     Frontplatte (tools/mono_panel.py real), Vorschau: tools/mono_panel.py preview <datei.png> <Rack> [menu|presets]
@@ -534,9 +542,11 @@ test/                 Engine- und MIDI-Tests (g++, ohne Rack); kwcore_test.c und
 
 GPL-3.0-only (siehe `LICENSE`).
 - **VOICE, DRUM-X, ANIMAL:** [JIANT FM](https://github.com/juanjiant-bit/JIANT) von Juan Jiant, ein Fork von [Felucca](https://github.com/hugelton/Felucca) – GPL-3.0
-- **MONK:** [MONK-1](https://github.com/charlesvestal/fm1-monk) von Charles Vestal – GPL-3.0; Klang [MonkSynth](https://github.com/JonET/monksynth) von Jonathan Taylor – MIT
+- **MONK:** Klang-Engine portiert aus [MONK-1](https://github.com/charlesvestal/fm1-monk) von Charles Vestal – GPL-3.0; DSP [MonkSynth](https://github.com/JonET/monksynth) von Jonathan Taylor – MIT. Die Sänger-Zeichnungen sind GENRAs eigene.
 - **K-WASUB:** [K-WASUB](https://github.com/Guizmoh/K-WASUB_Firmware_for_FM1) von Omnipotard – GPL-3.0 (`kwasub/`)
 - **UMLAUF:** [VADER](https://github.com/sunskiefer/VADER) von L'Cronx – MIT (`vader/`)
+
+Alle Lizenztexte der Fremdteile liegen im Plugin-Ordner unter `licenses/` (Übersicht: `licenses/README.md`).
 
 Ausserdem enthalten: in VADER die LXRXXL-ZYNTH-Stimmen, Code von Mutable Instruments (MIT), stb_image (Public Domain/MIT) und der
 FM-Algorithmus-Tabelle von music-synthesizer-for-android (Apache 2.0). Die Wavetables der LXR02-Firmware, die VADER

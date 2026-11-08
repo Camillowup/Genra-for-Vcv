@@ -22,7 +22,7 @@ struct Preset {
 	float rate, lfoTri, lfoPitch, lfoFilter;
 	// ACCENT (how strongly ACC acts), stereo WIDTH
 	float accent, width;
-	float gain = 1.f;  // the output level that makes this preset loud and even with the others
+	float gain;  // the output level that makes this preset loud and even with the others
 
 	/** The values in ParamId order. */
 	void values(float* v) const {

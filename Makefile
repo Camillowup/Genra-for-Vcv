@@ -3,7 +3,7 @@ RACK_DIR ?= ../..
 
 SOURCES += $(wildcard src/*.cpp)
 SOURCES += $(wildcard src/jiant/*.cpp)
-SOURCES += $(wildcard src/monk/*.cpp) src/monk/monkface.c
+SOURCES += $(wildcard src/monk/*.cpp)
 SOURCES += $(wildcard src/mono/*.cpp)
 SOURCES += $(wildcard src/schmelz/*.cpp)
 SOURCES += $(wildcard src/funke/*.cpp)

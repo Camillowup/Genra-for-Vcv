@@ -1,6 +1,6 @@
 # GENRA – Projektstand
 
-**Stand:** 7. November 2026 · **Plugin 2.20.0: 18 Module** (GENRA, GRID, ABLAUF, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, GRUND, GRUND FX, SCHMELZ, MIX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `Camillowup/Genra-for-Vcv` (vorher `CamilloGF/genra-v3`, Account nicht mehr erreichbar)
+**Stand:** 8. November 2026 · **Plugin 2.21.0: 18 Module** (GENRA, GRID, ABLAUF, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, GRUND, GRUND FX, SCHMELZ, MIX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `Camillowup/Genra-for-Vcv` (vorher `CamilloGF/genra-v3`, Account nicht mehr erreichbar)
 
 > Design-Leitfaden für neue Module (Aussehen, GENRA-Leiste, Leuchtsegmente, Follow, englische UI): **docs/DESIGN.md**
 
@@ -375,3 +375,10 @@ GENRA MONO: `g++ -std=c++17 -O2 test/test_mono.cpp -o tm && ./tm`
 - Pads per Drag & Drop in die Song-Liste: zwischen Zeilen einfügen (Linie), auf eine Zeile ersetzen (Rahmen), Undo. Ein belegtes Pad löst sein Antippen jetzt beim Loslassen aus (sonst wäre jeder Drag ein Antippen); leere Pads speichern weiter beim Drücken.
 - Song-Liste unten: Takte und Spieldauer aus GENRAs Tempo (`Genra::currentBpm`, auch für GENRAs MIDI-Export), z. B. „BAR 37 / 92 · 1:12 / 2:59“.
 - `test_ablauf`: jede Genre-Variante hat eine Form, Formlängen, `renderSong` (eine Zeile = Loop, Marker, stumme Drums, Notenbereich, Marker in der Datei).
+
+### 2.21.0 – Schalter PATT | SONG, MIDI-Ordner, lautere Presets, eigene MONK-Sänger, licenses/
+- ABLAUF: PATT/SONG-Lampen ersetzt durch grossen Zweiweg-Schalter (`ModeSwitch`, gelbe aktive Hälfte `#ffd84a`, Klick wählt die Hälfte; `MODE_PARAM` bleibt). Song-Export pro Spur: Rechtsklick *Export song – drums/bass/melody/pads only* (`exportSong(track)`).
+- MIDI-Export ohne Dateidialog (ASIO-Treiber hielt die Engine beim Dialog an): `src/MidiFolder.*` speichert in `<Dokumente>/Midi Files from Genra` als `JJJJ-MM-TT_<name>.mid`, nie überschreiben (-2, -3 …), Meldung „Saved: …“ (GENRA-Display, ABLAUF), Menü *MIDI export folder…* (Einstellung `midiExportFolder` in `asset::user("Genra/plugin-settings.json")`) und *Open MIDI export folder*. Import unverändert mit Dialog.
+- Presets laut und gleichmässig: GRUND, MONO, FUNKE, SCHMELZ, K-WASUB je Preset ein versteckter Pegel (`gain` in den Preset-Tabellen, `kwasub/KwasubLevels.hpp`), im Patch und in eigenen Presets als `presetGain`/`gain` (fehlt er: Werks-Pegel des Presets). Sicherheitslimiter `src/OutLimit.hpp` (linear bis 6 V, tanh-Knie bis 8 V) am Ausgang. Messbericht: `preset_lautheit.md`. Tests prüfen das neue Pegelfenster.
+- MONK: zwölf eigene Sänger (BOLT, CROAK, DIVA, HOOT, ZORP, BONES, SPIKE, BLUB, LOOP, LUNA, SPORE, EMBER) statt der MONK-1-Zeichnungen. Bilder: `tools/monk_singers.py real` → `res/monk/sNN_BLV.svg` (480 Posen: Blinzeln × 4 Brauen × 5 Vokale, Mund-Innenleben vorab auf den Mund zugeschnitten, weil NanoSVG keine clipPaths kann). `ScreenWidget`: eigene Idle-Animation, Pose höchstens 30× pro Sekunde, Framebuffer neu nur bei Posenwechsel; BOLTs Antenne glüht mit der Lautstärke. Stimmen in `MonkSingers.hpp`, gleicher Index wie vorher. `src/monk/fw/` und `monkface.*` entfernt.
+- `licenses/` im Paket mit allen Fremd-Lizenztexten, `licenses/README.md`. plugin.json: Links aufs Repo (authorEmail leer).

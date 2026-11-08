@@ -13,7 +13,7 @@ in this folder. All of them are compatible with distributing the plugin under GP
 | Chakra Petch, IBM Plex Mono, Michroma (rasterised into the JIANT firmware) | The Chakra Petch / IBM Plex / Michroma Project Authors | SIL OFL 1.1 | JIANT firmware build | `OFL-ChakraPetch.txt`, `OFL-IBMPlexMono.txt`, `OFL-Michroma.txt` |
 | K-WASUB / KAWA firmware (sound engines), Felucca platform | Omnipotard; Leo Kuroshita, Hügelton Instruments; isod89 (SLOOP); zvenson (Dinghy) | GPL-3.0-only | K-WASUB, K-WASUB FX (`kwasub/`, `kwcore/`) | `../LICENSE`, `K-WASUB-KAWA-LICENSING.md` |
 | Screen fonts rasterised into the K-WASUB firmware (Terminus, IBM Plex Mono, Atkinson Hyperlegible Mono, Press Start 2P, Outfit, Instrument Sans, Tektur, JetBrains Mono, Big Shoulders) | their project authors (see `K-WASUB-KAWA-LICENSING.md`) | SIL OFL 1.1 | K-WASUB display | `OFL-IBMPlexMono.txt` (the OFL 1.1 text; copyright lines in `K-WASUB-KAWA-LICENSING.md`) |
-| MONK-1 (FM-1 firmware: the singer drawings and the port of the voice) | Charles Vestal | GPL-3.0-only | MONK (`src/monk/`) | `../LICENSE` |
+| MONK-1 (FM-1 firmware: the port of the voice engine) | Charles Vestal | GPL-3.0-only | MONK (`src/monk/`) | `../LICENSE` |
 | MonkSynth (FOF voice DSP) | Jonathan Taylor | MIT | MONK | `MIT-MonkSynth.txt` |
 | VADER (orbit vector synth) | L'Cronx (sunskiefer) | MIT | UMLAUF, UMLAUF FX (`vader/`) | `MIT-VADER.txt` |
 | mpc-vst-plugins (wrapper used by VADER) | sd88me | MIT | UMLAUF | `MIT-mpc-vst-plugins.txt` |
