@@ -2,6 +2,7 @@
 #include "GenraModule.hpp"
 #include <cstdio>
 Plugin* pluginInstance = nullptr;
+void GenraKnob::load(const char*) {}
 static void run(Genra* g, double secs, const char* what) {
 	Module::ProcessArgs a;
 	a.sampleRate = 48000.f;
