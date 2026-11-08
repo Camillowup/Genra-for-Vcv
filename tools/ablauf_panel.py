@@ -136,10 +136,11 @@ text(ax, ky + 11.4, "PART", 1.45, TXT, 600, "middle", 0.3)
 ry = 85.5
 button("FILL", sx + 6.5, ry)
 text(sx + 6.5, ry + 5.0, "FILL", 1.3, TXT, 600, "middle", 0.2)
-comps.append(("lamps", "MODE", sx + 16.5, ry))
-for k, lab in enumerate(["PATT", "SONG"]):
-    e(f'<circle cx="{sx + 16.5 + k * 8:.2f}" cy="{ry}" r="1.35" fill="#0d0e11"/>')
-    text(sx + 16.5 + k * 8, ry + 5.0, lab, 1.35, TXT, 600, "middle", 0.25)
+# MODE: a large two-way switch PATT | SONG (the module draws both halves, the chosen one lit; a click picks a half)
+mx0, mw, mh = sx + 12.5, 17.0, 6.6
+rect(mx0, ry - mh / 2, mw, mh, DARK, 1.2)
+area("MODESW", mx0, ry - mh / 2, mw, mh)
+text(mx0 + mw / 2, ry + 5.6, "MODE", 1.2, DIM, 700, "middle", 0.3)
 e(f'<line x1="{sx + 30.5}" y1="{ry - 4}" x2="{sx + 30.5}" y2="{ry + 5}" stroke="{LINE}" stroke-width="0.3"/>')
 for k, (nm, lab) in enumerate([("PLAY", "PLAY"), ("STOP", "STOP"), ("LOOP", "LOOP")]):
     button(nm, sx + 37 + k * 9.3, ry)
@@ -284,6 +285,10 @@ for i, (pp, nm, bars, m, sec, fill) in enumerate(SONG):
     ptext(X + 36, y + 2.8, str(bars), 1.5, c, 700, "middle", 0.2)
     put(f'<rect x="{X + 45.5}" y="{y + 0.7:.2f}" width="1.0" height="2.4" rx="0.3" fill="{SECC[sec]}"/>')
     ptext(X + 47.4, y + 2.8, sec, 1.35, SECC[sec] if i == 3 else TXT, 700, "start", 0.25)
+MX_, MY_, MW_, MH_ = areas["MODESW"]
+put(f'<rect x="{MX_ + MW_ / 2 + 0.4:.2f}" y="{MY_ + 0.4:.2f}" width="{MW_ / 2 - 0.8:.2f}" height="{MH_ - 0.8:.2f}" rx="0.9" fill="#ffd84a"/>')
+ptext(MX_ + MW_ / 4, MY_ + MH_ / 2 + 0.6, "PATT", 1.55, "#8a8c96", 800, "middle", 0.25)
+ptext(MX_ + MW_ * 3 / 4, MY_ + MH_ / 2 + 0.6, "SONG", 1.55, "#141519", 800, "middle", 0.25)
 FX_, FY_, FW_, FH_ = areas["SONGFORM"]
 ptext(FX_ + 1.6, FY_ + 3.65, "AUTO", 1.7, "#ffd84a", 800, "start", 0.4)
 ptext(FX_ + 10.5, FY_ + 3.65, "HOUSE · TECHNO", 1.6, "#e6e7ec", 700, "start", 0.35)

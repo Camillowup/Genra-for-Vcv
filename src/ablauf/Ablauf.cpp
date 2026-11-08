@@ -955,27 +955,11 @@ struct Ablauf : Module {
 
 	// ---- MIDI files (UI thread)
 	float bpmFor(Genra* g) { return g ? clamp(g->currentBpm(), 20.f, 400.f) : 120.f; }
-	static bool saveMidi(std::string name, const std::vector<uint8_t>& data) {
-		for (char& c : name)
-			if (c == ' ' || c == '&' || c == '/' || c == '\\')
-				c = '-';
-		osdialog_filters* filters = osdialog_filters_parse("MIDI file:mid,midi");
-		char* pathC = osdialog_file(OSDIALOG_SAVE, NULL, name.c_str(), filters);
-		osdialog_filters_free(filters);
-		if (!pathC)
-			return false;
-		std::string path = pathC;
-		std::free(pathC);
-		if (system::getExtension(path) != ".mid" && system::getExtension(path) != ".midi")
-			path += ".mid";
-		try {
-			system::writeFile(path, data);
-		}
-		catch (Exception& e) {
-			osdialog_message(OSDIALOG_ERROR, OSDIALOG_OK, ("Saving failed: " + std::string(e.what())).c_str());
-			return false;
-		}
-		return true;
+	/** Into the MIDI export folder, no dialog (a save dialog can stall the audio driver). */
+	bool saveMidi(std::string name, const std::vector<uint8_t>& data) {
+		std::string err, file = midifolder::save(name, data, &err);
+		say(file.empty() ? "Saving failed: " + err : "Saved: " + file);
+		return !file.empty();
 	}
 	/** Pad i as a MIDI file: all four tracks (track -1) or one (0 drums ... 3 pads). */
 	void exportPad(int i, int track) {
@@ -993,10 +977,10 @@ struct Ablauf : Module {
 			name += std::string("-") + s.name;
 		if (track >= 0 && track < 4)
 			name += std::string("-") + TRACK_FILE[track];
-		saveMidi(name + ".mid", writeSmf(notes, bpmFor(g), prof(slotGenre(s)).name, L, &s.pat));
+		saveMidi(name, writeSmf(notes, bpmFor(g), prof(slotGenre(s)).name, L, &s.pat));
 	}
 	/** The whole song as one MIDI file: every row in order, its length, fill and silent tracks; a marker per row. */
-	void exportSong() {
+	void exportSong(int track = -1) {
 		Genra* g = genra();
 		Params base = g ? g->buildParams(false) : Params();
 		std::vector<SongPart> parts;
@@ -1021,11 +1005,15 @@ struct Ablauf : Module {
 		}
 		std::vector<SongMarker> marks;
 		std::vector<MidiNote> notes = renderSong(parts, &marks);
+		if (track >= 0)
+			notes.erase(std::remove_if(notes.begin(), notes.end(), [=](const MidiNote& n) { return n.track != track; }), notes.end());
 		int total = 0;
 		for (const SongPart& sp : parts)
 			total += sp.bars * STEPS_PER_BAR;
-		if (saveMidi("genra-song.mid", writeSmf(notes, bpmFor(g), "Song", total, nullptr, &marks)))
-			say(string::f("Song exported: %d rows", (int)parts.size()));
+		std::string name = "song";
+		if (track >= 0 && track < 4)
+			name += std::string("-") + TRACK_FILE[track];
+		saveMidi(name, writeSmf(notes, bpmFor(g), "Song", total, nullptr, &marks));
 	}
 
 	// ---- song playback
@@ -2260,10 +2248,10 @@ struct Pads : AbWidget {
 		}));
 		menu->addChild(createMenuItem("Overwrite with GENRA", "what GENRA plays now", [=]() { m->overwrite(i, m->genra()); }));
 		menu->addChild(new MenuSeparator);
-		menu->addChild(createMenuItem("Export as MIDI…", "all tracks", [=]() { m->exportPad(i, -1); }));
+		menu->addChild(createMenuItem("Export as MIDI", "all tracks", [=]() { m->exportPad(i, -1); }));
 		static const char* TN[4] = {"drums", "bass", "melody", "pads"};
 		for (int t = 0; t < 4; t++)
-			menu->addChild(createMenuItem(std::string("Export ") + TN[t] + " only…", "", [=]() { m->exportPad(i, t); }));
+			menu->addChild(createMenuItem(std::string("Export ") + TN[t] + " only", "", [=]() { m->exportPad(i, t); }));
 		menu->addChild(new MenuSeparator);
 		menu->addChild(createMenuItem("Clear", "", [=]() { m->clearSlot(i); }));
 	}
@@ -2305,6 +2293,47 @@ struct InfoLine : AbWidget {
 			}
 		}
 		Widget::drawLayer(args, layer);
+	}
+};
+
+/** MODE: a large two-way switch PATT | SONG – the chosen half is lit, a click on a half picks it. */
+struct ModeSwitch : app::ParamWidget {
+	int value() {
+		engine::ParamQuantity* pq = getParamQuantity();
+		return pq && pq->getValue() > 0.5f ? 1 : 0;
+	}
+	void onButton(const ButtonEvent& e) override {
+		if (e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_LEFT) {
+			if (engine::ParamQuantity* pq = getParamQuantity())
+				pq->setValue(e.pos.x < box.size.x / 2 ? 0.f : 1.f);
+			e.consume(this);
+			return;
+		}
+		ParamWidget::onButton(e);
+	}
+	void draw(const DrawArgs& args) override {}
+	void drawLayer(const DrawArgs& args, int layer) override {
+		if (layer == 1) {
+			NVGcontext* vg = args.vg;
+			auto bold = ui::boldFont();
+			float u = mm2px(1.f), hw = box.size.x / 2, h = box.size.y;
+			int v = value();
+			nvgBeginPath(vg);
+			nvgRoundedRect(vg, v * hw + 0.4f * u, 0.4f * u, hw - 0.8f * u, h - 0.8f * u, 0.9f * u);
+			nvgFillColor(vg, ACC);
+			nvgFill(vg);
+			nvgBeginPath(vg);
+			nvgMoveTo(vg, hw, 1.f * u);
+			nvgLineTo(vg, hw, h - 1.f * u);
+			nvgStrokeColor(vg, nvgRGB(0x34, 0x36, 0x3f));
+			nvgStrokeWidth(vg, 0.3f * u);
+			nvgStroke(vg);
+			const char* lab[2] = {"PATT", "SONG"};
+			for (int i = 0; i < 2; i++)
+				ui::text(vg, bold, (i + 0.5f) * hw, h / 2 + 0.6f * u, lab[i], 1.55f * u,
+				         i == v ? nvgRGB(0x14, 0x15, 0x19) : nvgRGB(0x8a, 0x8c, 0x96), NVG_ALIGN_CENTER, 0.25f * u);
+		}
+		ParamWidget::drawLayer(args, layer);
 	}
 };
 
@@ -2499,10 +2528,8 @@ struct AblaufWidget : ModuleWidget {
 		addParam(createLightParamCentered<VCVLightBezel<WhiteLight>>(ui::mm(L::UNDO), module, A::UNDO_PARAM, A::UNDO_LIGHT));
 		addParam(createLightParamCentered<VCVLightBezel<ALight<0xff, 0xd2, 0x3d>>>(ui::mm(L::MAKESONG), module, A::MAKESONG_PARAM, A::MAKESONG_LIGHT));
 		addParam(createLightParamCentered<VCVLightBezel<ALight<0xff, 0xd2, 0x3d>>>(ui::mm(L::FILL), module, A::FILL_PARAM, A::FILL_LIGHT));
-		ui::LampRow* mode = createParam<ui::LampRow>(Vec(), module, A::MODE_PARAM);
-		mode->accent = ACC;
-		const float mp[3] = {L::MODE[0], L::MODE[1], 8.f};
-		mode->place(mp, 2);
+		ModeSwitch* mode = createParam<ModeSwitch>(mm2px(Vec(L::MODESW[0], L::MODESW[1])), module, A::MODE_PARAM);
+		mode->box.size = mm2px(Vec(L::MODESW[2], L::MODESW[3]));
 		addParam(mode);
 		addParam(createLightParamCentered<VCVLightBezel<ALight<0x5d, 0xff, 0x8a>>>(ui::mm(L::PLAY), module, A::PLAY_PARAM, A::PLAY_LIGHT));
 		addParam(createLightParamCentered<VCVLightBezel<WhiteLight>>(ui::mm(L::STOP), module, A::STOP_PARAM, A::STOP_LIGHT));
@@ -2571,7 +2598,13 @@ struct AblaufWidget : ModuleWidget {
 			menu->addChild(createMenuItem(string::f("Clear bank %c", 'A' + b), "", [=]() {
 				m->clearSlots(b * PADS_PER_BANK, (b + 1) * PADS_PER_BANK, string::f("clear bank %c", 'A' + b).c_str());
 			}));
-		menu->addChild(createMenuItem("Export song as MIDI…", "all rows, a marker per part", [=]() { m->exportSong(); }));
+		menu->addChild(createMenuItem("Export song as MIDI", "all rows, a marker per part", [=]() { m->exportSong(); }));
+		{
+			static const char* TN[4] = {"drums", "bass", "melody", "pads"};
+			for (int t = 0; t < 4; t++)
+				menu->addChild(createMenuItem(std::string("Export song – ") + TN[t] + " only", "", [=]() { m->exportSong(t); }));
+		}
+		midifolder::appendMenu(menu);
 		menu->addChild(new MenuSeparator);
 		menu->addChild(createMenuItem("Clear song", "", [=]() {
 			AblaufAction* a = m->beginChange("clear song");

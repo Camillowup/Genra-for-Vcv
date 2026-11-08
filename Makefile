@@ -16,6 +16,7 @@ SOURCES += $(wildcard src/grund/*.cpp)
 
 DISTRIBUTABLES += res
 DISTRIBUTABLES += $(wildcard LICENSE*)
+DISTRIBUTABLES += licenses
 
 include $(RACK_DIR)/arch.mk
 

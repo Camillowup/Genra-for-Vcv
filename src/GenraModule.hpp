@@ -6,6 +6,7 @@
 #include "Arranger.hpp"
 #include "Layout.hpp"
 #include "Follow.hpp"
+#include "MidiFolder.hpp"
 #include <osdialog.h>
 #include <atomic>
 #include <mutex>
@@ -1370,22 +1371,9 @@ struct Genra : Module {
 	// onlyTrack: -1 = all four tracks, 0..3 = just drums / bass / melody / pads
 	void exportMidi(int onlyTrack = -1) {
 		static const char* TRK[4] = {"drums", "bass", "melody", "pads"};
-		osdialog_filters* filters = osdialog_filters_parse("MIDI file:mid,midi");
 		std::string name = std::string("genra-") + prof(curGenre).name;
 		if (onlyTrack >= 0 && onlyTrack < 4)
 			name += std::string("-") + TRK[onlyTrack];
-		name += ".mid";
-		for (char& c : name)
-			if (c == ' ' || c == '&')
-				c = '_';
-		char* pathC = osdialog_file(OSDIALOG_SAVE, NULL, name.c_str(), filters);
-		osdialog_filters_free(filters);
-		if (!pathC)
-			return;
-		std::string path = pathC;
-		std::free(pathC);
-		if (system::getExtension(path) != ".mid" && system::getExtension(path) != ".midi")
-			path += ".mid";
 		Params P = buildParams();
 		int L = lengthSteps();
 		float bpm = currentBpm();
@@ -1394,12 +1382,16 @@ struct Genra : Module {
 			notes.erase(std::remove_if(notes.begin(), notes.end(), [=](const MidiNote& n) { return n.track != onlyTrack; }),
 			            notes.end());
 		std::vector<uint8_t> data = writeSmf(notes, bpm, prof(curGenre).name, L, &pat);
-		try {
-			system::writeFile(path, data);
-		}
-		catch (Exception& e) {
-			osdialog_message(OSDIALOG_ERROR, OSDIALOG_OK, ("Saving failed: " + std::string(e.what())).c_str());
-		}
+		// no save dialog (it can stall the audio driver): straight into the MIDI export folder
+		std::string err, file = midifolder::save(name, data, &err);
+		showMsg(file.empty() ? "SAVING FAILED: " + err : "SAVED: " + file);
+	}
+	/** A short message in the display (UI thread), e.g. where a MIDI file went. */
+	std::string uiMsg;
+	double uiMsgUntil = 0.0;
+	void showMsg(const std::string& s) {
+		uiMsg = s;
+		uiMsgUntil = system::getTime() + 4.0;
 	}
 
 	void importMidi() {

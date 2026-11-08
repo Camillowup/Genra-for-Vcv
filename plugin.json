@@ -1,17 +1,17 @@
 {
   "slug": "Genra",
   "name": "GENRA",
-  "version": "2.20.0",
+  "version": "2.21.0",
   "license": "GPL-3.0-only",
   "brand": "Genra",
   "author": "Bastian Ofner",
   "authorEmail": "",
-  "authorUrl": "",
-  "pluginUrl": "",
-  "manualUrl": "",
-  "sourceUrl": "",
+  "authorUrl": "https://github.com/Camillowup",
+  "pluginUrl": "https://github.com/Camillowup/Genra-for-Vcv",
+  "manualUrl": "https://github.com/Camillowup/Genra-for-Vcv#readme",
+  "sourceUrl": "https://github.com/Camillowup/Genra-for-Vcv",
   "donateUrl": "",
-  "changelogUrl": "",
+  "changelogUrl": "https://github.com/Camillowup/Genra-for-Vcv/blob/main/PROJEKT.md",
   "modules": [
     {
       "slug": "Genra",

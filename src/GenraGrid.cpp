@@ -1636,9 +1636,10 @@ struct GenraGridWidget : ModuleWidget {
 		if (Genra* g = m->genra()) {
 			static const char* TN[4] = {"drums", "bass", "melody", "pads"};
 			int tr = clamp(m->track, 0, 3);
-			menu->addChild(createMenuItem("Export as MIDI file…", "all tracks", [=]() { g->exportMidi(); }));
-			menu->addChild(createMenuItem(std::string("Export ") + TN[tr] + " only…", "", [=]() { g->exportMidi(tr); }));
+			menu->addChild(createMenuItem("Export as MIDI file", "all tracks", [=]() { g->exportMidi(); }));
+			menu->addChild(createMenuItem(std::string("Export ") + TN[tr] + " only", "", [=]() { g->exportMidi(tr); }));
 			menu->addChild(createMenuItem("Import MIDI file…", "", [=]() { g->importMidi(); }));
+			midifolder::appendMenu(menu);
 		}
 		else
 			menu->addChild(createMenuLabel("Connect a GENRA to export or import"));

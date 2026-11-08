@@ -238,6 +238,8 @@ struct GenraDisplay : Widget {
 				}
 			for (size_t i = 0; i < st.size(); i++)
 				status += (i ? "  " : "") + st[i];
+			if (system::getTime() < m->uiMsgUntil)
+				status = m->uiMsg; // e.g. where a MIDI file went
 
 			chords.clear();
 			float color = effColor(P, m->pat.chordGenre);
@@ -616,8 +618,9 @@ struct GenraWidget : ModuleWidget {
 			return;
 		menu->addChild(new MenuSeparator);
 		menu->addChild(createMenuLabel("GENRA"));
-		menu->addChild(createMenuItem("Export as MIDI file…", "", [=]() { m->exportMidi(); }));
+		menu->addChild(createMenuItem("Export as MIDI file", "into the MIDI export folder", [=]() { m->exportMidi(); }));
 		menu->addChild(createMenuItem("Import MIDI file…", "", [=]() { m->importMidi(); }));
+		midifolder::appendMenu(menu);
 		menu->addChild(new MenuSeparator);
 		menu->addChild(createIndexSubmenuItem("Chord mode", {CHORD_MODES[0], CHORD_MODES[1], CHORD_MODES[2]},
 		                                      [=]() { return (size_t)m->chordMode; },
