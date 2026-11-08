@@ -18,12 +18,14 @@ struct Factory {
 	int count = 0;
 	std::function<const char*(int)> style, name, info;
 	std::function<void(int, float*)> values;
+	std::function<float(int)> gain;  // the output level of factory preset i (none: 1)
 };
 
 struct Bank {
 	struct User {
 		std::string name, file;
 		std::vector<float> v;
+		float gain = 1.f;
 	};
 	Module* m = nullptr;
 	Factory f;
@@ -32,6 +34,7 @@ struct Bank {
 	int preset = -1;  // -1: none (INIT, or a patch from before the presets)
 	std::string presetName;
 	std::vector<float> loaded;
+	float gain = 1.f;  // the loaded preset's output level (not a knob): the module multiplies its output by it
 
 	void init(Module* module, const Factory& factory, const std::string& userDir) {
 		m = module, f = factory, dir = userDir;
@@ -75,6 +78,7 @@ struct Bank {
 			m->params[k].setValue(clamp(v[k], m->paramQuantities[k]->getMinValue(), m->paramQuantities[k]->getMaxValue()));
 		preset = i;
 		presetName = nameOf(i);
+		gain = i < f.count ? (f.gain ? f.gain(i) : 1.f) : user[i - f.count].gain;
 		remember();
 		history::ModuleChange* h = new history::ModuleChange;
 		h->name = "load preset " + presetName;
@@ -105,6 +109,8 @@ struct Bank {
 					User u;
 					u.name = json_string_value(nameJ);
 					u.file = file;
+					json_t* gJ = json_object_get(j, "gain");
+					u.gain = json_is_number(gJ) ? (float) json_number_value(gJ) : 1.f;
 					for (int i = 0; i < numParams(); i++)
 						u.v.push_back(i < n ? (float) json_number_value(json_array_get(valsJ, i))
 						                    : m->paramQuantities[i]->getDefaultValue());
@@ -134,6 +140,7 @@ struct Bank {
 		for (int i = 0; i < numParams(); i++)
 			json_array_append_new(a, json_real(m->params[i].getValue()));
 		json_object_set_new(j, "params", a);
+		json_object_set_new(j, "gain", json_real(gain));
 		json_dump_file(j, system::join(dir, file + ".json").c_str(), JSON_INDENT(2));
 		json_decref(j);
 		presetName = name;
@@ -153,6 +160,7 @@ struct Bank {
 	}
 	void reset() {
 		preset = -1;
+		gain = 1.f;
 		presetName.clear();
 		remember();
 	}
@@ -163,6 +171,7 @@ struct Bank {
 		for (float v : loaded)
 			json_array_append_new(a, json_real(v));
 		json_object_set_new(j, "loaded", a);
+		json_object_set_new(j, "presetGain", json_real(gain));
 	}
 	/** After the knobs are set: the preset by name ("--" when the patch has none), and the knobs it had. */
 	void fromJson(json_t* j) {
@@ -179,6 +188,10 @@ struct Bank {
 		int n = json_is_array(a) ? (int) json_array_size(a) : 0;
 		for (int i = 0; i < n && i < numParams(); i++)
 			loaded[i] = (float) json_number_value(json_array_get(a, i));
+		// the output level: as saved; a patch from before keeps the level of its factory preset
+		json_t* gJ = json_object_get(j, "presetGain");
+		gain = json_is_number(gJ) ? (float) json_number_value(gJ)
+		                          : (preset >= 0 && preset < f.count && f.gain ? f.gain(preset) : 1.f);
 	}
 };
 

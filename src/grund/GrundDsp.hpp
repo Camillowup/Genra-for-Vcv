@@ -8,6 +8,7 @@
 #include "../schmelz/SchmelzDsp.hpp"
 #include <algorithm>
 #include <cmath>
+#include "../OutLimit.hpp"
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -109,6 +110,7 @@ struct Params {
 	float atk = 0.f, dec = 0.5f, sus = 0.8f, rel = 0.3f;
 	float chorus = 0.f, octave = 0.f, width = 0.2f, verb = 0.1f;
 	float cutCv = 0.f;  // octaves
+	float outGain = 1.f;  // the preset's output level (not a knob: set when a preset loads)
 	FxSettings fx;
 };
 
@@ -800,9 +802,9 @@ struct Engine {
 		env = v.lastEnv;
 		float l, r;
 		bus->process(p, in, y * 1.2f, l, r);
-		// a soft limit at ±10 V (transparent below about ±3 V)
-		L = 10.f * sat(0.5f * l) / 1.f;
-		R = 10.f * sat(0.5f * r) / 1.f;
+		// the preset's level, then the safety limiter (transparent below ±6 V, ceiling ±8 V)
+		L = genra_out::limit(5.f * l * p.outGain);
+		R = genra_out::limit(5.f * r * p.outGain);
 		if (!std::isfinite(L) || !std::isfinite(R))
 			L = R = 0.f;
 	}

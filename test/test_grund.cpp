@@ -149,8 +149,8 @@ int main(int argc, char** argv) {
 		line(p, fs, L, R);
 		float lvl = rms(L, 0, L.size());
 		CHECK(finite(L) && finite(R), "preset %s: not finite", PRESETS[i].name);
-		CHECK(lvl > 0.1f, "preset %s: too quiet (%.3f)", PRESETS[i].name, lvl);
-		CHECK(peakAbs(L) < 12.f && peakAbs(R) < 12.f, "preset %s: too loud (%.2f)", PRESETS[i].name, peakAbs(L));
+		CHECK(lvl > 1.4f, "preset %s: too quiet (%.3f)", PRESETS[i].name, lvl);  // loud and even: about 1.6 V over the line
+		CHECK(peakAbs(L) <= 8.01f && peakAbs(R) <= 8.01f, "preset %s: too loud (%.2f)", PRESETS[i].name, peakAbs(L));
 		printf("%02d %-16s rms %.2f V  peak %.2f V\n", i + 1, PRESETS[i].name, lvl, peakAbs(L));
 		if (dir) {
 			char fn[256];

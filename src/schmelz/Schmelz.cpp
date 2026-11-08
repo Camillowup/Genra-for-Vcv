@@ -106,6 +106,7 @@ struct Schmelz : Module, follow::Host {
 		f.name = [](int i) { return PRESETS[i].name; };
 		f.info = [](int i) { return regName(PRESETS[i].reg); };
 		f.values = [](int i, float* v) { PRESETS[i].values(v); };
+		f.gain = [](int i) { return PRESETS[i].gain; };
 		bank.init(this, f, asset::user("Genra/SchmelzPresets"));
 	}
 
@@ -282,6 +283,7 @@ struct Schmelz : Module, follow::Host {
 			bp.tremRate = params[TRATE_PARAM].getValue();
 			bp.bal = kv(BAL_PARAM, BAL_INPUT);
 			bp.vol = params[VOLUME_PARAM].getValue();
+			bp.outGain = bank.gain;
 			dispSound = op.sound;
 		}
 		bool hold = params[HOLD_PARAM].getValue() > 0.5f;

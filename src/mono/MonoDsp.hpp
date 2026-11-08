@@ -5,6 +5,7 @@
 #pragma once
 #include <algorithm>
 #include <cmath>
+#include "../OutLimit.hpp"
 #include <cstdint>
 
 namespace gmono {
@@ -232,6 +233,7 @@ inline float knobTime(float k) { return 0.001f * std::pow(10000.f, clampf(k, 0.f
 
 // ---------------------------------------------------------------- the voice
 struct Params {
+	float outGain = 1.f;  // the preset's output level (not a knob: set when a preset loads)
 	float wave1 = 0.33f, wave2 = 0.33f, tune1 = 0.f, tune2 = 0.f /* -1..1: ±12 semitones, fine at the middle */;
 	float level1 = 0.8f, level2 = 0.8f, glide = 0.f;
 	int ftype = LADDER24;
@@ -428,8 +430,9 @@ struct Voice {
 			stereo.process(y, yR, wd);
 		dc += (y - dc) * (2.f * PI * 8.f * dt);
 		dcR += (yR - dcR) * (2.f * PI * 8.f * dt);
-		outL = 5.f * (y - dc);
-		outR = 5.f * (yR - dcR);
+		// the preset's level, then the safety limiter (transparent below ±6 V, ceiling ±8 V)
+		outL = genra_out::limit(5.f * (y - dc) * p.outGain);
+		outR = genra_out::limit(5.f * (yR - dcR) * p.outGain);
 		if (!std::isfinite(outL) || !std::isfinite(outR)) {  // never let a bad state stick
 			outL = outR = 0.f;
 			filter.reset();

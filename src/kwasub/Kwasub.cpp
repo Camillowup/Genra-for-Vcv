@@ -8,6 +8,8 @@
 #include "../Follow.hpp"
 #include "../ui/GenraUI.hpp"
 #include "../ui/StateBank.hpp"
+#include "../OutLimit.hpp"
+#include "KwasubLevels.hpp"
 #include "KwCore.hpp"
 #include "KwIds.hpp"
 #include "KwLayout.hpp"
@@ -92,6 +94,7 @@ struct Kwasub : Module, follow::Host {
 	bool fxWasThere = false, pushFx = false, pushMain = false;
 	int pushFxTicks = 0;  // a saved patch: the expander's saved knobs win if it is there within these blocks
 	int presetIdx = 0;
+	float presetGain = 1.f;  // the preset's output level (KwasubLevels.hpp; a user preset keeps the one it was saved with)
 	std::atomic<int> presetReq{-1};  // a preset picked in the UI, loaded by the engine thread
 	// the presets sorted by style, then name (the list, the wheel and PREV / NEXT go in this order)
 	std::vector<int> order;
@@ -442,6 +445,7 @@ struct Kwasub : Module, follow::Host {
 		int n = (int) core.api->npresets();
 		presetIdx = ((i % n) + n) % n;
 		core.api->load_preset(presetIdx);
+		presetGain = kwlevels::gainOf(presetIdx);
 		pull(true, true);
 		loadedPos = posOf(presetIdx);
 		loadSerial++;
@@ -710,7 +714,7 @@ struct Kwasub : Module, follow::Host {
 			float y0 = ring[c][i - 1 < 0 ? 0 : i - 1], y1 = ring[c][i], y2 = ring[c][i + 1], y3 = ring[c][i + 2];
 			float c1 = 0.5f * (y2 - y0), c2 = y0 - 2.5f * y1 + 2.f * y2 - 0.5f * y3, c3 = 0.5f * (y3 - y0) + 1.5f * (y1 - y2);
 			float y = ((c3 * t + c2) * t + c1) * t + y1;
-			outputs[c ? R_OUTPUT : L_OUTPUT].setVoltage(5.f * y);
+			outputs[c ? R_OUTPUT : L_OUTPUT].setVoltage(genra_out::limit(5.f * y * presetGain));  // level + safety limiter
 		}
 		pos += step;
 		outputs[ENV_OUTPUT].setVoltage(10.f * a->env());
@@ -725,6 +729,7 @@ struct Kwasub : Module, follow::Host {
 	json_t* dataToJson() override {
 		json_t* r = json_object();
 		json_object_set_new(r, "preset", json_integer(presetIdx));
+		json_object_set_new(r, "presetGain", json_real(presetGain));
 		json_object_set_new(r, "ppqn", json_integer(ppqn));
 		if (core.api) {
 			json_t* p = json_array();
@@ -753,6 +758,11 @@ struct Kwasub : Module, follow::Host {
 		fol.fromJson(r);
 		if (json_t* j = json_object_get(r, "preset"))
 			presetIdx = std::max(0, (int) json_integer_value(j));
+		{
+			// the output level: as saved; a patch from before takes its preset's level
+			json_t* gJ = json_object_get(r, "presetGain");
+			presetGain = json_is_number(gJ) ? (float) json_number_value(gJ) : kwlevels::gainOf(presetIdx);
+		}
 		// a preset or an undo step (StateBank.hpp): the sound in the patch is the whole sound, the expander follows
 		bool engineWins = json_is_true(json_object_get(r, "engineWins"));
 		if (json_t* j = json_object_get(r, "ppqn"))

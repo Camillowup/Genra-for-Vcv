@@ -205,8 +205,8 @@ int main() {
 			lvl[i] = lv;
 			printf("  %02d %-18s rms %.2f V  peak %.2f V  tail %.4f V\n", i + 1, pr.name, lv, peak, tail);
 			CHECK(fin, "preset %s: not finite", pr.name);
-			CHECK(lv > 0.8f, "preset %s: too quiet (%.2f V rms)", pr.name, lv);
-			CHECK(peak <= 10.001f && peak < 9.5f, "preset %s: peak %.2f V", pr.name, peak);
+			CHECK(lv > 1.8f, "preset %s: too quiet (%.2f V rms)", pr.name, lv);  // loud and even: about 2 V
+			CHECK(peak <= 8.01f, "preset %s: peak %.2f V", pr.name, peak);
 			CHECK(tail < 0.01f * lv + 1e-4f, "preset %s: still sounding after the release (%.4f V)", pr.name, tail);
 		}
 		float lo = 1e9f, hi = 0.f;

@@ -197,8 +197,8 @@ int main() {
 			float end = rms(tail, fs * 2.5f);
 			printf("preset %2d %-14s rms %.2f V  peak %.2f V\n", k + 1, pr.name, r, peak);
 			CHECK(finite, "preset %s not finite", pr.name);
-			CHECK(r > 0.2f && peak > 1.5f, "preset %s too quiet (rms %.2f V, peak %.2f V)", pr.name, r, peak);
-			CHECK(peak < 6.f, "preset %s too loud (%.2f V)", pr.name, peak);
+			CHECK(r > 1.3f && peak > 4.f, "preset %s too quiet (rms %.2f V, peak %.2f V)", pr.name, r, peak);  // loud: ~2.3 V
+			CHECK(peak <= 8.01f, "preset %s too loud (%.2f V, above the limiter's ceiling)", pr.name, peak);
 			CHECK(end < 0.01f, "preset %s does not end (%.3f V)", pr.name, end);
 			CHECK(pr.ftype >= 0 && pr.ftype < NUM_FILTERS, "preset %s filter", pr.name);
 		}

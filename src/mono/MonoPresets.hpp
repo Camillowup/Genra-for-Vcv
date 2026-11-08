@@ -22,6 +22,7 @@ struct Preset {
 	float rate, lfoTri, lfoPitch, lfoFilter;
 	// ACCENT (how strongly ACC acts), stereo WIDTH
 	float accent, width;
+	float gain = 1.f;  // the output level that makes this preset loud and even with the others
 
 	/** The values in ParamId order. */
 	void values(float* v) const {
@@ -40,6 +41,7 @@ struct Preset {
 		p.fA = fA, p.fD = fD, p.fS = fS, p.fR = fR, p.aA = aA, p.aD = aD, p.aS = aS, p.aR = aR;
 		p.rate = rate, p.lfoSquare = lfoTri < 0.5f, p.lfoPitch = lfoPitch, p.lfoFilter = lfoFilter;
 		p.accent = accent, p.width = width;
+		p.outGain = gain;
 		return p;
 	}
 };
@@ -47,35 +49,35 @@ struct Preset {
 // tune: +12 st = 1, −12 st = −1, +7 st = 0.764, a few cents ≈ 0.05–0.15
 static const Preset PRESETS[] = {
     //  style, name,                 wave1 wave2 tune1 tune2  lvl1 lvl2 glide  filter    cut  res   eg   drive ktrk   fA   fD   fS   fR   aA   aD   aS   aR   rate tri  >pit >flt  acc  width
-    {"SUB", "DEEP SUB",              0.00f, 0.00f, 0.f, -1.00f, .85f, .45f, .00f, LADDER24, .30f, .00f, .10f, .10f, .50f, .00f, .45f, .00f, .40f, .15f, .50f, 1.0f, .45f, .45f, 1, .00f, .00f, 0.50f, 0.00f},
-    {"SUB", "DUB SUB",               0.20f, 0.00f, 0.f, -1.00f, .70f, .70f, .10f, LADDER24, .28f, .25f, .25f, .30f, .30f, .00f, .55f, .20f, .45f, .20f, .60f, 1.0f, .55f, .45f, 1, .00f, .00f, 0.50f, 0.00f},
-    {"SUB", "808 GLIDE",             0.00f, 0.33f, 0.f,  0.00f, .90f, .15f, .45f, LADDER24, .25f, .10f, .30f, .45f, .50f, .00f, .50f, .00f, .50f, .00f, .78f, .00f, .70f, .45f, 1, .00f, .00f, 0.50f, 0.00f},
-    {"SUB", "ROUND SUB",             0.10f, 0.10f, 0.f,  0.06f, .80f, .60f, .00f, LADDER12, .35f, .10f, .15f, .20f, .40f, .00f, .50f, .10f, .40f, .10f, .50f, .90f, .40f, .45f, 1, .00f, .00f, 0.50f, 0.00f},
+    {"SUB", "DEEP SUB",              0.00f, 0.00f, 0.f, -1.00f, .85f, .45f, .00f, LADDER24, .30f, .00f, .10f, .10f, .50f, .00f, .45f, .00f, .40f, .15f, .50f, 1.0f, .45f, .45f, 1, .00f, .00f, 0.50f, 0.00f, /*gain*/ 3.016f},
+    {"SUB", "DUB SUB",               0.20f, 0.00f, 0.f, -1.00f, .70f, .70f, .10f, LADDER24, .28f, .25f, .25f, .30f, .30f, .00f, .55f, .20f, .45f, .20f, .60f, 1.0f, .55f, .45f, 1, .00f, .00f, 0.50f, 0.00f, /*gain*/ 1.566f},
+    {"SUB", "808 GLIDE",             0.00f, 0.33f, 0.f,  0.00f, .90f, .15f, .45f, LADDER24, .25f, .10f, .30f, .45f, .50f, .00f, .50f, .00f, .50f, .00f, .78f, .00f, .70f, .45f, 1, .00f, .00f, 0.50f, 0.00f, /*gain*/ 3.102f},
+    {"SUB", "ROUND SUB",             0.10f, 0.10f, 0.f,  0.06f, .80f, .60f, .00f, LADDER12, .35f, .10f, .15f, .20f, .40f, .00f, .50f, .10f, .40f, .10f, .50f, .90f, .40f, .45f, 1, .00f, .00f, 0.50f, 0.00f, /*gain*/ 1.577f},
 
-    {"CLASSIC", "TAURUS",            0.33f, 0.33f, 0.f,  0.08f, .85f, .85f, .10f, LADDER24, .38f, .35f, .45f, .35f, .30f, .00f, .55f, .15f, .45f, .00f, .50f, 1.0f, .40f, .45f, 1, .00f, .00f, 0.50f, 0.00f},
-    {"CLASSIC", "FAT MOOG",          0.33f, 0.50f, 0.f, -1.00f, .85f, .75f, .00f, LADDER24, .42f, .30f, .50f, .50f, .30f, .00f, .50f, .25f, .45f, .00f, .50f, 1.0f, .35f, .45f, 1, .00f, .00f, 0.50f, 0.00f},
-    {"CLASSIC", "FUNK PLUCK",        0.67f, 0.33f, 0.f,  0.07f, .80f, .70f, .00f, LADDER24, .30f, .50f, .70f, .25f, .50f, .00f, .42f, .00f, .35f, .00f, .50f, .60f, .30f, .45f, 1, .00f, .00f, 0.50f, 0.00f},
-    {"CLASSIC", "SYNTHWAVE",         0.33f, 0.33f, 0.f,  0.12f, .80f, .80f, .00f, OTA,      .40f, .20f, .40f, .15f, .40f, .00f, .48f, .20f, .40f, .00f, .45f, .85f, .35f, .35f, 1, .00f, .05f, 0.50f, 0.50f},
+    {"CLASSIC", "TAURUS",            0.33f, 0.33f, 0.f,  0.08f, .85f, .85f, .10f, LADDER24, .38f, .35f, .45f, .35f, .30f, .00f, .55f, .15f, .45f, .00f, .50f, 1.0f, .40f, .45f, 1, .00f, .00f, 0.50f, 0.00f, /*gain*/ 1.244f},
+    {"CLASSIC", "FAT MOOG",          0.33f, 0.50f, 0.f, -1.00f, .85f, .75f, .00f, LADDER24, .42f, .30f, .50f, .50f, .30f, .00f, .50f, .25f, .45f, .00f, .50f, 1.0f, .35f, .45f, 1, .00f, .00f, 0.50f, 0.00f, /*gain*/ 1.157f},
+    {"CLASSIC", "FUNK PLUCK",        0.67f, 0.33f, 0.f,  0.07f, .80f, .70f, .00f, LADDER24, .30f, .50f, .70f, .25f, .50f, .00f, .42f, .00f, .35f, .00f, .50f, .60f, .30f, .45f, 1, .00f, .00f, 0.50f, 0.00f, /*gain*/ 2.424f},
+    {"CLASSIC", "SYNTHWAVE",         0.33f, 0.33f, 0.f,  0.12f, .80f, .80f, .00f, OTA,      .40f, .20f, .40f, .15f, .40f, .00f, .48f, .20f, .40f, .00f, .45f, .85f, .35f, .35f, 1, .00f, .05f, 0.50f, 0.50f, /*gain*/ 1.894f},
 
-    {"GARAGE · 2-STEP", "ORGAN BASS",    0.67f, 0.67f, 0.f,  1.00f, .80f, .45f, .00f, SVF_LP,   .50f, .15f, .30f, .20f, .50f, .00f, .40f, .10f, .35f, .00f, .45f, .75f, .30f, .45f, 1, .00f, .00f, 0.50f, 0.00f},
-    {"GARAGE · 2-STEP", "2-STEP BOUNCE", 0.33f, 0.00f, 0.f, -1.00f, .80f, .60f, .20f, LADDER24, .33f, .40f, .60f, .30f, .40f, .00f, .45f, .05f, .40f, .00f, .50f, .70f, .35f, .45f, 1, .00f, .00f, 0.50f, 0.00f},
-    {"GARAGE · 2-STEP", "SPEED REESE",   0.33f, 0.33f, 0.f,  0.18f, .80f, .80f, .00f, LADDER12, .45f, .30f, .35f, .45f, .30f, .20f, .55f, .40f, .45f, .00f, .50f, 1.0f, .35f, .30f, 1, .00f, .10f, 0.50f, 0.40f},
+    {"GARAGE · 2-STEP", "ORGAN BASS",    0.67f, 0.67f, 0.f,  1.00f, .80f, .45f, .00f, SVF_LP,   .50f, .15f, .30f, .20f, .50f, .00f, .40f, .10f, .35f, .00f, .45f, .75f, .30f, .45f, 1, .00f, .00f, 0.50f, 0.00f, /*gain*/ 1.233f},
+    {"GARAGE · 2-STEP", "2-STEP BOUNCE", 0.33f, 0.00f, 0.f, -1.00f, .80f, .60f, .20f, LADDER24, .33f, .40f, .60f, .30f, .40f, .00f, .45f, .05f, .40f, .00f, .50f, .70f, .35f, .45f, 1, .00f, .00f, 0.50f, 0.00f, /*gain*/ 2.163f},
+    {"GARAGE · 2-STEP", "SPEED REESE",   0.33f, 0.33f, 0.f,  0.18f, .80f, .80f, .00f, LADDER12, .45f, .30f, .35f, .45f, .30f, .20f, .55f, .40f, .45f, .00f, .50f, 1.0f, .35f, .30f, 1, .00f, .10f, 0.50f, 0.40f, /*gain*/ 1.145f},
 
-    {"DUB · DUBSTEP · GRIME", "REESE",        0.33f, 0.33f, 0.f,  0.14f, .80f, .80f, .00f, LADDER24, .40f, .20f, .15f, .55f, .30f, .30f, .60f, .60f, .50f, .10f, .50f, 1.0f, .45f, .20f, 1, .00f, .15f, 0.50f, 0.50f},
-    {"DUB · DUBSTEP · GRIME", "WOBBLE",       0.45f, 0.33f, 0.f, -1.00f, .80f, .70f, .00f, LADDER24, .25f, .45f, .00f, .50f, .30f, .00f, .50f, .00f, .40f, .05f, .50f, 1.0f, .35f, .52f, 1, .00f, .70f, 0.50f, 0.00f},
-    {"DUB · DUBSTEP · GRIME", "GRIME SQUARE", 0.67f, 0.67f, 0.f, -1.00f, .85f, .60f, .15f, MS20,     .45f, .30f, .35f, .50f, .30f, .00f, .48f, .20f, .40f, .00f, .50f, .80f, .30f, .45f, 1, .00f, .00f, 0.50f, 0.00f},
+    {"DUB · DUBSTEP · GRIME", "REESE",        0.33f, 0.33f, 0.f,  0.14f, .80f, .80f, .00f, LADDER24, .40f, .20f, .15f, .55f, .30f, .30f, .60f, .60f, .50f, .10f, .50f, 1.0f, .45f, .20f, 1, .00f, .15f, 0.50f, 0.50f, /*gain*/ 1.280f},
+    {"DUB · DUBSTEP · GRIME", "WOBBLE",       0.45f, 0.33f, 0.f, -1.00f, .80f, .70f, .00f, LADDER24, .25f, .45f, .00f, .50f, .30f, .00f, .50f, .00f, .40f, .05f, .50f, 1.0f, .35f, .52f, 1, .00f, .70f, 0.50f, 0.00f, /*gain*/ 1.878f},
+    {"DUB · DUBSTEP · GRIME", "GRIME SQUARE", 0.67f, 0.67f, 0.f, -1.00f, .85f, .60f, .15f, MS20,     .45f, .30f, .35f, .50f, .30f, .00f, .48f, .20f, .40f, .00f, .50f, .80f, .30f, .45f, 1, .00f, .00f, 0.50f, 0.00f, /*gain*/ 1.213f},
 
-    {"ACID", "ACID 303",             0.33f, 0.00f, 0.f,  0.00f, .95f, .00f, .25f, DIODE,    .32f, .78f, .60f, .45f, .30f, .00f, .48f, .00f, .40f, .00f, .50f, .80f, .25f, .45f, 1, .00f, .00f, 0.70f, 0.00f},
-    {"ACID", "SQUELCH",              0.67f, 0.00f, 0.f,  0.00f, .85f, .00f, .30f, DIODE,    .25f, .88f, .75f, .55f, .30f, .00f, .42f, .00f, .35f, .00f, .50f, .80f, .25f, .45f, 1, .00f, .00f, 0.80f, 0.00f},
-    {"ACID", "RUBBER",               0.33f, 0.67f, 0.f, -1.00f, .80f, .50f, .25f, MS20,     .30f, .65f, .55f, .30f, .30f, .00f, .50f, .00f, .40f, .00f, .50f, .85f, .30f, .45f, 1, .00f, .00f, 0.60f, 0.00f},
+    {"ACID", "ACID 303",             0.33f, 0.00f, 0.f,  0.00f, .95f, .00f, .25f, DIODE,    .32f, .78f, .60f, .45f, .30f, .00f, .48f, .00f, .40f, .00f, .50f, .80f, .25f, .45f, 1, .00f, .00f, 0.70f, 0.00f, /*gain*/ 3.831f},
+    {"ACID", "SQUELCH",              0.67f, 0.00f, 0.f,  0.00f, .85f, .00f, .30f, DIODE,    .25f, .88f, .75f, .55f, .30f, .00f, .42f, .00f, .35f, .00f, .50f, .80f, .25f, .45f, 1, .00f, .00f, 0.80f, 0.00f, /*gain*/ 3.289f},
+    {"ACID", "RUBBER",               0.33f, 0.67f, 0.f, -1.00f, .80f, .50f, .25f, MS20,     .30f, .65f, .55f, .30f, .30f, .00f, .50f, .00f, .40f, .00f, .50f, .85f, .30f, .45f, 1, .00f, .00f, 0.60f, 0.00f, /*gain*/ 1.338f},
 
-    {"HOUSE · TECHNO · ELECTRO", "DEEP HOUSE",   0.50f, 0.00f, 0.f, -1.00f, .75f, .60f, .00f, LADDER24, .30f, .25f, .45f, .20f, .40f, .00f, .50f, .10f, .40f, .00f, .52f, .70f, .35f, .45f, 1, .00f, .00f, 0.50f, 0.00f},
-    {"HOUSE · TECHNO · ELECTRO", "MINIMAL BLIP", 0.67f, 0.00f, 0.f,  1.00f, .80f, .30f, .00f, LADDER12, .35f, .40f, .60f, .20f, .50f, .00f, .33f, .00f, .30f, .00f, .40f, .00f, .30f, .45f, 1, .00f, .00f, 0.50f, 0.00f},
-    {"HOUSE · TECHNO · ELECTRO", "ELECTRO ZAP",  0.85f, 0.33f, 0.f,  0.08f, .80f, .60f, .00f, OTA,      .30f, .50f, .80f, .35f, .30f, .00f, .36f, .00f, .30f, .00f, .50f, .60f, .30f, .45f, 1, .00f, .00f, 0.50f, 0.00f},
+    {"HOUSE · TECHNO · ELECTRO", "DEEP HOUSE",   0.50f, 0.00f, 0.f, -1.00f, .75f, .60f, .00f, LADDER24, .30f, .25f, .45f, .20f, .40f, .00f, .50f, .10f, .40f, .00f, .52f, .70f, .35f, .45f, 1, .00f, .00f, 0.50f, 0.00f, /*gain*/ 2.635f},
+    {"HOUSE · TECHNO · ELECTRO", "MINIMAL BLIP", 0.67f, 0.00f, 0.f,  1.00f, .80f, .30f, .00f, LADDER12, .35f, .40f, .60f, .20f, .50f, .00f, .33f, .00f, .30f, .00f, .40f, .00f, .30f, .45f, 1, .00f, .00f, 0.50f, 0.00f, /*gain*/ 6.000f},
+    {"HOUSE · TECHNO · ELECTRO", "ELECTRO ZAP",  0.85f, 0.33f, 0.f,  0.08f, .80f, .60f, .00f, OTA,      .30f, .50f, .80f, .35f, .30f, .00f, .36f, .00f, .30f, .00f, .50f, .60f, .30f, .45f, 1, .00f, .00f, 0.50f, 0.00f, /*gain*/ 3.158f},
 
-    {"HIP-HOP · LO-FI", "BOOM BAP",      0.15f, 0.00f, 0.f,  0.00f, .85f, .40f, .10f, LADDER24, .26f, .15f, .30f, .45f, .40f, .00f, .45f, .00f, .40f, .00f, .62f, .30f, .45f, .45f, 1, .00f, .00f, 0.50f, 0.00f},
-    {"HIP-HOP · LO-FI", "LO-FI ROUND",   0.00f, 0.33f, 0.f,  0.10f, .80f, .35f, .00f, OTA,      .30f, .10f, .15f, .30f, .40f, .20f, .55f, .20f, .50f, .15f, .55f, .85f, .50f, .40f, 1, .06f, .00f, 0.50f, 0.00f},
-    {"HIP-HOP · LO-FI", "TRIP-HOP",      0.33f, 0.67f, 0.f, -1.00f, .75f, .65f, .20f, LADDER24, .27f, .35f, .30f, .55f, .30f, .25f, .60f, .20f, .55f, .20f, .60f, .90f, .55f, .30f, 1, .00f, .12f, 0.50f, 0.00f},
+    {"HIP-HOP · LO-FI", "BOOM BAP",      0.15f, 0.00f, 0.f,  0.00f, .85f, .40f, .10f, LADDER24, .26f, .15f, .30f, .45f, .40f, .00f, .45f, .00f, .40f, .00f, .62f, .30f, .45f, .45f, 1, .00f, .00f, 0.50f, 0.00f, /*gain*/ 3.467f},
+    {"HIP-HOP · LO-FI", "LO-FI ROUND",   0.00f, 0.33f, 0.f,  0.10f, .80f, .35f, .00f, OTA,      .30f, .10f, .15f, .30f, .40f, .20f, .55f, .20f, .50f, .15f, .55f, .85f, .50f, .40f, 1, .06f, .00f, 0.50f, 0.00f, /*gain*/ 1.934f},
+    {"HIP-HOP · LO-FI", "TRIP-HOP",      0.33f, 0.67f, 0.f, -1.00f, .75f, .65f, .20f, LADDER24, .27f, .35f, .30f, .55f, .30f, .25f, .60f, .20f, .55f, .20f, .60f, .90f, .55f, .30f, 1, .00f, .12f, 0.50f, 0.00f, /*gain*/ 1.272f},
 };
 static const int NUM_PRESETS = sizeof(PRESETS) / sizeof(PRESETS[0]);
 

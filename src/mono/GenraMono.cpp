@@ -74,11 +74,13 @@ struct GenraMono : Module, follow::Host {
 	struct UserPreset {
 		std::string name;
 		float v[NUM_PARAMS];
+		float gain = 1.f;
 	};
 	std::vector<UserPreset> user;
 	int preset = -1;            // index into factory + user list, -1 = none (INIT)
 	std::string presetName;     // a user preset is remembered by name, the list may change
 	float loaded[NUM_PARAMS];   // the values as loaded, to show when a knob has moved since
+	float presetGain = 1.f;     // the loaded preset's output level (not a knob)
 
 	static std::string userDir() { return asset::user("Genra/MonoPresets"); }
 	int count() { return gmono::NUM_PRESETS + (int) user.size(); }
@@ -117,6 +119,7 @@ struct GenraMono : Module, follow::Host {
 			params[k].setValue(v[k]);
 		preset = i;
 		presetName = nameOf(i);
+		presetGain = i < gmono::NUM_PRESETS ? gmono::PRESETS[i].gain : user[i - gmono::NUM_PRESETS].gain;
 		rememberLoaded();
 		history::ModuleChange* h = new history::ModuleChange;
 		h->name = "load preset " + presetName;
@@ -152,6 +155,8 @@ struct GenraMono : Module, follow::Host {
 				for (int i = 0; i < NUM_PARAMS; i++)
 					u.v[i] = i < n ? (float) json_number_value(json_array_get(valsJ, i))
 					               : paramQuantities[i]->getDefaultValue();
+				json_t* gJ = json_object_get(j, "gain");
+				u.gain = json_is_number(gJ) ? (float) json_number_value(gJ) : 1.f;
 				user.push_back(u);
 			}
 			json_decref(j);
@@ -180,6 +185,7 @@ struct GenraMono : Module, follow::Host {
 		for (int i = 0; i < NUM_PARAMS; i++)
 			json_array_append_new(a, json_real(params[i].getValue()));
 		json_object_set_new(j, "params", a);
+		json_object_set_new(j, "gain", json_real(presetGain));
 		json_dump_file(j, system::join(userDir(), file + ".json").c_str(), JSON_INDENT(2));
 		json_decref(j);
 		presetName = name;
@@ -268,6 +274,7 @@ struct GenraMono : Module, follow::Host {
 			json_array_append_new(a, json_real(loaded[i]));
 		json_object_set_new(j, "loaded", a);
 		json_object_set_new(j, "clockRes", json_integer(clockRes));
+		json_object_set_new(j, "presetGain", json_real(presetGain));
 		fol.toJson(j);
 		return j;
 	}
@@ -289,6 +296,10 @@ struct GenraMono : Module, follow::Host {
 		json_t* cJ = json_object_get(j, "clockRes");
 		if (json_is_integer(cJ))
 			clockRes = clamp((int) json_integer_value(cJ), 0, 3);
+		// the output level: as saved; a patch from before keeps the level of its factory preset
+		json_t* gJ = json_object_get(j, "presetGain");
+		presetGain = json_is_number(gJ) ? (float) json_number_value(gJ)
+		                                : (preset >= 0 && preset < gmono::NUM_PRESETS ? gmono::PRESETS[preset].gain : 1.f);
 	}
 
 	void onSampleRateChange(const SampleRateChangeEvent& e) override { voice.setSampleRate(e.sampleRate); }
@@ -298,6 +309,7 @@ struct GenraMono : Module, follow::Host {
 		voice.setSampleRate(APP->engine->getSampleRate());
 		preset = -1;
 		presetName.clear();
+		presetGain = 1.f;
 		rememberLoaded();
 	}
 
@@ -328,6 +340,7 @@ struct GenraMono : Module, follow::Host {
 		p.lfoPitch = v(LFOPITCH_PARAM);
 		p.lfoFilter = v(LFOFILT_PARAM);
 		p.accent = v(ACCENT_PARAM);
+		p.outGain = presetGain;
 		p.width = outputs[R_OUTPUT].isConnected() || pulled(args.frame) ? v(WIDTH_PARAM) : 0.f;
 
 		gmono::Inputs in;

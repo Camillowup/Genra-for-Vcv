@@ -11,6 +11,7 @@
 #pragma once
 #include <algorithm>
 #include <cmath>
+#include "../OutLimit.hpp"
 #include <cstdint>
 #include <cstring>
 
@@ -622,6 +623,7 @@ struct BusParams {
 	float verb = 0.25f, size = 0.6f;
 	float trem = 0.f, tremRate = 0.4f;
 	float bal = 0.5f, vol = 0.7f;
+	float outGain = 1.f;  // the preset's output level (not a knob: set when a preset loads)
 };
 
 struct Bus {
@@ -759,8 +761,9 @@ struct Bus {
 			in[c] = y;
 		}
 		float g = 6.f * clampf(p.vol, 0.f, 1.f);
-		L = 10.f * sat(in[0] * g / 10.f);
-		R = 10.f * sat(in[1] * g / 10.f);
+		// the preset's level, then the safety limiter (transparent below ±6 V, ceiling ±8 V)
+		L = genra_out::limit(in[0] * g * p.outGain);
+		R = genra_out::limit(in[1] * g * p.outGain);
 		strOut *= 5.f;
 		soloOut *= 5.f;
 	}

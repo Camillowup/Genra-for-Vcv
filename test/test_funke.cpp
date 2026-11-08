@@ -278,7 +278,7 @@ int main(int argc, char** argv) {
 						bad = true;
 					peak = std::max(peak, std::max(std::fabs(l), std::fabs(r)));
 				}
-				CHECK(!bad && peak <= 5.01f, "unstable: %s × %s at %.0f Hz (peak %.2f)", MODEL_NAMES[m],
+				CHECK(!bad && peak <= 8.01f, "unstable: %s × %s at %.0f Hz (peak %.2f)", MODEL_NAMES[m],
 				      gmono::FILTER_NAMES[ft], sr, peak);
 			}
 
@@ -343,8 +343,8 @@ int main(int argc, char** argv) {
 			lvl[i] = lv;
 			printf("  %02d %-18s rms %.2f V  peak %.2f V  tail %.4f V\n", i + 1, pr.name, lv, peak, tail);
 			CHECK(fin, "preset %s: not finite", pr.name);
-			CHECK(lv > 0.5f, "preset %s: too quiet (%.2f V rms)", pr.name, lv);
-			CHECK(peak < 10.f, "preset %s: peak %.2f V", pr.name, peak);
+			CHECK(lv > 2.1f, "preset %s: too quiet (%.2f V rms)", pr.name, lv);  // loud and even: about 2.4 V
+			CHECK(peak <= 8.01f, "preset %s: peak %.2f V (above the limiter's ceiling)", pr.name, peak);
 			CHECK(tail < 0.01f * lv + 1e-4f, "preset %s: still sounding after the release (%.4f V)", pr.name, tail);
 			if (dir) {
 				char fn[256];
@@ -355,7 +355,7 @@ int main(int argc, char** argv) {
 		float lo = 1e9f, hi = 0.f;
 		for (float v : lvl)
 			lo = std::min(lo, v), hi = std::max(hi, v);
-		CHECK(hi / lo < 2.5f, "preset levels too far apart (%.2f .. %.2f V rms)", lo, hi);
+		CHECK(hi / lo < 1.2f, "preset levels too far apart (%.2f .. %.2f V rms)", lo, hi);
 		for (int i = 0; i < NUM_PRESETS; i++)
 			for (int j = 0; j < i; j++)
 				CHECK(std::strcmp(PRESETS[i].name, PRESETS[j].name) != 0, "preset name twice: %s", PRESETS[i].name);

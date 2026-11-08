@@ -98,6 +98,7 @@ struct Funke : Module, follow::Host {
 		f.name = [](int i) { return PRESETS[i].name; };
 		f.info = [](int i) { return MODEL_NAMES[PRESETS[i].model]; };
 		f.values = [](int i, float* v) { PRESETS[i].values(v); };
+		f.gain = [](int i) { return PRESETS[i].gain; };
 		bank.init(this, f, asset::user("Genra/FunkePresets"));
 	}
 
@@ -249,6 +250,7 @@ struct Funke : Module, follow::Host {
 			p.fdbk = params[FDBK_PARAM].getValue();
 			p.lofi = kv(LOFI_PARAM, LOFI_INPUT);
 			p.verb = params[VERB_PARAM].getValue();
+			p.outGain = bank.gain;
 		}
 
 		int n = std::min(std::max(inputs[VOCT_INPUT].getChannels(), inputs[GATE_INPUT].getChannels()), MAXCH);

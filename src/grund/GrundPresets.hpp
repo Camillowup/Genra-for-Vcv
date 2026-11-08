@@ -35,6 +35,7 @@ struct Preset {
 	float atk, dec, sus, rel;
 	float chorus, octave, width, verb;
 	FxSettings fx;
+	float gain = 1.f;  // the output level that makes this preset loud and even with the others
 
 	void values(float* v) const {
 		const float a[NUM_PRESET_PARAMS] = {(float) model, timbre, bite, body, sub, mute, glide, accent, (float) mode,
@@ -51,6 +52,7 @@ struct Preset {
 		p.atk = atk, p.dec = dec, p.sus = sus, p.rel = rel;
 		p.chorus = chorus, p.octave = octave, p.width = width, p.verb = verb;
 		p.fx = fx;
+		p.outGain = gain;
 		return p;
 	}
 };
@@ -59,73 +61,73 @@ struct Preset {
 //  style, name,                     model,    timbre bite  body  sub   mute  glide acc   mode         amp      tone  res   fenv  fdec  drive comp  key   atk   dec   sus   rel   chor  oct   width verb  fx
 static const Preset PRESETS[] = {
 	{"FUNK · SOUL · DISCO", "MOTOWN P-BASS", FINGER, 0.25f, 0.35f, 0.6f, 0.0f, 0.55f, 0.15f, 0.5f, MODE_MONO, FLIPTOP, 0.42f, 0.10f, 0.15f, 0.35f, 0.15f, 0.40f, 0.30f, 0.00f, 0.55f, 0.75f, 0.30f, 0.0f, 0.0f, 0.10f, 0.05f,
-	 fx(true, 0.5f, 0.4f, 0.3f, 0.4f, false, D_TUBE, 0.5f, 0.3f, 0.15f, 0.55f, 0.52f, 0.40f, false, 0.3f, 0.5f, 0.25f, 0.6f, 0.1f)},
+	 fx(true, 0.5f, 0.4f, 0.3f, 0.4f, false, D_TUBE, 0.5f, 0.3f, 0.15f, 0.55f, 0.52f, 0.40f, false, 0.3f, 0.5f, 0.25f, 0.6f, 0.1f), /*gain*/ 2.160f},
 	{"FUNK · SOUL · DISCO", "FUNK SLAP", SLAP, 0.65f, 0.75f, 0.4f, 0.0f, 0.25f, 0.10f, 0.8f, MODE_MONO, DI, 0.72f, 0.12f, 0.35f, 0.30f, 0.10f, 0.55f, 0.35f, 0.00f, 0.55f, 0.70f, 0.30f, 0.0f, 0.0f, 0.25f, 0.06f,
-	 fx(true, 0.6f, 0.5f, 0.15f, 0.35f, false, D_FET, 0.6f, 0.2f, 0.18f, 0.55f, 0.40f, 0.62f, false, 0.3f, 0.5f, 0.25f, 0.5f, 0.1f)},
+	 fx(true, 0.6f, 0.5f, 0.15f, 0.35f, false, D_FET, 0.6f, 0.2f, 0.18f, 0.55f, 0.40f, 0.62f, false, 0.3f, 0.5f, 0.25f, 0.5f, 0.1f), /*gain*/ 3.211f},
 	{"FUNK · SOUL · DISCO", "DISCO PICK", PICK, 0.60f, 0.65f, 0.4f, 0.0f, 0.30f, 0.10f, 0.6f, MODE_MONO, DI, 0.66f, 0.12f, 0.30f, 0.30f, 0.15f, 0.50f, 0.35f, 0.00f, 0.50f, 0.70f, 0.28f, 0.0f, 0.35f, 0.20f, 0.06f,
-	 fx(true, 0.5f, 0.5f, 0.2f, 0.35f, false, D_TUBE, 0.5f, 0.3f, 0.18f, 0.55f, 0.50f, 0.58f, false, 0.3f, 0.5f, 0.25f, 0.5f, 0.1f)},
+	 fx(true, 0.5f, 0.5f, 0.2f, 0.35f, false, D_TUBE, 0.5f, 0.3f, 0.18f, 0.55f, 0.50f, 0.58f, false, 0.3f, 0.5f, 0.25f, 0.5f, 0.1f), /*gain*/ 2.619f},
 	{"FUNK · SOUL · DISCO", "FRETLESS SING", FRETLESS, 0.55f, 0.35f, 0.5f, 0.0f, 0.10f, 0.35f, 0.4f, MODE_LEGATO, DI, 0.62f, 0.15f, 0.25f, 0.45f, 0.10f, 0.40f, 0.35f, 0.02f, 0.60f, 0.85f, 0.45f, 0.55f, 0.0f, 0.45f, 0.15f,
-	 fx(true, 0.45f, 0.35f, 0.3f, 0.45f, false, D_TUBE, 0.5f, 0.3f, 0.15f, 0.52f, 0.55f, 0.55f, true, 0.25f, 0.6f, 0.45f, 0.5f, 0.2f)},
+	 fx(true, 0.45f, 0.35f, 0.3f, 0.45f, false, D_TUBE, 0.5f, 0.3f, 0.15f, 0.52f, 0.55f, 0.55f, true, 0.25f, 0.6f, 0.45f, 0.5f, 0.2f), /*gain*/ 1.591f},
 
 	{"JAZZ · LO-FI · TRIP-HOP", "JAZZ UPRIGHT", UPRIGHT, 0.45f, 0.40f, 0.75f, 0.0f, 0.30f, 0.10f, 0.5f, MODE_MONO, FLIPTOP, 0.48f, 0.08f, 0.15f, 0.35f, 0.10f, 0.30f, 0.30f, 0.00f, 0.55f, 0.60f, 0.35f, 0.0f, 0.0f, 0.15f, 0.12f,
-	 fx(true, 0.45f, 0.35f, 0.3f, 0.45f, false, D_TUBE, 0.5f, 0.3f, 0.12f, 0.52f, 0.48f, 0.45f, false, 0.3f, 0.5f, 0.35f, 0.55f, 0.15f)},
+	 fx(true, 0.45f, 0.35f, 0.3f, 0.45f, false, D_TUBE, 0.5f, 0.3f, 0.12f, 0.52f, 0.48f, 0.45f, false, 0.3f, 0.5f, 0.35f, 0.55f, 0.15f), /*gain*/ 1.839f},
 	{"JAZZ · LO-FI · TRIP-HOP", "WALKING BASS", UPRIGHT, 0.60f, 0.60f, 0.65f, 0.0f, 0.20f, 0.05f, 0.5f, MODE_MONO, DI, 0.58f, 0.08f, 0.20f, 0.30f, 0.05f, 0.30f, 0.35f, 0.00f, 0.50f, 0.55f, 0.30f, 0.0f, 0.0f, 0.15f, 0.10f,
-	 fx(true, 0.45f, 0.35f, 0.25f, 0.4f, false, D_TUBE, 0.5f, 0.3f, 0.12f, 0.50f, 0.52f, 0.55f, false, 0.3f, 0.5f, 0.3f, 0.5f, 0.12f)},
+	 fx(true, 0.45f, 0.35f, 0.25f, 0.4f, false, D_TUBE, 0.5f, 0.3f, 0.12f, 0.50f, 0.52f, 0.55f, false, 0.3f, 0.5f, 0.3f, 0.5f, 0.12f), /*gain*/ 2.010f},
 	{"JAZZ · LO-FI · TRIP-HOP", "LO-FI FINGER", FINGER, 0.15f, 0.20f, 0.6f, 0.15f, 0.45f, 0.15f, 0.3f, MODE_MONO, FLIPTOP, 0.32f, 0.10f, 0.10f, 0.40f, 0.20f, 0.45f, 0.25f, 0.01f, 0.55f, 0.70f, 0.35f, 0.15f, 0.0f, 0.15f, 0.10f,
-	 fx(true, 0.5f, 0.4f, 0.35f, 0.5f, true, D_CRUSH, 0.25f, 0.25f, 0.15f, 0.55f, 0.45f, 0.35f, true, 0.2f, 0.4f, 0.35f, 0.7f, 0.15f)},
+	 fx(true, 0.5f, 0.4f, 0.35f, 0.5f, true, D_CRUSH, 0.25f, 0.25f, 0.15f, 0.55f, 0.45f, 0.35f, true, 0.2f, 0.4f, 0.35f, 0.7f, 0.15f), /*gain*/ 2.108f},
 	{"JAZZ · LO-FI · TRIP-HOP", "ARCO DARK", ARCO, 0.35f, 0.40f, 0.70f, 0.0f, 0.0f, 0.25f, 0.3f, MODE_LEGATO, DI, 0.45f, 0.10f, 0.05f, 0.50f, 0.05f, 0.25f, 0.30f, 0.30f, 0.70f, 0.85f, 0.55f, 0.0f, 0.0f, 0.25f, 0.30f,
-	 fx(true, 0.4f, 0.3f, 0.4f, 0.5f, false, D_TUBE, 0.5f, 0.3f, 0.10f, 0.55f, 0.45f, 0.40f, false, 0.3f, 0.5f, 0.6f, 0.65f, 0.3f)},
+	 fx(true, 0.4f, 0.3f, 0.4f, 0.5f, false, D_TUBE, 0.5f, 0.3f, 0.10f, 0.55f, 0.45f, 0.40f, false, 0.3f, 0.5f, 0.6f, 0.65f, 0.3f), /*gain*/ 1.750f},
 
 	{"DUB · REGGAE", "DUB ROOTS", FINGER, 0.10f, 0.20f, 0.70f, 0.20f, 0.60f, 0.10f, 0.3f, MODE_MONO, FLIPTOP, 0.28f, 0.05f, 0.05f, 0.40f, 0.10f, 0.40f, 0.20f, 0.01f, 0.60f, 0.80f, 0.35f, 0.0f, 0.0f, 0.05f, 0.05f,
-	 fx(true, 0.45f, 0.4f, 0.35f, 0.5f, false, D_TUBE, 0.5f, 0.3f, 0.08f, 0.65f, 0.42f, 0.30f, false, 0.3f, 0.5f, 0.3f, 0.7f, 0.1f)},
+	 fx(true, 0.45f, 0.4f, 0.35f, 0.5f, false, D_TUBE, 0.5f, 0.3f, 0.08f, 0.65f, 0.42f, 0.30f, false, 0.3f, 0.5f, 0.3f, 0.7f, 0.1f), /*gain*/ 1.661f},
 	{"DUB · REGGAE", "STEPPERS SUB", SYNTH, 0.00f, 0.05f, 0.30f, 0.60f, 0.00f, 0.10f, 0.3f, MODE_MONO, DI, 0.22f, 0.00f, 0.00f, 0.40f, 0.05f, 0.30f, 0.10f, 0.05f, 0.60f, 0.90f, 0.35f, 0.0f, 0.0f, 0.00f, 0.00f,
-	 fx(true, 0.4f, 0.35f, 0.3f, 0.5f, false, D_TUBE, 0.5f, 0.3f, 0.10f, 0.60f, 0.45f, 0.40f, false, 0.3f, 0.5f, 0.3f, 0.6f, 0.1f)},
+	 fx(true, 0.4f, 0.35f, 0.3f, 0.5f, false, D_TUBE, 0.5f, 0.3f, 0.10f, 0.60f, 0.45f, 0.40f, false, 0.3f, 0.5f, 0.3f, 0.6f, 0.1f), /*gain*/ 2.293f},
 
 	{"HOUSE · GARAGE", "DEEP HOUSE", SYNTH, 0.20f, 0.30f, 0.40f, 0.20f, 0.30f, 0.05f, 0.5f, MODE_MONO, DI, 0.38f, 0.25f, 0.35f, 0.30f, 0.10f, 0.40f, 0.35f, 0.00f, 0.45f, 0.40f, 0.25f, 0.0f, 0.0f, 0.15f, 0.08f,
-	 fx(true, 0.5f, 0.4f, 0.25f, 0.4f, false, D_TUBE, 0.5f, 0.3f, 0.15f, 0.55f, 0.48f, 0.45f, false, 0.3f, 0.5f, 0.3f, 0.55f, 0.12f)},
+	 fx(true, 0.5f, 0.4f, 0.25f, 0.4f, false, D_TUBE, 0.5f, 0.3f, 0.15f, 0.55f, 0.48f, 0.45f, false, 0.3f, 0.5f, 0.3f, 0.55f, 0.12f), /*gain*/ 2.227f},
 	{"HOUSE · GARAGE", "ORGAN BASS", FM, 0.20f, 0.45f, 0.30f, 0.15f, 0.25f, 0.05f, 0.5f, MODE_MONO, DI, 0.60f, 0.10f, 0.20f, 0.30f, 0.10f, 0.40f, 0.35f, 0.00f, 0.45f, 0.65f, 0.25f, 0.0f, 0.0f, 0.15f, 0.08f,
-	 fx(true, 0.5f, 0.4f, 0.2f, 0.4f, false, D_TUBE, 0.5f, 0.3f, 0.15f, 0.52f, 0.55f, 0.50f, false, 0.3f, 0.5f, 0.3f, 0.5f, 0.1f)},
+	 fx(true, 0.5f, 0.4f, 0.2f, 0.4f, false, D_TUBE, 0.5f, 0.3f, 0.15f, 0.52f, 0.55f, 0.50f, false, 0.3f, 0.5f, 0.3f, 0.5f, 0.1f), /*gain*/ 2.073f},
 	{"HOUSE · GARAGE", "2-STEP SUB", B808, 0.15f, 0.25f, 0.30f, 0.0f, 0.35f, 0.10f, 0.4f, MODE_MONO, DI, 0.40f, 0.00f, 0.10f, 0.25f, 0.10f, 0.40f, 0.15f, 0.00f, 0.45f, 0.30f, 0.25f, 0.0f, 0.0f, 0.00f, 0.00f,
-	 fx(true, 0.5f, 0.4f, 0.2f, 0.4f, false, D_TUBE, 0.5f, 0.3f, 0.10f, 0.58f, 0.45f, 0.45f, false, 0.3f, 0.5f, 0.3f, 0.6f, 0.1f)},
+	 fx(true, 0.5f, 0.4f, 0.2f, 0.4f, false, D_TUBE, 0.5f, 0.3f, 0.10f, 0.58f, 0.45f, 0.45f, false, 0.3f, 0.5f, 0.3f, 0.6f, 0.1f), /*gain*/ 2.314f},
 
 	{"TECHNO", "TECHNO ROLL", SYNTH, 0.10f, 0.40f, 0.30f, 0.10f, 0.45f, 0.00f, 0.5f, MODE_MONO, STACK, 0.42f, 0.30f, 0.45f, 0.25f, 0.35f, 0.55f, 0.35f, 0.00f, 0.38f, 0.20f, 0.22f, 0.0f, 0.0f, 0.10f, 0.05f,
-	 fx(true, 0.55f, 0.5f, 0.15f, 0.3f, false, D_FET, 0.5f, 0.3f, 0.18f, 0.55f, 0.45f, 0.45f, false, 0.3f, 0.5f, 0.3f, 0.6f, 0.1f)},
+	 fx(true, 0.55f, 0.5f, 0.15f, 0.3f, false, D_FET, 0.5f, 0.3f, 0.18f, 0.55f, 0.45f, 0.45f, false, 0.3f, 0.5f, 0.3f, 0.6f, 0.1f), /*gain*/ 3.651f},
 	{"TECHNO", "RUMBLE", B808, 0.55f, 0.20f, 0.40f, 0.0f, 0.10f, 0.00f, 0.3f, MODE_MONO, FUZZAMP, 0.25f, 0.05f, 0.05f, 0.40f, 0.45f, 0.45f, 0.10f, 0.00f, 0.55f, 0.50f, 0.40f, 0.0f, 0.0f, 0.10f, 0.65f,
-	 fx(true, 0.5f, 0.5f, 0.2f, 0.4f, true, D_TUBE, 0.3f, 0.4f, 0.15f, 0.60f, 0.40f, 0.30f, false, 0.3f, 0.5f, 0.75f, 0.85f, 0.05f)},
+	 fx(true, 0.5f, 0.5f, 0.2f, 0.4f, true, D_TUBE, 0.3f, 0.4f, 0.15f, 0.60f, 0.40f, 0.30f, false, 0.3f, 0.5f, 0.75f, 0.85f, 0.05f), /*gain*/ 1.093f},
 	{"TECHNO", "HARD RUMBLE", B808, 0.85f, 0.35f, 0.30f, 0.0f, 0.30f, 0.00f, 0.4f, MODE_MONO, FUZZAMP, 0.30f, 0.10f, 0.10f, 0.30f, 0.75f, 0.60f, 0.10f, 0.00f, 0.40f, 0.30f, 0.25f, 0.0f, 0.0f, 0.15f, 0.50f,
-	 fx(true, 0.6f, 0.6f, 0.1f, 0.3f, true, D_FUZZ, 0.35f, 0.5f, 0.18f, 0.58f, 0.45f, 0.35f, false, 0.3f, 0.5f, 0.6f, 0.85f, 0.03f)},
+	 fx(true, 0.6f, 0.6f, 0.1f, 0.3f, true, D_FUZZ, 0.35f, 0.5f, 0.18f, 0.58f, 0.45f, 0.35f, false, 0.3f, 0.5f, 0.6f, 0.85f, 0.03f), /*gain*/ 1.873f},
 	{"TECHNO", "HYPNOTIC PLUCK", SYNTH, 0.35f, 0.45f, 0.20f, 0.0f, 0.55f, 0.00f, 0.4f, MODE_MONO, DI, 0.35f, 0.15f, 0.55f, 0.18f, 0.10f, 0.40f, 0.40f, 0.00f, 0.30f, 0.00f, 0.15f, 0.0f, 0.0f, 0.20f, 0.10f,
-	 fx(true, 0.5f, 0.4f, 0.15f, 0.3f, false, D_TUBE, 0.5f, 0.3f, 0.20f, 0.50f, 0.50f, 0.50f, false, 0.3f, 0.5f, 0.3f, 0.5f, 0.1f)},
+	 fx(true, 0.5f, 0.4f, 0.15f, 0.3f, false, D_TUBE, 0.5f, 0.3f, 0.20f, 0.50f, 0.50f, 0.50f, false, 0.3f, 0.5f, 0.3f, 0.5f, 0.1f), /*gain*/ 6.000f},
 	{"TECHNO", "OFFBEAT SUB", SYNTH, 0.00f, 0.10f, 0.30f, 0.50f, 0.40f, 0.00f, 0.3f, MODE_MONO, DI, 0.25f, 0.00f, 0.10f, 0.25f, 0.05f, 0.40f, 0.10f, 0.00f, 0.40f, 0.30f, 0.20f, 0.0f, 0.0f, 0.00f, 0.00f,
-	 fx(true, 0.5f, 0.4f, 0.2f, 0.4f, false, D_TUBE, 0.5f, 0.3f, 0.15f, 0.60f, 0.45f, 0.40f, false, 0.3f, 0.5f, 0.3f, 0.6f, 0.1f)},
+	 fx(true, 0.5f, 0.4f, 0.2f, 0.4f, false, D_TUBE, 0.5f, 0.3f, 0.15f, 0.60f, 0.45f, 0.40f, false, 0.3f, 0.5f, 0.3f, 0.6f, 0.1f), /*gain*/ 4.070f},
 	{"TECHNO", "DUB TECHNO", SYNTH, 0.30f, 0.20f, 0.35f, 0.20f, 0.30f, 0.05f, 0.3f, MODE_MONO, FLIPTOP, 0.30f, 0.20f, 0.20f, 0.40f, 0.10f, 0.40f, 0.25f, 0.01f, 0.50f, 0.50f, 0.35f, 0.25f, 0.0f, 0.30f, 0.30f,
-	 fx(true, 0.45f, 0.4f, 0.3f, 0.5f, false, D_TUBE, 0.5f, 0.3f, 0.15f, 0.55f, 0.45f, 0.35f, true, 0.15f, 0.6f, 0.65f, 0.7f, 0.25f)},
+	 fx(true, 0.45f, 0.4f, 0.3f, 0.5f, false, D_TUBE, 0.5f, 0.3f, 0.15f, 0.55f, 0.45f, 0.35f, true, 0.15f, 0.6f, 0.65f, 0.7f, 0.25f), /*gain*/ 1.824f},
 	{"TECHNO", "INDUSTRIAL", FM, 0.70f, 0.80f, 0.20f, 0.10f, 0.40f, 0.00f, 0.6f, MODE_MONO, FUZZAMP, 0.55f, 0.20f, 0.30f, 0.25f, 0.70f, 0.60f, 0.35f, 0.00f, 0.35f, 0.30f, 0.20f, 0.0f, 0.0f, 0.20f, 0.15f,
-	 fx(true, 0.6f, 0.6f, 0.1f, 0.3f, true, D_FUZZ, 0.6f, 0.45f, 0.20f, 0.55f, 0.55f, 0.55f, false, 0.3f, 0.5f, 0.4f, 0.6f, 0.05f)},
+	 fx(true, 0.6f, 0.6f, 0.1f, 0.3f, true, D_FUZZ, 0.6f, 0.45f, 0.20f, 0.55f, 0.55f, 0.55f, false, 0.3f, 0.5f, 0.4f, 0.6f, 0.05f), /*gain*/ 2.137f},
 
 	{"DRUM'N'BASS · JUNGLE", "REESE", REESE, 0.45f, 0.20f, 0.30f, 0.25f, 0.00f, 0.15f, 0.3f, MODE_LEGATO, DI, 0.45f, 0.20f, 0.10f, 0.40f, 0.20f, 0.40f, 0.30f, 0.01f, 0.60f, 0.90f, 0.30f, 0.20f, 0.0f, 0.55f, 0.10f,
-	 fx(true, 0.5f, 0.4f, 0.25f, 0.45f, false, D_TUBE, 0.5f, 0.3f, 0.15f, 0.55f, 0.50f, 0.45f, true, 0.12f, 0.5f, 0.35f, 0.6f, 0.1f)},
+	 fx(true, 0.5f, 0.4f, 0.25f, 0.45f, false, D_TUBE, 0.5f, 0.3f, 0.15f, 0.55f, 0.50f, 0.45f, true, 0.12f, 0.5f, 0.35f, 0.6f, 0.1f), /*gain*/ 1.830f},
 	{"DRUM'N'BASS · JUNGLE", "NEURO REESE", REESE, 0.70f, 0.40f, 0.20f, 0.20f, 0.00f, 0.10f, 0.5f, MODE_LEGATO, FUZZAMP, 0.50f, 0.45f, 0.30f, 0.35f, 0.55f, 0.55f, 0.30f, 0.00f, 0.55f, 0.90f, 0.25f, 0.15f, 0.0f, 0.50f, 0.08f,
-	 fx(true, 0.55f, 0.55f, 0.15f, 0.35f, true, D_FUZZ, 0.6f, 0.45f, 0.20f, 0.55f, 0.55f, 0.55f, true, 0.2f, 0.5f, 0.35f, 0.6f, 0.05f)},
+	 fx(true, 0.55f, 0.55f, 0.15f, 0.35f, true, D_FUZZ, 0.6f, 0.45f, 0.20f, 0.55f, 0.55f, 0.55f, true, 0.2f, 0.5f, 0.35f, 0.6f, 0.05f), /*gain*/ 1.669f},
 	{"DRUM'N'BASS · JUNGLE", "JUNGLE SUB", B808, 0.10f, 0.15f, 0.30f, 0.0f, 0.00f, 0.15f, 0.3f, MODE_MONO, DI, 0.35f, 0.00f, 0.05f, 0.40f, 0.10f, 0.35f, 0.10f, 0.00f, 0.70f, 0.80f, 0.45f, 0.0f, 0.0f, 0.00f, 0.00f,
-	 fx(true, 0.45f, 0.35f, 0.25f, 0.5f, false, D_TUBE, 0.5f, 0.3f, 0.10f, 0.60f, 0.45f, 0.40f, false, 0.3f, 0.5f, 0.3f, 0.6f, 0.1f)},
+	 fx(true, 0.45f, 0.35f, 0.25f, 0.5f, false, D_TUBE, 0.5f, 0.3f, 0.10f, 0.60f, 0.45f, 0.40f, false, 0.3f, 0.5f, 0.3f, 0.6f, 0.1f), /*gain*/ 1.244f},
 
 	{"HIP-HOP · TRAP · DRILL", "808 BOOM", B808, 0.25f, 0.30f, 0.30f, 0.0f, 0.00f, 0.10f, 0.4f, MODE_MONO, DI, 0.45f, 0.00f, 0.05f, 0.40f, 0.20f, 0.40f, 0.10f, 0.00f, 0.85f, 0.00f, 0.55f, 0.0f, 0.0f, 0.00f, 0.00f,
-	 fx(true, 0.5f, 0.4f, 0.2f, 0.45f, false, D_TUBE, 0.5f, 0.3f, 0.10f, 0.60f, 0.45f, 0.45f, false, 0.3f, 0.5f, 0.3f, 0.6f, 0.1f)},
+	 fx(true, 0.5f, 0.4f, 0.2f, 0.45f, false, D_TUBE, 0.5f, 0.3f, 0.10f, 0.60f, 0.45f, 0.45f, false, 0.3f, 0.5f, 0.3f, 0.6f, 0.1f), /*gain*/ 1.295f},
 	{"HIP-HOP · TRAP · DRILL", "DRILL SLIDE", B808, 0.60f, 0.20f, 0.20f, 0.0f, 0.00f, 0.45f, 0.4f, MODE_LEGATO, FUZZAMP, 0.45f, 0.05f, 0.05f, 0.40f, 0.40f, 0.45f, 0.10f, 0.00f, 0.85f, 0.00f, 0.50f, 0.0f, 0.0f, 0.05f, 0.00f,
-	 fx(true, 0.5f, 0.45f, 0.2f, 0.4f, true, D_TUBE, 0.45f, 0.4f, 0.12f, 0.58f, 0.50f, 0.45f, false, 0.3f, 0.5f, 0.3f, 0.6f, 0.1f)},
+	 fx(true, 0.5f, 0.45f, 0.2f, 0.4f, true, D_TUBE, 0.45f, 0.4f, 0.12f, 0.58f, 0.50f, 0.45f, false, 0.3f, 0.5f, 0.3f, 0.6f, 0.1f), /*gain*/ 1.065f},
 	{"HIP-HOP · TRAP · DRILL", "BOOM BAP", UPRIGHT, 0.35f, 0.35f, 0.65f, 0.10f, 0.45f, 0.05f, 0.4f, MODE_MONO, FLIPTOP, 0.36f, 0.10f, 0.10f, 0.35f, 0.15f, 0.45f, 0.25f, 0.00f, 0.50f, 0.50f, 0.30f, 0.0f, 0.0f, 0.10f, 0.08f,
-	 fx(true, 0.55f, 0.45f, 0.25f, 0.45f, true, D_CRUSH, 0.3f, 0.2f, 0.12f, 0.58f, 0.45f, 0.35f, false, 0.3f, 0.5f, 0.35f, 0.65f, 0.1f)},
+	 fx(true, 0.55f, 0.45f, 0.25f, 0.45f, true, D_CRUSH, 0.3f, 0.2f, 0.12f, 0.58f, 0.45f, 0.35f, false, 0.3f, 0.5f, 0.35f, 0.65f, 0.1f), /*gain*/ 2.763f},
 
 	{"DUBSTEP · GRIME", "GRIME SQUARE", SYNTH, 1.00f, 0.30f, 0.20f, 0.20f, 0.45f, 0.05f, 0.4f, MODE_MONO, DI, 0.45f, 0.10f, 0.20f, 0.25f, 0.15f, 0.45f, 0.30f, 0.00f, 0.35f, 0.40f, 0.20f, 0.0f, 0.0f, 0.10f, 0.05f,
-	 fx(true, 0.5f, 0.45f, 0.2f, 0.35f, false, D_TUBE, 0.5f, 0.3f, 0.15f, 0.55f, 0.45f, 0.45f, false, 0.3f, 0.5f, 0.3f, 0.6f, 0.1f)},
+	 fx(true, 0.5f, 0.45f, 0.2f, 0.35f, false, D_TUBE, 0.5f, 0.3f, 0.15f, 0.55f, 0.45f, 0.45f, false, 0.3f, 0.5f, 0.3f, 0.6f, 0.1f), /*gain*/ 3.815f},
 	{"DUBSTEP · GRIME", "GROWL", FM, 0.55f, 0.70f, 0.20f, 0.30f, 0.10f, 0.10f, 0.5f, MODE_LEGATO, FUZZAMP, 0.50f, 0.40f, 0.40f, 0.40f, 0.55f, 0.55f, 0.30f, 0.00f, 0.55f, 0.85f, 0.25f, 0.10f, 0.0f, 0.40f, 0.08f,
-	 fx(true, 0.55f, 0.55f, 0.15f, 0.35f, true, D_FUZZ, 0.55f, 0.5f, 0.18f, 0.55f, 0.60f, 0.55f, true, 0.4f, 0.5f, 0.35f, 0.6f, 0.05f)},
+	 fx(true, 0.55f, 0.55f, 0.15f, 0.35f, true, D_FUZZ, 0.55f, 0.5f, 0.18f, 0.55f, 0.60f, 0.55f, true, 0.4f, 0.5f, 0.35f, 0.6f, 0.05f), /*gain*/ 1.576f},
 
 	{"ROCK · POP", "ROCK PICK", PICK, 0.55f, 0.70f, 0.40f, 0.0f, 0.25f, 0.05f, 0.5f, MODE_MONO, STACK, 0.55f, 0.15f, 0.25f, 0.35f, 0.40f, 0.50f, 0.35f, 0.00f, 0.55f, 0.75f, 0.30f, 0.0f, 0.0f, 0.15f, 0.08f,
-	 fx(true, 0.55f, 0.5f, 0.2f, 0.4f, false, D_TUBE, 0.5f, 0.3f, 0.18f, 0.55f, 0.55f, 0.55f, false, 0.3f, 0.5f, 0.35f, 0.5f, 0.1f)},
+	 fx(true, 0.55f, 0.5f, 0.2f, 0.4f, false, D_TUBE, 0.5f, 0.3f, 0.18f, 0.55f, 0.55f, 0.55f, false, 0.3f, 0.5f, 0.35f, 0.5f, 0.1f), /*gain*/ 2.720f},
 	{"ROCK · POP", "80S DX BASS", FM, 0.30f, 0.65f, 0.30f, 0.10f, 0.20f, 0.05f, 0.6f, MODE_MONO, DI, 0.65f, 0.10f, 0.25f, 0.25f, 0.10f, 0.45f, 0.40f, 0.00f, 0.45f, 0.55f, 0.25f, 0.30f, 0.0f, 0.35f, 0.15f,
-	 fx(true, 0.5f, 0.45f, 0.2f, 0.4f, false, D_TUBE, 0.5f, 0.3f, 0.15f, 0.52f, 0.50f, 0.60f, true, 0.35f, 0.5f, 0.4f, 0.5f, 0.15f)},
+	 fx(true, 0.5f, 0.45f, 0.2f, 0.4f, false, D_TUBE, 0.5f, 0.3f, 0.15f, 0.52f, 0.50f, 0.60f, true, 0.35f, 0.5f, 0.4f, 0.5f, 0.15f), /*gain*/ 2.340f},
 };
 // clang-format on
 static const int NUM_PRESETS = sizeof(PRESETS) / sizeof(PRESETS[0]);

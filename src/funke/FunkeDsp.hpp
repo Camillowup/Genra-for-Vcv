@@ -8,6 +8,7 @@
 #include "../schmelz/SchmelzDsp.hpp"
 #include <algorithm>
 #include <cmath>
+#include "../OutLimit.hpp"
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -66,6 +67,7 @@ inline float vibDelay(float k) { return 2.f * clampf(k, 0.f, 1.f) * clampf(k, 0.
 
 // ---------------------------------------------------------------- parameters
 struct Params {
+	float outGain = 1.f;  // the preset's output level (not a knob: set when a preset loads)
 	int model = RHODES;
 	float timbre = 0.5f, bite = 0.4f, width = 0.4f, sub = 0.f;
 	int mode = MODE_POLY;
@@ -856,8 +858,9 @@ struct Engine {
 		}
 		bus->process(p, l * sc, r * sc, echoSeconds, L, R);
 		busQuiet = (inQuiet && std::fabs(L) + std::fabs(R) < 1e-6f) ? busQuiet + 1 : 0;
-		L = 5.f * sat(L * 0.8f);
-		R = 5.f * sat(R * 0.8f);
+		// the preset's level, then the safety limiter (transparent below ±6 V, ceiling ±8 V)
+		L = genra_out::limit(4.f * L * p.outGain);
+		R = genra_out::limit(4.f * R * p.outGain);
 	}
 };
 
