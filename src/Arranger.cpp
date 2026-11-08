@@ -581,6 +581,14 @@ int songFormForGenre(const char* name) {
 	    {"Hip-Hop", SF_HIPHOP}, {"Lo-Fi", SF_HIPHOP}, {"Trap", SF_HIPHOP}, {"Drill", SF_HIPHOP}, {"Trip-Hop", SF_HIPHOP},
 	    {"Afrobeat", SF_AFRO}, {"Afrobeats", SF_AFRO}, {"Amapiano", SF_AFRO}, {"Baile Funk", SF_AFRO}, {"Reggaeton", SF_AFRO},
 	    {"Dub", SF_DUB}, {"Downtempo", SF_DUB}, {"Ambient", SF_DUB},
+	    // v2.24
+	    {"Progressive House", SF_HOUSE}, {"Organic House", SF_HOUSE}, {"Hardcore", SF_HOUSE}, {"EBM", SF_HOUSE},
+	    {"Psytrance", SF_TRANCE},
+	    {"UK Funky", SF_GARAGE}, {"Bassline", SF_GARAGE},
+	    {"Big Beat", SF_BASS}, {"Breaks", SF_BASS}, {"Jersey Club", SF_BASS}, {"Baltimore Club", SF_BASS},
+	    {"Phonk", SF_HIPHOP},
+	    {"Gqom", SF_AFRO}, {"Dancehall", SF_AFRO}, {"Moombahton", SF_AFRO}, {"Cumbia", SF_AFRO}, {"Bossa Nova", SF_AFRO},
+	    {"Roots Reggae", SF_DUB}, {"Drone", SF_DUB}, {"Dark Ambient", SF_DUB}, {"Ambient Techno", SF_DUB}, {"Berlin School", SF_DUB},
 	};
 	for (const auto& m : MAP)
 		if (std::strcmp(m.genre, name) == 0)

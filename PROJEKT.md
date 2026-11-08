@@ -1,6 +1,6 @@
 # GENRA – Projektstand
 
-**Stand:** 8. November 2026 · **Plugin 2.23.0: 19 Module** (GENRA, GRID, ABLAUF, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, GRUND, GRUND FX, SCHMELZ, MIX, GENRA FX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `Camillowup/Genra-for-Vcv` (vorher `CamilloGF/genra-v3`, Account nicht mehr erreichbar)
+**Stand:** 8. November 2026 · **Plugin 2.24.0: 19 Module** (GENRA, GRID, ABLAUF, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, GRUND, GRUND FX, SCHMELZ, MIX, GENRA FX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `Camillowup/Genra-for-Vcv` (vorher `CamilloGF/genra-v3`, Account nicht mehr erreichbar)
 
 > Design-Leitfaden für neue Module (Aussehen, GENRA-Leiste, Leuchtsegmente, Follow, englische UI): **docs/DESIGN.md**
 
@@ -10,7 +10,7 @@ Plattform: VCV Rack Pro 2.6.6 unter Windows · Build: GitHub Actions (`.github/w
 ## Konzept
 Generativer, genreabhängiger 4-Spur-Sequencer für VCV Rack 2. Erfindet Loops (1/2/4/8 Takte) für **8 Drumstimmen, Bass, Melodie und polyphone Pads (4 Stimmen)**. Alle Spuren teilen Tonart und Akkordfolge.
 
-**Genres:** v1 14 · v2 24 (46 Varianten) · v3 37 (83 Varianten), Liste im README
+**Genres:** v1 14 · v2 24 (46 Varianten) · v3 37 (83 Varianten) · 2.24 59 (127 Varianten), Liste im README
 
 ## Frontplatte (42 HP)
 - **Display:** Genre, Tonart/Tonleiter, BPM, Swing, Akkordfolge (klick-/scroll-editierbar), Step-Lauflichter der 4 Spuren
@@ -46,7 +46,7 @@ DJ-Effektpad nach Polyend Play (Perform) und Akai Flex Beat: 16 Pads in 4 Bänke
 | Datei | Inhalt |
 |---|---|
 | `src/Engine.hpp/.cpp` | Theorie, Akkorde, Generierung (`generate`, `mutate`), Auswertung pro Step (`drumHit`, `bassAt`, `melAt`, `padAt`) – rein C++, ohne Rack testbar |
-| `src/Genres.cpp` | Genre-Profile (37 Genres, 83 Varianten), Tonleitern |
+| `src/Genres.cpp` | Genre-Profile (59 Genres, 127 Varianten), Tonleitern |
 | `src/Midi.cpp` | SMF-Export/-Import |
 | `src/GenraModule.hpp` / `src/Genra.cpp` | Rack-Modul GENRA: Clock/Swing, Ausgänge, Display, Menüs, Speichern |
 | `src/Store.cpp` | Speicherformat `pattern3`, Übernahme von v2-Patches |
@@ -376,6 +376,13 @@ GENRA MONO: `g++ -std=c++17 -O2 test/test_mono.cpp -o tm && ./tm`
 - Pads per Drag & Drop in die Song-Liste: zwischen Zeilen einfügen (Linie), auf eine Zeile ersetzen (Rahmen), Undo. Ein belegtes Pad löst sein Antippen jetzt beim Loslassen aus (sonst wäre jeder Drag ein Antippen); leere Pads speichern weiter beim Drücken.
 - Song-Liste unten: Takte und Spieldauer aus GENRAs Tempo (`Genra::currentBpm`, auch für GENRAs MIDI-Export), z. B. „BAR 37 / 92 · 1:12 / 2:59“.
 - `test_ablauf`: jede Genre-Variante hat eine Form, Formlängen, `renderSong` (eine Zeile = Loop, Marker, stumme Drums, Notenbereich, Marker in der Datei).
+
+### 2.24.0 – 22 neue Genres
+- Hinten angehängt (Genre 37–58, Profile 83–126), je 2 Varianten: Progressive House, Organic House, UK Funky, Bassline, Gqom · Big Beat, Breaks, Jersey Club, Baltimore Club, Phonk · Hardcore (Gabber/Happy), Psytrance, EBM · Dancehall, Roots Reggae, Moombahton, Cumbia, Bossa Nova · Drone, Dark Ambient, Ambient Techno, Berlin School. Nur mit vorhandenen Engine-Mitteln (Raster, Stile, Drops, Chops).
+- `NUM_GENRES` 59, `MAX_PROFILES` 160. Fünf neue Familien in `FAMILIES` (Genre-Menüs).
+- GENRE-CV 0–10 V: `genreCvSpan` (JSON). Fehlt das Feld (Patch vor 2.24), bleibt die Spanne 37, damit gleiche Spannungen die gleichen Genres treffen; neue Module/Initialize: alle 59. Menü *Genre CV 0–10 V range*. 1/12-V-Modus unverändert.
+- MAKE SONG: `songFormForGenre` kennt alle neuen Genres (Hardcore/EBM bewusst HOUSE · TECHNO). Tests: `test_engine` prüft, dass Genre 0–36 ihren Platz behalten; `test_ablauf` neue Formen.
+- Hörbeispiele: `tools/genre_demo.cpp` (ohne Rack: `generate` + `renderSong`, Bass GRUND, Melodie FUNKE, Pads SCHMELZ bzw. FUNKE-Poly für Stabs/Skanks, einfacher Drum-Synth; −14 LUFS, Spitze −1 dBFS).
 
 ### 2.23.0 – Grid: Längen pro Spur/Stimme, Nudge, Spurwerkzeuge, Save to pad, REC MIDI
 - **Längen:** `Pattern::tLen[NUM_TRACKS]` (Piano-Spuren) und `vLen[NUM_DRUMS]` (Drum-Stimmen), 0 = folgt dem Loop. Die Auswerter lesen die Pattern-Daten an `cycleStep()` = Loop-Schritt % Länge (Daten, Wahrscheinlichkeitstabellen, Chops); Positionslogik (Fills, Drops, Akkorde, Event-Starts, Chance pro Durchlauf) bleibt am echten Schritt – so lesen tonale Spuren die Akkorde am echten Step. Feste Notenlängen enden am Zyklusende (`cycleCut`). Neustart mit jedem Loop und Pattern-Wechsel ergibt sich daraus (der Schritt beginnt bei 0). `trackNotes`/`drumHits` liefern nur Noten im Zyklus. `generateTrack` setzt die Länge zurück, `copyTrack` nimmt sie mit. Speicher: neuer Record `ST_LENGTHS = 9`.

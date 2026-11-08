@@ -824,6 +824,399 @@ static void defineGenres() {
 		g.padBase = 1.2f; g.melStyle = MS_LEAD; g.melPenta = true; g.mel = "x...|..o.|x...|o...";
 		add(36, g);
 	}
+
+	// ================================================== v2.24: 22 NEW GENRES (37-58)
+	{ // 37 PROGRESSIVE HOUSE
+		Genre g;
+		g.name = "Progressive House"; g.variant = "Classic";
+		g.scale = S_MINOR; g.bpm = 124; g.swing = 0.5f; g.complexity = 0.35f; g.color = 0.6f; g.rolls = 0.1f;
+		harm(g, 32, 0.5f, 64, 0.4f, 16, 0.1f);
+		tpl(g, {"i bVI bIII bVII", "i bVImaj7", "bVI bVII i", "i9 bVImaj7 bIIImaj7 bVII", "i iv bVI bVII"});
+		minorW(g);
+		drums(g, {"X...|X...|X...|X...", "................", "....|X...|....|X...", "................",
+		          "..x.|..x.|..x.|..xo", "..X.|..X.|..X.|..X.", "................", "...o|....|...o|..o."});
+		g.bassKick = -1; g.bassLen = 0; g.bassMove = 0.25f; g.bass = ".xXx|.xXx|.xXx|.xXx";
+		g.melStyle = MS_ARP; g.mel = "x.x.|x.x.|x.x.|x.x.";
+		g.padStyle = PS_SUSTAIN; g.padBase = 0.9f;
+		g.fillStyle = FS_ROLL;
+		add(37, g);
+		g.variant = "Melodic"; g.color = 0.8f; g.melStyle = MS_LEAD; g.mel = "x...|..x.|..o.|x...";
+		g.bpm = 122; g.padBase = 1.1f;
+		add(37, g);
+	}
+	{ // 38 ORGANIC HOUSE
+		Genre g;
+		g.name = "Organic House"; g.variant = "Classic";
+		g.scale = S_MINOR; g.bpm = 118; g.swing = 0.53f; g.complexity = 0.4f; g.color = 0.65f; g.rolls = 0.0f;
+		harm(g, 32, 0.6f, 64, 0.4f, 16, 0.0f);
+		tpl(g, {"i7 bVImaj7", "i9 iv7", "i7 bVII bVImaj7", "i9"});
+		degw(g, {6, 0.3f, 1.0f, 1.5f, 0.8f, 1.6f, 1.4f});
+		drums(g, {"X...|X...|X...|X...", "................", "....|o...|....|x...", "..o.|...o|..o.|....",
+		          "x.x.|x.x.|x.x.|x.x.", "................", "....|..x.|...o|..x.", "x.ox|.xo.|x.ox|.x.o"});
+		g.bassKick = -1; g.bassLen = 1; g.bassMove = 0.35f; g.bass = "..X.|..x.|..X.|.x..";
+		g.melStyle = MS_SPARSE; g.melPenta = true; g.mel = "x..o|..x.|...o|x...";
+		g.padStyle = PS_SUSTAIN; g.padBase = 1.0f;
+		g.fillStyle = FS_TOMS; g.humanize = 0.3f;
+		add(38, g);
+		g.variant = "Downtempo"; g.bpm = 110; g.drum[0] = "X...|....|X.x.|...."; g.complexity = 0.3f;
+		add(38, g);
+	}
+	{ // 39 UK FUNKY
+		Genre g;
+		g.name = "UK Funky"; g.variant = "Classic";
+		g.scale = S_MINOR; g.bpm = 130; g.swing = 0.55f; g.complexity = 0.55f; g.color = 0.55f; g.rolls = 0.1f;
+		harm(g, 32, 0.5f, 16, 0.4f, 64, 0.1f);
+		tpl(g, {"i7 iv7", "i7 bVII", "i9 bVImaj7", "i7"});
+		minorW(g);
+		drums(g, {"X..x|..X.|X...|..x.", "................", "....|X...|....|X...", "..x.|.x..|x..x|.x..",
+		          "x.xx|x.x.|x.xx|x.xo", "..o.|....|..o.|....", "...o|..x.|.o..|x.o.", "x.ox|..x.|.xo.|x..x"});
+		g.bassKick = 1; g.bassLen = 0; g.bassMove = 0.45f; g.bass = "X..x|..X.|X...|..x.";
+		g.melStyle = MS_RIFF; g.mel = "..x.|x...|..x.|.x..";
+		g.padStyle = PS_STABS; g.pad = "...x|..o.|...x|.o..";
+		g.fillStyle = FS_TOMS; g.humanize = 0.2f;
+		add(39, g);
+		g.variant = "Tribal"; g.drum[6] = "..x.|.xx.|..x.|x.xx"; g.drum[7] = "xoxx|.xox|xoxx|.x.x"; g.padBase = 0.5f;
+		g.complexity = 0.65f;
+		add(39, g);
+	}
+	{ // 40 BASSLINE
+		Genre g;
+		g.name = "Bassline"; g.variant = "Classic";
+		g.scale = S_MINOR; g.bpm = 138; g.swing = 0.52f; g.complexity = 0.45f; g.color = 0.4f; g.rolls = 0.1f;
+		harm(g, 16, 0.5f, 32, 0.5f, 8, 0.0f);
+		tpl(g, {"i bVI", "i bVII bVI bVII", "i iv", "i bIII bVII"});
+		minorW(g);
+		drums(g, {"X...|X...|X...|X...", "....|X...|....|X...", "....|x...|....|x...", "................",
+		          "..x.|..x.|..x.|..x.", "..o.|....|..o.|..o.", "................", "...o|....|....|.o.."});
+		g.bassKick = 0; g.bassLen = 0; g.bassMove = 0.6f; g.slide = 0.4f; g.bass = "X.xX|.x.X|x.xX|.xX.";
+		g.melStyle = MS_RIFF; g.mel = "x..x|..x.|x..x|....";
+		g.padStyle = PS_STABS; g.pad = "x..x|..x.|....|x...";
+		g.fillStyle = FS_SNARE;
+		add(40, g);
+		g.variant = "Niche"; g.bpm = 136; g.color = 0.6f; g.pad = "...x|..x.|...x|..x."; g.padBase = 1.0f;
+		add(40, g);
+	}
+	{ // 41 GQOM
+		Genre g;
+		g.name = "Gqom"; g.variant = "Classic";
+		g.scale = S_MINOR; g.bpm = 126; g.swing = 0.5f; g.complexity = 0.5f; g.color = 0.15f; g.rolls = 0.0f;
+		harm(g, 64, 0.6f, 32, 0.4f, 128, 0.0f);
+		tpl(g, {"i", "i bII", "i bVI"});
+		degw(g, {6, 0.8f, 0.4f, 1.0f, 0.6f, 1.2f, 0.8f});
+		drums(g, {"X..X|..X.|.X..|X...", "................", "....|....|....|X...", "..x.|....|..x.|..o.",
+		          "................", "................", "..X.|.x.x|x..x|.xX.", "...x|.o..|..x.|o..x"});
+		g.bassKick = 1; g.bassLen = 2; g.bassMove = 0.2f; g.bass = "X...|....|.X..|....";
+		g.melStyle = MS_SPARSE; g.mel = "x...|....|....|..o.";
+		g.padStyle = PS_SUSTAIN; g.padBase = 0.3f;
+		g.fillStyle = FS_TOMS;
+		add(41, g);
+		g.variant = "Sgubhu"; g.bpm = 120; g.drum[0] = "X..x|..X.|X...|..X."; g.drum[4] = "..o.|..o.|..o.|..o.";
+		g.padBase = 0.5f; g.color = 0.25f;
+		add(41, g);
+	}
+	{ // 42 BIG BEAT
+		Genre g;
+		g.name = "Big Beat"; g.variant = "Classic";
+		g.scale = S_MINOR; g.bpm = 120; g.swing = 0.53f; g.complexity = 0.5f; g.color = 0.25f; g.rolls = 0.1f;
+		harm(g, 32, 0.5f, 16, 0.4f, 64, 0.1f);
+		tpl(g, {"i", "i bVII", "i bIII bVII", "i iv"});
+		degw(g, {6, 0.3f, 0.8f, 1.4f, 0.8f, 1.2f, 1.6f});
+		drums(g, {"X.x.|....|..X.|....", "....|X...|....|X..x", "................", "................",
+		          "x.x.|x.x.|x.x.|x.xx", "....|....|....|..o.", "................", "x...|..o.|....|x..."});
+		g.bassKick = 1; g.bassLen = 1; g.bassMove = 0.4f; g.bass = "X.x.|....|..X.|.x..";
+		g.melStyle = MS_RIFF; g.mel = "x.x.|..x.|x...|x.o.";
+		g.padStyle = PS_STABS; g.pad = "X...|....|....|..x."; g.padBase = 0.5f;
+		g.fillStyle = FS_CHOP; g.chop = 0.3f; g.dropMode = DM_BREAK;
+		add(42, g);
+		g.variant = "Acid"; g.melStyle = MS_ACID; g.mel = "xxox|xoxx|xxox|x.xx"; g.bpm = 126;
+		add(42, g);
+	}
+	{ // 43 BREAKS
+		Genre g;
+		g.name = "Breaks"; g.variant = "Nu-Skool";
+		g.scale = S_MINOR; g.bpm = 132; g.swing = 0.5f; g.complexity = 0.5f; g.color = 0.35f; g.rolls = 0.15f;
+		harm(g, 32, 0.5f, 64, 0.4f, 16, 0.1f);
+		tpl(g, {"i", "i bVI", "i bVII bVI bVII", "i iv"});
+		minorW(g);
+		drums(g, {"X...|...x|..X.|....", "....|X...|....|X...", "................", "................",
+		          "x.x.|x.x.|x.x.|x.xx", "..o.|....|..o.|....", "................", "...o|....|....|..o."});
+		g.bassKick = 0; g.bassLen = 0; g.bassMove = 0.5f; g.slide = 0.2f; g.bass = "X.xx|.xX.|x.xx|.x.x";
+		g.melStyle = MS_RIFF; g.mel = "x...|..x.|x...|.x..";
+		g.padStyle = PS_SUSTAIN; g.padBase = 0.6f;
+		g.fillStyle = FS_CHOP; g.chop = 0.2f; g.dropMode = DM_BREAK;
+		add(43, g);
+		g.variant = "Progressive"; g.bpm = 130; g.color = 0.6f; g.melStyle = MS_ARP; g.mel = "x.x.|x.x.|x.x.|x.x.";
+		g.padBase = 1.0f;
+		add(43, g);
+	}
+	{ // 44 JERSEY CLUB
+		Genre g;
+		g.name = "Jersey Club"; g.variant = "Classic";
+		g.scale = S_MINOR; g.bpm = 140; g.swing = 0.5f; g.complexity = 0.55f; g.color = 0.5f; g.rolls = 0.3f;
+		harm(g, 32, 0.6f, 16, 0.4f, 64, 0.0f);
+		tpl(g, {"i bVI", "i7 iv7", "bVImaj7 bVII i", "i bIII bVII"});
+		minorW(g);
+		drums(g, {"X...|X...|X..X|..X.", "....|X...|....|X...", "....|X...|....|X...", "................",
+		          "x.x.|x.x.|x.x.|x.x.", "................", "................", "rr.r|....|rr.r|...."});
+		g.bassKick = 1; g.bassLen = 0; g.bassMove = 0.35f; g.bass = "X...|X...|X..X|..X.";
+		g.melStyle = MS_RIFF; g.mel = "x.x.|..x.|x.x.|....";
+		g.padStyle = PS_STABS; g.pad = "x...|....|x..x|...."; g.padBase = 0.7f;
+		g.fillStyle = FS_ROLL;
+		add(44, g);
+		g.variant = "Philly"; g.swing = 0.55f; g.bpm = 135; g.drum[0] = "X..X|..X.|X..X|..X.";
+		add(44, g);
+	}
+	{ // 45 BALTIMORE CLUB
+		Genre g;
+		g.name = "Baltimore Club"; g.variant = "Think";
+		g.scale = S_MINOR; g.bpm = 130; g.swing = 0.5f; g.complexity = 0.55f; g.color = 0.35f; g.rolls = 0.2f;
+		harm(g, 32, 0.6f, 64, 0.4f, 16, 0.0f);
+		tpl(g, {"i", "i bVII", "i iv", "i bVI"});
+		minorW(g);
+		drums(g, {"X...|X...|X..X|..X.", "....|X..x|....|X...", "....|....|....|X...", "..x.|....|..x.|....",
+		          "x.xx|x.xx|x.xx|x.xx", "..o.|....|..o.|....", "................", "................"});
+		g.bassKick = 1; g.bassLen = 0; g.bassMove = 0.3f; g.bass = "X...|X...|X..X|..X.";
+		g.melStyle = MS_RIFF; g.mel = "x...|x...|..x.|x...";
+		g.padStyle = PS_STABS; g.pad = "X...|....|....|...."; g.padBase = 0.4f;
+		g.fillStyle = FS_CHOP; g.chop = 0.5f; g.dropMode = DM_BREAK;
+		add(45, g);
+		g.variant = "Bmore Gutter"; g.bpm = 128; g.chop = 0.7f; g.complexity = 0.65f;
+		add(45, g);
+	}
+	{ // 46 PHONK
+		Genre g;
+		g.name = "Phonk"; g.variant = "Memphis";
+		g.scale = S_PHRYG; g.bpm = 140; g.swing = 0.5f; g.complexity = 0.45f; g.color = 0.3f; g.rolls = 0.5f;
+		harm(g, 32, 0.5f, 64, 0.5f, 16, 0.0f);
+		tpl(g, {"i", "i bII", "i bVI", "i iv bII"});
+		degw(g, {6, 1.2f, 0.4f, 1.2f, 0.6f, 1.4f, 0.8f});
+		drums(g, {"X...|....|..X.|....|X..x|....|..X.|..x.", "........|X.......|........|X.......", "................",
+		          "................", "x.x.|x.rr|x.x.|xrrr", "................", "................",
+		          "x..x|..x.|x..x|..x."});
+		g.bassKick = 1; g.bassLen = 2; g.bassMove = 0.4f; g.slide = 0.6f; g.bass = "X...|....|..X.|....";
+		g.melStyle = MS_RIFF; g.mel = "x..x|..x.|x..x|..x.";
+		g.padStyle = PS_SUSTAIN; g.padBase = 0.4f;
+		g.fillStyle = FS_ROLL;
+		add(46, g);
+		g.variant = "Drift"; g.bpm = 130; g.drum[0] = "X...|..X.|X...|..X."; g.drum[1] = "....|X...|....|X...";
+		g.complexity = 0.5f;
+		add(46, g);
+	}
+	{ // 47 HARDCORE
+		Genre g;
+		g.name = "Hardcore"; g.variant = "Gabber";
+		g.scale = S_PHRYG; g.bpm = 180; g.swing = 0.5f; g.complexity = 0.4f; g.color = 0.1f; g.rolls = 0.1f;
+		harm(g, 64, 0.5f, 32, 0.5f, 128, 0.0f);
+		tpl(g, {"i", "i bII", "i bVI", "i iv"});
+		degw(g, {6, 1.0f, 0.4f, 1.2f, 0.6f, 1.2f, 0.8f});
+		drums(g, {"X...|X...|X...|X...", "................", "....|X...|....|X...", "................",
+		          "................", "..X.|..X.|..X.|..X.", "................", "...o|....|...o|...."});
+		g.bassKick = 1; g.bassLen = 0; g.bassMove = 0.2f; g.bass = "X...|X...|X...|X...";
+		g.melStyle = MS_RIFF; g.mel = "x.x.|x...|x.x.|..x.";
+		g.padStyle = PS_STABS; g.pad = "x...|....|x...|...."; g.padBase = 0.5f;
+		g.fillStyle = FS_SNARE; g.dropMode = DM_KICKBASS;
+		add(47, g);
+		g.variant = "Happy Hardcore"; g.scale = S_MAJOR; g.bpm = 170; g.color = 0.6f;
+		harm(g, 16, 0.6f, 32, 0.4f, 8, 0.0f);
+		tpl(g, {"I V vi IV", "vi IV I V", "IV V I", "I iii IV V"});
+		majorW(g);
+		g.melStyle = MS_LEAD; g.mel = "x.x.|x.x.|x.x.|x.x."; g.padStyle = PS_SUSTAIN; g.padBase = 1.0f;
+		g.drum[1] = "....|X...|....|X..."; g.drum[4] = "x.x.|x.x.|x.x.|x.x.";
+		add(47, g);
+	}
+	{ // 48 PSYTRANCE
+		Genre g;
+		g.name = "Psytrance"; g.variant = "Full-On";
+		g.scale = S_PHRYG; g.bpm = 142; g.swing = 0.5f; g.complexity = 0.45f; g.color = 0.2f; g.rolls = 0.1f;
+		harm(g, 64, 0.6f, 128, 0.4f, 32, 0.0f);
+		tpl(g, {"i", "i bII", "i bVII"});
+		degw(g, {6, 1.2f, 0.4f, 1.0f, 0.6f, 1.0f, 0.8f});
+		drums(g, {"X...|X...|X...|X...", "................", "....|X...|....|X...", "................",
+		          "x.xx|x.xx|x.xx|x.xx", "..X.|..X.|..X.|..X.", "................", "...o|..o.|...o|.o.."});
+		g.bassKick = -1; g.bassLen = 0; g.bassMove = 0.1f; g.bass = ".XXX|.XXX|.XXX|.XXX";
+		g.melStyle = MS_ACID; g.mel = "x.xx|xx.x|x.xx|.xxx";
+		g.padStyle = PS_SUSTAIN; g.padBase = 0.3f;
+		g.fillStyle = FS_ROLL; g.dropMode = DM_KICKBASS;
+		add(48, g);
+		g.variant = "Progressive Psy"; g.bpm = 136; g.scale = S_MINOR; g.color = 0.5f; g.padBase = 0.8f;
+		g.melStyle = MS_ARP; g.mel = "x.x.|x.x.|x.x.|x.x.";
+		add(48, g);
+	}
+	{ // 49 EBM
+		Genre g;
+		g.name = "EBM"; g.variant = "Classic";
+		g.scale = S_MINOR; g.bpm = 120; g.swing = 0.5f; g.complexity = 0.3f; g.color = 0.15f; g.rolls = 0.0f;
+		harm(g, 64, 0.5f, 32, 0.5f, 128, 0.0f);
+		tpl(g, {"i", "i bVII", "i iv", "i bVI bVII i"});
+		degw(g, {6, 0.6f, 0.6f, 1.2f, 0.8f, 1.2f, 1.4f});
+		drums(g, {"X...|X...|X...|X...", "....|X...|....|X...", "....|X...|....|X...", "................",
+		          "x.x.|x.x.|x.x.|x.x.", "................", "................", "................"});
+		g.bassKick = 0; g.bassLen = 0; g.bassMove = 0.15f; g.bass = "X.X.|X.X.|X.X.|X.X.";
+		g.melStyle = MS_SPARSE; g.mel = "x...|....|x...|....";
+		g.padStyle = PS_STABS; g.pad = "X...|....|....|...."; g.padBase = 0.3f;
+		g.fillStyle = FS_SNARE;
+		add(49, g);
+		g.variant = "Industrial"; g.bpm = 128; g.scale = S_PHRYG; g.complexity = 0.45f;
+		g.drum[6] = "..o.|....|..x.|...o"; g.drum[7] = "...x|..x.|...x|.x.x"; g.drum[4] = "x.xx|x.xx|x.xx|x.xx";
+		add(49, g);
+	}
+	{ // 50 DANCEHALL
+		Genre g;
+		g.name = "Dancehall"; g.variant = "Modern";
+		g.scale = S_MINOR; g.bpm = 100; g.swing = 0.52f; g.complexity = 0.45f; g.color = 0.4f; g.rolls = 0.1f;
+		harm(g, 32, 0.6f, 16, 0.4f, 64, 0.0f);
+		tpl(g, {"i iv", "i bVII", "i bVI bVII", "i7 iv7"});
+		minorW(g);
+		drums(g, {"X...|..X.|X...|..X.", "...x|..X.|...x|..X.", "................", "...x|..x.|...x|..x.",
+		          "x.x.|x.x.|x.x.|x.x.", "................", "................", "..o.|....|..o.|...."});
+		g.bassKick = 1; g.bassLen = 1; g.bassMove = 0.4f; g.bass = "X..x|..X.|X...|..X.";
+		g.melStyle = MS_SPARSE; g.melPenta = true; g.mel = "x...|..x.|....|x...";
+		g.padStyle = PS_SKANK; g.pad = "..x.|..x.|..x.|..x."; g.padBase = 0.7f;
+		g.fillStyle = FS_SNARE;
+		add(50, g);
+		g.variant = "Steppers"; g.drum[0] = "X...|X...|X...|X..."; g.bass = "X...|X...|X...|X..."; g.bpm = 96;
+		add(50, g);
+	}
+	{ // 51 ROOTS REGGAE
+		Genre g;
+		g.name = "Roots Reggae"; g.variant = "One Drop";
+		g.scale = S_MINOR; g.bpm = 75; g.swing = 0.55f; g.complexity = 0.35f; g.color = 0.4f; g.rolls = 0.0f;
+		harm(g, 32, 0.5f, 16, 0.4f, 64, 0.1f);
+		tpl(g, {"i iv", "i bVII", "i bVII bVI bVII", "i iv bVII i", "I IV V IV"});
+		degw(g, {6, 0.3f, 0.8f, 1.6f, 1.0f, 1.0f, 1.8f});
+		drums(g, {"....|....|X...|....", "................", "................", "....|....|X...|....",
+		          "x.x.|x.x.|x.x.|x.x.", "....|..o.|....|..o.", "................", "..o.|....|..o.|...."});
+		g.bassKick = 0; g.bassLen = 1; g.bassMove = 0.7f; g.bass = "X.x.|..x.|x.xo|.x..";
+		g.melStyle = MS_SPARSE; g.melPenta = true; g.mel = "x...|....|..o.|....";
+		g.padStyle = PS_SKANK; g.pad = "....|X...|....|X..."; g.padBase = 1.0f;
+		g.fillStyle = FS_TOMS;
+		add(51, g);
+		g.variant = "Rockers"; g.drum[0] = "X...|....|X...|...."; g.drum[3] = "....|X...|....|X...";
+		g.bpm = 80;
+		add(51, g);
+	}
+	{ // 52 MOOMBAHTON
+		Genre g;
+		g.name = "Moombahton"; g.variant = "Classic";
+		g.scale = S_MINOR; g.bpm = 108; g.swing = 0.5f; g.complexity = 0.45f; g.color = 0.35f; g.rolls = 0.15f;
+		harm(g, 32, 0.6f, 16, 0.4f, 64, 0.0f);
+		tpl(g, {"i bVI", "i bVII", "i iv", "i bVI bIII bVII"});
+		minorW(g);
+		drums(g, {"X...|X...|X...|X...", "...x|..X.|...x|..X.", "................", "...x|..x.|...x|..x.",
+		          "x.x.|x.x.|x.x.|x.x.", "................", "................", "..o.|...o|..o.|...."});
+		g.bassKick = 0; g.bassLen = 1; g.bassMove = 0.4f; g.slide = 0.4f; g.bass = "X..x|..X.|X..x|..X.";
+		g.melStyle = MS_RIFF; g.mel = "x..x|..x.|x...|....";
+		g.padStyle = PS_STABS; g.pad = "...x|..x.|...x|..x."; g.padBase = 0.6f;
+		g.fillStyle = FS_ROLL; g.dropMode = DM_KICKBASS;
+		add(52, g);
+		g.variant = "Moombahcore"; g.bpm = 112; g.color = 0.15f; g.scale = S_PHRYG; g.complexity = 0.55f;
+		add(52, g);
+	}
+	{ // 53 CUMBIA
+		Genre g;
+		g.name = "Cumbia"; g.variant = "Digital";
+		g.scale = S_HARM; g.bpm = 95; g.swing = 0.5f; g.complexity = 0.45f; g.color = 0.4f; g.rolls = 0.0f;
+		harm(g, 32, 0.6f, 16, 0.4f, 64, 0.0f);
+		tpl(g, {"i V", "i iv V i", "i bVII bVI V", "iv i V i"});
+		degw(g, {6, 0.3f, 0.6f, 1.4f, 1.8f, 1.0f, 0.8f});
+		drums(g, {"X...|....|X...|....", "....|..x.|....|..x.", "................", "....|X...|....|X...",
+		          "X.xx|X.xx|X.xx|X.xx", "................", "................", "..x.|.xx.|..x.|.x.x"});
+		g.bassKick = 1; g.bassLen = 1; g.bassMove = 0.6f; g.bass = "X...|..x.|X...|..x.";
+		g.melStyle = MS_LEAD; g.mel = "x.x.|..x.|x...|x.o.";
+		g.padStyle = PS_SKANK; g.pad = "..x.|..x.|..x.|..x."; g.padBase = 0.7f;
+		g.fillStyle = FS_TOMS; g.humanize = 0.2f;
+		add(53, g);
+		g.variant = "Villera"; g.bpm = 100; g.scale = S_MINOR; g.color = 0.25f; g.melStyle = MS_RIFF;
+		add(53, g);
+	}
+	{ // 54 BOSSA NOVA
+		Genre g;
+		g.name = "Bossa Nova"; g.variant = "Classic";
+		g.scale = S_MAJOR; g.bpm = 130; g.swing = 0.5f; g.complexity = 0.4f; g.color = 0.9f; g.jazzy = true; g.rolls = 0.0f;
+		harm(g, 16, 0.5f, 32, 0.5f, 8, 0.0f);
+		tpl(g, {"Imaj7 vi7 ii7 V7", "ii7 V7 Imaj7", "Imaj9 IVmaj7", "iii7 vi7 ii7 V7", "Imaj7 bIIImaj7 ii7 V7"});
+		majorW(g);
+		drums(g, {"X..x|....|X..x|....", "................", "................", "X..X|..X.|..X.|X...",
+		          "x.x.|x.x.|x.x.|x.x.", "................", "................", "................"});
+		g.bassKick = 1; g.bassLen = 1; g.bassMove = 0.2f; g.bass = "X..x|....|X..x|....";
+		g.melStyle = MS_LEAD; g.mel = "x..x|..x.|....|x...";
+		g.padStyle = PS_STABS; g.pad = "x..x|..x.|..x.|x..."; g.padBase = 1.0f;
+		g.fillStyle = FS_SNARE; g.humanize = 0.35f;
+		add(54, g);
+		g.variant = "Samba"; g.bpm = 100; g.complexity = 0.55f; g.drum[7] = "x.xx|x.xx|x.xx|x.xx";
+		g.drum[4] = "xxxx|xxxx|xxxx|xxxx"; g.drum[6] = "....|....|...x|.x..";
+		add(54, g);
+	}
+	{ // 55 DRONE
+		Genre g;
+		g.name = "Drone"; g.variant = "Dark";
+		g.scale = S_MINOR; g.bpm = 70; g.swing = 0.5f; g.complexity = 0.05f; g.color = 0.5f; g.rolls = 0.0f;
+		harm(g, 128, 0.7f, 64, 0.3f, 128, 0.0f);
+		tpl(g, {"i", "i bVI", "isus2 bVImaj7", "i9"});
+		degw(g, {6, 0.3f, 0.6f, 1.2f, 0.8f, 1.4f, 1.0f});
+		drums(g, {"................", "................", "................", "................",
+		          "................", "................", "o...|....|....|....", "....|....|....|..o."});
+		g.bassKick = 0; g.bassLen = 2; g.bassMove = 0.05f; g.bass = "X...|....|....|....";
+		g.melStyle = MS_SPARSE; g.mel = "o...|....|....|....";
+		g.padStyle = PS_SUSTAIN; g.padBase = 1.3f;
+		add(55, g);
+		g.variant = "Bright"; g.scale = S_LYDIAN; g.color = 0.8f;
+		tpl(g, {"I", "Imaj7 II", "Isus2", "Imaj9"});
+		majorW(g);
+		add(55, g);
+	}
+	{ // 56 DARK AMBIENT
+		Genre g;
+		g.name = "Dark Ambient"; g.variant = "Classic";
+		g.scale = S_PHRYG; g.bpm = 80; g.swing = 0.5f; g.complexity = 0.1f; g.color = 0.35f; g.rolls = 0.0f;
+		harm(g, 64, 0.6f, 128, 0.4f, 32, 0.0f);
+		tpl(g, {"i", "i bII", "i bVI", "i bII bVI"});
+		degw(g, {6, 1.2f, 0.4f, 1.0f, 0.6f, 1.0f, 0.6f});
+		drums(g, {"o...|....|....|....", "................", "................", "....|....|..o.|....",
+		          "................", "................", "....|....|o...|....", "..o.|....|....|.o.."});
+		g.bassKick = 0; g.bassLen = 2; g.bassMove = 0.1f; g.bass = "X...|....|....|....";
+		g.melStyle = MS_SPARSE; g.mel = "o...|....|..o.|....";
+		g.padStyle = PS_SUSTAIN; g.padBase = 1.2f;
+		add(56, g);
+		g.variant = "Ritual"; g.drum[6] = "x...|..o.|x...|...."; g.drum[7] = "..x.|.o..|..x.|o..o"; g.bpm = 85;
+		g.complexity = 0.2f;
+		add(56, g);
+	}
+	{ // 57 AMBIENT TECHNO
+		Genre g;
+		g.name = "Ambient Techno"; g.variant = "Classic";
+		g.scale = S_MINOR; g.bpm = 118; g.swing = 0.5f; g.complexity = 0.25f; g.color = 0.7f; g.rolls = 0.0f;
+		harm(g, 64, 0.6f, 32, 0.4f, 128, 0.0f);
+		tpl(g, {"i9 bVImaj7", "i7 iv9", "bVImaj7 bIIImaj7", "i9"});
+		minorW(g);
+		drums(g, {"x...|x...|x...|x...", "................", "................", "....|....|..o.|....",
+		          "..x.|..x.|..x.|..x.", "................", "................", "...o|....|....|.o.."});
+		g.bassKick = -1; g.bassLen = 1; g.bassMove = 0.2f; g.bass = "..x.|....|..x.|....";
+		g.melStyle = MS_SPARSE; g.melPenta = true; g.mel = "x...|....|..o.|....";
+		g.padStyle = PS_SUSTAIN; g.padBase = 1.2f;
+		g.fillStyle = FS_ROLL;
+		add(57, g);
+		g.variant = "Dub"; g.padStyle = PS_STABS; g.pad = "..x.|....|.o..|...."; g.bpm = 122;
+		add(57, g);
+	}
+	{ // 58 BERLIN SCHOOL
+		Genre g;
+		g.name = "Berlin School"; g.variant = "Classic";
+		g.scale = S_MINOR; g.bpm = 110; g.swing = 0.5f; g.complexity = 0.3f; g.color = 0.5f; g.rolls = 0.0f;
+		harm(g, 64, 0.6f, 128, 0.4f, 32, 0.0f);
+		tpl(g, {"i", "i bVI", "i bVII", "i iv", "i bVI bVII i"});
+		minorW(g);
+		drums(g, {"................", "................", "................", "................",
+		          "................", "................", "....|....|....|..o.", "................"});
+		g.bassKick = 0; g.bassLen = 0; g.bassMove = 0.35f; g.bass = "XxXx|XxXx|XxXx|XxXx";
+		g.melStyle = MS_ARP; g.mel = "x.xx|x.xx|x.xx|x.xx";
+		g.padStyle = PS_SUSTAIN; g.padBase = 1.1f;
+		g.fillStyle = FS_TOMS;
+		add(58, g);
+		g.variant = "Kosmische"; g.drum[0] = "X...|X...|X...|X..."; g.drum[1] = "....|X...|....|X...";
+		g.drum[4] = "x.x.|x.x.|x.x.|x.x."; g.bpm = 120; g.complexity = 0.35f;
+		add(58, g);
+	}
 }
 
 void initGenres() {

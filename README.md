@@ -1,10 +1,10 @@
 # GENRA – Plugin für VCV Rack 2
 
-Ein generativer, genreabhängiger 4-Spur-Sequencer mit MIDI-Grid, Performance-Effekten und passenden Instrumenten, alle im selben Look. Plugin-Version **2.23.0**, 19 Module. Projektstand und Entscheidungen: `PROJEKT.md`.
+Ein generativer, genreabhängiger 4-Spur-Sequencer mit MIDI-Grid, Performance-Effekten und passenden Instrumenten, alle im selben Look. Plugin-Version **2.24.0**, 19 Module. Projektstand und Entscheidungen: `PROJEKT.md`.
 
 | Modul | Breite | Farbe | Was es ist |
 |---|---|---|---|
-| **GENRA** | 58 HP | – | Generativer Sequencer: 8 Drumspuren, Bass, Melodie, Pads, 37 Genres |
+| **GENRA** | 58 HP | – | Generativer Sequencer: 8 Drumspuren, Bass, Melodie, Pads, 59 Genres |
 | **ABLAUF** | 30 HP | gelb | Song-Arranger: 128 Pattern-Plätze mit Namen, Song-Liste, Varianten für Intro, Build, Drop … |
 | **GENRA Grid** | 50 HP | – | MIDI-Grid für GENRA: Drum-Raster, Piano-Roll, Velocity/Chance |
 | **STOTTER** | 30 HP | – | Performance-Effekte: 16 Effekt-Pads, DJ-EQ und -Filter |
@@ -28,7 +28,7 @@ Die Farben folgen GENRAs Spuren: **Drums blau-violett**, **Bass säuregrün**, *
 
 ![GENRA](docs/entwuerfe/genra_v3_entwurf.png)
 
-GENRA erfindet genretypische Loops (1/2/4/8 Takte) für **8 Drumspuren, Bass, Melodie und polyphone Pads (4 Stimmen)**, die sich eine gemeinsame Tonart und Akkordfolge teilen. **37 Genres mit 83 Varianten**, jede Spur kann ihr eigenes Genre spielen, und alle Regler wirken live.
+GENRA erfindet genretypische Loops (1/2/4/8 Takte) für **8 Drumspuren, Bass, Melodie und polyphone Pads (4 Stimmen)**, die sich eine gemeinsame Tonart und Akkordfolge teilen. **59 Genres mit 127 Varianten**, jede Spur kann ihr eigenes Genre spielen, und alle Regler wirken live.
 
 ### Genres
 
@@ -42,6 +42,13 @@ GENRA erfindet genretypische Loops (1/2/4/8 Takte) für **8 Drumspuren, Bass, Me
 | Afro | Afrobeat (Classic, Tony Allen, Afro-Funk) · Afrobeats (Afropop, Afro-Swing, Afro-Piano) · Amapiano (Classic, Soulful, Log Drum) · Afro House (Classic, Organic, 3-Step) |
 | Techno Styles | Dub Techno (Classic, Deep Chord) · Melodic Techno (Afterlife, House) · Hard Techno (Industrial, Schranz, Rave) · Tech House (Classic, Rolling, Minimal) · Detroit Techno (Strings, Electro, Deep) |
 | Latin & Club | Baile Funk (Tamborzao, 150 BPM, Volt Mix) · Reggaeton (Perreo, Clasico, Dominicano) · Footwork (Battle, Soul, Juke) · Breakcore (Amen, Gabber, Melodic) |
+| House · Funky · Gqom (ab 2.24) | Progressive House (Classic, Melodic) · Organic House (Classic, Downtempo) · UK Funky (Classic, Tribal) · Bassline (Classic, Niche) · Gqom (Classic, Sgubhu) |
+| Breaks & Club (ab 2.24) | Big Beat (Classic, Acid) · Breaks (Nu-Skool, Progressive) · Jersey Club (Classic, Philly) · Baltimore Club (Think, Bmore Gutter) · Phonk (Memphis, Drift) |
+| Hard & Fast (ab 2.24) | Hardcore (Gabber, Happy Hardcore) · Psytrance (Full-On, Progressive Psy) · EBM (Classic, Industrial) |
+| Reggae & Latin (ab 2.24) | Dancehall (Modern, Steppers) · Roots Reggae (One Drop, Rockers) · Moombahton (Classic, Moombahcore) · Cumbia (Digital, Villera) · Bossa Nova (Classic, Samba) |
+| Ambient & Drone (ab 2.24) | Drone (Dark, Bright) · Dark Ambient (Classic, Ritual) · Ambient Techno (Classic, Dub) · Berlin School (Classic, Kosmische) |
+
+Die 22 Genres ab 2.24 hängen hinten an (Genre 37–58), alte Patches behalten ihre Genres. Hörbeispiele (8 Takte pro Genre, ohne Rack gerendert mit GENRA-Engine, GRUND, FUNKE, SCHMELZ und einem einfachen Drum-Synth): `tools/genre_demo.cpp`.
 
 ### Bedienung
 
@@ -63,7 +70,7 @@ GENRA erfindet genretypische Loops (1/2/4/8 Takte) für **8 Drumspuren, Bass, Me
 ### Genre pro Spur, Swing und CV
 
 - **Genre-Feld pro Spur:** Klick öffnet das Menü: *Global (folgt GENRE)* oder ein eigenes Genre, nach Familien sortiert, mit Varianten. Der Wechsel greift am nächsten Taktanfang (Feld und Display zeigen „…“). Ein eigenes Genre-Feld würfelt die Spur auch bei LOCK neu – die Auswahl ist ein bewusster Befehl. Der globale GENRE-Regler ändert nur Spuren auf *Global*.
-- **GENRE-CV pro Spur:** Mit Kabel wählt die Spannung das Genre der Spur, die Variante kommt aus dem Feld (falls gleiches Genre) oder vom VARIANT-Regler. Rechtsklick-Menü → *Genre-CV-Eingänge*: 0–10 V über alle 37 Genres oder 1/12 V pro Genre (Halbtöne – ein Keyboard über MIDI-CV wählt Genres per Taste, C = House).
+- **GENRE-CV pro Spur:** Mit Kabel wählt die Spannung das Genre der Spur, die Variante kommt aus dem Feld (falls gleiches Genre) oder vom VARIANT-Regler. Rechtsklick-Menü → *Genre-CV-Eingänge*: 0–10 V über alle 59 Genres oder 1/12 V pro Genre (Halbtöne – ein Keyboard über MIDI-CV wählt Genres per Taste, C = House). *Genre CV 0–10 V range*: Patches von vor 2.24 verteilen die 0–10 V weiter über die ersten 37 Genres (gleiche Spannung = gleiches Genre wie bisher); neue Module und *All 59 genres* nehmen alle.
 - **Swing pro Spur:** Jede Spur swingt wie das Genre, das sie spielt (Lo-Fi-Melodie über geradem Techno). SWING verschiebt alle gemeinsam. Gilt auch für den MIDI-Export.
 - **CV-Eingänge** VARIANT, COMPLEX, COLOR, SWING (0–10 V, zum Regler addiert), BPM (10 BPM pro Volt), LENGTH, DENS-CV pro Spur, FILL (Trigger: Fill/Drop am Loop-Ende).
 
@@ -131,14 +138,14 @@ Song-Arranger für GENRA, 30 HP. Verbindung wie beim Grid Editor: links oder rec
 
 | Form | Genres (bei AUTO) | Aufbau (Takte) |
 |---|---|---|
-| HOUSE · TECHNO | House, Deep House, Tech House, Afro House, Techno, Minimal, Acid, Detroit, Melodic, Hard, Dub Techno | INTRO 16 · VERSE 16 · BUILD 8 · DROP 32 · BREAK 16 · BUILD 8 · DROP 32 · OUTRO 16 |
-| TRANCE · SYNTHWAVE | Trance, Synthwave, Electro | INTRO 16 · VERSE 16 · BUILD 8 · DROP 16 · BREAK 32 · BUILD 16 · DROP 32 · OUTRO 16 |
-| GARAGE | UK Garage, 2-Step, Speed Garage | INTRO 16 · VERSE 16 · BUILD 8 · DROP 16 · BREAK 8 · VERSE 16 · BUILD 8 · DROP 16 · OUTRO 16 |
-| BASS MUSIC | Dubstep, Grime, Breakbeat | INTRO 16 · BUILD 8 · DROP 16 · BREAK 16 · BUILD 8 · DROP 16 · OUTRO 8 |
+| HOUSE · TECHNO | House, Deep House, Tech House, Afro House, Progressive House, Organic House, Techno, Minimal, Acid, Detroit, Melodic, Hard, Dub Techno, Hardcore, EBM | INTRO 16 · VERSE 16 · BUILD 8 · DROP 32 · BREAK 16 · BUILD 8 · DROP 32 · OUTRO 16 |
+| TRANCE · SYNTHWAVE | Trance, Psytrance, Synthwave, Electro | INTRO 16 · VERSE 16 · BUILD 8 · DROP 16 · BREAK 32 · BUILD 16 · DROP 32 · OUTRO 16 |
+| GARAGE | UK Garage, 2-Step, Speed Garage, UK Funky, Bassline | INTRO 16 · VERSE 16 · BUILD 8 · DROP 16 · BREAK 8 · VERSE 16 · BUILD 8 · DROP 16 · OUTRO 16 |
+| BASS MUSIC | Dubstep, Grime, Breakbeat, Big Beat, Breaks, Jersey Club, Baltimore Club | INTRO 16 · BUILD 8 · DROP 16 · BREAK 16 · BUILD 8 · DROP 16 · OUTRO 8 |
 | JUNGLE · DNB | Jungle, Drum & Bass, Footwork, Breakcore | INTRO 32 · BUILD 8 · DROP 32 · BREAK 16 · BUILD 8 · DROP 32 · OUTRO 16 |
-| HIP-HOP | Hip-Hop, Lo-Fi, Trap, Drill, Trip-Hop | INTRO 4 · VERSE 16 · DROP 8 · VERSE 16 · DROP 8 · BREAK 4 · DROP 8 · OUTRO 4 |
-| AFRO · LATIN | Afrobeat, Afrobeats, Amapiano, Baile Funk, Reggaeton | INTRO 8 · VERSE 16 · DROP 16 · VERSE 16 · BREAK 8 · DROP 16 · OUTRO 8 |
-| DUB · DOWNTEMPO · AMBIENT | Dub, Downtempo, Ambient | INTRO 8 · VERSE 16 · BREAK 16 · VERSE 16 · BREAK 16 · OUTRO 8 |
+| HIP-HOP | Hip-Hop, Lo-Fi, Trap, Drill, Trip-Hop, Phonk | INTRO 4 · VERSE 16 · DROP 8 · VERSE 16 · DROP 8 · BREAK 4 · DROP 8 · OUTRO 4 |
+| AFRO · LATIN | Afrobeat, Afrobeats, Amapiano, Gqom, Baile Funk, Reggaeton, Dancehall, Moombahton, Cumbia, Bossa Nova | INTRO 8 · VERSE 16 · DROP 16 · VERSE 16 · BREAK 8 · DROP 16 · OUTRO 8 |
+| DUB · DOWNTEMPO · AMBIENT | Dub, Roots Reggae, Downtempo, Ambient, Drone, Dark Ambient, Ambient Techno, Berlin School | INTRO 8 · VERSE 16 · BREAK 16 · VERSE 16 · BREAK 16 · OUTRO 8 |
 
 **MIDI-Export pro Pad:** Rechtsklick aufs Pad › *Export as MIDI* (alle vier Spuren) oder *Export drums / bass / melody / pads only*; Dateiname z. B. `A5-DROP-1-bass.mid`. Das Pad muss dafür nicht laufen.
 
@@ -521,7 +528,7 @@ Ein riesiges Dankeschön an **[L'Cronx](https://github.com/sunskiefer)**! UMLAUF
 
 ```
 src/Engine.hpp/.cpp   Theorie, Akkorde, Generierung, Auswertung pro Step
-src/Genres.cpp        37 Genres / 83 Varianten (Wahrscheinlichkeitsraster), Tonleitern
+src/Genres.cpp        59 Genres / 127 Varianten (Wahrscheinlichkeitsraster), Tonleitern
 src/Midi.cpp          MIDI-Export/-Import
 src/Store.cpp         Speicherformat (pattern3) + Übernahme von v2-Patches
 src/Edit.cpp          Bearbeiten: Einfrieren, Noten schreiben, Chord Follow, Snap, Copy/Paste

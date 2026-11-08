@@ -643,6 +643,10 @@ struct GenraWidget : ModuleWidget {
 		menu->addChild(createIndexSubmenuItem("Genre CV inputs", {GENRE_CV_MODES[0], GENRE_CV_MODES[1]},
 		                                      [=]() { return (size_t)m->genreCvMode; },
 		                                      [=](size_t v) { m->genreCvMode = (int)v; }));
+		menu->addChild(createIndexSubmenuItem("Genre CV 0–10 V range",
+		                                      {"All " + std::to_string((int)NUM_GENRES) + " genres", "First 37 genres (patches before v2.24)"},
+		                                      [=]() { return (size_t)(m->genreCvSpan == 37 ? 1 : 0); },
+		                                      [=](size_t v) { m->genreCvSpan = v == 1 ? 37 : (int)NUM_GENRES; }));
 		menu->addChild(createMenuItem("All tracks to global (follow GENRE)", "", [=]() { m->resetTracksRequested = true; }));
 		menu->addChild(new MenuSeparator);
 		menu->addChild(createIndexSubmenuItem("Clock input", {CLOCK_MODES[0], CLOCK_MODES[1], CLOCK_MODES[2], CLOCK_MODES[3]},

@@ -8,6 +8,13 @@ int main(int argc, char** argv){
   initGenres();
   int only = argc>1 ? atoi(argv[1]) : -1;
   printf("profiles: %d\n", numProfiles());
+  { // v2.24: new genres are appended, the first 37 keep their index (old patches)
+    static const char* OLD[37] = {"House","Deep House","Speed Garage","UK Garage","2-Step","Techno","Minimal","Acid","Electro","Trance","Breakbeat","Jungle","Drum & Bass","Dubstep","Grime","Hip-Hop","Lo-Fi","Trap","Drill","Trip-Hop","Downtempo","Dub","Synthwave","Ambient","Afrobeat","Afrobeats","Amapiano","Afro House","Dub Techno","Melodic Techno","Hard Techno","Tech House","Detroit Techno","Baile Funk","Reggaeton","Footwork","Breakcore"};
+    for(int g=0; g<37; g++) if(std::string(prof(profileOf(g,0)).name)!=OLD[g]){ printf("FAIL genre %d moved: %s\n", g, prof(profileOf(g,0)).name); return 1; }
+    for(int g=0; g<NUM_GENRES; g++) if(numVariants(g)<1 || genreOfProfile(profileOf(g,0))!=g){ printf("FAIL genre %d has no profile\n", g); return 1; }
+    if(numProfiles()>=MAX_PROFILES){ printf("FAIL profile table full\n"); return 1; }
+    printf("genres: %d, first 37 unchanged\n", (int)NUM_GENRES);
+  }
   for(int pi=0; pi<numProfiles(); pi++){
     if(only>=0 && pi!=only) continue;
     const Genre& G = prof(pi);

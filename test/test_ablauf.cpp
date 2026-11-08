@@ -247,14 +247,17 @@ int main() {
 		CHECK(songFormForGenre("Deep House") == SF_HOUSE && songFormForGenre("Trance") == SF_TRANCE &&
 		          songFormForGenre("2-Step") == SF_GARAGE && songFormForGenre("Dubstep") == SF_BASS &&
 		          songFormForGenre("Drum & Bass") == SF_JUNGLE && songFormForGenre("Lo-Fi") == SF_HIPHOP &&
-		          songFormForGenre("Amapiano") == SF_AFRO && songFormForGenre("Ambient") == SF_DUB,
+		          songFormForGenre("Amapiano") == SF_AFRO && songFormForGenre("Ambient") == SF_DUB &&
+		          songFormForGenre("Psytrance") == SF_TRANCE && songFormForGenre("Bassline") == SF_GARAGE &&
+		          songFormForGenre("Phonk") == SF_HIPHOP && songFormForGenre("Bossa Nova") == SF_AFRO &&
+		          songFormForGenre("Berlin School") == SF_DUB && songFormForGenre("Jersey Club") == SF_BASS,
 		      "song form by genre");
 		CHECK(songFormForGenre("nonsense") == SF_HOUSE && songFormForGenre(nullptr) == SF_HOUSE, "unknown genre form");
 		int mapped = 0;
 		for (int g = 0; g < numProfiles(); g++) {
 			const char* gname = prof(g).name;
 			bool house = std::strstr(gname, "House") || std::strstr(gname, "Techno") || !std::strcmp(gname, "Minimal") ||
-			             !std::strcmp(gname, "Acid");
+			             !std::strcmp(gname, "Acid") || !std::strcmp(gname, "Hardcore") || !std::strcmp(gname, "EBM");
 			int f = songFormForGenre(gname);
 			if (f != SF_HOUSE || house)
 				mapped++;

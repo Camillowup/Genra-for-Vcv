@@ -32,9 +32,10 @@ struct Family {
 	const char* name;
 	int first, count;
 };
-static const Family FAMILIES[8] = {
+static const Family FAMILIES[13] = {
 	{"House", 0, 5}, {"Techno", 5, 5}, {"Breaks & Bass", 10, 5}, {"Hip-Hop & Downtempo", 15, 6}, {"Dub · Synthwave · Ambient", 21, 3},
-	{"Afro", 24, 4}, {"Techno Styles", 28, 5}, {"Latin & Club", 33, 4}};
+	{"Afro", 24, 4}, {"Techno Styles", 28, 5}, {"Latin & Club", 33, 4},
+	{"House · Funky · Gqom", 37, 5}, {"Breaks & Club", 42, 5}, {"Hard & Fast", 47, 3}, {"Reggae & Latin", 50, 5}, {"Ambient & Drone", 55, 4}};
 
 inline std::string upper(std::string s) {
 	for (char& c : s)
@@ -178,6 +179,9 @@ struct Genra : Module {
 	int chordMode = CM_MIXED;
 	int templateSel = -1;
 	int genreCvMode = 0;
+	// 0-10 V mode spans this many genres: 37 for patches saved before v2.24 (so their CV keeps hitting the same
+	// genres), all genres for new modules
+	int genreCvSpan = NUM_GENRES;
 
 	// ---- genre per track: -1 = follows GENRE, otherwise a profile index (written by the UI thread)
 	std::atomic<int> trackSel[4];
@@ -621,7 +625,7 @@ struct Genra : Module {
 
 	// ---- genre selection
 	// genre CV: 0-10 V over all genres, or 1/12 V per genre
-	float genreCvSteps(float v) { return genreCvMode == 1 ? v * 12.f : v / 10.f * (NUM_GENRES - 1); }
+	float genreCvSteps(float v) { return genreCvMode == 1 ? v * 12.f : v / 10.f * (genreCvSpan - 1); }
 
 	int knobGenre() {
 		float g = params[GENRE_PARAM].getValue();
@@ -1081,6 +1085,7 @@ struct Genra : Module {
 		chordMode = CM_MIXED;
 		templateSel = -1;
 		genreCvMode = 0;
+		genreCvSpan = NUM_GENRES;
 		for (int t = 0; t < 4; t++) {
 			trackSel[t] = -1;
 			trackSelChanged[t] = false;
@@ -1406,6 +1411,7 @@ struct Genra : Module {
 		json_object_set_new(root, "chordMode", json_integer(chordMode));
 		json_object_set_new(root, "templateSel", json_integer(templateSel));
 		json_object_set_new(root, "genreCvMode", json_integer(genreCvMode));
+		json_object_set_new(root, "genreCvSpan", json_integer(genreCvSpan));
 		std::vector<uint8_t> blob = savePattern(pat);
 		json_object_set_new(root, "pattern3", json_string(string::toBase64(blob.data(), blob.size()).c_str()));
 		json_t* sel = json_array();
@@ -1449,6 +1455,9 @@ struct Genra : Module {
 			templateSel = (int)json_integer_value(j);
 		if ((j = json_object_get(root, "genreCvMode")))
 			genreCvMode = clamp((int)json_integer_value(j), 0, 1);
+		genreCvSpan = 37; // pre-v2.24 patch: 0-10 V covered the first 37 genres
+		if ((j = json_object_get(root, "genreCvSpan")))
+			genreCvSpan = clamp((int)json_integer_value(j), 2, (int)NUM_GENRES);
 		// "pattern3": version-independent format (v3+); "pattern": raw block of GENRA v2
 		json_t* jp = json_object_get(root, "pattern3");
 		if (!jp)
