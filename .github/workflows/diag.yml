@@ -16,7 +16,7 @@ jobs:
         run: |
           S=sdk/Rack-SDK
           g++ -std=c++17 -O1 -g -fsanitize=address,undefined -DARCH_LIN -I$S/include -I$S/dep/include -Isrc \
-            test/diag/genra_run.cpp src/Engine.cpp src/Genres.cpp src/Edit.cpp src/Store.cpp src/Midi.cpp src/Arranger.cpp src/Follow.cpp \
+            test/diag/genra_run.cpp src/Engine.cpp src/Genres.cpp src/Edit.cpp src/Store.cpp src/Midi.cpp src/Arranger.cpp src/Follow.cpp src/Genra.cpp src/ui/*.cpp \
             -fPIC -L$S -lRack -Wl,--allow-shlib-undefined -Wl,-rpath,$PWD/$S -o genra_run 2>&1 | tail -30
       - name: Run
         run: timeout 300 ./genra_run
