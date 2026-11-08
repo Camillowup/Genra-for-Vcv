@@ -17,6 +17,7 @@ void init(Plugin* p) {
 	p->addModel(modelMix);
 	p->addModel(modelGenraFx);
 	p->addModel(modelStotter);
+	p->addModel(modelSchlag);
 	p->addModel(modelDrumX);
 	p->addModel(modelGrund);
 	p->addModel(modelGrundFx);

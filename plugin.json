@@ -1,7 +1,7 @@
 {
   "slug": "Genra",
   "name": "GENRA",
-  "version": "2.25.0",
+  "version": "2.26.0",
   "license": "GPL-3.0-only",
   "brand": "Genra",
   "author": "Bastian Ofner",
@@ -73,6 +73,16 @@
         "Filter",
         "Delay",
         "Distortion"
+      ]
+    },
+    {
+      "slug": "Schlag",
+      "name": "SCHLAG Sample Drums",
+      "description": "Sample drum machine for GENRA's drum track, after the Polyend Play: 8 tracks with a WAV folder each, RANDOM rolls a sample per step from the folder, 4 knobs per track with 18 functions (tune, start/end, decay, filter, drive, bits, sends, repeat, chance, action), MIDI in, PRINT to ABLAUF",
+      "tags": [
+        "Drum",
+        "Sampler",
+        "Random"
       ]
     },
     {

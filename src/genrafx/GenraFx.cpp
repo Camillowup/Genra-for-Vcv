@@ -3,6 +3,7 @@
 #include "GenraFx.hpp"
 #include "../ui/GenraUI.hpp"
 #include "GenraFxLayout.hpp"
+#include "../schlag/SchlagLink.hpp"
 #include <functional>
 
 namespace genrafx {
@@ -147,13 +148,20 @@ void GenraFx::applyParams() {
 void GenraFx::feedInputs() {
 	static const int IDS[4] = {IN_AL, IN_AR, IN_BL, IN_BR};
 	Module* m = mixRef.to.load();
+	Module* sm = schlagRef.to.load();
+	float sv[2][2] = {};
+	bool sOn[2] = {false, false};
+	for (int side = 0; side < 2; side++)
+		if (sm && inMode[side].load())
+			sOn[side] = schlag_link::sendFrame(sm, side, sv[side][0], sv[side][1], frameNow);
 	for (int k = 0; k < 4; k++) {
 		int side = k / 2, lr = k % 2;
 		Input& in = inputs[IDS[k]];
 		int oid = MIX_SEND_OUT[side][lr];
-		if (m && inMode[side].load() && oid < (int) m->outputs.size()) {
-			Output& o = m->outputs[oid];
-			drv[k].feed(in, o.voltages, 1);
+		bool mixOn = m && inMode[side].load() && oid < (int) m->outputs.size();
+		if (mixOn || sOn[side]) { // MIX's send and SCHLAG's send, summed
+			float v = (mixOn ? m->outputs[oid].voltages[0] : 0.f) + (sOn[side] ? sv[side][lr] : 0.f);
+			drv[k].feed(in, &v, 1);
 		}
 		else if (drv[k].ch >= 0)
 			drv[k].release(in);
@@ -206,6 +214,24 @@ void GenraFx::uiStep(float dt) {
 			if (follow::isGenra(m)) {
 				follow::point(genraRef, this, m);
 				break;
+			}
+		}
+	}
+	// SCHLAG (its sends; the first one in the patch)
+	{
+		Module* s = schlagRef.to.load();
+		bool wantS = inMode[0].load() || inMode[1].load();
+		if (!wantS) {
+			if (s)
+				follow::point(schlagRef, this, nullptr);
+		}
+		else if (!s) {
+			for (int64_t id : APP->engine->getModuleIds()) {
+				Module* m = APP->engine->getModule(id);
+				if (schlag_link::isSchlag(m)) {
+					follow::point(schlagRef, this, m);
+					break;
+				}
 			}
 		}
 	}
@@ -532,7 +558,7 @@ struct GenraFxWidget : ModuleWidget {
 			const char* sendName = k ? "MIX send B" : "MIX send A";
 			menu->addChild(createSubmenuItem(k ? "Input B from" : "Input A from", m->inMode[k].load() ? sendName : "Cables only",
 			                                 [=](Menu* sub) {
-				                                 sub->addChild(createCheckMenuItem(std::string("Auto: ") + sendName, "",
+				                                 sub->addChild(createCheckMenuItem(std::string("Auto: ") + sendName + (k ? " + SCHLAG send B" : " + SCHLAG send A"), "",
 				                                                                   [=]() { return m->inMode[k].load() == 1; },
 				                                                                   [=]() { m->inMode[k] = 1, m->uiTimer = 0.f; }));
 				                                 sub->addChild(createCheckMenuItem("Off (cables only)", "", [=]() { return m->inMode[k].load() == 0; },

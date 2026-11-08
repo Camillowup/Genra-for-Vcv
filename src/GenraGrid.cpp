@@ -4,6 +4,7 @@
 // GENRA with Genra::submitTrack() and applied on its audio thread.
 #include "GenraModule.hpp"
 #include "LayoutGrid.hpp"
+#include "schlag/SchlagLink.hpp"
 #include <deque>
 
 static const int ZOOMS[4] = {1, 2, 4, 8};
@@ -56,6 +57,8 @@ struct GenraGrid : Module {
 	int laneMode = 0; // lower lane: 0 velocity, 1 chance
 	int64_t linkedId = -1; // -1: automatic (docked GENRA)
 	bool recOn = false;    // REC MIDI armed (not saved)
+	bool midiAuto = true;  // the MIDI input follows SCHLAG's MIDI IN (2.26)
+	std::string midiAutoFrom; // UI: the SCHLAG device followed ("" = none)
 
 	// ---- MIDI record: notes from the MIDI input, with GENRA's play position (audio thread -> UI thread)
 	midi::InputQueue midiIn;
@@ -133,6 +136,7 @@ struct GenraGrid : Module {
 		json_object_set_new(root, "linkedId", json_integer(linkedId));
 		json_object_set_new(root, "laneMode", json_integer(laneMode));
 		json_object_set_new(root, "midi", midiIn.toJson());
+		json_object_set_new(root, "midiAuto", json_boolean(midiAuto));
 		return root;
 	}
 	void dataFromJson(json_t* root) override {
@@ -149,6 +153,10 @@ struct GenraGrid : Module {
 			laneMode = clamp((int)json_integer_value(j), 0, 1);
 		if ((j = json_object_get(root, "midi")))
 			midiIn.fromJson(j);
+		if ((j = json_object_get(root, "midiAuto")))
+			midiAuto = json_boolean_value(j);
+		else // a patch from before 2.26: a device chosen by hand stays
+			midiAuto = midiIn.getDeviceId() < 0;
 	}
 
 	// the GENRA this editor works on (UI thread)
@@ -1933,6 +1941,8 @@ struct GridDisplay : Widget {
 		segs.push_back({pat.fixed[t] ? "EDITED" : "GENERATED", dim, false});
 		if (module->recOn)
 			segs.push_back({"REC", recCol, true});
+		if (module->recOn && !module->midiAutoFrom.empty())
+			segs.push_back({"MIDI \xe2\x80\xb9 SCHLAG", dim, false});
 		if (t != T_DRUMS)
 			segs.push_back({SNAPS[module->snapMode], dim, false});
 		if (t != T_DRUMS && pat.fixed[t] && pat.chordFollow[t])
@@ -2368,11 +2378,34 @@ struct GenraGridWidget : ModuleWidget {
 		return p;
 	}
 
+	float midiTimer = 0.f;
+	/** Auto: the MIDI input is the one set on SCHLAG (MIDI IN), so its pads record here without setting them twice. */
+	void followSchlagMidi(GenraGrid* m) {
+		midiTimer -= APP->window->getLastFrameDuration();
+		if (midiTimer > 0.f)
+			return;
+		midiTimer = 0.5f;
+		int drv, dev, ch;
+		std::string label;
+		if (!m->midiAuto || !schlag_link::midiSource(drv, dev, ch, label)) {
+			m->midiAutoFrom.clear();
+			return;
+		}
+		if (m->midiIn.getDriverId() != drv)
+			m->midiIn.setDriverId(drv);
+		if (m->midiIn.getDeviceId() != dev)
+			m->midiIn.setDeviceId(dev);
+		if (m->midiIn.getChannel() != ch)
+			m->midiIn.setChannel(ch);
+		m->midiAutoFrom = label;
+	}
+
 	void step() override {
 		ModuleWidget::step();
 		GenraGrid* m = dynamic_cast<GenraGrid*>(module);
 		if (!m || !display)
 			return;
+		followSchlagMidi(m);
 		GridDisplay* d = display;
 		for (int t = 0; t < 4; t++)
 			if (pressed(GenraGrid::TRACK_PARAM + t) && !d->editing)
@@ -2461,7 +2494,14 @@ struct GenraGridWidget : ModuleWidget {
 			menu->addChild(createMenuLabel("Connect a GENRA to export or import"));
 		menu->addChild(new MenuSeparator);
 		menu->addChild(createMenuLabel("MIDI input (REC MIDI)"));
-		app::appendMidiMenu(menu, &m->midiIn);
+		menu->addChild(createCheckMenuItem("Auto: the MIDI IN of SCHLAG", "", [=]() { return m->midiAuto; }, [=]() {
+			m->midiAuto = !m->midiAuto;
+			m->midiAutoFrom.clear();
+		}));
+		if (m->midiAuto && !m->midiAutoFrom.empty())
+			menu->addChild(createMenuLabel("Following SCHLAG: " + m->midiAutoFrom + " (Auto off to choose by hand)"));
+		else
+			app::appendMidiMenu(menu, &m->midiIn);
 		menu->addChild(new MenuSeparator);
 		menu->addChild(createMenuLabel("Controls"));
 		menu->addChild(createMenuLabel("Click: set note / hit · Drag: move, length at the right edge"));

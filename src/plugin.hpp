@@ -40,3 +40,4 @@ extern Model* modelAblauf;
 extern Model* modelGrund;
 extern Model* modelGrundFx;
 extern Model* modelGenraFx;
+extern Model* modelSchlag;

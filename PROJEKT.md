@@ -1,6 +1,6 @@
 # GENRA – Projektstand
 
-**Stand:** 8. November 2026 · **Plugin 2.25.0: 19 Module** (GENRA, GRID, ABLAUF, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, GRUND, GRUND FX, SCHMELZ, MIX, GENRA FX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `Camillowup/Genra-for-Vcv` (vorher `CamilloGF/genra-v3`, Account nicht mehr erreichbar)
+**Stand:** 9. November 2026 · **Plugin 2.26.0: 20 Module** (GENRA, GRID, ABLAUF, SCHLAG, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, GRUND, GRUND FX, SCHMELZ, MIX, GENRA FX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `Camillowup/Genra-for-Vcv` (vorher `CamilloGF/genra-v3`, Account nicht mehr erreichbar)
 
 > Design-Leitfaden für neue Module (Aussehen, GENRA-Leiste, Leuchtsegmente, Follow, englische UI): **docs/DESIGN.md**
 
@@ -376,6 +376,18 @@ GENRA MONO: `g++ -std=c++17 -O2 test/test_mono.cpp -o tm && ./tm`
 - Pads per Drag & Drop in die Song-Liste: zwischen Zeilen einfügen (Linie), auf eine Zeile ersetzen (Rahmen), Undo. Ein belegtes Pad löst sein Antippen jetzt beim Loslassen aus (sonst wäre jeder Drag ein Antippen); leere Pads speichern weiter beim Drücken.
 - Song-Liste unten: Takte und Spieldauer aus GENRAs Tempo (`Genra::currentBpm`, auch für GENRAs MIDI-Export), z. B. „BAR 37 / 92 · 1:12 / 2:59“.
 - `test_ablauf`: jede Genre-Variante hat eine Form, Formlängen, `renderSong` (eine Zeile = Loop, Marker, stumme Drums, Notenbereich, Marker in der Datei).
+
+### 2.26.0 – SCHLAG: Sample-Drums nach dem Polyend Play
+- Neues Modul **SCHLAG** (46 HP, Drum-Farbe `#7b6cff`). Panel: `tools/schlag_panel.py real` → `res/Schlag.svg`, `src/schlag/SchlagLayout.hpp` (mit Tabellen `*_T[track]`, `K_T/FN_T[track][row]`); Vorschau `docs/entwuerfe/schlag.png`.
+- **Klang ohne Rack** (`src/schlag/SchlagDsp.hpp`, Test `test/test_schlag.cpp` in CI): WAV-Leser (PCM 8/16/24/32, Float 32/64, Extensible, max. 30 s, erste zwei Kanäle), Stimme mit Hermite-Interpolation, Start/End (rückwärts), Tune, Attack/Decay, DJ-Filter (TPT-SVF, `tan` nur bei Änderung), Drive (tanh), Bits; 18 Funktionen (`Fn`, Reihenfolge wird gespeichert – nur anhängen), Listen für Repeat Type (18), Repeat Grid (19), Chance (18), Action (10); `repeatMod()` (Repeat-Arten nach Gehör), `rollMap()` (RANDOM: pro Schritt Index = Grund ± round(Stärke·(n−1)), gleich = −1).
+- **Ordner:** ein Lade-Thread pro Modul (`Loader`) liest einen Ordner (max. 512 WAV) in eine `Bank`; der UI-Thread tauscht sie ein (`std::atomic<Bank*>`), alte Banken werden nach 3 s gelöscht, Stimmen halten ihr Sample per `shared_ptr`. Haupt-Ordner pro PC in `asset::user("Genra/schlag.json")` (`sampleRoot`), Patches speichern `folder` relativ dazu und `folderAbs`. Ordnerzugriffe über `entries()/isDir()` mit try/catch (Rack wirft bei unlesbaren Ordnern).
+- **Schritte:** `map[track][128]` (−1 = Grund-Sample). Position: GENRAs `posPub` (Follow), sonst CLOCK/RESET, sonst Trefferzähler mod 16. Durchläufe (`loopCount`) für Play/Skip: GENRAs Schritt springt zurück bzw. RESET. Im Patch: Namen statt Indizes (`names`, `map`, `prints`), aufgelöst, sobald der Ordner gelesen ist (`Pending`/`resolve`).
+- **Würfeln/BASIC/UNDO im UI-Thread** (RANDOM über `RandKnob::onDragMove`, also nur echtes Drehen, nicht Undo/Preset), eigener UNDO-Stapel (32) plus `history::ModuleAction` für Strg+Z. RND-Eingang/KIT-Eingang setzen Anfragen (`rndMask`, `kitNext`).
+- **PRINT:** `printMap[128 Slots]`; `processPrints()` lädt beim Wechsel von `Genra::arrSlotPub` (nur mit ABLAUF, `arrOwner`). ABLAUF selbst bleibt unverändert (Pads tragen weiter nur MIDI-Daten; die Samples liegen im SCHLAG pro Pad-Nummer).
+- **Knöpfe:** `FN_PARAM` (Funktion, Tausch per `history::ComplexAction`) und `K_PARAM` (zeigt den Wert der Funktion: beim Wechsel setzt `controlTick()` den Regler auf `fnVal`), CV 1–4 poly. Retrigger mit 3-ms-Ausblendung (zweite Stimme `tail`), Choke C.HAT → O.HAT, Mute/Solo, HUMANIZE über eine Verzögerung, Repeats über `Track::Rep`. Ausgänge mit `genra_out::limit`.
+- **MIDI IN** (`midi::InputQueue`, `gmDrumVoice`). **GRID:** `midiAuto` (JSON, alte Patches mit gewähltem Gerät bleiben manuell) – der Widget-`step()` übernimmt alle 0,5 s Treiber/Gerät/Kanal von `schlag_link::midiSource()`; Kopfzeile „MIDI ‹ SCHLAG“ bei REC.
+- **GENRA FX:** `schlagRef`; `feedInputs()` summiert MIX-Send und `schlag_link::sendFrame()` (nicht, wenn im SCHLAG ein Kabel im Send steckt oder *Sends to GENRA FX* aus ist). SCHLAG zeigt eisblaue Segmente über SEND A/B.
+- Modul-Reihenfolge: SCHLAG vor DRUM-X.
 
 ### 2.25.0 – GENRA: Transport-Pads, Swing pro Spur/Stimme
 - **Transport:** sechs große Pads FILL · NEW ALL · RUN · STOP · TAP · MAKE SONG (`BigPad` in `Genra.cpp`: Panel zeigt das unbeleuchtete Pad mit Symbol, das Modul füllt es beim Leuchten). Neue Params/Lichter angehängt: `FILLPAD/STOP/TAP/MAKESONG` (NEW und RUN behalten ihre Ids). HARMONY kompakter.

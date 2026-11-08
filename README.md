@@ -1,6 +1,6 @@
 # GENRA – Plugin für VCV Rack 2
 
-Ein generativer, genreabhängiger 4-Spur-Sequencer mit MIDI-Grid, Performance-Effekten und passenden Instrumenten, alle im selben Look. Plugin-Version **2.25.0**, 19 Module. Projektstand und Entscheidungen: `PROJEKT.md`.
+Ein generativer, genreabhängiger 4-Spur-Sequencer mit MIDI-Grid, Performance-Effekten und passenden Instrumenten, alle im selben Look. Plugin-Version **2.26.0**, 20 Module. Projektstand und Entscheidungen: `PROJEKT.md`.
 
 | Modul | Breite | Farbe | Was es ist |
 |---|---|---|---|
@@ -12,6 +12,7 @@ Ein generativer, genreabhängiger 4-Spur-Sequencer mit MIDI-Grid, Performance-Ef
 | **K-WASUB** + **FX** | je 40 HP | säuregrün | Modern-Bass-Synth aus der FM-1-Firmware K-WASUB, mit Effekt-Expander |
 | **FUNKE** | 30 HP | cyan | Melodiestimme: 8 Modelle von Rhodes bis Saw Lead |
 | **SCHMELZ** | 32 HP | rosa | String Machine nach Waldorf Streichfett, für die Pads |
+| **SCHLAG** | 46 HP | blau-violett | Sample-Drums nach dem Polyend Play: 8 Spuren mit WAV-Ordnern, RANDOM pro Schritt |
 | **JIANT DRUM-X** | 32 HP | blau-violett | 8-spuriger Drum-Synth aus der JIANT-FM-Firmware |
 | **JIANT VOICE** | 26 HP | rot | Formant-Sänger aus der JIANT-FM-Firmware |
 | **JIANT ANIMAL** | 26 HP | grün | Tierrufe aus physikalischen Modellen (JIANT FM) |
@@ -187,7 +188,7 @@ Stereo-Effekt: z. B. GENRAs Drums oder MIX-Ausgang hinein, CLOCK von GENRA.
 
 ## Follow GENRA: verbinden ohne Kabel
 
-Alle Instrumente mit GENRA-Leiste (MONO, K-WASUB, FUNKE, SCHMELZ, UMLAUF, MONK, VOICE, ANIMAL, DRUM-X) können eine GENRA-Spur ohne Kabel übernehmen: **Rechtsklick › Follow GENRA** › Bass, Melody oder Pad (DRUM-X: Drums). Darunter wählst du, welches GENRA („Automatic“ nimmt das einzige bzw. erste im Patch). Dann kommen V/OCT, GATE, VEL, ACC, SLIDE, MOD sowie CLOCK und RESET direkt von GENRA, soweit das Instrument die Buchse hat und die Spur das Signal liefert (MOD nur bei Pad, ACC/SLIDE nur bei Bass und Melody).
+Alle Instrumente mit GENRA-Leiste (MONO, K-WASUB, FUNKE, SCHMELZ, UMLAUF, MONK, VOICE, ANIMAL, DRUM-X, SCHLAG) können eine GENRA-Spur ohne Kabel übernehmen: **Rechtsklick › Follow GENRA** › Bass, Melody oder Pad (DRUM-X und SCHLAG: Drums; ein neues SCHLAG folgt den Drums von selbst). Darunter wählst du, welches GENRA („Automatic“ nimmt das einzige bzw. erste im Patch). Dann kommen V/OCT, GATE, VEL, ACC, SLIDE, MOD sowie CLOCK und RESET direkt von GENRA, soweit das Instrument die Buchse hat und die Spur das Signal liefert (MOD nur bei Pad, ACC/SLIDE nur bei Bass und Melody).
 
 - **Die Leiste zeigt es an:** Die Linie über den Buchsen ist gedimmt gedruckt. Kommt ein Signal von GENRA, leuchtet das Segment über dieser Buchse in der Spurfarbe (CLOCK/RESET weiss) und flackert bei jeder Note kurz auf.
 - **Ein Kabel hat immer Vorrang:** Steckt ein Kabel in einer Buchse, gilt das Kabel, das Segment darüber geht aus. Alle Buchsen bleiben, andere Sequenzer und Module funktionieren wie bisher.
@@ -200,7 +201,7 @@ Alle Instrumente mit GENRA-Leiste (MONO, K-WASUB, FUNKE, SCHMELZ, UMLAUF, MONK, 
 
 Die Send-Effekte für MIX, 24 HP, eisblau: **REVERB** bearbeitet IN A (MIX SEND A) und gibt OUT A aus, **DELAY** bearbeitet IN B (MIX SEND B) und gibt OUT B aus. Beide geben nur das Effektsignal aus (Send/Return), stereo; ein Signal nur an IN L geht auf beide Seiten.
 
-- **Ohne Kabel:** Das Tempo kommt von GENRA (Rechtsklick › *Follow GENRA*, an; der SYNC-Balken oben leuchtet). Ohne GENRA gilt das freie Tempo (Rechtsklick › *Free tempo*). IN A und IN B nehmen die Sends des MIX (Rechtsklick › *Input A/B from* › Auto), und MIX nimmt OUT A/B in RETURN A/B (dort Rechtsklick › *RETURN A/B from*). Eisblaue Segmente über den Buchsen zeigen es an beiden Enden; ein Kabel hat immer Vorrang.
+- **Ohne Kabel:** Das Tempo kommt von GENRA (Rechtsklick › *Follow GENRA*, an; der SYNC-Balken oben leuchtet). Ohne GENRA gilt das freie Tempo (Rechtsklick › *Free tempo*). IN A und IN B nehmen die Sends des MIX und von SCHLAG (Rechtsklick › *Input A/B from* › Auto; beide zusammen), und MIX nimmt OUT A/B in RETURN A/B (dort Rechtsklick › *RETURN A/B from*). Eisblaue Segmente über den Buchsen zeigen es an beiden Enden; ein Kabel hat immer Vorrang.
 - **REVERB** (ein eigener FDN-Hall mit 8 Leitungen): Typ-Feld **HALL · ROOM · PLATE · SPACE** (Klick = Liste, Mausrad), daneben die Hallzeit. **DECAY** (0,1–30 s, gemessen wie eingestellt), **SIZE**, **PRE-DELAY** (0–250 ms), **DAMP** (hell … dunkel), **WIDTH**, **SHIMMER** (eine Oktave darüber im Nachhall), **LEVEL**. **FREEZE** (Taster oder Gate) hält den Nachhall endlos, der Eingang ist dann zu.
 - **DELAY:** Zeit-Feld: 1/32 … 1/1 gerade, punktiert oder triolisch im Tempo, oder **FREE** in ms (Klick = alle Werte in einer Liste); daneben die Zeit in ms. **TIME** wählt die Teilung (bzw. die ms), **FEEDBACK** bis 110 % (Selbstoszillation, gezähmt), **TONE** (dunkel … dünn), **TAPE** (Leiern und Sättigung wie ein Bandecho; Zeitwechsel gleiten), **DUCK** (das Echo tritt zurück, solange gespielt wird), **WIDTH**, **LEVEL**, **STEREO / PING-PONG**.
 - **CV:** DECAY und FREEZE (Gate) beim Hall, TIME und FDBK beim Delay (je ±5 V).
@@ -216,7 +217,7 @@ Alle Werks-Presets von GRUND, GENRA MONO, K-WASUB, FUNKE und SCHMELZ (auch die P
 
 ## Instrumente
 
-Das passende Set zu GENRA: **GENRA MONO** oder **K-WASUB** für den Bass, **FUNKE** für die Melodie, **SCHMELZ** für die Pads, **DRUM-X** für die Drums – zusammengeführt im **MIX**. Dazu weitere Stimmen: VOICE, ANIMAL, MONK und UMLAUF.
+Das passende Set zu GENRA: **GENRA MONO** oder **K-WASUB** für den Bass, **FUNKE** für die Melodie, **SCHMELZ** für die Pads, **SCHLAG** (Samples) oder **DRUM-X** (Synth) für die Drums – zusammengeführt im **MIX**. Dazu weitere Stimmen: VOICE, ANIMAL, MONK und UMLAUF.
 
 **Die GENRA-Leiste (ab 2.13.0):** Jedes Instrument nimmt GENRAs Spur-Ausgänge an derselben Stelle auf – unten links, gleich beschriftet, in derselben Reihenfolge: **V/OCT · GATE · VEL · ACC · SLIDE · MOD** auf einer Fläche mit einer Linie in der Spurfarbe, rechts daneben **CLOCK · RESET** (graue Linie). Was ein Instrument nicht braucht, lässt es weg; die Reihenfolge bleibt. Alle Buchsen sind normale Ein- und Ausgänge, also auch mit anderen VCV-Modulen nutzbar. Neu dafür: MOD an SCHMELZ (auf Crescendo, Animate oder Tone, Rechtsklick-Menü), ACC und SLIDE an K-WASUB, RESET an FUNKE, DRUMS-Eingang an DRUM-X; bei MONO heissen SYNC und RETRIG jetzt CLOCK und RESET, bei FUNKE VIB jetzt MOD. Alle Module haben dieselben dunklen Regler (`res/knob/`).
 
@@ -389,6 +390,21 @@ String Machine im Geist der 70er/80er (Vorbild: Waldorf Streichfett), 32 HP, Far
 | GRIME · DRILL · DUBSTEP | GRIME STRINGS (VIOLIN) · DRILL CHOIR (CHOIR) |
 | POP · SYNTHWAVE · TRANCE | SYNTHWAVE PAD (SYNTH) · TRANCE SWELL (SYNTH) · CINEMATIC (CELLO) · ANALOG BRASS (BRASS) |
 
+### SCHLAG: Sample-Drums nach dem Polyend Play (ab 2.26.0)
+
+![SCHLAG](docs/entwuerfe/schlag.png)
+
+Eine Sample-Drum-Maschine für GENRAs Drumspur, 46 HP, blau-violett. Keine Pad-Matrix: die Schläge kommen von GENRA (bearbeitet im GRID), von den TRIG-Buchsen, über V/OCT + GATE oder MIDI IN. Acht Spuren in GENRAs Reihenfolge (KICK, SNARE, CLAP, RIM, C.HAT, O.HAT, TOM, PERC), jede spielt WAV-Dateien aus einem eigenen Ordner.
+
+- **Sample wählen:** Einmal den Haupt-Ordner festlegen (Klick auf eine Spur im Display, dann den Pfad tippen, z. B. `D:\Samples`, Enter; gilt für alle Patches auf diesem PC). Danach öffnet ein Klick auf die Spur im Display das Menü mit allen Unterordnern und WAV-Dateien. Die gewählte Datei wird das Grund-Sample, ihr Ordner ist der Ordner der Spur. **SAMPLE** blättert im Ordner. Patches merken sich den Ordner relativ zum Haupt-Ordner, auf einem anderen PC reicht derselbe Aufbau unter einem anderen Haupt-Ordner. Fehlt ein Ordner, steht MISSING im Display, die Spur bleibt stumm. WAV in jeder Samplerate, 8–32 Bit oder Float, mono oder stereo, bis 30 s und 512 Dateien pro Ordner.
+- **RANDOM** (wie der Randomizer des Play, nur aus dem Ordner der Spur): Drehen würfelt sofort für jeden Schritt ein Sample aus dem Ordner; die Stellung bestimmt, wie weit es vom Grund-Sample weg sein darf (wenig: Nachbarn, viel: der ganze Ordner; auf 0 = alle wieder das Grund-Sample). Das Ergebnis bleibt stehen, bis du wieder drehst. Die Schrittleiste im Display zeigt den laufenden Takt: violett = Schlag mit Grund-Sample, gelb = gewürfeltes Sample, weisser Rahmen = Position. **BASIC** (pro Spur und im MASTER für alle) setzt zurück, **RND ALL** würfelt alle Spuren mit ihrem RANDOM, **UNDO** nimmt das letzte Würfeln / BASIC zurück (auch Strg+Z). Der RND-Eingang würfelt per Trigger (mono: alle, polyphon: Kanal n = Spur n).
+- **Vier Regler pro Spur mit Dropdown** (Klick auf das Feld): SOUND – Level, Pan, Tune (±24 Halbtöne), Microtune (±100 Cent), Start, End (End vor Start = rückwärts), Attack, Decay · SPACE – Send A, Send B · TONE – Cutoff (DJ-Filter: links Tiefpass, rechts Hochpass), Resonance, Drive, Bits · PLAY – Repeat Type (18 Arten wie beim Play: Straight, Fade, Raise, Pong, Arp Down/Up, Tank, Alien, Echo, Your Crush, Glitter, Effectron, To And From, Round Trip, Octaves, Game Over, Down And Up; nach Gehör nachgebaut), Repeat Grid (2 Hits | 1 Step … 16 Hits | 8 Steps), Chance (Always, 90–10 %, Play N / Skip M, Skip N / Play M über die Durchläufe), Action (Random Sample, Note, Octave Up, Microtune, Cutoff, Repeat, Start, End oder Humanize – würfelt bei jedem Schlag neu; steht Action auf Play Step, entscheidet Chance, ob der Schlag spielt, sonst ob die Action greift). Beim Drehen zeigt das Feld den Wert. Eine Funktion, die schon auf einem anderen Regler der Spur liegt, tauscht den Platz.
+- **M / S** pro Spur (Mute gelb, Solo grün), **CHOKE** an der O.HAT: die geschlossene Hat schneidet die offene ab (Grundeinstellung an).
+- **MASTER:** ACCENT (wie viel lauter ein Schlag mit ACC ist), LEVEL, **MIDI IN** (Klick: Gerät und Kanal; Noten nach General MIDI auf die Spuren, ausserhalb ab C jeder Oktave wie beim GRID), RND ALL, UNDO, BASIC, **PRINT › ABLAUF**: die gewürfelten Samples bleiben beim ABLAUF-Pad, das GENRA gerade spielt; startet GENRA dieses Pad wieder, kommen sie zurück (gespeichert im SCHLAG, pro Pad-Nummer). Ein fester Limiter sitzt am Ausgang. Eingebaute Effekte gibt es keine.
+- **Kits** (Feld im Kopf): Ordner, Grund-Samples und Regler aller Spuren speichern und laden, „Init knobs“ setzt die Regler zurück und lässt die Samples. KIT-Eingang: nächstes Kit.
+- **Buchsen:** GENRA-Leiste DRUMS (poly 8) · V/OCT · GATE · VEL · ACC · CLOCK · RESET, dazu RND, KIT, **CV 1–4** (eine pro Reglerreihe, polyphon: Kanal n = Spur n, mono: alle Spuren, ±5 V = ± halber Bereich), pro Spur TRIG und OUT (mono, trocken, mit Level, ohne Pan; die Spur bleibt im Mix), L/R (ohne Kabel in den MIX), **SEND A** und **SEND B** je L/R – ohne Kabel nimmt GENRA FX sie zusammen mit den Sends des MIX (Rechtsklick › *Sends to GENRA FX*; ein Kabel in der Send-Buchse hat Vorrang).
+- **MIDI-Aufnahme im GRID:** GRIDs MIDI-Eingang steht auf **Auto** und übernimmt das Gerät von SCHLAGs MIDI IN. Mit REC im GRID spielst du SCHLAG übers Pad und nimmst gleichzeitig ins Pattern auf (Kopfzeile „MIDI ‹ SCHLAG“). Auto aus (Rechtsklick im GRID) = Gerät von Hand.
+
 ### JIANT-Stimmen: DRUM-X, VOICE, ANIMAL
 
 | VOICE | DRUM-X | ANIMAL |
@@ -560,6 +576,7 @@ kwcore/               der K-WASUB-Kern: die Firmware als Bibliothek (res/kwcore.
 kwasub/               die K-WASUB-Firmware, unverändert (GPL-3.0, Omnipotard)
 src/umlauf/           UMLAUF und UMLAUF FX (Module, Schnittstelle zu VADER, eigene Presets: UmlaufPresets.h)
 src/stotter/          STOTTER (Modul, Engine StotterDsp.hpp, Layout aus tools/stotter_panel.py)
+src/schlag/           SCHLAG (Modul Schlag.cpp, Klang/WAV ohne Rack testbar: SchlagDsp.hpp, test/test_schlag.cpp; Frontplatte tools/schlag_panel.py)
 vader/                VADER (MIT), gepatcht (tools/vader_vendor.sh, tools/vader_patch.py), in plugin.dll gelinkt
 res/Schmelz.svg …     Frontplatten: tools/schmelz_panel.py, mix_panel.py, kwasub_panel.py, umlauf_panel.py,
                       umlauf_fx_panel.py (jeweils real | preview <datei.png> <Rack-Quellen>)
