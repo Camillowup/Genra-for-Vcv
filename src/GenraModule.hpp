@@ -95,6 +95,11 @@ struct Genra : Module {
 		CHORDNEW_PARAM,
 		ENUMS(TNEW_PARAM, 4),
 		// (v3 had 8 scene buttons and STORE here; removed in 2.11.0 – the song module takes over)
+		// 2.25: transport pads
+		FILLPAD_PARAM,
+		STOP_PARAM,
+		TAP_PARAM,
+		MAKESONG_PARAM,
 		PARAMS_LEN
 	};
 	enum InputId {
@@ -160,17 +165,35 @@ struct Genra : Module {
 		ENUMS(LOCK_LIGHT, 4),
 		ENUMS(TNEW_LIGHT, 4),
 		CHORDNEW_LIGHT,
+		// 2.25: transport pads
+		FILLPAD_LIGHT,
+		STOP_LIGHT,
+		TAP_LIGHT,
+		MAKESONG_LIGHT,
 		LIGHTS_LEN
 	};
 
 	// ---- pattern & engine state
 	Pattern pat;
 	Rng rng;
-	bool running = true;
+	bool running = false; // GENRA waits for RUN after loading / inserting
 	int step = -1;
 	bool firstPass = true;
 	bool fillActive = false;
 	bool fillCarry = false; // FILL trigger in the last beat: also fill the next pass
+	bool fillPadReq = false; // FILL pad: a fill over the next bar
+	bool fillPadOn = false;  // ... playing now (fillWas: the pass's own fill decision, back after that bar)
+	bool fillWas = false;
+	// TAP: taps of the last few beats (samples between them)
+	float tapSince = 1e9f;
+	float tapIv[4] = {};
+	int tapN = 0;
+	float stopFlash = 0.f, tapFlash = 0.f;
+	// genre changes set the tempo of the genre (right-click, off by default)
+	bool genreTempo = false;
+	// MAKE SONG pad: ABLAUF builds a song from the running loop (ABLAUF reads makeSongReq, the widget noAblauf)
+	std::atomic<bool> makeSongReq{false};
+	std::atomic<bool> noAblauf{false};
 	bool pendingGenre = false;
 	int adoptGenre = 0;      // samples left in which the genres are taken as they are (after load / cue)
 	int lastTarget[4] = {-1, -1, -1, -1};
@@ -384,7 +407,7 @@ struct Genra : Module {
 
 	// ---- clock & triggers
 	dsp::SchmittTrigger clockTrig, resetTrig, runTrig, newTrig, fillTrig;
-	dsp::BooleanTrigger newBtn, runBtn, chordNewBtn;
+	dsp::BooleanTrigger newBtn, runBtn, chordNewBtn, fillPadBtn, stopBtn, tapBtn, makeSongBtn;
 	dsp::BooleanTrigger tnewBtn[4];
 	dsp::SchmittTrigger tnewTrig[4], chordNewTrig;
 	float tnewFlash[4] = {0.f, 0.f, 0.f, 0.f};
@@ -495,7 +518,11 @@ struct Genra : Module {
 		configParam(MUTATE_PARAM, 0.f, 1.f, 0.f, "Mutation per loop", "%", 0.f, 100.f);
 		configSwitch(LENGTH_PARAM, 0.f, 3.f, 2.f, "Loop length", {"1 bar", "2 bars", "4 bars", "8 bars"});
 		configButton(NEW_PARAM, "Re-roll everything (NEW ALL)");
-		configButton(RUN_PARAM, "Start / Stop");
+		configButton(RUN_PARAM, "RUN (from the start of the loop)");
+		configButton(STOP_PARAM, "STOP");
+		configButton(FILLPAD_PARAM, "FILL (a fill over the next bar)");
+		configButton(TAP_PARAM, "TAP tempo (internal clock)");
+		configButton(MAKESONG_PARAM, "MAKE SONG (in ABLAUF, from the running loop)");
 		configSwitch(CHORDLOCK_PARAM, 0.f, 1.f, 0.f, "Harmony: lock chord progression", {"Off", "Locked"});
 		for (int t = 0; t < 4; t++) {
 			std::string tn = TRACK_NAMES[t];
@@ -515,7 +542,8 @@ struct Genra : Module {
 		static const char* ON[3] = {"Bass", "Melody", "Pads"};
 		for (int i = 0; i < 3; i++)
 			configSwitch(OCT_PARAM + i, -2.f, 2.f, 0.f, std::string(ON[i]) + " octave", {"-2", "-1", "0", "+1", "+2"});
-		for (int id : std::initializer_list<int>{RUN_PARAM, NEW_PARAM, CHORDLOCK_PARAM, CHORDNEW_PARAM})
+		for (int id : std::initializer_list<int>{RUN_PARAM, NEW_PARAM, CHORDLOCK_PARAM, CHORDNEW_PARAM, FILLPAD_PARAM, STOP_PARAM,
+		                                         TAP_PARAM, MAKESONG_PARAM})
 			paramQuantities[id]->randomizeEnabled = false;
 		for (int t = 0; t < 4; t++) {
 			paramQuantities[TNEW_PARAM + t]->randomizeEnabled = false;
@@ -867,12 +895,13 @@ struct Genra : Module {
 		}
 	}
 
-	// swing of one track: odd 16ths are delayed by the swing of the genre the track plays
+	// swing of one track (or drum voice): odd 16ths are delayed by the swing of the genre the track plays, or by the
+	// track's / voice's own swing set in the GRID
 	float swingDelay(const Params& P, int t) { return swingAt(P, t, step); }
-	float swingAt(const Params& P, int t, int st) {
+	float swingAt(const Params& P, int t, int st, int voice = -1) {
 		if (st % 2 == 0)
 			return 0.f;
-		return (effSwing(P, pat.trackGenre[t]) - 0.5f) * 2.f * stepPeriod;
+		return (swingOf(pat, P, t, voice) - 0.5f) * 2.f * stepPeriod;
 	}
 	// grid NUDGE in samples (1/24 step each)
 	float nudgeSamples(int n) const { return n * stepPeriod / 24.f; }
@@ -910,7 +939,7 @@ struct Genra : Module {
 			for (int v = 0; v < NUM_DRUMS; v++) {
 				if (!hn[v].on || hn[v].nudge >= 0)
 					continue;
-				float off = swingAt(Pn, T_DRUMS, next) + nudgeSamples(hn[v].nudge);
+				float off = swingAt(Pn, T_DRUMS, next, v) + nudgeSamples(hn[v].nudge);
 				if (off >= 0.f)
 					continue;
 				Hit h = hn[v];
@@ -973,7 +1002,18 @@ struct Genra : Module {
 		if (step % STEPS_PER_BAR == 0) {
 			// ABLAUF: fill / drop over the last bar of a song row, also when the row ends inside the loop
 			arrFillEnd = -1;
+			if (fillPadOn) { // the bar of the FILL pad is over: the pass's own decision again
+				fillPadOn = false;
+				fillActive = fillWas;
+			}
 			if (arrFill && arrRowEnd >= 0 && barIndex == arrRowEnd - 1) {
+				arrFillEnd = step + STEPS_PER_BAR;
+				fillActive = true;
+			}
+			else if (fillPadReq) { // FILL pad: this bar is a fill
+				fillPadReq = false;
+				fillPadOn = true;
+				fillWas = fillActive;
 				arrFillEnd = step + STEPS_PER_BAR;
 				fillActive = true;
 			}
@@ -1025,13 +1065,13 @@ struct Genra : Module {
 		drumStep(pat, P, step, arrFillEnd > 0 ? arrFillEnd : L, fillActive, qDrums);
 		if (!trackMuted(T_DRUMS)) {
 			float d = swingDelay(P, T_DRUMS);
-			// nudged hits (edited drums) play on their own: swing + nudge per voice
+			// nudged hits (edited drums) and voices with their own swing play on their own: swing + nudge per voice
 			for (int v = 0; v < NUM_DRUMS; v++) {
-				if (!qDrums[v].on || qDrums[v].nudge == 0)
+				if (!qDrums[v].on || (qDrums[v].nudge == 0 && !pat.vSwing[v]))
 					continue;
 				Hit h = qDrums[v];
 				qDrums[v].on = false;
-				float off = d + nudgeSamples(h.nudge);
+				float off = swingAt(P, T_DRUMS, step, v) + nudgeSamples(h.nudge);
 				if (off < 0.f) {
 					if (!earlyDrum[v])
 						queueDrum(v, h, sr);
@@ -1077,11 +1117,26 @@ struct Genra : Module {
 		modTarget = 5.f * (1.f - std::cos(3.14159265f * clamp(prog, 0.f, 1.f)));
 	}
 
+	/** RUN: from the first step of the loop, also while running (audio thread). */
+	void restart() {
+		step = -1;
+		phase = 0.f;
+		pulseCount = 0;
+		subTicksLeft = 0;
+		clearQueued();
+		resetArmed = true;
+		passCount = 0;
+		firstPass = true;
+		fillPadReq = fillPadOn = false;
+		running = true;
+	}
+
 	void onReset(const ResetEvent& e) override {
 		Module::onReset(e);
 		step = -1;
 		firstPass = true;
-		running = true;
+		running = false;
+		genreTempo = false;
 		chordMode = CM_MIXED;
 		templateSel = -1;
 		genreCvMode = 0;
@@ -1109,8 +1164,42 @@ struct Genra : Module {
 
 		if (newBtn.process(params[NEW_PARAM].getValue() > 0.5f) | newTrig.process(inputs[NEW_INPUT].getVoltage(), 0.1f, 1.f))
 			regenRequested = true;
-		if (runBtn.process(params[RUN_PARAM].getValue() > 0.5f) | runTrig.process(inputs[RUN_INPUT].getVoltage(), 0.1f, 1.f))
-			running = !running;
+		if (runBtn.process(params[RUN_PARAM].getValue() > 0.5f))
+			restart(); // the RUN pad: always from the start of the loop
+		if (runTrig.process(inputs[RUN_INPUT].getVoltage(), 0.1f, 1.f))
+			running = !running; // the RUN input still toggles
+		if (stopBtn.process(params[STOP_PARAM].getValue() > 0.5f)) {
+			running = false;
+			fillPadReq = fillPadOn = false;
+			stopFlash = 1.f;
+		}
+		if (fillPadBtn.process(params[FILLPAD_PARAM].getValue() > 0.5f) && running)
+			fillPadReq = true;
+		// TAP: the tempo from the last taps (internal clock only; a clock at CLOCK sets the tempo)
+		tapSince += 1.f;
+		if (tapBtn.process(params[TAP_PARAM].getValue() > 0.5f)) {
+			tapFlash = 1.f;
+			if (tapSince > args.sampleRate * 2.f)
+				tapN = 0; // a pause: a new count
+			else {
+				for (int i = 3; i > 0; i--)
+					tapIv[i] = tapIv[i - 1];
+				tapIv[0] = tapSince;
+				tapN = std::min(tapN + 1, 4);
+				float sum = 0.f;
+				for (int i = 0; i < tapN; i++)
+					sum += tapIv[i];
+				if (!inputs[CLOCK_INPUT].isConnected() && sum > 0.f)
+					params[BPM_PARAM].setValue(clamp(std::round(60.f * args.sampleRate * tapN / sum), 40.f, 220.f));
+			}
+			tapSince = 0.f;
+		}
+		if (makeSongBtn.process(params[MAKESONG_PARAM].getValue() > 0.5f)) {
+			if (arrAlive.load(std::memory_order_relaxed) > 0.f)
+				makeSongReq.store(true);
+			else
+				noAblauf.store(true);
+		}
 		if (resetTrig.process(inputs[RESET_INPUT].getVoltage(), 0.1f, 1.f)) {
 			step = -1;
 			phase = 0.f;
@@ -1130,17 +1219,8 @@ struct Genra : Module {
 		// ---- arranger ABLAUF
 		{
 			int rq = arrRunReq.load(std::memory_order_relaxed) ? arrRunReq.exchange(0) : 0;
-			if (rq == 1) { // the song starts from the top
-				step = -1;
-				phase = 0.f;
-				pulseCount = 0;
-				subTicksLeft = 0;
-				clearQueued();
-				resetArmed = true;
-				passCount = 0;
-				firstPass = true;
-				running = true;
-			}
+			if (rq == 1) // the song starts from the top
+				restart();
 			else if (rq == 2)
 				running = false;
 			if (cueState.load(std::memory_order_acquire) == 1)
@@ -1391,6 +1471,14 @@ struct Genra : Module {
 			newFlash = std::max(0.f, newFlash - dt * 4.f);
 			lights[NEW_LIGHT].setBrightness(newFlash);
 			lights[RUN_LIGHT].setBrightness(running ? 1.f : 0.f);
+			lights[FILLPAD_LIGHT].setBrightness(fillPadOn ? 1.f : (fillPadReq && blink < 0.5f ? 0.6f : 0.f));
+			stopFlash = std::max(0.f, stopFlash - dt * 4.f);
+			lights[STOP_LIGHT].setBrightness(stopFlash);
+			tapFlash = std::max(0.f, tapFlash - dt * 6.f);
+			// TAP blinks on the beat while running
+			float beat = running && step >= 0 && step % 4 == 0 ? std::max(0.f, 1.f - sinceTick / std::max(1.f, stepPeriod * 1.5f)) : 0.f;
+			lights[TAP_LIGHT].setBrightness(std::max(tapFlash, beat * 0.7f));
+			lights[MAKESONG_LIGHT].setBrightness(arrAlive.load(std::memory_order_relaxed) > 0.f ? 0.85f : 0.f);
 			lights[CHORDLOCK_LIGHT].setBrightness(chordLocked() ? 1.f : 0.f);
 			chordNewFlash = std::max(0.f, chordNewFlash - dt * 4.f);
 			lights[CHORDNEW_LIGHT].setBrightness(chordNewFlash);
@@ -1406,7 +1494,8 @@ struct Genra : Module {
 	// ------------------------------------------------------------ persistence
 	json_t* dataToJson() override {
 		json_t* root = json_object();
-		json_object_set_new(root, "running", json_boolean(running));
+		json_object_set_new(root, "running", json_boolean(running)); // informative only: GENRA loads stopped
+		json_object_set_new(root, "genreTempo", json_boolean(genreTempo));
 		json_object_set_new(root, "clockMode", json_integer(clockMode));
 		json_object_set_new(root, "chordMode", json_integer(chordMode));
 		json_object_set_new(root, "templateSel", json_integer(templateSel));
@@ -1445,8 +1534,10 @@ struct Genra : Module {
 
 	void dataFromJson(json_t* root) override {
 		json_t* j;
-		if ((j = json_object_get(root, "running")))
-			running = json_boolean_value(j);
+		running = false; // after loading GENRA waits for RUN (or an ABLAUF song)
+		genreTempo = false;
+		if ((j = json_object_get(root, "genreTempo")))
+			genreTempo = json_boolean_value(j);
 		if ((j = json_object_get(root, "clockMode")))
 			clockMode = clamp((int)json_integer_value(j), 0, 3);
 		if ((j = json_object_get(root, "chordMode")))

@@ -360,6 +360,16 @@ void setCycleLen(Pattern& pat, int track, int voice, int len) {
 		pat.tLen[track] = v;
 }
 
+void setSwing(Pattern& pat, int track, int voice, int pct) {
+	uint8_t v = pct <= 0 ? 0 : (uint8_t)clampi(pct, SWING_MIN, SWING_MAX);
+	if (track == T_DRUMS) {
+		if (voice >= 0 && voice < NUM_DRUMS)
+			pat.vSwing[voice] = v;
+	}
+	else if (track > T_DRUMS && track < NUM_TRACKS)
+		pat.tSwing[track] = v;
+}
+
 void setDrumChance(Pattern& pat, int voice, int step, int chance, int cond) {
 	if (voice < 0 || voice >= NUM_DRUMS || step < 0 || step >= MAX_STEPS)
 		return;
@@ -445,8 +455,11 @@ void copyTrack(const Pattern& from, Pattern& to, int track) {
 	to.chordFollow[track] = from.chordFollow[track];
 	to.trackGenre[track] = from.trackGenre[track];
 	to.tLen[track] = from.tLen[track];
-	if (track == T_DRUMS)
+	to.tSwing[track] = from.tSwing[track];
+	if (track == T_DRUMS) {
 		std::memcpy(to.vLen, from.vLen, sizeof(to.vLen));
+		std::memcpy(to.vSwing, from.vSwing, sizeof(to.vSwing));
+	}
 	switch (track) {
 		case T_DRUMS:
 			std::memcpy(to.drums, from.drums, sizeof(to.drums));

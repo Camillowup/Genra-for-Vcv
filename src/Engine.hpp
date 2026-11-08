@@ -179,6 +179,10 @@ struct Pattern {
 	// A track / voice reads step (loopStep % length) and restarts with the loop.
 	uint8_t tLen[NUM_TRACKS];
 	uint8_t vLen[NUM_DRUMS];
+	// own swing in percent (SWING_MIN..SWING_MAX; 0 = global: the genre's swing with the SWING knob), set in the GRID:
+	// per piano track (index T_BASS..T_PADS) and per drum voice
+	uint8_t tSwing[NUM_TRACKS];
+	uint8_t vSwing[NUM_DRUMS];
 	uint8_t chop[MAX_BARS][16]; // break-chop source step per bar
 	uint8_t chopR[MAX_BARS];
 	ChordSpec prog[MAX_PROG];
@@ -263,6 +267,11 @@ int cycleStep(const Pattern& pat, int track, int voice, int step);
 float effComplex(const Params& P, int genre);
 float effColor(const Params& P, int genre);
 float effSwing(const Params& P, int genre);
+static const int SWING_MIN = 50, SWING_MAX = 75; // own swing range in percent
+// own swing of a track (voice < 0) or drum voice in percent, 0 = global
+int ownSwing(const Pattern& pat, int track, int voice);
+// the swing a track / drum voice plays with: 0.5 straight .. 0.75
+float swingOf(const Pattern& pat, const Params& P, int track, int voice);
 
 struct Hit {
 	bool on = false;
@@ -323,6 +332,8 @@ void setDrumChance(Pattern& pat, int voice, int step, int chance, int cond);
 void setDrumNudge(Pattern& pat, int voice, int step, int nudge);
 // own cycle length (0 = follow the loop); voice >= 0: drum voice, otherwise piano track
 void setCycleLen(Pattern& pat, int track, int voice, int len);
+// own swing in percent (0 = global); voice >= 0: drum voice, otherwise piano track
+void setSwing(Pattern& pat, int track, int voice, int pct);
 void setChordFollow(Pattern& pat, const Params& P, int track, bool on, int L);
 // snap: 0 off, 1 scale, 2 chord tones
 int snapPitch(const Pattern& pat, const Params& P, int step, int pitch, int mode);

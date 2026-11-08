@@ -19,9 +19,12 @@ static void renderRange(const Pattern& pat, const Params& P0, int L, int nSteps,
 	L = clampi(L, 1, MAX_STEPS);
 	Params P = P0;
 	// every track swings like the genre it plays
-	int swingTicks[NUM_TRACKS];
+	// (or with the own swing set in the GRID, per track and drum voice)
+	int swingTicks[NUM_TRACKS], voiceSwing[NUM_DRUMS];
 	for (int t = 0; t < NUM_TRACKS; t++)
-		swingTicks[t] = (int)std::lround((effSwing(P, pat.trackGenre[t]) - 0.5f) * 2.f * TPS);
+		swingTicks[t] = (int)std::lround((swingOf(pat, P, t, -1) - 0.5f) * 2.f * TPS);
+	for (int v = 0; v < NUM_DRUMS; v++)
+		voiceSwing[v] = (int)std::lround((swingOf(pat, P, T_DRUMS, v) - 0.5f) * 2.f * TPS);
 	int prev[4] = {0, 0, 0, 0};
 	bool hasPrev = false;
 	const int endTick = tick0 + nSteps * TPS;
@@ -51,7 +54,6 @@ static void renderRange(const Pattern& pat, const Params& P0, int L, int nSteps,
 		int t0s[NUM_TRACKS];
 		for (int t = 0; t < NUM_TRACKS; t++)
 			t0s[t] = base + ((s % 2 == 1) ? swingTicks[t] : 0);
-		int t0 = t0s[T_DRUMS];
 		Hit hits[NUM_DRUMS];
 		if (fill) { // like GENRA: the fill runs up to the end of the bar it started in
 			int barStart = s - (s % STEPS_PER_BAR);
@@ -64,7 +66,8 @@ static void renderRange(const Pattern& pat, const Params& P0, int L, int nSteps,
 				continue;
 			int n = std::max(1, hits[v].ratchet);
 			for (int i = 0; i < n; i++)
-				add(0, tick0 / TPS + g, t0 + nt(hits[v].nudge) + i * TPS / n, TPS / n / 2, GM_DRUM[v], hits[v].vel);
+				add(0, tick0 / TPS + g, base + (s % 2 == 1 ? voiceSwing[v] : 0) + nt(hits[v].nudge) + i * TPS / n, TPS / n / 2,
+				    GM_DRUM[v], hits[v].vel);
 		}
 		NoteEv b = bassAt(pat, P, s, L);
 		if (b.on)

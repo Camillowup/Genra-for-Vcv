@@ -77,6 +77,17 @@ float effColor(const Params& P, int g) {
 float effSwing(const Params& P, int g) {
 	return clampf(prof(g).swing + P.swingK * 0.25f, 0.5f, 0.75f);
 }
+int ownSwing(const Pattern& pat, int track, int voice) {
+	if (track == T_DRUMS)
+		return voice >= 0 && voice < NUM_DRUMS ? pat.vSwing[voice] : 0;
+	return track > T_DRUMS && track < NUM_TRACKS ? pat.tSwing[track] : 0;
+}
+float swingOf(const Pattern& pat, const Params& P, int track, int voice) {
+	int own = ownSwing(pat, track, voice);
+	if (own >= SWING_MIN && own <= SWING_MAX)
+		return own / 100.f;
+	return effSwing(P, pat.trackGenre[clampi(track, 0, NUM_TRACKS - 1)]);
+}
 
 static float syncF(int s, float cx) {
 	if (s % 2 == 1)

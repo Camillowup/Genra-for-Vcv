@@ -23,6 +23,7 @@ enum StoreTag : uint8_t {
 	ST_MEL = 7,
 	ST_PADS = 8,
 	ST_LENGTHS = 9, // 2.23: own cycle lengths per track and drum voice
+	ST_SWING = 10,  // 2.25: own swing per track and drum voice
 };
 
 // ---------------------------------------------------------------- writer
@@ -173,6 +174,15 @@ std::vector<uint8_t> savePattern(const Pattern& pat) {
 	w.u8(NUM_DRUMS);
 	for (int v = 0; v < NUM_DRUMS; v++)
 		w.u8(pat.vLen[v]);
+	w.end();
+
+	w.begin(ST_SWING);
+	w.u8(NUM_TRACKS);
+	for (int t = 0; t < NUM_TRACKS; t++)
+		w.u8(pat.tSwing[t]);
+	w.u8(NUM_DRUMS);
+	for (int v = 0; v < NUM_DRUMS; v++)
+		w.u8(pat.vSwing[v]);
 	w.end();
 	return w.d;
 }
@@ -366,6 +376,22 @@ bool loadPattern(const std::vector<uint8_t>& data, Pattern& out) {
 					uint8_t l = q.u8();
 					if (v < NUM_DRUMS)
 						pat.vLen[v] = std::min<uint8_t>(l, MAX_STEPS);
+				}
+				break;
+			}
+			case ST_SWING: {
+				auto ok = [](uint8_t s) { return s >= SWING_MIN && s <= SWING_MAX ? s : (uint8_t)0; };
+				int nt = q.u8();
+				for (int t = 0; t < nt; t++) {
+					uint8_t s = q.u8();
+					if (t < NUM_TRACKS && t != T_DRUMS)
+						pat.tSwing[t] = ok(s);
+				}
+				int nv = q.u8();
+				for (int v = 0; v < nv; v++) {
+					uint8_t s = q.u8();
+					if (v < NUM_DRUMS)
+						pat.vSwing[v] = ok(s);
 				}
 				break;
 			}

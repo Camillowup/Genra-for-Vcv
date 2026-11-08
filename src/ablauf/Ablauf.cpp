@@ -953,6 +953,31 @@ struct Ablauf : Module {
 		msgTime = 4.f;
 	}
 
+	/** GENRA's MAKE SONG pad: the running loop becomes a song. A loop that is a pad unchanged is taken from there;
+	 * otherwise it is stored on the next free pad first (as "GENRA n"), then MAKE SONG runs. */
+	bool songAfterStore = false;
+	void makeSongFromGenra(Genra* g) {
+		if (!g)
+			return;
+		if (pendingStore >= 0 || pendingPart >= 0)
+			return; // a snapshot is on its way
+		int pl = g->arrSlotPub.load();
+		if (pl >= 0 && pl < NUM_SLOTS && slots[pl].used && g->patChanges.load() == g->patChangesAtCue.load()) {
+			selSlot = pl;
+			makeSong(g);
+			return;
+		}
+		int t = freeSlot();
+		if (t < 0) {
+			say("Pads full – clear a pad for MAKE SONG");
+			return;
+		}
+		selSlot = t;
+		pendingStore = t;
+		songAfterStore = true;
+		requestSnap(g);
+	}
+
 	// ---- MIDI files (UI thread)
 	float bpmFor(Genra* g) { return g ? clamp(g->currentBpm(), 20.f, 400.f) : 120.f; }
 	/** Into the MIDI export folder, no dialog (a save dialog can stall the audio driver). */
@@ -1295,6 +1320,11 @@ struct Ablauf : Module {
 				selSlot = i;
 				say(slotName(i) + " stored");
 				session.clear();
+				if (songAfterStore) {
+					// GENRA plays this pad now: a second MAKE SONG takes it from here instead of storing it again
+					g->arrSlotPub.store(i);
+					g->patChangesAtCue.store(g->patChanges.load());
+				}
 			}
 			if (pendingPart >= 0) {
 				std::string src;
@@ -1312,7 +1342,13 @@ struct Ablauf : Module {
 			}
 			pendingStore = pendingPart = -1;
 			g->snapState.store(0);
+			if (songAfterStore) {
+				songAfterStore = false;
+				makeSong(g);
+			}
 		}
+		if (g && g->makeSongReq.exchange(false))
+			makeSongFromGenra(g);
 		if (pendingPadCue >= 0 && (songMode() || song.playing))
 			pendingPadCue = -1;
 		if (g && pendingPadCue >= 0)

@@ -1,6 +1,6 @@
 # GENRA – Projektstand
 
-**Stand:** 8. November 2026 · **Plugin 2.24.0: 19 Module** (GENRA, GRID, ABLAUF, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, GRUND, GRUND FX, SCHMELZ, MIX, GENRA FX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `Camillowup/Genra-for-Vcv` (vorher `CamilloGF/genra-v3`, Account nicht mehr erreichbar)
+**Stand:** 8. November 2026 · **Plugin 2.25.0: 19 Module** (GENRA, GRID, ABLAUF, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, GRUND, GRUND FX, SCHMELZ, MIX, GENRA FX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `Camillowup/Genra-for-Vcv` (vorher `CamilloGF/genra-v3`, Account nicht mehr erreichbar)
 
 > Design-Leitfaden für neue Module (Aussehen, GENRA-Leiste, Leuchtsegmente, Follow, englische UI): **docs/DESIGN.md**
 
@@ -376,6 +376,16 @@ GENRA MONO: `g++ -std=c++17 -O2 test/test_mono.cpp -o tm && ./tm`
 - Pads per Drag & Drop in die Song-Liste: zwischen Zeilen einfügen (Linie), auf eine Zeile ersetzen (Rahmen), Undo. Ein belegtes Pad löst sein Antippen jetzt beim Loslassen aus (sonst wäre jeder Drag ein Antippen); leere Pads speichern weiter beim Drücken.
 - Song-Liste unten: Takte und Spieldauer aus GENRAs Tempo (`Genra::currentBpm`, auch für GENRAs MIDI-Export), z. B. „BAR 37 / 92 · 1:12 / 2:59“.
 - `test_ablauf`: jede Genre-Variante hat eine Form, Formlängen, `renderSong` (eine Zeile = Loop, Marker, stumme Drums, Notenbereich, Marker in der Datei).
+
+### 2.25.0 – GENRA: Transport-Pads, Swing pro Spur/Stimme
+- **Transport:** sechs große Pads FILL · NEW ALL · RUN · STOP · TAP · MAKE SONG (`BigPad` in `Genra.cpp`: Panel zeigt das unbeleuchtete Pad mit Symbol, das Modul füllt es beim Leuchten). Neue Params/Lichter angehängt: `FILLPAD/STOP/TAP/MAKESONG` (NEW und RUN behalten ihre Ids). HARMONY kompakter.
+  - RUN-Pad startet immer vom ersten Schritt (`restart()`, auch beim Laufen); der RUN-Eingang schaltet weiter um. STOP hält an.
+  - GENRA ist nach Laden/Einsetzen gestoppt (`running` aus dem Patch wird ignoriert; ein ABLAUF-Song startet es wie bisher).
+  - FILL: Fill über den nächsten Takt (`fillPadReq` → am Taktstrich `arrFillEnd = step + 16`, danach gilt wieder die Entscheidung des Durchlaufs, `fillWas`).
+  - TAP: Mittel der letzten bis zu 4 Abstände, Pause > 2 s beginnt neu; setzt BPM nur ohne Kabel an CLOCK. Leuchtet im Takt.
+  - MAKE SONG: leuchtet, wenn ein ABLAUF angedockt ist (`arrAlive`). ABLAUF liest `makeSongReq`: ist der Loop ein unverändertes Pad, MAKE SONG von dort; sonst erst auf das nächste freie Pad speichern („GENRA n“), dann MAKE SONG (`songAfterStore`). Ohne ABLAUF: Meldung im Display.
+- **Genre sets tempo:** Rechtsklick, Standard aus, JSON `genreTempo`. Wechselt das globale Genre (bzw. die Variante), setzt der Widget-`step()` BPM auf das typische Tempo des Profils (nicht mit Kabel an CLOCK).
+- **Swing pro Spur / Drum-Stimme:** `Pattern::tSwing[NUM_TRACKS]`, `vSwing[NUM_DRUMS]` in Prozent 50–75, 0 = global (Genre + SWING-Regler). `swingOf()`/`ownSwing()`/`setSwing()`, Record `ST_SWING = 10`, `copyTrack` nimmt sie mit, `generateTrack` lässt sie stehen. GENRA: Drum-Stimmen mit eigenem Swing laufen wie genudgte Treffer einzeln (`queueDrum`). MIDI-Export: Swing pro Stimme. Grid: Badges rechts vom Raster (Raster 9,5 mm schmaler), hoch/runter ziehen, Doppelklick = global; „SW -“ zeigt beim Überfahren den aktuellen Wert. Test: `test_cycle` Teil 7.
 
 ### 2.24.0 – 22 neue Genres
 - Hinten angehängt (Genre 37–58, Profile 83–126), je 2 Varianten: Progressive House, Organic House, UK Funky, Bassline, Gqom · Big Beat, Breaks, Jersey Club, Baltimore Club, Phonk · Hardcore (Gabber/Happy), Psytrance, EBM · Dancehall, Roots Reggae, Moombahton, Cumbia, Bossa Nova · Drone, Dark Ambient, Ambient Techno, Berlin School. Nur mit vorhandenen Engine-Mitteln (Raster, Stile, Drops, Chops).

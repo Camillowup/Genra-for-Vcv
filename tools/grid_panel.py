@@ -120,7 +120,7 @@ text(dx + dw - 3.5, dy + 5.2, "BEARBEITET  ·  SNAP SCALE  ·  " + ("" if CUR ==
 
 # grid geometry
 gx0 = dx + 15          # left: row labels
-gx1 = dx + dw - 3
+gx1 = dx + dw - 12.5   # right: swing badges (drawn by the module)
 gy0 = dy + 13.0        # below chord ruler
 vel_h = 10.0
 gy1 = dy + dh - vel_h - 4.0

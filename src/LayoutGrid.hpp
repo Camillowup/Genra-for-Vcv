@@ -26,7 +26,7 @@ static const float CLEAR[2] = {221.357f, 111.000f};
 static const float GEN[2] = {231.214f, 111.000f};
 static const float REC[2] = {241.071f, 111.000f};
 static const float DISPLAY[4] = {6.000f, 12.500f, 242.000f, 82.000f};
-static const float GRID[4] = {15.000f, 13.000f, 239.000f, 68.000f}; // grid area inside the display
+static const float GRID[4] = {15.000f, 13.000f, 229.500f, 68.000f}; // grid area inside the display
 static const float VELLANE[2] = {72.000f, 82.000f};
 static const int HP = 50;
 }

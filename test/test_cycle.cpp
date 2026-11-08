@@ -16,7 +16,7 @@ static std::vector<uint8_t> asOld(const std::vector<uint8_t>& d) {
     uint32_t len = d[p+1] | (d[p+2] << 8) | (d[p+3] << 16) | ((uint32_t)d[p+4] << 24);
     std::vector<uint8_t> body(d.begin() + p + 5, d.begin() + p + 5 + len);
     p += 5 + len;
-    if (tag == 9) continue; // ST_LENGTHS: new in 2.23
+    if (tag == 9 || tag == 10) continue; // ST_LENGTHS: new in 2.23, ST_SWING: 2.25
     size_t head = 0, cnt = 0; int have = 0;
     if (tag == 5) { head = 4; cnt = (size_t)body[0] * (body[1] | (body[2] << 8)); have = body[3]; } // drums
     if (tag == 6 || tag == 7 || tag == 8) { head = 3; cnt = body[0] | (body[1] << 8); have = body[2]; } // bass, mel, pads
@@ -162,6 +162,33 @@ int main() {
   // ---- 6. GM drum mapping for MIDI record
   CHECK(gmDrumVoice(36) == KICK && gmDrumVoice(38) == SNARE && gmDrumVoice(42) == CHAT && gmDrumVoice(46) == OHAT, "gm map");
   CHECK(gmDrumVoice(24) == KICK && gmDrumVoice(25) == SNARE && gmDrumVoice(100) == CHAT && gmDrumVoice(95) == PERC, "C fallback");
+  // ---- 7. own swing per drum voice / piano track (2.25): storage, old data, MIDI timing
+  {
+    Rng rng(7);
+    Pattern pat; initPattern(pat);
+    generateTrack(pat, T_DRUMS, 0, rng, P);
+    for (int s = 0; s < L; s++) setDrum(pat, CHAT, s, 100, 1); // a hat on every step
+    setDrum(pat, KICK, 1, 100, 1);
+    setSwing(pat, T_DRUMS, CHAT, 62);
+    setSwing(pat, T_BASS, -1, 99);  // clamped to 75
+    setSwing(pat, T_MELODY, -1, 20); // below the range: clamped to 50 (own, straight)
+    CHECK(ownSwing(pat, T_DRUMS, CHAT) == 62 && ownSwing(pat, T_DRUMS, KICK) == 0, "own swing set");
+    CHECK(ownSwing(pat, T_BASS, -1) == 75 && ownSwing(pat, T_MELODY, -1) == 50, "own swing clamp");
+    Pattern q;
+    CHECK(loadPattern(savePattern(pat), q) && std::memcmp(&q, &pat, sizeof(Pattern)) == 0, "swing round trip");
+    CHECK(loadPattern(asOld(savePattern(pat)), q) && ownSwing(q, T_DRUMS, CHAT) == 0, "old data: global swing");
+    Pattern c; initPattern(c);
+    copyTrack(pat, c, T_DRUMS);
+    CHECK(ownSwing(c, T_DRUMS, CHAT) == 62, "copyTrack takes the swing");
+    // MIDI: P is straight; the hat on odd steps is late by (0.62-0.5)*2*24 = 5.76 -> 6 ticks, the kick stays on time
+    std::vector<MidiNote> ns = renderLoop(pat, P, L);
+    bool hatOk = false, kickOk = false;
+    for (const MidiNote& n : ns) {
+      if (n.track == 0 && n.note == 42 && n.start == 3) hatOk = n.startTick == 3 * 24 + 6;
+      if (n.track == 0 && n.note == 36 && n.start == 1) kickOk = n.startTick == 24;
+    }
+    CHECK(hatOk && kickOk, "midi swing per voice hat=%d kick=%d", hatOk, kickOk);
+  }
   printf("cycle fails=%d\n", fails);
   return fails;
 }

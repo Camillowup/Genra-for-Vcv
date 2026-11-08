@@ -147,16 +147,47 @@ for i, lab in enumerate(glob):
     knob(lab, 36 + i * 15.2, gy, R_SMALL, label=lab, ly=gy + 7.3)
 sep = 36 + 8 * 15.2 + 10.5
 e(f'<line x1="{sep:.2f}" y1="35" x2="{sep:.2f}" y2="47" stroke="{LINE}" stroke-width="0.3"/>')
-button("NEW", sep + 9, gy - 1, "#ffffff", "NEW", label2="ALL")
-button("RUN", sep + 22, gy - 1, "#5dff8a", "RUN", True)
-# chord group
-cg0 = sep + 31
+# transport: three large pads (the module draws the lit state); icons on the panel
+def bigpad(name, x, y, icon, label, col, lit=False):
+    components.append(("bigpad", name, x, y))
+    s_ = 9.4
+    lit = lit and not REAL  # the module draws the lit state (real panel: all pads unlit)
+    e(f'<rect x="{x - s_/2:.2f}" y="{y - s_/2:.2f}" width="{s_}" height="{s_}" rx="1.6" fill="{col if lit else "#2c2e36"}" stroke="#0d0e11" stroke-width="0.4"/>')
+    ic = "#0d0e11" if lit else col
+    if icon == "play":
+        e(f'<path d="M{x-1.6:.2f},{y-2.2:.2f} L{x+2.2:.2f},{y:.2f} L{x-1.6:.2f},{y+2.2:.2f} Z" fill="{ic}"/>')
+    elif icon == "fill":
+        for k2 in range(4):
+            e(f'<rect x="{x-2.6+k2*1.4:.2f}" y="{y+1.6-k2*1.1:.2f}" width="0.9" height="{0.9+k2*1.1:.2f}" rx="0.2" fill="{ic}"/>')
+    elif icon == "tap":
+        e(f'<circle cx="{x:.2f}" cy="{y:.2f}" r="2.3" fill="none" stroke="{ic}" stroke-width="0.5"/>')
+        e(f'<circle cx="{x:.2f}" cy="{y:.2f}" r="0.9" fill="{ic}"/>')
+    elif icon == "song":
+        for k2, ww in enumerate((4.6, 3.2, 4.0)):
+            e(f'<rect x="{x-2.4:.2f}" y="{y-1.9+k2*1.6:.2f}" width="{ww:.2f}" height="0.9" rx="0.3" fill="{ic}"/>')
+    elif icon == "stop":
+        e(f'<rect x="{x-1.9:.2f}" y="{y-1.9:.2f}" width="3.8" height="3.8" rx="0.4" fill="{ic}"/>')
+    else:  # dice
+        e(f'<rect x="{x-2.4:.2f}" y="{y-2.4:.2f}" width="4.8" height="4.8" rx="0.9" fill="none" stroke="{ic}" stroke-width="0.5"/>')
+        for ddx, ddy in ((-1.1, -1.1), (1.1, 1.1), (0, 0), (1.1, -1.1), (-1.1, 1.1)):
+            e(f'<circle cx="{x+ddx:.2f}" cy="{y+ddy:.2f}" r="0.42" fill="{ic}"/>')
+    text(x, y + s_/2 + 2.6, label, 1.7, TXT if lit else DIM, 700)
+tx0 = sep + 1.5
+HW = 40.0                                  # harmony group width (compact)
+TW = (W - 6 - 1.5 - HW - 2.0) - tx0        # transport takes the rest
+e(f'<rect x="{tx0:.2f}" y="34.2" width="{TW:.2f}" height="13.8" rx="1.3" fill="#ffffff" fill-opacity="0.04"/>')
+for k_, (n_, ic_, lb_, c_, l_) in enumerate([("FILLPAD", "fill", "FILL", "#ffd84a", False), ("NEW", "dice", "NEW ALL", "#ffffff", False),
+                                             ("RUN", "play", "RUN", "#5dff8a", True), ("STOP", "stop", "STOP", "#ff5f5f", False),
+                                             ("TAP", "tap", "TAP", "#8fd3ff", False), ("MAKESONG", "song", "MAKE SONG", "#ffd84a", False)]):
+    bigpad(n_, tx0 + TW / 2 + (k_ - 2.5) * 11.3, gy - 1.2, ic_, lb_, c_, l_)
+# chord group (compact)
+cg0 = tx0 + TW + 2.0
 cgw = W - 6 - cg0 - 1.5
 e(f'<rect x="{cg0:.2f}" y="34.2" width="{cgw:.2f}" height="13.8" rx="1.3" fill="{CHORDCOL}" fill-opacity="0.13"/>')
 text(cg0 + cgw / 2, 36.9, "HARMONY", 1.7, CHORDCOL, 800, "middle", 0.5)
-button("CHORDNEW", cg0 + cgw * 0.2, gy, CHORDCOL, "NEW")
-button("CHORDLOCK", cg0 + cgw * 0.5, gy, CHORDCOL, "LOCK")
-jack("IN_CHORDNEW", cg0 + cgw * 0.8, gy, "TRIG")
+button("CHORDNEW", cg0 + cgw / 2 - 11, gy, CHORDCOL, "NEW")
+button("CHORDLOCK", cg0 + cgw / 2, gy, CHORDCOL, "LOCK")
+jack("IN_CHORDNEW", cg0 + cgw / 2 + 11, gy, "TRIG")
 
 # ---------------------------------------------------------------- inputs (3 x 5)
 TOP = 51.5
@@ -298,6 +329,8 @@ if PREVIEW:
             img("VCVBezel", x, y)
             col = lit.get(name)
             out.insert(-1, f'<circle cx="{x}" cy="{y}" r="2.6" fill="{col or "#2a2b30"}" fill-opacity="{0.95 if col else 0.6}"/>')
+        elif kind == "bigpad":
+            pass
         elif kind == "field":
             w, h = c[4], c[5]
             t = int(name.split("_")[1])

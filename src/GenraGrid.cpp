@@ -193,7 +193,7 @@ struct GridDisplay : Widget {
 	int lastTrack = -1;
 
 	// ---- editing
-	enum Drag { D_NONE, D_MOVE, D_RESIZE, D_PAINT, D_ERASE, D_LANE, D_BOX, D_MOVESEL, D_LEN };
+	enum Drag { D_NONE, D_MOVE, D_RESIZE, D_PAINT, D_ERASE, D_LANE, D_BOX, D_MOVESEL, D_LEN, D_SWING };
 	int drag = D_NONE;
 	Pattern work;          // pattern being edited (copy)
 	Pattern before;        // state before the current gesture (undo)
@@ -232,6 +232,10 @@ struct GridDisplay : Widget {
 	std::vector<DHit> selClipHits;
 	int selClipTrack = -1;
 	int lenVoice = -1; // end marker being dragged: drum voice, -1 the piano track
+	int swingVoice = -1;  // swing badge being dragged: drum voice, -1 the piano track
+	int swingStart = 50;  // its value when the drag started (percent)
+	float swingAnchorY = 0.f;
+	int hoverSwing = -2;  // swing badge under the mouse (-2 none)
 
 	// ---- MIDI record session (one undo step per session)
 	bool recSession = false, recChanged = false;
@@ -490,6 +494,21 @@ struct GridDisplay : Widget {
 			return -2;
 		return v;
 	}
+	// ---------------------------------------------------------------- own swing (badges right of the grid)
+	// per drum voice (one badge per row) or per piano track (one badge at the top); "SW -" = global swing
+	float swingBadgeY(int v) { return v >= 0 ? gy0() + (v + 0.5f) * rh() : gy0() + 2.5f; }
+	// the swing badge under the mouse: drum voice (0..7), -1 the piano track, -2 none
+	int swingBadgeAt(Vec m) {
+		if (!module)
+			return -2;
+		float bx = gx1() + 0.8f;
+		if (m.x < bx - 0.3f || m.x > bx + 8.5f)
+			return -2;
+		if (module->track == T_DRUMS)
+			return m.y >= gy0() && m.y < gy1() ? clamp(rowAt(m.y), 0, NUM_DRUMS - 1) : -2;
+		return std::fabs(m.y - swingBadgeY(-1)) <= 1.8f ? -1 : -2;
+	}
+
 	std::string lenSummary(const Pattern& p, int t) {
 		if (t == T_DRUMS) {
 			std::string r;
@@ -704,9 +723,13 @@ struct GridDisplay : Widget {
 		Vec m = mm(e.pos);
 		hoverStep = inGrid(m) || inLane(m) ? stepAt(m.x) : -1;
 		hoverRow = inGrid(m) ? rowAt(m.y) : -1;
+		hoverSwing = swingBadgeAt(m);
 		e.consume(this);
 	}
-	void onLeave(const LeaveEvent& e) override { hoverStep = hoverRow = -1; }
+	void onLeave(const LeaveEvent& e) override {
+		hoverStep = hoverRow = -1;
+		hoverSwing = -2;
+	}
 
 	void onButton(const ButtonEvent& e) override {
 		if (!module || !g || e.action != GLFW_PRESS)
@@ -741,6 +764,20 @@ struct GridDisplay : Widget {
 			drag = D_LANE;
 			laneAt(m);
 			return;
+		}
+		// swing badge: drag up / down sets the own swing of the voice / track
+		{
+			int sb = mods == 0 ? swingBadgeAt(m) : -2;
+			if (sb != -2) {
+				if (!beginRaw())
+					return;
+				swingVoice = sb;
+				swingAnchorY = m.y;
+				int own = ownSwing(work, t, sb);
+				swingStart = own ? own : (int)std::lround(swingOf(work, P, t, sb) * 100.f);
+				drag = D_SWING;
+				return;
+			}
 		}
 		if (!inGrid(m))
 			return;
@@ -904,6 +941,15 @@ struct GridDisplay : Widget {
 			laneAt(m);
 			return;
 		}
+		if (drag == D_SWING) {
+			// up: more swing; 1 % per 0.6 mm
+			int want = clamp((int)std::lround(swingStart - (m.y - swingAnchorY) / 0.6f), SWING_MIN, SWING_MAX);
+			if (ownSwing(work, t, swingVoice) != want) {
+				setSwing(work, t, swingVoice, want);
+				touched();
+			}
+			return;
+		}
 		if (drag == D_LEN) {
 			// the marker snaps to step lines; at the loop end the track / voice follows the loop again
 			int c = clamp((int)std::lround((m.x - gx0()) / sw()) + vs, 1, L);
@@ -1017,6 +1063,20 @@ struct GridDisplay : Widget {
 		if (!module || !g)
 			return;
 		Vec m = mm(pressPos);
+		// double-click on a swing badge: the voice / track takes the global swing again
+		int sb = swingBadgeAt(m);
+		if (sb != -2) {
+			if (beginRaw()) {
+				if (ownSwing(work, module->track, sb) != 0) {
+					setSwing(work, module->track, sb, 0);
+					touched();
+				}
+				commit();
+			}
+			drag = D_NONE;
+			e.consume(this);
+			return;
+		}
 		if (!inGrid(m))
 			return;
 		// double-click on an end marker: the track / voice follows the loop again
@@ -2215,6 +2275,25 @@ struct GridDisplay : Widget {
 			}
 			else
 				marker(-1, y0, y1);
+		}
+		// ---- own swing badges: "SW -" follows the global swing (shown as a value while hovered / dragged)
+		{
+			auto badge = [&](int v) {
+				int own = ownSwing(pat, t, v);
+				bool hot = (drag == D_SWING && swingVoice == v) || hoverSwing == v;
+				float bx = x1 + 0.8f, by = swingBadgeY(v) - 1.5f;
+				std::string lab = own ? string::f("SW %d%%", own)
+				                      : (hot ? string::f("SW %d%%", (int)std::lround(swingOf(pat, P, t, v) * 100.f)) : std::string("SW -"));
+				NVGcolor bg = own ? LEN_COL : (hot ? nvgRGB(0x2a, 0x2b, 0x33) : nvgRGB(0x1a, 0x1b, 0x21));
+				rect(bx, by, 8.2f, 3.f, bg, 0.6f);
+				txt(bold, bx + 4.1f, by + 2.1f, 1.35f, own ? nvgRGB(0x0d, 0x0e, 0x11) : nvgRGB(0x6a, 0x6d, 0x78), lab,
+				    NVG_ALIGN_CENTER | NVG_ALIGN_BASELINE, 0.1f);
+			};
+			if (t == T_DRUMS)
+				for (int v = 0; v < NUM_DRUMS; v++)
+					badge(v);
+			else
+				badge(-1);
 		}
 		// ---- rubber band
 		if (drag == D_BOX) {
