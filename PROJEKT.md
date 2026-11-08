@@ -1,6 +1,6 @@
 # GENRA – Projektstand
 
-**Stand:** 8. November 2026 · **Plugin 2.22.0: 19 Module** (GENRA, GRID, ABLAUF, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, GRUND, GRUND FX, SCHMELZ, MIX, GENRA FX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `Camillowup/Genra-for-Vcv` (vorher `CamilloGF/genra-v3`, Account nicht mehr erreichbar)
+**Stand:** 8. November 2026 · **Plugin 2.23.0: 19 Module** (GENRA, GRID, ABLAUF, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, GRUND, GRUND FX, SCHMELZ, MIX, GENRA FX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `Camillowup/Genra-for-Vcv` (vorher `CamilloGF/genra-v3`, Account nicht mehr erreichbar)
 
 > Design-Leitfaden für neue Module (Aussehen, GENRA-Leiste, Leuchtsegmente, Follow, englische UI): **docs/DESIGN.md**
 
@@ -126,13 +126,14 @@ DJ-Effektpad nach Polyend Play (Perform) und Akai Flex Beat: 16 Pads in 4 Bänke
 **Als Nächstes**
 - [x] 13 neue Genres (Stufe 1, mit vorhandenen Engine-Mitteln), hinten angehängt (Genre 24–36, Profile 46–82), Familien Afro / Techno Styles / Latin & Club; GENRE-CV 0–10 V verteilt jetzt alle 37 Genres: Afrobeat, Afrobeats, Amapiano, Afro House · Dub Techno, Melodic Techno, Hard/Industrial Techno, Tech House, Detroit Techno · Baile Funk, Reggaeton, Footwork, Breakcore
 - [ ] Genre-Stufe 2 (Engine): Pad-Echo (Dub Techno), Melodie-Stil CHOP, Kick-Fill, Log-Drum-Bass, Bass folgt Tom-Spur, Gabber-Kick-Layer
-- [ ] Später: Länge pro Spur (Polymeter), Seed merken, Mikro-Timing
+- [x] Länge pro Spur/Drum-Stimme (Polymeter) und Mikro-Timing (Nudge): 2.23.0
+- [ ] Später: Seed merken
 - **2.11.0:** Szenen entfernt (8 Taster, STORE, SCENE CV, NEXT), Panel 58 HP. Parameter/Lichter waren am Listenende und sind ganz weg; die beiden Eingänge bleiben als `UNUSED_SCENE_INPUT`/`UNUSED_NEXT_INPUT` in der Liste, damit SWING, BPM und LENGTH ihre Ids behalten. Gespeicherte Szenen im Patch werden ignoriert. Nachfolger: eigenes Song-Modul (Arbeitsname ABLAUF, Konzept offen).
 - [ ] Ganz am Schluss: alle Genres nach Gehör feinschleifen
 
 **Offen**
 - [ ] Test in Rack (v3.1: neue Ausgänge, Szenen-Farben, CHANCE, Mehrfachauswahl) (Genre-Feld-Menü, CV-Eingänge, v2-Patch laden)
-- [ ] Länge pro Spur (Polymeter) – zurückgestellt: tonale Spuren müssten Akkorde über den echten Step statt den umgebrochenen lesen
+- [ ] Test in Rack (2.23: Endmarken, Nudge-Wiedergabe mit Swing, Spurwerkzeuge, REC MIDI mit echtem Keyboard, Save to pad)
 - [ ] Genres überarbeiten (eigene spätere Version), Genres aus MIDI lernen
 
 **Tests (ohne Rack):**
@@ -375,6 +376,14 @@ GENRA MONO: `g++ -std=c++17 -O2 test/test_mono.cpp -o tm && ./tm`
 - Pads per Drag & Drop in die Song-Liste: zwischen Zeilen einfügen (Linie), auf eine Zeile ersetzen (Rahmen), Undo. Ein belegtes Pad löst sein Antippen jetzt beim Loslassen aus (sonst wäre jeder Drag ein Antippen); leere Pads speichern weiter beim Drücken.
 - Song-Liste unten: Takte und Spieldauer aus GENRAs Tempo (`Genra::currentBpm`, auch für GENRAs MIDI-Export), z. B. „BAR 37 / 92 · 1:12 / 2:59“.
 - `test_ablauf`: jede Genre-Variante hat eine Form, Formlängen, `renderSong` (eine Zeile = Loop, Marker, stumme Drums, Notenbereich, Marker in der Datei).
+
+### 2.23.0 – Grid: Längen pro Spur/Stimme, Nudge, Spurwerkzeuge, Save to pad, REC MIDI
+- **Längen:** `Pattern::tLen[NUM_TRACKS]` (Piano-Spuren) und `vLen[NUM_DRUMS]` (Drum-Stimmen), 0 = folgt dem Loop. Die Auswerter lesen die Pattern-Daten an `cycleStep()` = Loop-Schritt % Länge (Daten, Wahrscheinlichkeitstabellen, Chops); Positionslogik (Fills, Drops, Akkorde, Event-Starts, Chance pro Durchlauf) bleibt am echten Schritt – so lesen tonale Spuren die Akkorde am echten Step. Feste Notenlängen enden am Zyklusende (`cycleCut`). Neustart mit jedem Loop und Pattern-Wechsel ergibt sich daraus (der Schritt beginnt bei 0). `trackNotes`/`drumHits` liefern nur Noten im Zyklus. `generateTrack` setzt die Länge zurück, `copyTrack` nimmt sie mit. Speicher: neuer Record `ST_LENGTHS = 9`.
+- **Nudge:** `fnudge` (int8, ±11 in 1/24 Schritt) an DrumStep/NoteStep/PadStep, Feldzahlen 10/21/15 (alte Daten: 0). Auswerter liefern `Hit/NoteEv/PadEv::nudge`, `GridNote::nudge`. GENRA: Verzögerung = Swing + Nudge; liegt sie vor dem Schritt, startet das Ereignis schon im Tick davor (`queueEarly`, eigene Warteplätze `qBassE/qMelE/qPadE`, Drums über `queueDrum` pro Stimme, Flags `earlyDone/earlyDrum`). MIDI-Export: `startTick += nudge` (nie unter 0).
+- **Grid:** Endmarken (Griff ziehen, Doppelklick = folgen; `beginRaw()` ohne Einfrieren), Abdunkeln + blasse Wiederholungen, Kopfzeile aus Segmenten (Pad, EDITED, ● REC, SNAP, CHORD FOLLOW, LEN …, BAR, Tonart – Tonart/Takt fallen weg, wenn es zu lang wird). Alt+←/→ Nudge. Rechtsklick › Track tools (Rotieren, Umkehren, doppelt/halb, ±1 Stufe, Velocity ±15 %/angleichen), je ein Undo-Schritt.
+- **Save to pad:** ABLAUF schreibt jeden Frame `Genra::arrPadSlot/arrPadLabel` (UI-Thread) und erledigt `padSaveReq` mit `overwrite()`; das Grid setzt die Anfrage erst, wenn GENRA alle Änderungen übernommen hat (`gridState == 0`).
+- **REC MIDI:** `REC_PARAM`/`REC_LIGHT` angehängt, `midi::InputQueue` im Grid-Modul (JSON `midi`); `process()` legt Noten mit `Genra::posPub` (Schritt + Bruchteil, nur bei angedocktem GENRA, sonst liest der UI-Thread) in einen Ring, der UI-Thread schreibt sie in die Spur (`recNote`). Drums: `gmDrumVoice()`. Eine Sitzung = ein Undo-Schritt.
+- Panel: REC-Taster mit Trennstrich am Ende von EDIT (`tools/grid_panel.py real`). Test: `test/test_cycle.cpp` (in CI).
 
 ### 2.22.0 – GENRA FX
 - Neues Modul **GENRA FX** (24 HP, eisblau): Send-Effekte für MIX. REVERB (eigener FDN-Hall, 8 Leitungen; HALL/ROOM/PLATE/SPACE, DECAY 0,1–30 s, SIZE, PRE-DELAY, DAMP, WIDTH, SHIMMER, LEVEL, FREEZE mit Gate) auf A, DELAY (1/32–1/1 gerade/punktiert/triolisch oder FREE ms; FEEDBACK bis 110 %, TONE, TAPE, DUCK, WIDTH, LEVEL, Stereo/Ping-Pong) auf B. DSP: `src/genrafx/GenraFxDsp.hpp`, Test `test/test_genrafx.cpp` (in CI). Hallzeit pro Typ korrigiert (gemessene RT60 ≈ Einstellung ±5 %).

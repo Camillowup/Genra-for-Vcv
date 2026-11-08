@@ -275,6 +275,14 @@ struct Genra : Module {
 	std::atomic<uint32_t> patChangesAtCue{0};
 	std::atomic<float> arrAlive{0.f};       // > 0 while ABLAUF is attached (it sets a huge value, a tiny one to let go)
 	std::atomic<int64_t> arrOwner{-1};      // module id of the ABLAUF that drives this GENRA (one at a time)
+	// ABLAUF <-> GRID (both UI thread): the pad GENRA plays ("A5 · DROP 1", -1 / empty = none known) and a
+	// request to store what GENRA plays on that pad (like ABLAUF's "Overwrite with GENRA")
+	int arrPadSlot = -1;
+	std::string arrPadLabel;
+	int padSaveReq = -1;
+	// play position in steps (step + fraction of the step), -1 while stopped; read by the GRID (MIDI record)
+	std::atomic<float> posPub{-1.f};
+	float sinceTick = 0.f;
 	ArrMods arrMods;
 	uint8_t arrMute = 0;
 	bool arrFill = false;
@@ -404,6 +412,12 @@ struct Genra : Module {
 	NoteEv qBass, qMel;
 	PadEv qPad;
 	float dDrums = -1.f, dBass = -1.f, dMel = -1.f, dPad = -1.f;
+	// nudged ahead of their step (grid NUDGE < 0): started one tick early
+	NoteEv qBassE, qMelE;
+	PadEv qPadE;
+	float dBassE = -1.f, dMelE = -1.f, dPadE = -1.f;
+	bool earlyDone[NUM_TRACKS] = {false, false, false, false};
+	bool earlyDrum[NUM_DRUMS] = {};
 
 	// ---- voices
 	struct DrumVoice {
@@ -738,6 +752,10 @@ struct Genra : Module {
 	void queueDrum(int v, const Hit& h, float sr) {
 		if (h.delay > 0.f) {
 			DrumVoice& d = drums[v];
+			if (d.delayCnt >= 0.f) { // a hit is still waiting: play it now, it must not get lost
+				d.delayCnt = -1.f;
+				fireDrum(v, d.pVel, d.pRat, sr);
+			}
 			d.delayCnt = h.delay * sr;
 			d.pVel = h.vel;
 			d.pRat = h.ratchet;
@@ -795,7 +813,23 @@ struct Genra : Module {
 			startMono(melV, qMel, sr);
 		if (dPad >= 0.f)
 			startPad(qPad, sr);
+		if (dBassE >= 0.f)
+			startMono(bassV, qBassE, sr);
+		if (dMelE >= 0.f)
+			startMono(melV, qMelE, sr);
+		if (dPadE >= 0.f)
+			startPad(qPadE, sr);
 		dDrums = dBass = dMel = dPad = -1.f;
+		dBassE = dMelE = dPadE = -1.f;
+	}
+
+	void clearQueued() {
+		dDrums = dBass = dMel = dPad = -1.f;
+		dBassE = dMelE = dPadE = -1.f;
+		for (int t = 0; t < NUM_TRACKS; t++)
+			earlyDone[t] = false;
+		for (int v = 0; v < NUM_DRUMS; v++)
+			earlyDrum[v] = false;
 	}
 
 	void processQueued(float sr) {
@@ -815,18 +849,106 @@ struct Genra : Module {
 			dPad = -1.f;
 			startPad(qPad, sr);
 		}
+		if (dBassE >= 0.f && (dBassE -= 1.f) <= 0.f) {
+			dBassE = -1.f;
+			startMono(bassV, qBassE, sr);
+		}
+		if (dMelE >= 0.f && (dMelE -= 1.f) <= 0.f) {
+			dMelE = -1.f;
+			startMono(melV, qMelE, sr);
+		}
+		if (dPadE >= 0.f && (dPadE -= 1.f) <= 0.f) {
+			dPadE = -1.f;
+			startPad(qPadE, sr);
+		}
 	}
 
 	// swing of one track: odd 16ths are delayed by the swing of the genre the track plays
-	float swingDelay(const Params& P, int t) {
-		if (step % 2 == 0)
+	float swingDelay(const Params& P, int t) { return swingAt(P, t, step); }
+	float swingAt(const Params& P, int t, int st) {
+		if (st % 2 == 0)
 			return 0.f;
 		return (effSwing(P, pat.trackGenre[t]) - 0.5f) * 2.f * stepPeriod;
+	}
+	// grid NUDGE in samples (1/24 step each)
+	float nudgeSamples(int n) const { return n * stepPeriod / 24.f; }
+	bool trackMuted(int t) { return params[MUTE_PARAM + t].getValue() >= 0.5f || ((arrMute >> t) & 1); }
+
+	// one event of a mono / pad track at its offset (swing + nudge) from the step; an event nudged ahead of the
+	// step was already started on the previous tick (lookahead) unless that tick did not know it
+	template <typename Ev, typename Start>
+	void placeEvent(int t, const Ev& ev, float& dq, Ev& q, float off, Start start) {
+		if (off < 0.f) {
+			if (!earlyDone[t])
+				start(ev);
+			return;
+		}
+		q = ev;
+		if (off >= 1.f)
+			dq = off;
+		else
+			start(ev);
+	}
+
+	// lookahead: events of the next step that are nudged ahead of it start during this step
+	void queueEarly(const Params& P, int L, int fillEnd, float sr) {
+		const int next = step + 1 >= L ? 0 : step + 1;
+		Params Pn = P;
+		if (next == 0)
+			Pn.pass = passCount + 1;
+		for (int t = 0; t < NUM_TRACKS; t++)
+			earlyDone[t] = false;
+		for (int v = 0; v < NUM_DRUMS; v++)
+			earlyDrum[v] = false;
+		if (pat.fixed[T_DRUMS] && !trackMuted(T_DRUMS)) {
+			Hit hn[NUM_DRUMS];
+			drumStep(pat, Pn, next, fillEnd > 0 && next > step ? fillEnd : L, fillActive, hn);
+			for (int v = 0; v < NUM_DRUMS; v++) {
+				if (!hn[v].on || hn[v].nudge >= 0)
+					continue;
+				float off = swingAt(Pn, T_DRUMS, next) + nudgeSamples(hn[v].nudge);
+				if (off >= 0.f)
+					continue;
+				Hit h = hn[v];
+				h.delay += std::max(1.f, stepPeriod + off) / sr;
+				queueDrum(v, h, sr);
+				earlyDrum[v] = true;
+			}
+		}
+		if (pat.fixed[T_BASS] && !trackMuted(T_BASS)) {
+			NoteEv n = bassAt(pat, Pn, next, L);
+			float off = n.on && n.nudge < 0 ? swingAt(Pn, T_BASS, next) + nudgeSamples(n.nudge) : 0.f;
+			if (off < 0.f) {
+				qBassE = n;
+				dBassE = std::max(1.f, stepPeriod + off);
+				earlyDone[T_BASS] = true;
+			}
+		}
+		if (pat.fixed[T_MELODY] && !trackMuted(T_MELODY)) {
+			NoteEv n = melAt(pat, Pn, next, L);
+			float off = n.on && n.nudge < 0 ? swingAt(Pn, T_MELODY, next) + nudgeSamples(n.nudge) : 0.f;
+			if (off < 0.f) {
+				qMelE = n;
+				dMelE = std::max(1.f, stepPeriod + off);
+				earlyDone[T_MELODY] = true;
+			}
+		}
+		if (pat.fixed[T_PADS] && !trackMuted(T_PADS)) {
+			// fixed pads keep their exact notes: evaluating them twice leaves the voicing state unchanged
+			PadEv e = padAt(pat, Pn, next, L, padPrev, padHasPrev);
+			float off = e.on && e.nudge < 0 ? swingAt(Pn, T_PADS, next) + nudgeSamples(e.nudge) : 0.f;
+			if (off < 0.f) {
+				qPadE = e;
+				dPadE = std::max(1.f, stepPeriod + off);
+				earlyDone[T_PADS] = true;
+			}
+		}
 	}
 
 	// ------------------------------------------------------------ tick (one 16th, unswung)
 	void doTick(float sr) {
 		flushQueued(sr);
+		sinceTick = 0.f;
 		int L = lengthSteps();
 		if (pat.layoutLen != L)
 			layoutTimeline(pat, L);
@@ -897,37 +1019,44 @@ struct Genra : Module {
 		}
 		// compute this step for every track, play it after the track's swing delay
 		drumStep(pat, P, step, arrFillEnd > 0 ? arrFillEnd : L, fillActive, qDrums);
-		if (params[MUTE_PARAM + 0].getValue() < 0.5f && !(arrMute & 1)) {
+		if (!trackMuted(T_DRUMS)) {
 			float d = swingDelay(P, T_DRUMS);
+			// nudged hits (edited drums) play on their own: swing + nudge per voice
+			for (int v = 0; v < NUM_DRUMS; v++) {
+				if (!qDrums[v].on || qDrums[v].nudge == 0)
+					continue;
+				Hit h = qDrums[v];
+				qDrums[v].on = false;
+				float off = d + nudgeSamples(h.nudge);
+				if (off < 0.f) {
+					if (!earlyDrum[v])
+						queueDrum(v, h, sr);
+					continue;
+				}
+				h.delay += off / sr;
+				queueDrum(v, h, sr);
+			}
 			if (d >= 1.f)
 				dDrums = d;
 			else
 				fireDrums(sr);
 		}
-		qBass = bassAt(pat, P, step, L);
-		if (qBass.on && params[MUTE_PARAM + 1].getValue() < 0.5f && !(arrMute & 2)) {
-			float d = swingDelay(P, T_BASS);
-			if (d >= 1.f)
-				dBass = d;
-			else
-				startMono(bassV, qBass, sr);
-		}
-		qMel = melAt(pat, P, step, L);
-		if (qMel.on && params[MUTE_PARAM + 2].getValue() < 0.5f && !(arrMute & 4)) {
-			float d = swingDelay(P, T_MELODY);
-			if (d >= 1.f)
-				dMel = d;
-			else
-				startMono(melV, qMel, sr);
-		}
-		qPad = padAt(pat, P, step, L, padPrev, padHasPrev);
-		if (qPad.on && params[MUTE_PARAM + 3].getValue() < 0.5f && !(arrMute & 8)) {
-			float d = swingDelay(P, T_PADS);
-			if (d >= 1.f)
-				dPad = d;
-			else
-				startPad(qPad, sr);
-		}
+		NoteEv nb = bassAt(pat, P, step, L);
+		qBass.on = false;
+		if (nb.on && !trackMuted(T_BASS))
+			placeEvent(T_BASS, nb, dBass, qBass, swingDelay(P, T_BASS) + nudgeSamples(nb.nudge),
+			           [&](const NoteEv& n) { startMono(bassV, n, sr); });
+		NoteEv nm = melAt(pat, P, step, L);
+		qMel.on = false;
+		if (nm.on && !trackMuted(T_MELODY))
+			placeEvent(T_MELODY, nm, dMel, qMel, swingDelay(P, T_MELODY) + nudgeSamples(nm.nudge),
+			           [&](const NoteEv& n) { startMono(melV, n, sr); });
+		PadEv np = padAt(pat, P, step, L, padPrev, padHasPrev);
+		qPad.on = false;
+		if (np.on && !trackMuted(T_PADS))
+			placeEvent(T_PADS, np, dPad, qPad, swingDelay(P, T_PADS) + nudgeSamples(np.nudge),
+			           [&](const PadEv& e) { startPad(e, sr); });
+		queueEarly(P, L, arrFillEnd, sr);
 		// current chord on ROOT / CHORD (V/Oct, root between C4 and B4)
 		{
 			Chord ch = chordAt(pat, P, step);
@@ -957,7 +1086,7 @@ struct Genra : Module {
 			trackSelChanged[t] = false;
 			pendingTrack[t] = false;
 		}
-		dDrums = dBass = dMel = dPad = -1.f;
+		clearQueued();
 		initPattern(pat);
 		lastGenre = -1;
 		curGenre = 0;
@@ -982,7 +1111,7 @@ struct Genra : Module {
 			phase = 0.f;
 			pulseCount = 0;
 			subTicksLeft = 0;
-			dDrums = dBass = dMel = dPad = -1.f;
+			clearQueued();
 			resetArmed = true;
 			passCount = 0;
 			firstPass = true;
@@ -1001,7 +1130,7 @@ struct Genra : Module {
 				phase = 0.f;
 				pulseCount = 0;
 				subTicksLeft = 0;
-				dDrums = dBass = dMel = dPad = -1.f;
+				clearQueued();
 				resetArmed = true;
 				passCount = 0;
 				firstPass = true;
@@ -1155,6 +1284,9 @@ struct Genra : Module {
 			if (tick)
 				doTick(sr);
 		}
+		sinceTick += 1.f;
+		posPub.store(running && step >= 0 ? step + std::min(0.999f, sinceTick / std::max(1.f, stepPeriod)) : -1.f,
+		             std::memory_order_relaxed);
 
 		// ---- outputs
 		for (int v = 0; v < NUM_DRUMS; v++) {

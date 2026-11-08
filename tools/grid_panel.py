@@ -292,11 +292,13 @@ ex = 175
 ew = W - 6 - ex
 e(f'<rect x="{ex}" y="{top}" width="{ew:.2f}" height="{H-top-4}" rx="1.6" fill="{PLATE}"/>')
 text(ex + ew / 2, top + 4.2, "EDIT", 1.8, TXT, 800, "middle", 0.5)
-labels = ["UNDO", "REDO", "COPY", "PASTE", "CLEAR", "GEN"]
+labels = ["UNDO", "REDO", "COPY", "PASTE", "CLEAR", "GEN", "REC"]
 sp = (ew - 4) / len(labels)
 for i, lab in enumerate(labels):
     x = ex + 2 + sp * (i + 0.5)
-    button(x, cy, lab, None, "BAR" if lab in ("COPY", "PASTE") else ("TRACK" if lab in ("CLEAR", "GEN") else None), name=lab)
+    button(x, cy, lab, "#ff4a4a" if lab == "REC" else None, "MIDI" if lab == "REC" else ("BAR" if lab in ("COPY", "PASTE") else ("TRACK" if lab in ("CLEAR", "GEN") else None)), name=lab)
+    if lab == "REC":
+        e(f'<line x1="{x - sp / 2:.2f}" y1="{cy - 5:.2f}" x2="{x - sp / 2:.2f}" y2="{cy + 6:.2f}" stroke="#2a2c33" stroke-width="0.3"/>')
 
 e("</svg>")
 

@@ -38,7 +38,7 @@ jobs:
           done
           gcc -std=gnu11 -O2 -w -ffreestanding -fno-builtin -fno-tree-loop-distribute-patterns -Ikwasub/firmware/src -Ikwasub/firmware/gen -Ikwasub/firmware/hal test/kwcore_test.c -o kt.exe -lm
           ./kt.exe
-          for t in test/test_tracks.cpp test/test_edit.cpp test/test_store.cpp test/test_midi.cpp; do
+          for t in test/test_tracks.cpp test/test_edit.cpp test/test_store.cpp test/test_midi.cpp test/test_cycle.cpp; do
             g++ -std=gnu++17 -O2 -Isrc "$t" src/Engine.cpp src/Genres.cpp src/Edit.cpp src/Store.cpp src/Midi.cpp -o t.exe && ./t.exe || exit 1
           done
           g++ -std=gnu++17 -O2 -Isrc test/test_ablauf.cpp src/Arranger.cpp src/Engine.cpp src/Genres.cpp src/Edit.cpp src/Store.cpp src/Midi.cpp -o ta.exe && ./ta.exe

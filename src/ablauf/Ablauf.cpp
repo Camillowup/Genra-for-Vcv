@@ -1261,6 +1261,19 @@ struct Ablauf : Module {
 			msgTime -= dt;
 		if (g)
 			g->arrAlive.store(1e9f); // attached; let go explicitly (letGo), not by a timeout: a stalled UI must not unmute
+		if (g) {
+			// tell the GRID which pad GENRA plays; it may ask to store GENRA there (Overwrite with GENRA)
+			int pl = g->arrSlotPub.load();
+			bool known = pl >= 0 && pl < NUM_SLOTS && slots[pl].used;
+			g->arrPadSlot = known ? pl : -1;
+			g->arrPadLabel = known ? slotName(pl) + (slots[pl].name[0] ? std::string(" · ") + slots[pl].name : std::string()) : std::string();
+			if (g->padSaveReq >= 0) {
+				int rq = g->padSaveReq;
+				g->padSaveReq = -1;
+				if (known && rq == pl)
+					overwrite(rq, g);
+			}
+		}
 
 		// GENRA's snapshot arrived
 		if (g && (pendingStore >= 0 || pendingPart >= 0) && g->snapState.load(std::memory_order_acquire) == 2) {

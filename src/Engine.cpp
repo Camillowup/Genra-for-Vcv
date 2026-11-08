@@ -877,22 +877,31 @@ void generateTrack(Pattern& pat, int track, int g, Rng& rng, const Params& P) {
 		case T_PADS: genPads(pat, g, rng); break;
 		default: break;
 	}
-	// fields that only fixed (edited / imported) notes use
+	// fields that only fixed (edited / imported) notes use; a new track follows the loop again
+	if (track == T_DRUMS)
+		for (int v = 0; v < NUM_DRUMS; v++)
+			pat.vLen[v] = 0;
+	else if (track > T_DRUMS && track < NUM_TRACKS)
+		pat.tLen[track] = 0;
 	for (int s = 0; s < MAX_STEPS; s++) {
 		if (track == T_DRUMS)
-			for (int v = 0; v < NUM_DRUMS; v++)
+			for (int v = 0; v < NUM_DRUMS; v++) {
 				pat.drums[v][s].frat = pat.drums[v][s].fchance = pat.drums[v][s].fcond = 0;
+				pat.drums[v][s].fnudge = 0;
+			}
 		if (track == T_BASS || track == T_MELODY) {
 			NoteStep& n = track == T_BASS ? pat.bass[s] : pat.mel[s];
 			n.fflags = 0;
 			n.fgate = 0;
 			n.froot = -1;
 			n.fchance = n.fcond = 0;
+			n.fnudge = 0;
 		}
 		if (track == T_PADS) {
 			pat.pads[s].fgate = 0;
 			pat.pads[s].froot = -1;
 			pat.pads[s].fchance = pat.pads[s].fcond = 0;
+			pat.pads[s].fnudge = 0;
 		}
 	}
 	(void)P;
@@ -1008,6 +1017,23 @@ void mutate(Pattern& pat, float amount, Rng& rng, const bool lock[NUM_TRACKS], b
 
 // ================================================================= evaluation
 // is a part silenced by the genre's drop/break mode at this step?
+int cycleLen(const Pattern& pat, int track, int voice) {
+	if (track == T_DRUMS)
+		return voice >= 0 && voice < NUM_DRUMS ? pat.vLen[voice] : 0;
+	return track > T_DRUMS && track < NUM_TRACKS ? pat.tLen[track] : 0;
+}
+
+int cycleStep(const Pattern& pat, int track, int voice, int step) {
+	int c = cycleLen(pat, track, voice);
+	return c > 0 && step >= c ? step % c : step;
+}
+
+// fixed note length: ends at the end of its own cycle
+static int cycleCut(const Pattern& pat, int track, int src, int len) {
+	int c = cycleLen(pat, track, -1);
+	return c > 0 ? std::max(1, std::min(len, c - src)) : len;
+}
+
 static bool dropped(const Genre& G, const Params& P, int track, int voice, int step, int L) {
 	if (G.dropMode == DM_NONE || L < 32 || !P.fillActive)
 		return false;
@@ -1034,15 +1060,16 @@ Hit drumHit(const Pattern& pat, const Params& P, int v, int step, int L, bool fi
 		return h;
 	int g = pat.trackGenre[T_DRUMS];
 	const Genre& G = prof(g);
-	int gs = step % 16;
+	const int vs = cycleStep(pat, T_DRUMS, v, step); // the voice's own cycle
+	int gs = vs % 16;
 	const bool fx = pat.fixed[T_DRUMS] != 0;
 	float cx = effComplex(P, g);
-	int src = step;
+	int src = vs;
 	if (dropped(G, P, T_DRUMS, v, step, L))
 		return h; // drops at the loop end also apply to edited drums
 	if (!fx) {
 		// break chops: kick, snare, rim and hats read from another step of the bar
-		int bar = step / 16;
+		int bar = vs / 16;
 		if (G.chop > 0.f && (v == KICK || v == SNARE || v == RIM || v == CHAT) &&
 		    pat.chopR[bar] / 255.f < G.chop * (0.3f + cx * 1.2f))
 			src = bar * 16 + pat.chop[bar][gs];
@@ -1055,6 +1082,7 @@ Hit drumHit(const Pattern& pat, const Params& P, int v, int step, int L, bool fi
 			h.vel = d.fv / 127.f;
 			if (d.frat > 1)
 				h.ratchet = std::min<int>(d.frat, 4);
+			h.nudge = std::max(-NUDGE_MAX, std::min<int>(NUDGE_MAX, d.fnudge));
 		}
 	}
 	else {
@@ -1174,7 +1202,8 @@ static int bassIndex(const Genre& G, int step) {
 static bool bassActive(const Pattern& pat, const Params& P, int step, int L) {
 	int g = pat.trackGenre[T_BASS];
 	const Genre& G = prof(g);
-	int bi = pat.fixed[T_BASS] ? step : bassIndex(G, step);
+	int ts = cycleStep(pat, T_BASS, -1, step);
+	int bi = pat.fixed[T_BASS] ? ts : bassIndex(G, ts);
 	const NoteStep& n = pat.bass[bi];
 	if (pat.fixed[T_BASS])
 		return n.force == 1 && !dropped(G, P, T_BASS, 0, step, L) && chancePlays(n.fchance ? n.fchance : 100, n.fcond, T_BASS, 0, step, P);
@@ -1247,13 +1276,16 @@ NoteEv bassAt(const Pattern& pat, const Params& P, int step, int L) {
 		return e;
 	int g = pat.trackGenre[T_BASS];
 	const Genre& G = prof(g);
-	const NoteStep& n = pat.bass[pat.fixed[T_BASS] ? step : bassIndex(G, step)];
+	const int ts = cycleStep(pat, T_BASS, -1, step);
+	const NoteStep& n = pat.bass[pat.fixed[T_BASS] ? ts : bassIndex(G, ts)];
 	int gs = step % 16;
 	float cx = effComplex(P, g);
 	e.on = true;
 	float mv = clampf(G.bassMove + (P.move - 0.5f) * 1.2f, 0.f, 1.f);
 	if (pat.fixed[T_BASS] || n.flen) {
 		e.len = std::max(1, (int)n.flen);
+		if (pat.fixed[T_BASS])
+			e.len = cycleCut(pat, T_BASS, ts, e.len);
 		e.gate = n.fgate ? n.fgate / 100.f : 0.95f;
 		if (pat.fixed[T_BASS] && (n.fflags & FF_SET) && (n.fflags & FF_SLIDE)) {
 			int k = 1;
@@ -1302,12 +1334,15 @@ NoteEv bassAt(const Pattern& pat, const Params& P, int step, int L) {
 		e.acc = (n.fflags & FF_ACC) != 0;
 	else
 		e.acc = n.fvel ? (n.fvel > 100) : (n.ra / 255.f < 0.18f + cx * 0.15f);
+	if (pat.fixed[T_BASS])
+		e.nudge = std::max(-NUDGE_MAX, std::min<int>(NUDGE_MAX, n.fnudge));
 	e.pitch = clampi(e.pitch, 0, 127);
 	return e;
 }
 
 static bool melActive(const Pattern& pat, const Params& P, int step, int L) {
-	const NoteStep& n = pat.mel[step];
+	const int ts = cycleStep(pat, T_MELODY, -1, step);
+	const NoteStep& n = pat.mel[ts];
 	if (pat.fixed[T_MELODY])
 		return n.force == 1 && !dropped(prof(pat.trackGenre[T_MELODY]), P, T_MELODY, 0, step, L) &&
 		       chancePlays(n.fchance ? n.fchance : 100, n.fcond, T_MELODY, 0, step, P);
@@ -1317,7 +1352,7 @@ static bool melActive(const Pattern& pat, const Params& P, int step, int L) {
 	const Genre& G = prof(g);
 	if (dropped(G, P, T_MELODY, 0, step, L))
 		return false;
-	int gs = step % 16;
+	int gs = ts % 16;
 	float p = G.pMel[gs];
 	if (p < 0.95f)
 		p *= syncF(gs, effComplex(P, g));
@@ -1345,7 +1380,8 @@ NoteEv melAt(const Pattern& pat, const Params& P, int step, int L) {
 		return e;
 	if (!melActive(pat, P, step, L))
 		return e;
-	const NoteStep& n = pat.mel[step];
+	const int ts = cycleStep(pat, T_MELODY, -1, step);
+	const NoteStep& n = pat.mel[ts];
 	int g = pat.trackGenre[T_MELODY];
 	const Genre& G = prof(g);
 	int gs = step % 16;
@@ -1353,6 +1389,8 @@ NoteEv melAt(const Pattern& pat, const Params& P, int step, int L) {
 	e.on = true;
 	if (pat.fixed[T_MELODY] || n.flen) {
 		e.len = std::max(1, (int)n.flen);
+		if (pat.fixed[T_MELODY])
+			e.len = cycleCut(pat, T_MELODY, ts, e.len);
 		e.gate = n.fgate ? n.fgate / 100.f : 0.95f;
 		if (pat.fixed[T_MELODY] && (n.fflags & FF_SET) && (n.fflags & FF_SLIDE)) {
 			int k = 1;
@@ -1420,12 +1458,15 @@ NoteEv melAt(const Pattern& pat, const Params& P, int step, int L) {
 		e.acc = (n.fflags & FF_ACC) != 0;
 	else
 		e.acc = n.fvel ? (n.fvel > 100) : (n.ra / 255.f < 0.15f + cx * 0.15f);
+	if (pat.fixed[T_MELODY])
+		e.nudge = std::max(-NUDGE_MAX, std::min<int>(NUDGE_MAX, n.fnudge));
 	e.pitch = clampi(e.pitch, 0, 127);
 	return e;
 }
 
 static bool padActive(const Pattern& pat, const Params& P, int step) {
-	const PadStep& ps = pat.pads[step];
+	const int ts = cycleStep(pat, T_PADS, -1, step);
+	const PadStep& ps = pat.pads[ts];
 	if (pat.fixed[T_PADS])
 		return ps.force == 1 && chancePlays(ps.fchance ? ps.fchance : 100, ps.fcond, T_PADS, 0, step, P);
 	int g = pat.trackGenre[T_PADS];
@@ -1439,7 +1480,7 @@ static bool padActive(const Pattern& pat, const Params& P, int step) {
 			return false;
 		return ps.r / 255.f < pres;
 	}
-	int gs = step % 16;
+	int gs = ts % 16;
 	float p = G.pPad[gs];
 	if (p < 0.95f)
 		p *= syncF(gs, effComplex(P, g));
@@ -1559,13 +1600,18 @@ PadEv padAt(const Pattern& pat, const Params& P, int step, int L, int prev[4], b
 		return e;
 	if (!padActive(pat, P, step))
 		return e;
-	const PadStep& ps = pat.pads[step];
+	const int ts = cycleStep(pat, T_PADS, -1, step);
+	const PadStep& ps = pat.pads[ts];
 	int g = pat.trackGenre[T_PADS];
 	const Genre& G = prof(g);
 	e.on = true;
 	if (pat.fixed[T_PADS] || ps.flen) {
 		e.len = std::max(1, (int)ps.flen);
 		e.gate = (pat.fixed[T_PADS] && ps.fgate) ? ps.fgate / 100.f : 0.97f;
+		if (pat.fixed[T_PADS]) {
+			e.len = cycleCut(pat, T_PADS, ts, e.len);
+			e.nudge = std::max(-NUDGE_MAX, std::min<int>(NUDGE_MAX, ps.fnudge));
+		}
 	}
 	else if (G.padStyle == PS_SUSTAIN) {
 		int ev = eventAt(pat, step);

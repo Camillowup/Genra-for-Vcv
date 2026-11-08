@@ -22,6 +22,7 @@ enum StoreTag : uint8_t {
 	ST_BASS = 6,
 	ST_MEL = 7,
 	ST_PADS = 8,
+	ST_LENGTHS = 9, // 2.23: own cycle lengths per track and drum voice
 };
 
 // ---------------------------------------------------------------- writer
@@ -63,13 +64,14 @@ struct Reader {
 };
 } // namespace
 
-// field counts per step; v3.0 wrote 6 / 15 / 10, v3.1 7 / 18 / 12 – older data simply lacks the newer fields
-static const int DRUM_FIELDS = 9, NOTE_FIELDS = 20, PAD_FIELDS = 14, SPEC_FIELDS = 9, EV_FIELDS = 3;
+// field counts per step; v3.0 wrote 6 / 15 / 10, v3.1 7 / 18 / 12, 2.22 9 / 20 / 14 – older data simply lacks the
+// newer fields (2.23: nudge)
+static const int DRUM_FIELDS = 10, NOTE_FIELDS = 21, PAD_FIELDS = 15, SPEC_FIELDS = 9, EV_FIELDS = 3;
 
 static void putNote(Writer& w, const NoteStep& s) {
 	uint8_t f[NOTE_FIELDS] = {s.r, s.rm, s.vj, s.ra, s.rs, (uint8_t)s.a1, (uint8_t)s.b1, (uint8_t)s.c1,
 	                          (uint8_t)s.a2, (uint8_t)s.b2, (uint8_t)s.c2, (uint8_t)s.absNote, s.force, s.flen, s.fvel,
-	                          s.fflags, s.fgate, (uint8_t)s.froot, s.fchance, s.fcond};
+	                          s.fflags, s.fgate, (uint8_t)s.froot, s.fchance, s.fcond, (uint8_t)s.fnudge};
 	for (uint8_t b : f)
 		w.u8(b);
 }
@@ -135,7 +137,7 @@ std::vector<uint8_t> savePattern(const Pattern& pat) {
 	for (int v = 0; v < NUM_DRUMS; v++)
 		for (int s = 0; s < MAX_STEPS; s++) {
 			const DrumStep& d = pat.drums[v][s];
-			uint8_t f[DRUM_FIELDS] = {d.r, d.rg, d.rf, d.vj, d.rr, d.fv, d.frat, d.fchance, d.fcond};
+			uint8_t f[DRUM_FIELDS] = {d.r, d.rg, d.rf, d.vj, d.rr, d.fv, d.frat, d.fchance, d.fcond, (uint8_t)d.fnudge};
 			for (uint8_t b : f)
 				w.u8(b);
 		}
@@ -158,10 +160,19 @@ std::vector<uint8_t> savePattern(const Pattern& pat) {
 		const PadStep& p = pat.pads[s];
 		uint8_t f[PAD_FIELDS] = {p.r, p.vj, p.force, p.flen, p.fvel, p.nNotes,
 		                         (uint8_t)p.notes[0], (uint8_t)p.notes[1], (uint8_t)p.notes[2], (uint8_t)p.notes[3],
-		                         p.fgate, (uint8_t)p.froot, p.fchance, p.fcond};
+		                         p.fgate, (uint8_t)p.froot, p.fchance, p.fcond, (uint8_t)p.fnudge};
 		for (uint8_t b : f)
 			w.u8(b);
 	}
+	w.end();
+
+	w.begin(ST_LENGTHS);
+	w.u8(NUM_TRACKS);
+	for (int t = 0; t < NUM_TRACKS; t++)
+		w.u8(pat.tLen[t]);
+	w.u8(NUM_DRUMS);
+	for (int v = 0; v < NUM_DRUMS; v++)
+		w.u8(pat.vLen[v]);
 	w.end();
 	return w.d;
 }
@@ -179,7 +190,7 @@ static void readFields(Reader& r, uint8_t* f, int known, int have) {
 static void getNote(Reader& r, NoteStep& s, int have) {
 	uint8_t f[NOTE_FIELDS] = {s.r, s.rm, s.vj, s.ra, s.rs, (uint8_t)s.a1, (uint8_t)s.b1, (uint8_t)s.c1,
 	                          (uint8_t)s.a2, (uint8_t)s.b2, (uint8_t)s.c2, (uint8_t)s.absNote, s.force, s.flen, s.fvel,
-	                          s.fflags, s.fgate, (uint8_t)s.froot, s.fchance, s.fcond};
+	                          s.fflags, s.fgate, (uint8_t)s.froot, s.fchance, s.fcond, (uint8_t)s.fnudge};
 	readFields(r, f, NOTE_FIELDS, have);
 	s.r = f[0], s.rm = f[1], s.vj = f[2], s.ra = f[3], s.rs = f[4];
 	s.a1 = (int8_t)f[5], s.b1 = (int8_t)f[6], s.c1 = (int8_t)f[7];
@@ -187,6 +198,7 @@ static void getNote(Reader& r, NoteStep& s, int have) {
 	s.absNote = (int8_t)f[11], s.force = f[12], s.flen = f[13], s.fvel = f[14];
 	s.fflags = f[15], s.fgate = f[16], s.froot = (int8_t)f[17];
 	s.fchance = std::min<uint8_t>(f[18], 99), s.fcond = std::min<uint8_t>(f[19], 1);
+	s.fnudge = (int8_t)std::max(-NUDGE_MAX, std::min(NUDGE_MAX, (int)(int8_t)f[20]));
 	if (s.froot < -1 || s.froot > 11)
 		s.froot = -1;
 }
@@ -299,12 +311,13 @@ bool loadPattern(const std::vector<uint8_t>& data, Pattern& out) {
 						bool in = v < NUM_DRUMS && s < MAX_STEPS;
 						DrumStep tmp = {};
 						DrumStep& d = in ? pat.drums[v][s] : tmp;
-						uint8_t f[DRUM_FIELDS] = {d.r, d.rg, d.rf, d.vj, d.rr, d.fv, d.frat, d.fchance, d.fcond};
+						uint8_t f[DRUM_FIELDS] = {d.r, d.rg, d.rf, d.vj, d.rr, d.fv, d.frat, d.fchance, d.fcond, (uint8_t)d.fnudge};
 						readFields(q, f, DRUM_FIELDS, have);
 						d.r = f[0], d.rg = f[1], d.rf = f[2], d.vj = f[3], d.rr = f[4], d.fv = f[5];
 						d.frat = std::min<uint8_t>(f[6], 4);
 						d.fchance = std::min<uint8_t>(f[7], 99);
 						d.fcond = std::min<uint8_t>(f[8], 1);
+					d.fnudge = (int8_t)std::max(-NUDGE_MAX, std::min(NUDGE_MAX, (int)(int8_t)f[9]));
 					}
 				break;
 			}
@@ -325,7 +338,7 @@ bool loadPattern(const std::vector<uint8_t>& data, Pattern& out) {
 					PadStep& p = s < MAX_STEPS ? pat.pads[s] : tmp;
 					uint8_t f[PAD_FIELDS] = {p.r, p.vj, p.force, p.flen, p.fvel, p.nNotes,
 					                         (uint8_t)p.notes[0], (uint8_t)p.notes[1], (uint8_t)p.notes[2], (uint8_t)p.notes[3],
-					                         p.fgate, (uint8_t)p.froot, p.fchance, p.fcond};
+					                         p.fgate, (uint8_t)p.froot, p.fchance, p.fcond, (uint8_t)p.fnudge};
 					readFields(q, f, PAD_FIELDS, have);
 					p.r = f[0], p.vj = f[1], p.force = f[2], p.flen = f[3], p.fvel = f[4];
 					p.nNotes = std::min<uint8_t>(f[5], 4);
@@ -335,8 +348,24 @@ bool loadPattern(const std::vector<uint8_t>& data, Pattern& out) {
 					p.froot = (int8_t)f[11];
 					p.fchance = std::min<uint8_t>(f[12], 99);
 					p.fcond = std::min<uint8_t>(f[13], 1);
+					p.fnudge = (int8_t)std::max(-NUDGE_MAX, std::min(NUDGE_MAX, (int)(int8_t)f[14]));
 					if (p.froot < -1 || p.froot > 11)
 						p.froot = -1;
+				}
+				break;
+			}
+			case ST_LENGTHS: {
+				int nt = q.u8();
+				for (int t = 0; t < nt; t++) {
+					uint8_t l = q.u8();
+					if (t < NUM_TRACKS && t != T_DRUMS)
+						pat.tLen[t] = std::min<uint8_t>(l, MAX_STEPS);
+				}
+				int nv = q.u8();
+				for (int v = 0; v < nv; v++) {
+					uint8_t l = q.u8();
+					if (v < NUM_DRUMS)
+						pat.vLen[v] = std::min<uint8_t>(l, MAX_STEPS);
 				}
 				break;
 			}

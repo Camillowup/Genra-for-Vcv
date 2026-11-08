@@ -30,6 +30,7 @@ struct GenraGrid : Module {
 		CLEAR_PARAM,
 		GEN_PARAM,
 		CHANCE_PARAM,
+		REC_PARAM, // 2.23
 		PARAMS_LEN
 	};
 	enum LightId {
@@ -44,6 +45,7 @@ struct GenraGrid : Module {
 		PASTE_LIGHT,
 		CLEAR_LIGHT,
 		GEN_LIGHT,
+		REC_LIGHT, // 2.23
 		LIGHTS_LEN
 	};
 
@@ -53,6 +55,46 @@ struct GenraGrid : Module {
 	int drumRow = KICK;
 	int laneMode = 0; // lower lane: 0 velocity, 1 chance
 	int64_t linkedId = -1; // -1: automatic (docked GENRA)
+	bool recOn = false;    // REC MIDI armed (not saved)
+
+	// ---- MIDI record: notes from the MIDI input, with GENRA's play position (audio thread -> UI thread)
+	midi::InputQueue midiIn;
+	struct RecEv {
+		uint8_t on, note, vel;
+		float pos; // GENRA position in steps when the note arrived, -2 = unknown (read on the UI thread)
+	};
+	static const uint32_t REC_QUEUE = 256;
+	RecEv recBuf[REC_QUEUE];
+	std::atomic<uint32_t> recHead{0}, recTail{0};
+
+	// a GENRA docked left / right (audio thread: expanders are safe here)
+	Genra* dockedGenra() {
+		Module* side[2] = {leftExpander.module, rightExpander.module};
+		for (Module* m : side)
+			if (m && m->model == modelGenra && (linkedId < 0 || m->id == linkedId))
+				return static_cast<Genra*>(m);
+		return nullptr;
+	}
+
+	void process(const ProcessArgs& args) override {
+		midi::Message msg;
+		while (midiIn.tryPop(&msg, args.frame)) {
+			uint8_t st = msg.getStatus();
+			if ((st != 0x9 && st != 0x8) || !recOn)
+				continue;
+			RecEv ev;
+			ev.on = st == 0x9 && msg.getValue() > 0;
+			ev.note = msg.getNote() & 0x7f;
+			ev.vel = msg.getValue() & 0x7f;
+			Genra* g = dockedGenra();
+			ev.pos = g ? g->posPub.load(std::memory_order_relaxed) : -2.f;
+			uint32_t h = recHead.load(std::memory_order_relaxed);
+			if (h - recTail.load(std::memory_order_acquire) >= REC_QUEUE)
+				continue; // UI stalled: drop
+			recBuf[h % REC_QUEUE] = ev;
+			recHead.store(h + 1, std::memory_order_release);
+		}
+	}
 
 	GenraGrid() {
 		config(PARAMS_LEN, 0, 0, LIGHTS_LEN);
@@ -78,6 +120,7 @@ struct GenraGrid : Module {
 		configButton(GEN_PARAM, "Regenerate track (GEN)");
 		configParam(CHANCE_PARAM, 5.f, 100.f, 100.f, "Chance of new notes", " %");
 		paramQuantities[CHANCE_PARAM]->snapEnabled = true;
+		configButton(REC_PARAM, "REC MIDI: record notes from the MIDI input (right-click › MIDI input) while GENRA runs");
 		for (int i = 0; i < PARAMS_LEN; i++)
 			paramQuantities[i]->randomizeEnabled = false;
 	}
@@ -89,6 +132,7 @@ struct GenraGrid : Module {
 		json_object_set_new(root, "drumRow", json_integer(drumRow));
 		json_object_set_new(root, "linkedId", json_integer(linkedId));
 		json_object_set_new(root, "laneMode", json_integer(laneMode));
+		json_object_set_new(root, "midi", midiIn.toJson());
 		return root;
 	}
 	void dataFromJson(json_t* root) override {
@@ -103,6 +147,8 @@ struct GenraGrid : Module {
 			linkedId = json_integer_value(j);
 		if ((j = json_object_get(root, "laneMode")))
 			laneMode = clamp((int)json_integer_value(j), 0, 1);
+		if ((j = json_object_get(root, "midi")))
+			midiIn.fromJson(j);
 	}
 
 	// the GENRA this editor works on (UI thread)
@@ -147,7 +193,7 @@ struct GridDisplay : Widget {
 	int lastTrack = -1;
 
 	// ---- editing
-	enum Drag { D_NONE, D_MOVE, D_RESIZE, D_PAINT, D_ERASE, D_LANE, D_BOX, D_MOVESEL };
+	enum Drag { D_NONE, D_MOVE, D_RESIZE, D_PAINT, D_ERASE, D_LANE, D_BOX, D_MOVESEL, D_LEN };
 	int drag = D_NONE;
 	Pattern work;          // pattern being edited (copy)
 	Pattern before;        // state before the current gesture (undo)
@@ -178,13 +224,33 @@ struct GridDisplay : Widget {
 	std::vector<GridNote> moveOrig; // notes at the start of a selection move
 	std::vector<Key> movedKeys;     // where the selected notes / hits are now (during a move)
 	struct DHit {
-		int v, s, vel, rat, chance, cond;
+		int v, s, vel, rat, chance, cond, nudge;
 	};
 	std::vector<DHit> hitOrig;
 	// selection clipboard (positions relative to the first selected step)
 	std::vector<GridNote> selClipNotes;
 	std::vector<DHit> selClipHits;
 	int selClipTrack = -1;
+	int lenVoice = -1; // end marker being dragged: drum voice, -1 the piano track
+
+	// ---- MIDI record session (one undo step per session)
+	bool recSession = false, recChanged = false;
+	int recTrack = -1;
+	Pattern recBefore;
+	struct OpenNote {
+		int note, start, pitch;
+		float pos;
+	};
+	std::vector<OpenNote> recOpen;
+
+	// ---- save to the ABLAUF pad
+	int pendingSave = -1;
+	std::string msg;
+	float msgTime = 0.f;
+	void say(const std::string& s) {
+		msg = s;
+		msgTime = 2.5f;
+	}
 
 	// ---------------------------------------------------------------- geometry (mm, display-relative)
 	float gx0() { return glayout::GRID[0]; }
@@ -249,12 +315,16 @@ struct GridDisplay : Widget {
 			editing = false;
 			drag = D_NONE;
 			showWork = 0;
+			recSession = recChanged = false;
+			pendingSave = -1;
 			for (bool& c : centerSet)
 				c = false;
 		}
 		if (!g) {
 			editing = false;
 			drag = D_NONE;
+			recSession = recChanged = false;
+			recStep(); // drop notes that arrive without a GENRA
 			return;
 		}
 		P = g->buildParams();
@@ -282,6 +352,7 @@ struct GridDisplay : Widget {
 		}
 		lastTrack = t;
 		low = clamp((int)std::round(center[t] + module->params[GenraGrid::PITCH_PARAM].getValue()) - PIANO_ROWS / 2, 0, 127 - PIANO_ROWS + 1);
+		recStep();
 		// hand edited tracks to GENRA
 		if (dirty && g->submitTrack(work, t)) {
 			dirty = false;
@@ -289,6 +360,14 @@ struct GridDisplay : Widget {
 		}
 		else if (!dirty && showWork > 0 && g->gridState.load() == 0)
 			showWork--;
+		// save to the pad once GENRA has taken every edit
+		if (pendingSave >= 0 && !dirty && !editing && g->gridState.load() == 0) {
+			g->padSaveReq = pendingSave;
+			pendingSave = -1;
+		}
+		float dt = APP->window->getLastFrameDuration();
+		if (std::isfinite(dt) && dt > 0.f && dt < 0.5f && msgTime > 0.f)
+			msgTime -= dt;
 	}
 
 	// ---------------------------------------------------------------- edit helpers
@@ -301,6 +380,18 @@ struct GridDisplay : Widget {
 			work = g->pat;
 		before = work;
 		freezeTrack(work, P, module->track, L);
+		editing = true;
+		changed = false;
+		return true;
+	}
+	// an edit of pattern data that does not touch the notes (cycle lengths): the track stays generated / edited
+	bool beginRaw() {
+		if (!g)
+			return false;
+		bool pending = dirty || showWork > 0 || g->gridState.load() != 0;
+		if (!pending)
+			work = g->pat;
+		before = work;
 		editing = true;
 		changed = false;
 		return true;
@@ -358,19 +449,56 @@ struct GridDisplay : Widget {
 	int newLen() { return clamp((int)std::round(module->params[GenraGrid::LEN_PARAM].getValue()), 1, 16); }
 	int newChance() { return clamp((int)std::round(module->params[GenraGrid::CHANCE_PARAM].getValue()), 1, 100); }
 
+	// hits within each voice's own cycle (the rest of the loop repeats them)
 	std::vector<DHit> drumHits(const Pattern& p) {
 		std::vector<DHit> out;
 		for (int v = 0; v < NUM_DRUMS; v++)
-			for (int s = 0; s < L; s++) {
+			for (int s = 0, c = cycOf(p, T_DRUMS, v); s < c; s++) {
 				const DrumStep& d = p.drums[v][s];
 				if (d.fv)
-					out.push_back({v, s, d.fv, d.frat, d.fchance ? d.fchance : 100, d.fcond});
+					out.push_back({v, s, d.fv, d.frat, d.fchance ? d.fchance : 100, d.fcond, d.fnudge});
 			}
 		return out;
 	}
 	void putHit(Pattern& p, const DHit& h) {
 		setDrum(p, h.v, h.s, h.vel, h.rat);
 		setDrumChance(p, h.v, h.s, h.chance, h.cond);
+		setDrumNudge(p, h.v, h.s, h.nudge);
+	}
+
+	// ---------------------------------------------------------------- own cycle lengths (end markers)
+	// steps of a track's (v < 0) or drum voice's own cycle, the loop length when it follows the loop
+	int cycOf(const Pattern& p, int t, int v) {
+		int c = cycleLen(p, t, t == T_DRUMS ? v : -1);
+		return c > 0 && c < L ? c : L;
+	}
+	bool customLen(const Pattern& p, int t, int v) { return cycOf(p, t, v) < L; }
+	float markerY(int v) { return v >= 0 ? gy0() + (v + 0.5f) * rh() : (gy0() + gy1()) / 2.f; }
+	// the end marker handle under the mouse: drum voice (0..7), -1 the piano track, -2 none
+	int markerAt(Vec m) {
+		if (!g || !module || !inGrid(m))
+			return -2;
+		int t = module->track;
+		const Pattern& p = src();
+		int v = t == T_DRUMS ? clamp(rowAt(m.y), 0, NUM_DRUMS - 1) : -1;
+		int c = cycOf(p, t, v);
+		if (c < vs || c > vs + vis)
+			return -2;
+		float x = gx0() + (c - vs) * sw();
+		float tol = clamp(sw() * 0.3f, 0.7f, 1.4f);
+		if (std::fabs(m.x - x) > tol || std::fabs(m.y - markerY(v)) > (t == T_DRUMS ? std::max(1.2f, rh() * 0.32f) : 2.6f))
+			return -2;
+		return v;
+	}
+	std::string lenSummary(const Pattern& p, int t) {
+		if (t == T_DRUMS) {
+			std::string r;
+			for (int v = 0; v < NUM_DRUMS; v++)
+				if (customLen(p, t, v))
+					r += string::f(" · %s %d", DRUM_SHORT[v], cycOf(p, t, v));
+			return r.empty() ? r : string::f("LEN %d", L) + r;
+		}
+		return customLen(p, t, -1) ? string::f("LEN %d STEPS", cycOf(p, t, -1)) : std::string();
 	}
 
 	// ---------------------------------------------------------------- selection operations
@@ -386,8 +514,8 @@ struct GridDisplay : Widget {
 			for (const DHit& h : hs)
 				if (isSel(h.v, h.s)) {
 					DHit m = h;
-					m.s = clamp(h.s + ds, 0, L - 1);
 					m.v = clamp(h.v + dp, 0, NUM_DRUMS - 1);
+					m.s = clamp(h.s + ds, 0, cycOf(work, T_DRUMS, m.v) - 1);
 					moved.push_back(m);
 					setDrum(work, h.v, h.s, 0, 1);
 				}
@@ -402,10 +530,11 @@ struct GridDisplay : Widget {
 			std::vector<GridNote> keep, moved;
 			for (const GridNote& n : notes)
 				(isSel(n.start, n.pitch) ? moved : keep).push_back(n);
+			int C = cycOf(work, t, -1);
 			for (GridNote& n : moved) {
-				n.start = clamp(n.start + ds, 0, L - 1);
+				n.start = clamp(n.start + ds, 0, C - 1);
 				n.pitch = clamp(n.pitch + dp, 0, 127);
-				n.len = std::min(n.len, L - n.start);
+				n.len = std::min(n.len, C - n.start);
 				if (t != T_PADS)
 					for (int i = (int)keep.size() - 1; i >= 0; i--)
 						if (keep[i].start == n.start)
@@ -495,7 +624,7 @@ struct GridDisplay : Widget {
 		if (t == T_DRUMS) {
 			for (DHit h : selClipHits) {
 				h.s += at;
-				if (h.s < 0 || h.s >= L)
+				if (h.s < 0 || h.s >= cycOf(work, T_DRUMS, h.v))
 					continue;
 				putHit(work, h);
 				nsel.push_back({h.v, h.s});
@@ -504,11 +633,12 @@ struct GridDisplay : Widget {
 		}
 		else {
 			notes = trackNotes(work, P, t, L);
+			int C = cycOf(work, t, -1);
 			for (GridNote n : selClipNotes) {
 				n.start += at;
-				if (n.start < 0 || n.start >= L)
+				if (n.start < 0 || n.start >= C)
 					continue;
-				n.len = std::min(n.len, L - n.start);
+				n.len = std::min(n.len, C - n.start);
 				if (t != T_PADS)
 					for (int i = (int)notes.size() - 1; i >= 0; i--)
 						if (notes[i].start == n.start)
@@ -615,6 +745,15 @@ struct GridDisplay : Widget {
 		if (!inGrid(m))
 			return;
 		int s = stepAt(m.x), r = rowAt(m.y);
+		// end marker of a track / drum voice: drag sets its own length
+		int mk = mods == 0 ? markerAt(m) : -2;
+		if (mk != -2) {
+			if (!beginRaw())
+				return;
+			lenVoice = mk;
+			drag = D_LEN;
+			return;
+		}
 		// Shift + drag: rubber band selection
 		if (mods == GLFW_MOD_SHIFT) {
 			drag = D_BOX;
@@ -622,6 +761,9 @@ struct GridDisplay : Widget {
 			return;
 		}
 		if (s < 0 || s >= L)
+			return;
+		// beyond the own length: only repetitions are shown there
+		if (s >= cycOf(src(), t, t == T_DRUMS ? clamp(r, 0, NUM_DRUMS - 1) : -1))
 			return;
 		// what is under the mouse?
 		Pattern view = g->pat;
@@ -655,6 +797,7 @@ struct GridDisplay : Widget {
 		}
 		int pitch = pitchOfRow(r);
 		std::vector<GridNote> vn = trackNotes(view, P, t, L);
+		const int C = cycOf(view, t, -1);
 		int hit = -1;
 		for (int i = (int)vn.size() - 1; i >= 0 && hit < 0; i--)
 			if (vn[i].pitch == pitch && s >= vn[i].start && s < vn[i].start + vn[i].len)
@@ -691,7 +834,7 @@ struct GridDisplay : Widget {
 		clearSel();
 		GridNote n;
 		n.start = s;
-		n.len = std::min(newLen(), L - s);
+		n.len = std::min(newLen(), C - s);
 		n.pitch = snapPitch(work, P, s, pitch, module->snapMode);
 		n.vel = newVel();
 		n.chance = newChance();
@@ -706,7 +849,7 @@ struct GridDisplay : Widget {
 	// lower lane: velocity or chance of the note / hit on this step
 	void laneAt(Vec m) {
 		int s = stepAt(m.x);
-		if (s < 0 || s >= L)
+		if (s < 0 || s >= L || s >= cycOf(work, module->track, module->drumRow))
 			return;
 		float y0 = glayout::VELLANE[0], y1 = glayout::VELLANE[1];
 		float f = clamp((y1 - m.y) / (y1 - y0), 0.f, 1.f);
@@ -761,7 +904,18 @@ struct GridDisplay : Widget {
 			laneAt(m);
 			return;
 		}
+		if (drag == D_LEN) {
+			// the marker snaps to step lines; at the loop end the track / voice follows the loop again
+			int c = clamp((int)std::lround((m.x - gx0()) / sw()) + vs, 1, L);
+			int want = c >= L ? 0 : c;
+			if (cycleLen(work, t, lenVoice) != want) {
+				setCycleLen(work, t, lenVoice, want);
+				touched();
+			}
+			return;
+		}
 		int s = clamp(stepAt(m.x), 0, L - 1);
+		const int C = cycOf(work, t, -1);
 		if (drag == D_MOVESEL) {
 			int ds = s - anchorStep;
 			if (t == T_DRUMS) {
@@ -774,8 +928,8 @@ struct GridDisplay : Widget {
 						putHit(work, h);
 				for (DHit h : hitOrig)
 					if (isSel(h.v, h.s)) {
-						h.s = clamp(h.s + ds, 0, L - 1);
 						h.v = clamp(h.v + dv, 0, NUM_DRUMS - 1);
+						h.s = clamp(h.s + ds, 0, cycOf(work, T_DRUMS, h.v) - 1);
 						putHit(work, h);
 						movedKeys.push_back({h.v, h.s});
 					}
@@ -788,12 +942,12 @@ struct GridDisplay : Widget {
 					(isSel(n.start, n.pitch) ? moved : keep).push_back(n);
 				movedKeys.clear();
 				for (GridNote& n : moved) {
-					n.start = clamp(n.start + ds, 0, L - 1);
+					n.start = clamp(n.start + ds, 0, C - 1);
 					n.pitch = clamp(n.pitch + dp, 0, 127);
 					if (module->snapMode)
 						n.pitch = snapPitch(work, P, n.start, n.pitch, module->snapMode);
 					movedKeys.push_back({n.start, n.pitch});
-					n.len = std::min(n.len, L - n.start);
+					n.len = std::min(n.len, C - n.start);
 					if (t != T_PADS)
 						for (int i = (int)keep.size() - 1; i >= 0; i--)
 							if (keep[i].start == n.start)
@@ -809,7 +963,7 @@ struct GridDisplay : Widget {
 		if (t == T_DRUMS) {
 			int v = clamp(rowAt(m.y), 0, NUM_DRUMS - 1);
 			int want = drag == D_PAINT ? newVel() : 0;
-			if ((work.drums[v][s].fv > 0) != (want > 0)) {
+			if (s < cycOf(work, T_DRUMS, v) && (work.drums[v][s].fv > 0) != (want > 0)) {
 				setDrum(work, v, s, want, 1);
 				if (want)
 					setDrumChance(work, v, s, newChance(), NC_ALWAYS);
@@ -821,19 +975,19 @@ struct GridDisplay : Widget {
 			return;
 		GridNote& n = notes[dragIdx];
 		if (drag == D_RESIZE) {
-			int len = clamp(s - n.start + 1, 1, L - n.start);
+			int len = clamp(s - n.start + 1, 1, std::max(1, C - n.start));
 			if (len != n.len) {
 				n.len = len;
 				apply();
 			}
 		}
 		else if (drag == D_MOVE) {
-			int ns = clamp(s - anchor, 0, L - 1);
+			int ns = clamp(s - anchor, 0, C - 1);
 			int np = snapPitch(work, P, ns, pitchOfRow(clamp(rowAt(m.y), 0, PIANO_ROWS - 1)), module->snapMode);
 			if (ns != n.start || np != n.pitch) {
 				n.start = ns;
 				n.pitch = np;
-				n.len = std::min(n.len, L - ns);
+				n.len = std::min(n.len, C - ns);
 				removeStartsAt(ns, dragIdx);
 				apply();
 				clearSel();
@@ -860,10 +1014,26 @@ struct GridDisplay : Widget {
 	}
 
 	void onDoubleClick(const DoubleClickEvent& e) override {
-		if (!module || !g || module->track == T_DRUMS)
+		if (!module || !g)
 			return;
 		Vec m = mm(pressPos);
 		if (!inGrid(m))
+			return;
+		// double-click on an end marker: the track / voice follows the loop again
+		int mk = markerAt(m);
+		if (mk != -2) {
+			if (beginRaw()) {
+				if (cycleLen(work, module->track, mk) != 0) {
+					setCycleLen(work, module->track, mk, 0);
+					touched();
+				}
+				commit();
+			}
+			drag = D_NONE;
+			e.consume(this);
+			return;
+		}
+		if (module->track == T_DRUMS)
 			return;
 		if (!begin())
 			return;
@@ -953,7 +1123,16 @@ struct GridDisplay : Widget {
 			}
 			case GLFW_KEY_LEFT:
 			case GLFW_KEY_RIGHT:
+				if (mods == GLFW_MOD_ALT) { // nudge by 1/24 step
+					nudge(e.key == GLFW_KEY_RIGHT ? 1 : -1);
+					break;
+				}
 				moveSelection((e.key == GLFW_KEY_RIGHT ? 1 : -1) * (shift ? 16 : 1), 0);
+				break;
+			case GLFW_KEY_S:
+				if (mods != RACK_MOD_CTRL)
+					return;
+				saveToPad();
 				break;
 			case GLFW_KEY_ESCAPE:
 				clearSel();
@@ -990,6 +1169,363 @@ struct GridDisplay : Widget {
 		e.consume(this);
 	}
 
+	// ---------------------------------------------------------------- nudge (Alt + arrows)
+	// the selection, else the note / hit under the mouse, moves by d/24 step (at most 11/24 either way)
+	void nudge(int d) {
+		if (!g)
+			return;
+		int t = module->track;
+		std::vector<Key> keys;
+		if (hasSel())
+			keys = sel;
+		else if (hoverStep >= 0 && hoverStep < L && hoverRow >= 0) {
+			Pattern view = src();
+			freezeTrack(view, P, t, L);
+			if (t == T_DRUMS) {
+				int v = clamp(hoverRow, 0, NUM_DRUMS - 1);
+				if (hoverStep < cycOf(view, t, v) && view.drums[v][hoverStep].fv)
+					keys.push_back({v, hoverStep});
+			}
+			else
+				for (const GridNote& n : trackNotes(view, P, t, L))
+					if (n.pitch == pitchOfRow(hoverRow) && hoverStep >= n.start && hoverStep < n.start + n.len)
+						keys.push_back({n.start, n.pitch});
+		}
+		if (keys.empty() || !begin())
+			return;
+		auto has = [&](int a, int b) {
+			for (const Key& k : keys)
+				if (k.a == a && (k.b == b || t == T_PADS)) // pads: one timing per chord onset
+					return true;
+			return false;
+		};
+		if (t == T_DRUMS) {
+			for (const Key& k : keys) {
+				DrumStep& ds = work.drums[k.a][k.b];
+				int n = clamp(ds.fnudge + d, -NUDGE_MAX, NUDGE_MAX);
+				if (ds.fv && n != ds.fnudge) {
+					ds.fnudge = (int8_t)n;
+					touched();
+				}
+			}
+		}
+		else {
+			notes = trackNotes(work, P, t, L);
+			bool any = false;
+			for (GridNote& n : notes)
+				if (has(n.start, n.pitch)) {
+					int nn = clamp(n.nudge + d, -NUDGE_MAX, NUDGE_MAX);
+					any |= nn != n.nudge;
+					n.nudge = nn;
+				}
+			if (any)
+				apply();
+		}
+		commit();
+	}
+
+	// ---------------------------------------------------------------- track tools (selection, else the whole track)
+	enum Tool { TL_ROT_L, TL_ROT_R, TL_REVERSE, TL_DOUBLE, TL_HALF, TL_UP, TL_DOWN, TL_VEL_RAND, TL_VEL_EVEN };
+
+	int scaleStep(int p, int dir) {
+		int keyPc = ((P.key + P.transp) % 12 + 12) % 12;
+		const int* sc = SCALES[clamp(P.scale, 0, NUM_SCALES - 1)].iv;
+		int q = p;
+		for (int k = 0; k < 12; k++) {
+			q += dir;
+			int pc = ((q - keyPc) % 12 + 12) % 12;
+			bool in = false;
+			for (int i = 0; i < 7; i++)
+				in |= sc[i] == pc;
+			if (in)
+				break;
+		}
+		return clamp(q, 0, 127);
+	}
+
+	// new position of a step inside [a, b) (d: rotation)
+	static int toolStep(int op, int s, int a, int b) {
+		int span = std::max(1, b - a);
+		switch (op) {
+			case TL_ROT_L: return a + ((s - a - 1) % span + span) % span;
+			case TL_ROT_R: return a + (s - a + 1) % span;
+			case TL_REVERSE: return a + b - 1 - s;
+			case TL_DOUBLE: return a + (s - a) / 2;
+			case TL_HALF: return a + (s - a) * 2;
+			default: return s;
+		}
+	}
+
+	void trackTool(int op) {
+		if (!g || !begin())
+			return;
+		int t = module->track;
+		bool useSel = hasSel();
+		std::vector<Key> nsel;
+		if (t == T_DRUMS) {
+			if (op == TL_UP || op == TL_DOWN) {
+				editing = false;
+				return;
+			}
+			std::vector<DHit> hs = drumHits(work), act;
+			int a = 1 << 20, b = -1;
+			for (const DHit& h : hs)
+				if (!useSel || isSel(h.v, h.s)) {
+					act.push_back(h);
+					a = std::min(a, h.s);
+					b = std::max(b, h.s + 1);
+				}
+			if (act.empty()) {
+				editing = false;
+				return;
+			}
+			int sum = 0;
+			for (const DHit& h : act) {
+				sum += h.vel;
+				setDrum(work, h.v, h.s, 0, 1);
+			}
+			int avg = clamp((int)std::lround((float)sum / act.size()), 1, 127);
+			std::vector<DHit> out;
+			for (DHit h : act) {
+				int c = cycOf(work, T_DRUMS, h.v);
+				int ra = useSel ? a : 0, rb = useSel ? std::min(b, c) : c;
+				if (h.s >= rb)
+					continue;
+				int span = rb - ra;
+				h.s = toolStep(op, h.s, ra, rb);
+				if (op == TL_VEL_RAND)
+					h.vel = clamp((int)std::lround(h.vel * (1.f + (random::uniform() * 2.f - 1.f) * 0.15f)), 1, 127);
+				else if (op == TL_VEL_EVEN)
+					h.vel = avg;
+				if (h.s < ra || h.s >= rb)
+					continue; // half speed: beyond the range
+				out.push_back(h);
+				if (op == TL_DOUBLE && span >= 2) { // twice as fast: the range plays twice
+					DHit h2 = h;
+					h2.s += span / 2;
+					if (h2.s < rb)
+						out.push_back(h2);
+				}
+			}
+			for (const DHit& h : out) {
+				// two hits on one step (double speed): the louder one stays
+				const DrumStep& ds = work.drums[h.v][h.s];
+				if (ds.fv && ds.fv >= h.vel)
+					continue;
+				putHit(work, h);
+				nsel.push_back({h.v, h.s});
+			}
+			touched();
+		}
+		else {
+			notes = trackNotes(work, P, t, L);
+			const int C = cycOf(work, t, -1);
+			std::vector<GridNote> keep, act;
+			int a = 1 << 20, b = -1;
+			for (const GridNote& n : notes)
+				if (!useSel || isSel(n.start, n.pitch)) {
+					act.push_back(n);
+					a = std::min(a, n.start);
+					b = std::max(b, n.start + n.len);
+				}
+				else
+					keep.push_back(n);
+			if (act.empty()) {
+				editing = false;
+				return;
+			}
+			int ra = useSel ? a : 0, rb = useSel ? std::min(b, C) : C;
+			int span = std::max(1, rb - ra);
+			int sum = 0;
+			for (const GridNote& n : act)
+				sum += n.vel;
+			int avg = clamp((int)std::lround((float)sum / act.size()), 1, 127);
+			std::vector<GridNote> out;
+			for (GridNote n : act) {
+				switch (op) {
+					case TL_ROT_L:
+					case TL_ROT_R: n.start = toolStep(op, n.start, ra, rb); break;
+					case TL_REVERSE: n.start = std::max(ra, ra + rb - (n.start + n.len)); break;
+					case TL_DOUBLE:
+						n.start = toolStep(op, n.start, ra, rb);
+						n.len = std::max(1, n.len / 2);
+						break;
+					case TL_HALF:
+						n.start = toolStep(op, n.start, ra, rb);
+						n.len *= 2;
+						break;
+					case TL_UP: n.pitch = scaleStep(n.pitch, 1); break;
+					case TL_DOWN: n.pitch = scaleStep(n.pitch, -1); break;
+					case TL_VEL_RAND: n.vel = clamp((int)std::lround(n.vel * (1.f + (random::uniform() * 2.f - 1.f) * 0.15f)), 1, 127); break;
+					case TL_VEL_EVEN: n.vel = avg; break;
+				}
+				if (n.start < ra || n.start >= rb)
+					continue;
+				n.len = clamp(n.len, 1, std::max(1, C - n.start));
+				out.push_back(n);
+				if (op == TL_DOUBLE && span >= 2) {
+					GridNote n2 = n;
+					n2.start += span / 2;
+					if (n2.start < rb) {
+						n2.len = clamp(n2.len, 1, std::max(1, C - n2.start));
+						out.push_back(n2);
+					}
+				}
+			}
+			// mono tracks: the tool's notes win a step
+			std::vector<GridNote> merged;
+			for (const GridNote& k : keep) {
+				bool hit = false;
+				for (const GridNote& o : out)
+					hit |= t != T_PADS ? o.start == k.start : (o.start == k.start && o.pitch == k.pitch);
+				if (!hit)
+					merged.push_back(k);
+			}
+			for (const GridNote& o : out) {
+				bool dup = false;
+				for (const GridNote& m2 : merged)
+					dup |= m2.start == o.start && (t != T_PADS || m2.pitch == o.pitch);
+				if (dup)
+					continue;
+				merged.push_back(o);
+				nsel.push_back({o.start, o.pitch});
+			}
+			std::sort(merged.begin(), merged.end(), [](const GridNote& x, const GridNote& y) { return x.start < y.start; });
+			notes = merged;
+			apply();
+		}
+		commit();
+		if (useSel) {
+			clearSel();
+			sel = nsel;
+		}
+	}
+
+	// ---------------------------------------------------------------- save to the ABLAUF pad GENRA plays
+	bool ablaufAttached() {
+		if (!g)
+			return false;
+		int64_t own = g->arrOwner.load();
+		if (own < 0)
+			return false;
+		Module* o = APP->engine->getModule(own);
+		return o && o->model == modelAblauf;
+	}
+	std::string padLabel() { return ablaufAttached() && g->arrPadSlot >= 0 ? g->arrPadLabel : std::string(); }
+	std::string padShort() {
+		std::string l = padLabel();
+		size_t k = l.find(" · ");
+		return k == std::string::npos ? l : l.substr(0, k);
+	}
+	void saveToPad() {
+		if (!g)
+			return;
+		if (padLabel().empty()) {
+			say("NO PAD KNOWN");
+			return;
+		}
+		pendingSave = g->arrPadSlot;
+		say("SAVED TO " + padShort());
+	}
+
+	// ---------------------------------------------------------------- MIDI record
+	void endRec() {
+		if (recSession && recChanged)
+			pushUndo(recBefore, recTrack);
+		recSession = recChanged = false;
+		recOpen.clear();
+	}
+
+	void recStep() {
+		GenraGrid* m = module;
+		uint32_t tl = m->recTail.load(std::memory_order_relaxed);
+		uint32_t hd = m->recHead.load(std::memory_order_acquire);
+		bool active = m->recOn && g && g->running && L > 0;
+		for (; tl != hd; tl++) {
+			GenraGrid::RecEv ev = m->recBuf[tl % GenraGrid::REC_QUEUE];
+			if (active)
+				recNote(ev);
+		}
+		m->recTail.store(tl, std::memory_order_release);
+		if (recSession && (!m->recOn || m->track != recTrack))
+			endRec();
+	}
+
+	void recNote(const GenraGrid::RecEv& ev) {
+		float pos = ev.pos > -1.5f ? ev.pos : g->posPub.load(std::memory_order_relaxed);
+		if (pos < 0.f)
+			return;
+		int t = module->track;
+		if (!recSession) {
+			bool pending = dirty || showWork > 0 || editing || g->gridState.load() != 0;
+			if (!pending)
+				work = g->pat;
+			recBefore = work;
+			freezeTrack(work, P, t, L);
+			recSession = true;
+			recChanged = false;
+			recTrack = t;
+			recOpen.clear();
+		}
+		int q = ((int)std::floor(pos + 0.5f)) % L; // nearest step
+		if (t == T_DRUMS) {
+			if (!ev.on)
+				return;
+			int v = gmDrumVoice(ev.note);
+			int st = q % cycOf(work, t, v);
+			setDrum(work, v, st, std::max<int>(1, ev.vel), 1);
+			setDrumChance(work, v, st, 100, NC_ALWAYS);
+			setDrumNudge(work, v, st, 0);
+		}
+		else {
+			const int C = cycOf(work, t, -1);
+			std::vector<GridNote> ns = trackNotes(work, P, t, L);
+			if (ev.on) {
+				int st = q % C;
+				int pitch = snapPitch(work, P, st, ev.note, module->snapMode);
+				for (int i = (int)ns.size() - 1; i >= 0; i--)
+					if (ns[i].start == st && (t != T_PADS || ns[i].pitch == pitch))
+						ns.erase(ns.begin() + i);
+				GridNote n;
+				n.start = st;
+				n.len = 1;
+				n.pitch = pitch;
+				n.vel = std::max<int>(1, ev.vel);
+				ns.push_back(n);
+				for (int i = (int)recOpen.size() - 1; i >= 0; i--)
+					if (recOpen[i].note == ev.note)
+						recOpen.erase(recOpen.begin() + i);
+				recOpen.push_back({ev.note, st, pitch, pos});
+			}
+			else {
+				int k = -1;
+				for (int i = 0; i < (int)recOpen.size(); i++)
+					if (recOpen[i].note == ev.note)
+						k = i;
+				if (k < 0)
+					return;
+				OpenNote o = recOpen[k];
+				recOpen.erase(recOpen.begin() + k);
+				float d = pos - o.pos;
+				if (d < 0.f)
+					d += L;
+				int len = clamp((int)std::lround(d), 1, std::max(1, C - o.start));
+				bool found = false;
+				for (GridNote& n : ns)
+					if (n.start == o.start && n.pitch == o.pitch) {
+						n.len = len;
+						found = true;
+					}
+				if (!found)
+					return;
+			}
+			std::sort(ns.begin(), ns.end(), [](const GridNote& x, const GridNote& y) { return x.start < y.start; });
+			writeTrackNotes(work, P, t, ns, L);
+		}
+		recChanged = true;
+		dirty = true;
+	}
+
 	// ---------------------------------------------------------------- context menu on a note / hit
 	void chanceMenu(ui::Menu* menu, int curChance, int curCond, std::function<void(int, int)> set) {
 		menu->addChild(createSubmenuItem("Chance", curChance >= 100 ? "100 %" : string::f("%d %%", curChance), [=](ui::Menu* sub) {
@@ -1000,12 +1536,49 @@ struct GridDisplay : Widget {
 		                                   [=]() { set(curChance, curCond == NC_EVERY2 ? NC_ALWAYS : NC_EVERY2); }));
 	}
 
+	// right-click anywhere in the grid: track tools, save to the pad
+	void appendTrackMenu(ui::Menu* menu) {
+		GridDisplay* self = this;
+		int t = module->track;
+		bool useSel = hasSel();
+		menu->addChild(createSubmenuItem("Track tools", useSel ? "selection" : "whole track", [=](ui::Menu* sub) {
+			sub->addChild(createMenuLabel(useSel ? "Acts on the selection" : "Acts on the whole track"));
+			sub->addChild(createMenuItem("Rotate left", "1 step", [=]() { self->trackTool(TL_ROT_L); }));
+			sub->addChild(createMenuItem("Rotate right", "1 step", [=]() { self->trackTool(TL_ROT_R); }));
+			sub->addChild(createMenuItem("Reverse", "", [=]() { self->trackTool(TL_REVERSE); }));
+			sub->addChild(createMenuItem("Double speed", "", [=]() { self->trackTool(TL_DOUBLE); }));
+			sub->addChild(createMenuItem("Half speed", "", [=]() { self->trackTool(TL_HALF); }));
+			if (t != T_DRUMS) {
+				sub->addChild(new ui::MenuSeparator);
+				sub->addChild(createMenuItem("Transpose up", "+1 scale step", [=]() { self->trackTool(TL_UP); }));
+				sub->addChild(createMenuItem("Transpose down", "-1 scale step", [=]() { self->trackTool(TL_DOWN); }));
+			}
+			sub->addChild(new ui::MenuSeparator);
+			sub->addChild(createMenuItem("Randomize velocity", "±15 %", [=]() { self->trackTool(TL_VEL_RAND); }));
+			sub->addChild(createMenuItem("Even out velocity", "", [=]() { self->trackTool(TL_VEL_EVEN); }));
+		}));
+		std::string pad = padShort();
+		if (pad.empty()) {
+			ui::MenuItem* it = createMenuItem("Save to pad", "no ABLAUF pad playing", []() {});
+			it->disabled = true;
+			menu->addChild(it);
+		}
+		else
+			menu->addChild(createMenuItem("Save to pad " + pad, "Ctrl+S", [=]() { self->saveToPad(); }));
+		menu->addChild(new ui::MenuSeparator);
+	}
+
 	void openMenu(int s, int r) {
 		if (!g || s < 0 || s >= L)
 			return;
 		int t = module->track;
 		ui::Menu* menu = createMenu();
 		GridDisplay* self = this;
+		appendTrackMenu(menu);
+		if (s >= cycOf(src(), t, t == T_DRUMS ? clamp(r, 0, NUM_DRUMS - 1) : -1)) {
+			menu->addChild(createMenuLabel(string::f("Step %d: beyond the own length (repetition)", s + 1)));
+			return;
+		}
 		auto edit = [=](std::function<void()> f) {
 			if (!self->g || !self->begin())
 				return;
@@ -1285,15 +1858,82 @@ struct GridDisplay : Widget {
 			gl += string::f("  ·  %d SELECTED", (int)sel.size());
 		txt(bold, 3.5f + (b4[2] - b4[0]) / mm2px(1.f) + 2.f, 5.2f, 2.2f, dim, gl, NVG_ALIGN_LEFT | NVG_ALIGN_BASELINE, 0.3f);
 		static const char* SNAPS[3] = {"SNAP OFF", "SNAP SCALE", "SNAP CHORD"};
-		std::string right = pat.fixed[t] ? "EDITED" : "GENERATED";
+		const NVGcolor recCol = nvgRGB(0xff, 0x4a, 0x4a);
+		struct Seg {
+			std::string s;
+			NVGcolor c;
+			bool dot; // red record dot in front
+		};
+		std::vector<Seg> segs;
+		std::string pad = padLabel();
+		if (msgTime > 0.f && !msg.empty())
+			segs.push_back({msg, col, false});
+		else if (!pad.empty())
+			segs.push_back({pad, dim, false});
+		segs.push_back({pat.fixed[t] ? "EDITED" : "GENERATED", dim, false});
+		if (module->recOn)
+			segs.push_back({"REC", recCol, true});
 		if (t != T_DRUMS)
-			right += std::string("  ·  ") + SNAPS[module->snapMode];
+			segs.push_back({SNAPS[module->snapMode], dim, false});
 		if (t != T_DRUMS && pat.fixed[t] && pat.chordFollow[t])
-			right += "  ·  CHORD FOLLOW";
+			segs.push_back({"CHORD FOLLOW", dim, false});
+		std::string lens = lenSummary(pat, t);
+		if (!lens.empty())
+			segs.push_back({lens, dim, false});
 		int b0 = vs / 16 + 1, b1 = (vs + vis) / 16;
-		right += b0 == b1 ? string::f("  ·  BAR %d / %d", b0, L / 16) : string::f("  ·  BAR %d-%d / %d", b0, b1, L / 16);
-		right += std::string("  ·  ") + noteName(P.key + P.transp, P.key + P.transp, P.scale) + " " + upper(SCALES[P.scale].name);
-		txt(mono, wmm - 3.5f, 5.2f, 2.3f, dim, right, NVG_ALIGN_RIGHT | NVG_ALIGN_BASELINE, 0.2f);
+		segs.push_back({b0 == b1 ? string::f("BAR %d / %d", b0, L / 16) : string::f("BAR %d-%d / %d", b0, b1, L / 16), dim, false});
+		segs.push_back({std::string(noteName(P.key + P.transp, P.key + P.transp, P.scale)) + " " + upper(SCALES[P.scale].name), dim, false});
+		{
+			nvgFontFaceId(vg, mono->handle);
+			nvgFontSize(vg, mm2px(2.3f));
+			nvgTextLetterSpacing(vg, mm2px(0.2f));
+			auto width = [&](const std::string& x) {
+				float bb[4];
+				nvgTextBounds(vg, 0, 0, x.c_str(), NULL, bb);
+				return (bb[2] - bb[0]) / mm2px(1.f);
+			};
+			const std::string SEP = "  ·  ";
+			float wsep = width(SEP);
+			auto total = [&]() {
+				float w = 0.f;
+				for (size_t i = 0; i < segs.size(); i++)
+					w += width(segs[i].s) + (segs[i].dot ? 1.8f : 0.f) + (i ? wsep : 0.f);
+				return w;
+			};
+			float leftEnd = 3.5f + (b4[2] - b4[0]) / mm2px(1.f) + 2.f;
+			nvgFontFaceId(vg, bold->handle);
+			nvgFontSize(vg, mm2px(2.2f));
+			nvgTextLetterSpacing(vg, mm2px(0.3f));
+			{
+				float bb[4];
+				nvgTextBounds(vg, 0, 0, gl.c_str(), NULL, bb);
+				leftEnd += (bb[2] - bb[0]) / mm2px(1.f) + 3.f;
+			}
+			nvgFontFaceId(vg, mono->handle);
+			nvgFontSize(vg, mm2px(2.3f));
+			nvgTextLetterSpacing(vg, mm2px(0.2f));
+			// too long: the key goes first, then the bar range
+			if (leftEnd + total() > wmm - 3.5f && segs.size() > 2)
+				segs.pop_back();
+			if (leftEnd + total() > wmm - 3.5f && segs.size() > 2)
+				segs.pop_back();
+			float x = wmm - 3.5f;
+			for (int i = (int)segs.size() - 1; i >= 0; i--) {
+				txt(mono, x, 5.2f, 2.3f, segs[i].c, segs[i].s, NVG_ALIGN_RIGHT | NVG_ALIGN_BASELINE, 0.2f);
+				x -= width(segs[i].s);
+				if (segs[i].dot) {
+					nvgBeginPath(vg);
+					nvgCircle(vg, mm2px(x - 1.0f), mm2px(4.45f), mm2px(0.65f));
+					nvgFillColor(vg, segs[i].c);
+					nvgFill(vg);
+					x -= 1.8f;
+				}
+				if (i > 0) {
+					txt(mono, x, 5.2f, 2.3f, dim, SEP, NVG_ALIGN_RIGHT | NVG_ALIGN_BASELINE, 0.2f);
+					x -= wsep;
+				}
+			}
+		}
 
 		// ---- chord ruler
 		int playStep = g->running && g->step >= 0 ? g->step : -1;
@@ -1376,6 +2016,21 @@ struct GridDisplay : Widget {
 		}
 		for (int b = vs / 16; b < (vs + vis) / 16; b++)
 			txt(mono, x0 + (b * 16 - vs) * cw + 1.f, y1 + 3.f, 1.8f, dim, string::f("BAR %d", b + 1), NVG_ALIGN_LEFT | NVG_ALIGN_BASELINE, 0.2f);
+		// beyond a track's / voice's own length: darker, only repetitions play there
+		const NVGcolor LEN_COL = nvgRGB(0xff, 0xd8, 0x4a);
+		auto shadeFrom = [&](int c, float ya, float yb) {
+			if (c >= L || c >= vs + vis)
+				return;
+			float xa = x0 + std::max(0, c - vs) * cw, xb = x0 + (std::min(L, vs + vis) - vs) * cw;
+			if (xb > xa)
+				rect(xa, ya, xb - xa, yb - ya, nvgRGBA(0, 0, 0, 0x8c));
+		};
+		if (t == T_DRUMS) {
+			for (int v = 0; v < NUM_DRUMS; v++)
+				shadeFrom(cycOf(pat, t, v), y0 + v * rhh + 0.15f, y0 + (v + 1) * rhh - 0.15f);
+		}
+		else
+			shadeFrom(cycOf(pat, t, -1), y0, y1);
 		// hover
 		if (hoverStep >= vs && hoverStep < vs + vis && hoverRow >= 0 && hoverRow < nr && drag == D_NONE)
 			rect(x0 + (hoverStep - vs) * cw, y0 + hoverRow * rhh, cw, rhh, nvgRGBA(0xff, 0xff, 0xff, 0x14));
@@ -1408,19 +2063,20 @@ struct GridDisplay : Widget {
 			sc.a = 0.5f;
 			outline(x0 - 14.5f, y0 + module->drumRow * rhh + 0.4f, x1 - x0 + 14.5f, rhh - 0.8f, sc, 0.3f, 0.6f, false);
 			for (int v = 0; v < NUM_DRUMS; v++)
-				for (int s = vs; s < vs + vis && s < L; s++) {
+				for (int s = vs, cv = cycOf(pat, t, v); s < vs + vis && s < L; s++) {
 					Hit h = drumHit(pat, Q, v, s, L, false);
 					if (!h.on)
 						continue;
-					const DrumStep& ds = pat.drums[v][s];
+					const bool repeat = s >= cv; // a repetition of the voice's own cycle
+					const DrumStep& ds = pat.drums[v][cycleStep(pat, T_DRUMS, v, s)];
 					int chance = pat.fixed[T_DRUMS] && ds.fchance ? ds.fchance : 100;
 					int cond = pat.fixed[T_DRUMS] ? ds.fcond : 0;
 					bool partial = chance < 100 || cond != 0;
 					float in = std::min(0.45f, cw * 0.08f);
-					float x = x0 + (s - vs) * cw + in, y = y0 + v * rhh + 0.9f;
+					float x = x0 + (s - vs + h.nudge / 24.f) * cw + in, y = y0 + v * rhh + 0.9f;
 					float w = cw - 2.f * in, hh = rhh - 1.8f;
 					NVGcolor c = col;
-					c.a = (0.35f + 0.65f * h.vel) * (partial ? 0.55f : 1.f);
+					c.a = (0.35f + 0.65f * h.vel) * (partial ? 0.55f : 1.f) * (repeat ? 0.4f : 1.f);
 					rect(x, y, w, hh, c, std::min(0.7f, w * 0.3f));
 					if (h.vel < 0.45f || partial)
 						outline(x, y, w, hh, col, 0.25f, std::min(0.7f, w * 0.3f), partial);
@@ -1433,6 +2089,8 @@ struct GridDisplay : Widget {
 						nvgStrokeWidth(vg, mm2px(0.35f));
 						nvgStroke(vg);
 					}
+					if (repeat)
+						continue;
 					if (isSel(v, s))
 						outline(x - 0.15f, y - 0.15f, w + 0.3f, hh + 0.3f, white, 0.4f, 0.7f, false);
 					if (partial)
@@ -1444,12 +2102,26 @@ struct GridDisplay : Widget {
 		else {
 			std::vector<GridNote> ns = editing ? notes : trackNotes(pat, P, t, L);
 			nvgScissor(vg, mm2px(x0), mm2px(y0), mm2px(x1 - x0), mm2px(y1 - y0));
+			// repetitions of the track's own cycle (dimmed, not editable)
+			const int C = cycOf(pat, t, -1);
+			for (int k = 1; C < L && k * C < std::min(L, vs + vis); k++)
+				for (const GridNote& n0 : ns) {
+					int st = n0.start + k * C;
+					if (st >= L || st + n0.len <= vs || st >= vs + vis)
+						continue;
+					int r = rowOfPitch(n0.pitch);
+					if (r < 0 || r >= PIANO_ROWS)
+						continue;
+					NVGcolor c = col;
+					c.a = (0.4f + 0.6f * n0.vel / 127.f) * 0.35f;
+					rect(x0 + (st - vs + n0.nudge / 24.f) * cw + 0.3f, y0 + r * rhh + 0.25f, std::min(n0.len, L - st) * cw - 0.6f, rhh - 0.5f, c, 0.6f);
+				}
 			for (size_t i = 0; i < ns.size(); i++) {
 				const GridNote& n = ns[i];
 				if (n.start + n.len <= vs || n.start >= vs + vis)
 					continue;
 				int r = rowOfPitch(n.pitch);
-				float x = x0 + (n.start - vs) * cw + 0.3f, w = n.len * cw - 0.6f;
+				float x = x0 + (n.start - vs + n.nudge / 24.f) * cw + 0.3f, w = n.len * cw - 0.6f;
 				bool partial = n.chance < 100 || n.cond != 0;
 				NVGcolor c = col;
 				c.a = (0.4f + 0.6f * n.vel / 127.f) * (partial ? 0.5f : 1.f);
@@ -1491,6 +2163,59 @@ struct GridDisplay : Widget {
 					lastStep = n.start;
 				}
 		}
+		// ---- own length end markers: drag the handle, double-click it to follow the loop again
+		{
+			auto loopArrow = [&](float cx, float cy, NVGcolor c) {
+				nvgBeginPath(vg);
+				nvgArc(vg, mm2px(cx), mm2px(cy), mm2px(0.62f), 0.6f, 5.4f, NVG_CW);
+				nvgStrokeColor(vg, c);
+				nvgStrokeWidth(vg, mm2px(0.22f));
+				nvgStroke(vg);
+				float ax = cx + 0.62f * std::cos(0.6f), ay = cy + 0.62f * std::sin(0.6f);
+				nvgBeginPath(vg);
+				nvgMoveTo(vg, mm2px(ax + 0.35f), mm2px(ay - 0.05f));
+				nvgLineTo(vg, mm2px(ax - 0.1f), mm2px(ay - 0.4f));
+				nvgLineTo(vg, mm2px(ax - 0.12f), mm2px(ay + 0.25f));
+				nvgClosePath(vg);
+				nvgFillColor(vg, c);
+				nvgFill(vg);
+			};
+			auto marker = [&](int v, float ya, float yb) {
+				int c = cycOf(pat, t, v);
+				bool custom = c < L;
+				bool hot = drag == D_LEN && lenVoice == v;
+				// a track / voice that follows the loop shows its handle on hover only
+				bool hover = hoverStep >= 0 && hoverRow >= 0 && (t != T_DRUMS || hoverRow == v);
+				if (!custom && !hot && !hover)
+					return;
+				if (c < vs || c > vs + vis)
+					return;
+				float x = x0 + (c - vs) * cw, hy = markerY(v);
+				NVGcolor mc = LEN_COL;
+				if (!custom && !hot)
+					mc.a = 0.45f;
+				rect(x - (custom ? 0.35f : 0.18f), ya, custom ? 0.7f : 0.36f, yb - ya, mc);
+				rect(x - 0.9f, hy - 1.1f, 1.8f, 2.2f, mc, 0.4f);
+				if (custom || hot) {
+					std::string lab = string::f("%d STEPS", c);
+					float lx = x + 1.4f;
+					if (lx + 12.f > x1)
+						lx = x - 14.f; // near the right edge: label on the left
+					txt(bold, lx, hy + 0.65f, 1.5f, mc, lab, NVG_ALIGN_LEFT | NVG_ALIGN_BASELINE, 0.15f);
+					nvgFontSize(vg, mm2px(1.5f));
+					nvgTextLetterSpacing(vg, mm2px(0.15f));
+					float bb[4];
+					nvgTextBounds(vg, 0, 0, lab.c_str(), NULL, bb);
+					loopArrow(lx + (bb[2] - bb[0]) / mm2px(1.f) + 1.2f, hy + 0.15f, mc);
+				}
+			};
+			if (t == T_DRUMS) {
+				for (int v = 0; v < NUM_DRUMS; v++)
+					marker(v, y0 + v * rhh + 0.15f, y0 + (v + 1) * rhh - 0.15f);
+			}
+			else
+				marker(-1, y0, y1);
+		}
 		// ---- rubber band
 		if (drag == D_BOX) {
 			float xa = std::min(boxA.x, boxB.x), ya = std::min(boxA.y, boxB.y);
@@ -1518,6 +2243,7 @@ struct GenraGridWidget : ModuleWidget {
 	GridDisplay* display = nullptr;
 	bool prev[GenraGrid::PARAMS_LEN] = {};
 	float flash[6] = {0.f, 0.f, 0.f, 0.f, 0.f, 0.f};
+	float recBlink = 0.f;
 
 	GenraGridWidget(GenraGrid* module) {
 		setModule(module);
@@ -1552,6 +2278,7 @@ struct GenraGridWidget : ModuleWidget {
 		const float* ed[6] = {glayout::UNDO, glayout::REDO, glayout::COPY, glayout::PASTE, glayout::CLEAR, glayout::GEN};
 		for (int i = 0; i < 6; i++)
 			addParam(createLightParamCentered<VCVLightBezel<WhiteLight>>(P(ed[i]), module, GenraGrid::UNDO_PARAM + i, GenraGrid::UNDO_LIGHT + i));
+		addParam(createLightParamCentered<VCVLightBezel<RedLight>>(P(glayout::REC), module, GenraGrid::REC_PARAM, GenraGrid::REC_LIGHT));
 		addChild(createLightCentered<SmallLight<GMint>>(P(glayout::LINKLED), module, GenraGrid::LINK_LIGHT));
 	}
 
@@ -1579,6 +2306,8 @@ struct GenraGridWidget : ModuleWidget {
 		}
 		if (pressed(GenraGrid::FOLLOW_PARAM))
 			d->doFollow();
+		if (pressed(GenraGrid::REC_PARAM))
+			m->recOn = !m->recOn;
 		static const int EDIT_IDS[6] = {GenraGrid::UNDO_PARAM, GenraGrid::REDO_PARAM, GenraGrid::COPY_PARAM,
 		                                GenraGrid::PASTE_PARAM, GenraGrid::CLEAR_PARAM, GenraGrid::GEN_PARAM};
 		for (int i = 0; i < 6; i++) {
@@ -1614,6 +2343,14 @@ struct GenraGridWidget : ModuleWidget {
 			flash[i] = std::max(0.f, flash[i] - dt * 4.f);
 			m->lights[GenraGrid::UNDO_LIGHT + i].setBrightness(flash[i]);
 		}
+		// REC: lit while recording, blinking while armed and GENRA stopped
+		recBlink += dt * 2.f;
+		if (recBlink >= 1.f)
+			recBlink -= 1.f;
+		float rl = 0.f;
+		if (m->recOn)
+			rl = d->g && d->g->running ? 1.f : (recBlink < 0.5f ? 0.6f : 0.15f);
+		m->lights[GenraGrid::REC_LIGHT].setBrightness(rl);
 	}
 
 	void appendContextMenu(Menu* menu) override {
@@ -1644,12 +2381,18 @@ struct GenraGridWidget : ModuleWidget {
 		else
 			menu->addChild(createMenuLabel("Connect a GENRA to export or import"));
 		menu->addChild(new MenuSeparator);
+		menu->addChild(createMenuLabel("MIDI input (REC MIDI)"));
+		app::appendMidiMenu(menu, &m->midiIn);
+		menu->addChild(new MenuSeparator);
 		menu->addChild(createMenuLabel("Controls"));
 		menu->addChild(createMenuLabel("Click: set note / hit · Drag: move, length at the right edge"));
 		menu->addChild(createMenuLabel("Double-click: delete · Scroll: velocity · Right-click: accent, slide, roll, chance"));
 		menu->addChild(createMenuLabel("Shift + drag: box select · Ctrl + click: toggle note selection"));
 		menu->addChild(createMenuLabel("Selection: drag = move · Arrows = pitch / position (Shift: octave / bar)"));
 		menu->addChild(createMenuLabel("Del = delete · Ctrl+A all · Ctrl+C/V copy/paste · Ctrl+D duplicate · Esc"));
+		menu->addChild(createMenuLabel("Alt + Left/Right: nudge by 1/24 step · Ctrl+S: save to the ABLAUF pad"));
+		menu->addChild(createMenuLabel("Yellow end marker: drag = own length in steps · double-click = follow the loop"));
+		menu->addChild(createMenuLabel("Right-click in the grid: track tools (selection, else the whole track)"));
 	}
 };
 

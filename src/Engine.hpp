@@ -115,6 +115,7 @@ struct DrumStep {
 	uint8_t r, rg, rf, vj, rr, fv; // fv: fixed velocity (imported / edited), 0 = none
 	uint8_t frat;                  // fixed: roll / ratchet count (0/1 = single hit, 2-4)
 	uint8_t fchance, fcond;        // fixed: chance in % (0 = always), condition (NoteCond)
+	int8_t fnudge;                 // fixed: timing offset in 1/24 step (-11..11), 0 = on the grid
 };
 
 // condition of a fixed note / hit
@@ -134,6 +135,7 @@ struct NoteStep {
 	uint8_t fgate;     // fixed: gate in % of the length (0 = default)
 	int8_t froot;      // fixed: chord root (semitones above key) the note was written against, -1 = unknown
 	uint8_t fchance, fcond; // fixed: chance in % (0 = always), NoteCond
+	int8_t fnudge;     // fixed: timing offset in 1/24 step (-11..11)
 };
 
 struct PadStep {
@@ -143,6 +145,7 @@ struct PadStep {
 	uint8_t fgate;    // fixed: gate in % (0 = default)
 	int8_t froot;     // fixed: chord root the notes were written against, -1 = unknown
 	uint8_t fchance, fcond; // fixed: chance in % (0 = always), NoteCond
+	int8_t fnudge;    // fixed: timing offset in 1/24 step (-11..11)
 };
 
 struct ChordSpec {
@@ -172,6 +175,10 @@ struct Pattern {
 	uint8_t fixed[NUM_TRACKS]; // track plays imported / edited notes exactly
 	uint8_t chordFollow[NUM_TRACKS]; // fixed notes move with the chords (diatonically)
 	uint8_t reserved[8];
+	// own cycle in steps (0 = follow the loop): per piano track (index T_BASS..T_PADS) and per drum voice.
+	// A track / voice reads step (loopStep % length) and restarts with the loop.
+	uint8_t tLen[NUM_TRACKS];
+	uint8_t vLen[NUM_DRUMS];
 	uint8_t chop[MAX_BARS][16]; // break-chop source step per bar
 	uint8_t chopR[MAX_BARS];
 	ChordSpec prog[MAX_PROG];
@@ -248,6 +255,11 @@ void generateTrack(Pattern& pat, int track, int genre, Rng& rng, const Params& P
 void mutate(Pattern& pat, float amount, Rng& rng, const bool lock[NUM_TRACKS], bool chordLock, const Params& P);
 
 // ---------------------------------------------------------------- evaluation
+static const int NUDGE_MAX = 11; // nudge range: +-11/24 step
+// own cycle of a track (voice < 0) or drum voice: length in steps, 0 = follows the loop
+int cycleLen(const Pattern& pat, int track, int voice);
+// step of the pattern data a track / drum voice reads at loop step `step`
+int cycleStep(const Pattern& pat, int track, int voice, int step);
 float effComplex(const Params& P, int genre);
 float effColor(const Params& P, int genre);
 float effSwing(const Params& P, int genre);
@@ -257,6 +269,7 @@ struct Hit {
 	float vel = 0.f;
 	int ratchet = 1;
 	float delay = 0.f; // humanize, seconds
+	int nudge = 0;     // fixed hits: offset in 1/24 step (-11..11)
 };
 Hit drumHit(const Pattern& pat, const Params& P, int voice, int step, int L, bool fill);
 void drumStep(const Pattern& pat, const Params& P, int step, int L, bool fill, Hit out[NUM_DRUMS]);
@@ -269,6 +282,7 @@ struct NoteEv {
 	float gate = 0.9f; // fraction of len
 	bool acc = false;
 	bool slide = false; // glides into the next note (gate held)
+	int nudge = 0;      // fixed notes: offset in 1/24 step (-11..11)
 };
 NoteEv bassAt(const Pattern& pat, const Params& P, int step, int L);
 NoteEv melAt(const Pattern& pat, const Params& P, int step, int L);
@@ -279,6 +293,7 @@ struct PadEv {
 	int len = 1;
 	float gate = 0.95f;
 	int notes[4] = {60, 64, 67, 72};
+	int nudge = 0;
 };
 // prev: previous voicing (voice leading), updated in place
 PadEv padAt(const Pattern& pat, const Params& P, int step, int L, int prev[4], bool& hasPrev);
@@ -290,6 +305,7 @@ struct GridNote {
 	bool slide = false, acc = false;
 	int chance = 100; // %
 	int cond = NC_ALWAYS;
+	int nudge = 0;    // 1/24 step, -11..11
 };
 // does an edited note / hit with this chance play in this pass?
 bool chancePlays(int chance, int cond, int track, int voice, int step, const Params& P);
@@ -304,6 +320,9 @@ void writeTrackNotes(Pattern& pat, const Params& P, int track, const std::vector
 // drums (fixed track): vel 0 = no hit
 void setDrum(Pattern& pat, int voice, int step, int vel, int ratchet);
 void setDrumChance(Pattern& pat, int voice, int step, int chance, int cond);
+void setDrumNudge(Pattern& pat, int voice, int step, int nudge);
+// own cycle length (0 = follow the loop); voice >= 0: drum voice, otherwise piano track
+void setCycleLen(Pattern& pat, int track, int voice, int len);
 void setChordFollow(Pattern& pat, const Params& P, int track, bool on, int L);
 // snap: 0 off, 1 scale, 2 chord tones
 int snapPitch(const Pattern& pat, const Params& P, int step, int pitch, int mode);
@@ -349,6 +368,9 @@ std::vector<MidiNote> renderSong(const std::vector<SongPart>& parts, std::vector
 // markers: marker meta events (song parts) in the tempo track
 std::vector<uint8_t> writeSmf(const std::vector<MidiNote>& notes, float bpm, const char* genreName, int loopSteps = 0,
                               const Pattern* pat = nullptr, const std::vector<SongMarker>* markers = nullptr);
+// drum voice for a MIDI note: GM drum map (35-81, like the import); other notes from C of their octave
+// (C kick, C# snare, D clap, D# rim, E closed hat, F open hat, F# tom, G and above perc)
+int gmDrumVoice(int note);
 // returns number of bars imported (0 on failure); err receives a message
 int importSmf(const std::vector<uint8_t>& data, Pattern& pat, const Params& P, std::string& err);
 

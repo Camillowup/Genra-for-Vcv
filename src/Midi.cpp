@@ -28,6 +28,7 @@ static void renderRange(const Pattern& pat, const Params& P0, int L, int nSteps,
 	auto add = [&](int track, int step, int tick, int lenTicks, int note, float vel) {
 		if ((mute >> track) & 1)
 			return;
+		tick = std::max(0, tick); // a note nudged ahead of the very first step
 		MidiNote m;
 		m.track = track;
 		m.start = step;
@@ -39,6 +40,8 @@ static void renderRange(const Pattern& pat, const Params& P0, int L, int nSteps,
 		out.push_back(m);
 	};
 	const int fillFrom = fillLast ? std::max(0, nSteps - STEPS_PER_BAR) : nSteps;
+	// nudge: 1/24 step in ticks
+	auto nt = [](int nudge) { return nudge * TPS / 24; };
 	for (int g = 0; g < nSteps; g++) {
 		int s = g % L;
 		P.pass = P0.pass + g / L;
@@ -61,14 +64,14 @@ static void renderRange(const Pattern& pat, const Params& P0, int L, int nSteps,
 				continue;
 			int n = std::max(1, hits[v].ratchet);
 			for (int i = 0; i < n; i++)
-				add(0, tick0 / TPS + g, t0 + i * TPS / n, TPS / n / 2, GM_DRUM[v], hits[v].vel);
+				add(0, tick0 / TPS + g, t0 + nt(hits[v].nudge) + i * TPS / n, TPS / n / 2, GM_DRUM[v], hits[v].vel);
 		}
 		NoteEv b = bassAt(pat, P, s, L);
 		if (b.on)
-			add(1, tick0 / TPS + g, t0s[T_BASS], (int)(b.len * TPS * b.gate), b.pitch, b.vel);
+			add(1, tick0 / TPS + g, t0s[T_BASS] + nt(b.nudge), (int)(b.len * TPS * b.gate), b.pitch, b.vel);
 		NoteEv m = melAt(pat, P, s, L);
 		if (m.on)
-			add(2, tick0 / TPS + g, t0s[T_MELODY], (int)(m.len * TPS * m.gate), m.pitch, m.vel);
+			add(2, tick0 / TPS + g, t0s[T_MELODY] + nt(m.nudge), (int)(m.len * TPS * m.gate), m.pitch, m.vel);
 		PadEv p = padAt(pat, P, s, L, prev, hasPrev);
 		if (p.on) {
 			for (int k = 0; k < 4; k++) {
@@ -77,7 +80,7 @@ static void renderRange(const Pattern& pat, const Params& P0, int L, int nSteps,
 					if (p.notes[j] == p.notes[k])
 						dup = true;
 				if (!dup)
-					add(3, tick0 / TPS + g, t0s[T_PADS], (int)(p.len * TPS * p.gate), p.notes[k], p.vel);
+					add(3, tick0 / TPS + g, t0s[T_PADS] + nt(p.nudge), (int)(p.len * TPS * p.gate), p.notes[k], p.vel);
 			}
 		}
 	}
@@ -350,6 +353,13 @@ static int drumVoice(int note) {
 		case 41: case 43: case 45: case 47: case 48: case 50: return TOM;
 		default: return PERC;
 	}
+}
+
+int gmDrumVoice(int note) {
+	if (note >= 35 && note <= 81)
+		return drumVoice(note);
+	int pc = ((note % 12) + 12) % 12; // outside GM: from C of each octave (C kick, C# snare ... G perc)
+	return pc < NUM_DRUMS ? pc : PERC;
 }
 
 static void copyChords(const Pattern& from, Pattern& to) {
