@@ -1,0 +1,22 @@
+name: Diag GENRA (Linux, libRack)
+on:
+  push:
+    branches: [diag-genra]
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: SDK
+        run: |
+          curl -sSL -o sdk.zip https://vcvrack.com/downloads/Rack-SDK-latest-lin-x64.zip
+          unzip -q sdk.zip -d sdk
+          ls sdk/Rack-SDK | head -30
+      - name: Build harness
+        run: |
+          S=sdk/Rack-SDK
+          g++ -std=c++17 -O1 -g -fsanitize=address,undefined -DARCH_LIN -I$S/include -I$S/dep/include -Isrc \
+            test/diag/genra_run.cpp src/Engine.cpp src/Genres.cpp src/Edit.cpp src/Store.cpp src/Midi.cpp src/Arranger.cpp src/Follow.cpp \
+            -L$S -lRack -Wl,-rpath,$PWD/$S -o genra_run 2>&1 | tail -30
+      - name: Run
+        run: timeout 300 ./genra_run
