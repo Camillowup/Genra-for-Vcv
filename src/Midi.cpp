@@ -13,9 +13,10 @@ static inline int clampi(int x, int a, int b) { return x < a ? a : (x > b ? b : 
 static inline int mod12(int x) { return ((x % 12) + 12) % 12; }
 
 // nSteps steps of a pattern with a loop of L steps, from tick0 on; the drums fill over the last bar if fillLast;
-// tracks in mute (bit per track) stay silent
+// tracks in mute (bit per track) stay silent. A song part (Pattern::partTag) runs its course over the range when it is
+// a song row (asRow), otherwise over the loop, as GENRA plays it
 static void renderRange(const Pattern& pat, const Params& P0, int L, int nSteps, int tick0, bool fillLast, uint8_t mute,
-                        std::vector<MidiNote>& out) {
+                        std::vector<MidiNote>& out, bool asRow = false) {
 	L = clampi(L, 1, MAX_STEPS);
 	Params P = P0;
 	// every track swings like the genre it plays
@@ -48,8 +49,10 @@ static void renderRange(const Pattern& pat, const Params& P0, int L, int nSteps,
 	for (int g = 0; g < nSteps; g++) {
 		int s = g % L;
 		P.pass = P0.pass + g / L;
-		bool fill = g >= fillFrom;
-		P.fillActive = fillLast ? fill : P0.fillActive;
+		bool fill = g >= fillFrom ||
+		            (asRow && partPhraseFill(pat, g / STEPS_PER_BAR, nSteps / STEPS_PER_BAR)); // phrase ends in long rows
+		const PartPos pp = asRow ? partPos(pat, g, nSteps) : partPos(pat, s, L);
+		P.fillActive = fill ? true : (fillLast ? false : P0.fillActive);
 		int base = tick0 + g * TPS;
 		int t0s[NUM_TRACKS];
 		for (int t = 0; t < NUM_TRACKS; t++)
@@ -61,6 +64,8 @@ static void renderRange(const Pattern& pat, const Params& P0, int L, int nSteps,
 		}
 		else
 			drumStep(pat, P, s, L, false, hits);
+		if (pp.sec >= 0 && (pat.partMask & (1u << T_DRUMS)))
+			shapeDrums(pp, hits);
 		for (int v = 0; v < NUM_DRUMS; v++) {
 			if (!hits[v].on)
 				continue;
@@ -70,9 +75,13 @@ static void renderRange(const Pattern& pat, const Params& P0, int L, int nSteps,
 				    GM_DRUM[v], hits[v].vel);
 		}
 		NoteEv b = bassAt(pat, P, s, L);
+		if (pp.sec >= 0 && (pat.partMask & (1u << T_BASS)))
+			shapeNote(pp, T_BASS, b);
 		if (b.on)
 			add(1, tick0 / TPS + g, t0s[T_BASS] + nt(b.nudge), (int)(b.len * TPS * b.gate), b.pitch, b.vel);
 		NoteEv m = melAt(pat, P, s, L);
+		if (pp.sec >= 0 && (pat.partMask & (1u << T_MELODY)))
+			shapeNote(pp, T_MELODY, m);
 		if (m.on)
 			add(2, tick0 / TPS + g, t0s[T_MELODY] + nt(m.nudge), (int)(m.len * TPS * m.gate), m.pitch, m.vel);
 		PadEv p = padAt(pat, P, s, L, prev, hasPrev);
@@ -105,7 +114,7 @@ std::vector<MidiNote> renderSong(const std::vector<SongPart>& parts, std::vector
 		if (markers)
 			markers->push_back({tick, sp.label});
 		int n = sp.bars * STEPS_PER_BAR;
-		renderRange(*sp.pat, sp.P, sp.L, n, tick, sp.fill, sp.mute, out);
+		renderRange(*sp.pat, sp.P, sp.L, n, tick, sp.fill, sp.mute, out, true);
 		tick += n * TPS;
 	}
 	return out;

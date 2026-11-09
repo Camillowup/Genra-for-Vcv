@@ -317,6 +317,7 @@ struct Genra : Module {
 	uint8_t arrMute = 0;
 	bool arrFill = false;
 	int64_t arrRowEnd = -1;
+	int arrRowBars = 0; // the song row's length in bars (with arrRowEnd: where in the row GENRA is)
 	int arrFillEnd = -1; // the row ends inside the loop: the drums play the fill up to this step
 	int64_t barIndex = 0;
 
@@ -379,6 +380,7 @@ struct Genra : Module {
 			arrFill = cue.fill;
 			int64_t start = atBarLine ? barIndex : barIndex + 1;
 			arrRowEnd = cue.rowBars > 0 ? start + cue.rowBars : -1;
+			arrRowBars = cue.rowBars > 0 ? cue.rowBars : 0;
 			rowStartPub.store(start);
 			arrSecPub = cue.tag;
 			arrRowPub = cue.row;
@@ -1013,7 +1015,9 @@ struct Genra : Module {
 				arrFillEnd = step + STEPS_PER_BAR;
 				fillActive = true;
 			}
-			else if (fillPadReq) { // FILL pad: this bar is a fill
+			else if (fillPadReq || (arrRowEnd >= 0 && arrRowBars > 0 &&
+			                        partPhraseFill(pat, (int)(barIndex - (arrRowEnd - arrRowBars)), arrRowBars))) {
+				// FILL pad, or the end of an 8-bar phrase inside a long verse / drop row: this bar is a fill
 				fillPadReq = false;
 				fillPadOn = true;
 				fillWas = fillActive;
@@ -1072,6 +1076,10 @@ struct Genra : Module {
 		}
 		// compute this step for every track, play it after the track's swing delay
 		drumStep(pat, P, step, arrFillEnd > 0 ? arrFillEnd : L, fillActive, qDrums);
+		// a song part runs its course over the row (an intro coming in, a build's roll, a break's breakdown ...)
+		const PartPos pp = curPartPos(L);
+		if (pp.sec >= 0 && (pat.partMask & (1u << T_DRUMS)))
+			shapeDrums(pp, qDrums);
 		if (!trackMuted(T_DRUMS)) {
 			float d = swingDelay(P, T_DRUMS);
 			// nudged hits (edited drums) and voices with their own swing play on their own: swing + nudge per voice
@@ -1095,11 +1103,15 @@ struct Genra : Module {
 				fireDrums(sr);
 		}
 		NoteEv nb = bassAt(pat, P, step, L);
+		if (pp.sec >= 0 && (pat.partMask & (1u << T_BASS)))
+			shapeNote(pp, T_BASS, nb);
 		qBass.on = false;
 		if (nb.on && !trackMuted(T_BASS))
 			placeEvent(T_BASS, nb, dBass, qBass, swingDelay(P, T_BASS) + nudgeSamples(nb.nudge),
 			           [&](const NoteEv& n) { startMono(bassV, n, sr); });
 		NoteEv nm = melAt(pat, P, step, L);
+		if (pp.sec >= 0 && (pat.partMask & (1u << T_MELODY)))
+			shapeNote(pp, T_MELODY, nm);
 		qMel.on = false;
 		if (nm.on && !trackMuted(T_MELODY))
 			placeEvent(T_MELODY, nm, dMel, qMel, swingDelay(P, T_MELODY) + nudgeSamples(nm.nudge),
@@ -1124,6 +1136,16 @@ struct Genra : Module {
 		const ChordEvent& ce = pat.ev[clamp(e, 0, MAX_EVENTS - 1)];
 		float prog = ce.len > 0 ? (step - ce.start + 0.5f) / ce.len : 0.f;
 		modTarget = 5.f * (1.f - std::cos(3.14159265f * clamp(prog, 0.f, 1.f)));
+	}
+
+	/** Where a song part is in its course: in a song row the row, otherwise the loop (Pattern::partTag). */
+	PartPos curPartPos(int L) const {
+		if (arrRowEnd >= 0 && arrRowBars > 0) {
+			int64_t bar = barIndex - (arrRowEnd - arrRowBars);
+			int b = (int)std::max<int64_t>(0, std::min<int64_t>(arrRowBars - 1, bar));
+			return partPos(pat, b * STEPS_PER_BAR + step % STEPS_PER_BAR, arrRowBars * STEPS_PER_BAR);
+		}
+		return partPos(pat, step, L);
 	}
 
 	/** RUN: from the first step of the loop, also while running (audio thread). */

@@ -881,6 +881,8 @@ static void genPads(Pattern& pat, int g, Rng& rng) {
 
 void generateTrack(Pattern& pat, int track, int g, Rng& rng, const Params& P) {
 	g = clampi(g, 0, numProfiles() - 1);
+	if (track >= 0 && track < NUM_TRACKS)
+		pat.partMask &= (uint8_t)~(1u << track); // new material: no part's course any more (a part shapes it again)
 	switch (track) {
 		case T_DRUMS: genDrums(pat, g, rng); break;
 		case T_BASS: genBass(pat, g, rng); break;

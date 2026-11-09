@@ -933,6 +933,11 @@ struct Ablauf : Module {
 			w.on = 0xF;
 			made.push_back(w);
 		}
+		// a fill leads out of a verse or a drop into the next, different part (the build and the break have their own
+		// endings: the roll, the pickup)
+		for (size_t k = 0; k + 1 < made.size(); k++)
+			if ((made[k].sec == SEC_VERSE || made[k].sec == SEC_DROP) && made[k + 1].sec != made[k].sec)
+				made[k].fill = true;
 		AblaufAction* ra = new AblaufAction;
 		ra->name = ca->name;
 		ra->moduleId = id;

@@ -41,6 +41,21 @@ static void makeSource(Slot& s, int g, int lenIdx, Rng& rng) {
 	s.mods.dens[2] = 0.07f; // the source's own offsets must survive on kept tracks
 }
 
+// as GENRA plays a step (outside a song: the part's course over the loop)
+static void playDrums(const Pattern& p, const Params& P, int st, int L, Hit h[NUM_DRUMS], int span = 0, int pos = -1) {
+	drumStep(p, P, st, L, false, h);
+	PartPos pp = partPos(p, pos >= 0 ? pos : st, span > 0 ? span : L);
+	if (pp.sec >= 0 && (p.partMask & (1u << T_DRUMS)))
+		shapeDrums(pp, h);
+}
+static NoteEv playNote(const Pattern& p, const Params& P, int st, int L, int t, int span = 0, int pos = -1) {
+	NoteEv n = t == T_BASS ? bassAt(p, P, st, L) : melAt(p, P, st, L);
+	PartPos pp = partPos(p, pos >= 0 ? pos : st, span > 0 ? span : L);
+	if (pp.sec >= 0 && (p.partMask & (1u << t)))
+		shapeNote(pp, t, n);
+	return n;
+}
+
 // what plays over one pass (fill off)
 struct Count {
 	int drum[NUM_DRUMS] = {};
@@ -56,7 +71,7 @@ static Count count(const Slot& s, const Params& P0, int from) {
 	int L = LENGTH_BARS[s.lengthIdx] * 16;
 	for (int st = 0; st < L; st++) {
 		Hit h[NUM_DRUMS];
-		drumStep(s.pat, P, st, L, false, h);
+		playDrums(s.pat, P, st, L, h);
 		for (int v = 0; v < NUM_DRUMS; v++)
 			if (h[v].on) {
 				c.drum[v]++;
@@ -67,7 +82,7 @@ static Count count(const Slot& s, const Params& P0, int from) {
 				if (!std::isfinite(h[v].vel))
 					c.velN = -1000;
 			}
-		NoteEv b = bassAt(s.pat, P, st, L), m = melAt(s.pat, P, st, L);
+		NoteEv b = playNote(s.pat, P, st, L, T_BASS), m = playNote(s.pat, P, st, L, T_MELODY);
 		c.bass += b.on;
 		c.mel += m.on;
 		if (st >= from)
@@ -133,10 +148,10 @@ int main() {
 						// the last beat: no kick
 						Hit h[NUM_DRUMS];
 						for (int st = L - 4; st < L; st++) {
-							drumStep(out->pat, withMods(P, out->mods), st, L, false, h);
+							playDrums(out->pat, withMods(P, out->mods), st, L, h);
 							CHECK(!h[KICK].on, "%s L%d build: kick on the last beat", gn, L);
 						}
-						drumStep(out->pat, withMods(P, out->mods), L - 1, L, false, h);
+						playDrums(out->pat, withMods(P, out->mods), L - 1, L, h);
 						CHECK(h[SNARE].on && h[SNARE].ratchet >= 2, "%s build: no 32nds at the end", gn);
 						CHECK(out->mods.fill < 0.f, "build: random fills must be off");
 					} break;
@@ -195,7 +210,7 @@ int main() {
 					for (int b = 0; b < L; b += 16) {
 						int notes = heldTo > b ? 1 : 0;
 						for (int s = b; s < b + 16 && s < L; s++) {
-							NoteEv nn = bassAt(out->pat, Q, s, L);
+							NoteEv nn = playNote(out->pat, Q, s, L, T_BASS);
 							if (!nn.on)
 								continue;
 							notes++;
@@ -209,7 +224,7 @@ int main() {
 					if (silentOk) {
 						CHECK(total >= 1 && total <= 2, "%s L%d bass out: pickup of 1-2 notes (%d)", prof(g).name, L, total);
 						for (int s = 0; s < L - 4; s++)
-							CHECK(!bassAt(out->pat, Q, s, L).on, "bass out: a note before the last beat");
+							CHECK(!playNote(out->pat, Q, s, L, T_BASS).on, "bass out: a note before the last beat");
 					}
 					CHECK(sameTrack(src->pat, out->pat, T_DRUMS), "bass style: drums kept");
 					styled++;
@@ -314,6 +329,72 @@ int main() {
 		std::string blob(smf.begin(), smf.end());
 		CHECK(blob.find("INTRO 1") != std::string::npos && blob.find("OUTRO 1") != std::string::npos, "markers in the file");
 		printf("song MIDI: %d notes, %d bytes\n", (int)song.size(), (int)smf.size());
+	}
+	// 2.28: a part runs its course over the song row, not over a short loop: a 1-bar BREAK in a 16-bar row has its
+	// pickup once at the end and no drums in the first half; a 1-bar BUILD in an 8-bar row rolls once, getting denser
+	{
+		int gH = 0;
+		for (int g = 0; g < numProfiles(); g++)
+			if (std::strcmp(prof(g).name, "House") == 0)
+				gH = g;
+		Rng r(23);
+		std::unique_ptr<Slot> src(new Slot), brk(new Slot), bld(new Slot), drop(new Slot);
+		makeSource(*src, gH, 0, r); // 1 bar
+		Params P = baseP(gH, 1);
+		makeSection(*src, *brk, SEC_BREAK, 0xF, P, r);
+		makeSection(*src, *bld, SEC_BUILD, 0xF, P, r);
+		makeSection(*src, *drop, SEC_DROP, 0xF, P, r);
+		CHECK(brk->pat.partTag == SEC_BREAK + 1 && (brk->pat.partMask & 1), "break: tagged and shaped");
+		CHECK(drop->pat.partMask == 0, "drop: not shaped");
+		const int L = 16, span = 16 * 16;
+		int firstHalf = 0, pickups = 0;
+		for (int g = 0; g < span; g++) {
+			Hit h[NUM_DRUMS];
+			playDrums(brk->pat, withMods(P, brk->mods), g % L, L, h, span, g);
+			for (int v = 0; v < NUM_DRUMS; v++)
+				if (h[v].on && g < span / 2)
+					firstHalf++;
+			if (h[SNARE].on)
+				pickups++;
+			if (h[SNARE].on)
+				CHECK(g >= span - 4, "break: a snare before the row's last beat (step %d)", g);
+		}
+		CHECK(firstHalf == 0, "break: drums in the first half of a 16-bar row (%d)", firstHalf);
+		CHECK(pickups == 4, "break: one pickup of 4 snares at the row's end (%d)", pickups);
+		const int bspan = 8 * 16;
+		int seg[4] = {}, r32 = 0, kickLast = 0;
+		for (int g = 0; g < bspan; g++) {
+			Hit h[NUM_DRUMS];
+			playDrums(bld->pat, withMods(P, bld->mods), g % L, L, h, bspan, g);
+			if (h[SNARE].on)
+				seg[g * 4 / bspan]++;
+			if (h[SNARE].on && h[SNARE].ratchet >= 2)
+				r32++;
+			if (g >= bspan - 4 && h[KICK].on)
+				kickLast++;
+		}
+		for (int q = 1; q < 4; q++)
+			CHECK(seg[q] > seg[q - 1], "build: the roll gets denser over the row (%d %d %d %d)", seg[0], seg[1], seg[2], seg[3]);
+		CHECK(r32 == 4, "build: 32nds only on the row's last beat (%d)", r32);
+		CHECK(kickLast == 0, "build: kick on the row's last beat");
+		// MIDI: the song row renders the same course
+		std::vector<SongPart> parts(1);
+		parts[0].pat = &brk->pat, parts[0].P = withMods(P, brk->mods), parts[0].L = L, parts[0].bars = 16;
+		std::vector<MidiNote> song = renderSong(parts);
+		int early = 0;
+		for (const MidiNote& m : song)
+			if (m.track == 0 && m.startTick < 8 * 16 * 24)
+				early++;
+		CHECK(early == 0, "song MIDI: break drums in the first half (%d)", early);
+		// stored and loaded with its part
+		Pattern q;
+		CHECK(loadPattern(savePattern(brk->pat), q) && q.partTag == brk->pat.partTag && q.partMask == brk->pat.partMask,
+		      "part tag round trip");
+		// long verse / drop rows: a fill closes every 8-bar phrase inside the row
+		CHECK(partPhraseFill(drop->pat, 7, 32) && partPhraseFill(drop->pat, 23, 32) && !partPhraseFill(drop->pat, 31, 32) &&
+		          !partPhraseFill(drop->pat, 6, 32) && !partPhraseFill(drop->pat, 7, 8) && !partPhraseFill(brk->pat, 7, 32),
+		      "phrase fills");
+		printf("parts over the row: break pickups %d, build roll %d/%d/%d/%d\n", pickups, seg[0], seg[1], seg[2], seg[3]);
 	}
 	printf("%d parts made, %s\n", n, fails ? "FAILED" : "all ABLAUF tests passed");
 	return fails != 0;

@@ -125,7 +125,6 @@ static Params partP(const Params& P, int t, float densOff, float densMin, float 
 }
 
 // last bar of the loop (the second half of a one-bar loop)
-static int lastBar(int L) { return L >= 32 ? L - 16 : L / 2; }
 
 // ================================================================= bass styles (BREAK, INTRO)
 // the frozen line, only on strong beats (1 and 3) and chord changes, shorter and softer; from step `from` on
@@ -193,30 +192,20 @@ static void bassOut(Pattern& p, const Params& P, int L, Rng& rng) {
 // ================================================================= INTRO
 // sparse drums that come in over the loop, the bass enters halfway on the chords, a thin melody, pads in front
 static void introDrums(Pattern& p, const Params& P, int L) {
+	// the material; how it comes in over the row: shapeDrums (Edit.cpp)
 	freezeTrack(p, partP(P, T_DRUMS, -0.18f, 0.18f, 0.3f, -0.15f), T_DRUMS, L);
-	bool lng = L >= 32;
 	for (int s = 0; s < L; s++) {
-		float x = (float)s / L;
 		int gs = s % 16;
 		kill(p, TOM, s);
 		kill(p, PERC, s);
-		if (lng && x < 0.5f) {
-			kill(p, SNARE, s);
-			kill(p, CLAP, s);
-			kill(p, RIM, s);
-		}
-		else {
-			scaleHit(p, SNARE, s, 0.8f);
-			scaleHit(p, CLAP, s, 0.8f);
-		}
+		scaleHit(p, SNARE, s, 0.8f);
+		scaleHit(p, CLAP, s, 0.8f);
 		if (gs % 4 != 2)
 			kill(p, OHAT, s);
 		if (s % 2)
 			kill(p, CHAT, s);
-		if (L >= 64 && x < 0.25f && gs != 0)
-			kill(p, KICK, s);
-		for (int v = 0; v < NUM_DRUMS; v++)
-			scaleHit(p, v, s, (v == OHAT ? 0.8f : (v == CHAT ? 0.85f : 1.f)) * (0.72f + 0.28f * x));
+		scaleHit(p, OHAT, s, 0.8f);
+		scaleHit(p, CHAT, s, 0.85f);
 	}
 	// never an empty intro: at least the downbeats
 	bool any = false;
@@ -230,7 +219,7 @@ static void introDrums(Pattern& p, const Params& P, int L) {
 
 static void introBass(Pattern& p, const Params& P, int L, int style, Rng& rng) {
 	freezeTrack(p, partP(P, T_BASS, style == IB_THIN ? 0.f : -0.25f, 0.12f), T_BASS, L);
-	int from = L >= 32 ? L / 2 : 0;
+	int from = 0; // the entry halfway through the row: shapeNote
 	if (style == IB_THIN || style == IB_PULSE) {
 		if (style == IB_THIN)
 			bassThin(p, P, L, from);
@@ -257,7 +246,7 @@ static void introBass(Pattern& p, const Params& P, int L, int style, Rng& rng) {
 static void introMelody(Pattern& p, const Params& P, int L) {
 	freezeTrack(p, partP(P, T_MELODY, -0.15f, 0.15f), T_MELODY, L);
 	for (int s = 0; s < L; s++) {
-		if ((L >= 32 && s < L / 2) || s % 2)
+		if (s % 2)
 			noteOff(p.mel[s]);
 		else
 			scaleNote(p.mel[s], 0.85f);
@@ -269,106 +258,47 @@ static void introMelody(Pattern& p, const Params& P, int L) {
 // a snare roll from quarters to 32nds getting louder, 16th hats in the second half, in the last bar the kick
 // goes to quarters and stops on the last beat, the bass drops out: the drop lands in the gap
 static void buildDrums(Pattern& p, const Params& P, int L) {
+	// the groove without snares, claps, rims and toms; the roll over the row: shapeDrums (Edit.cpp)
 	freezeTrack(p, partP(P, T_DRUMS, -0.08f, 0.2f, 0.5f), T_DRUMS, L);
-	int lb = lastBar(L);
-	// where the roll moves on: none / quarters / 8ths / 16ths (the last beat is 32nds)
-	float q0, q1, e1, s1;
-	if (L >= 128)
-		q0 = 0.25f, q1 = 0.5f, e1 = 0.75f;
-	else if (L >= 64)
-		q0 = 0.f, q1 = 0.5f, e1 = 0.75f;
-	else if (L >= 32)
-		q0 = 0.f, q1 = 0.25f, e1 = 0.5f;
-	else
-		q0 = 0.f, q1 = 0.f, e1 = 0.5f;
-	s1 = (float)(L - 4) / L;
 	for (int s = 0; s < L; s++) {
-		float x = (float)s / L;
 		kill(p, SNARE, s);
 		kill(p, CLAP, s);
 		kill(p, RIM, s);
 		kill(p, TOM, s);
-		if (s >= lb) {
-			kill(p, OHAT, s);
-			kill(p, PERC, s);
-			if (s % 4 == 0 && s < L - 4)
-				hit(p, KICK, s, 118);
-			else
-				kill(p, KICK, s);
-		}
-		if (x >= 0.5f)
-			hit(p, CHAT, s, (int)(42 + 58 * x));
-		if (s >= L - 2)
-			kill(p, CHAT, s);
-		// the roll
-		bool on = false;
-		if (x >= q0) {
-			if (x < q1)
-				on = s % 4 == 0;
-			else if (x < e1)
-				on = s % 2 == 0;
-			else
-				on = true;
-		}
-		if (on) {
-			int vel = (int)(36 + 91 * std::pow(x, 1.4f));
-			hit(p, SNARE, s, vel, s >= L - 4 ? 2 : 1);
-			if (x >= s1 - 0.0001f)
-				hit(p, CLAP, s, vel * 3 / 4);
-		}
 	}
 	tile(p, T_DRUMS, L);
 }
 
 static void buildBass(Pattern& p, const Params& P, int L) {
+	// the gap before the drop at the row's end: shapeNote
 	freezeTrack(p, partP(P, T_BASS, 0.f, 0.15f), T_BASS, L);
-	int lb = L >= 32 ? L - 16 : L - 4;
-	for (int s = lb; s < L; s++)
-		noteOff(p.bass[s]);
-	// a note held into the gap is cut at its start
-	for (int s = 0; s < lb; s++)
-		if (noteOn(p.bass[s]) && s + p.bass[s].flen > lb) {
-			p.bass[s].flen = (uint8_t)std::max(1, lb - s);
-			p.bass[s].fflags = (uint8_t)((p.bass[s].fflags | FF_SET) & ~FF_SLIDE);
-		}
 	tile(p, T_BASS, L);
 }
 
 static void buildMelody(Pattern& p, const Params& P, int L) {
+	// rising over the row (the last quarter an octave up): shapeNote
 	freezeTrack(p, partP(P, T_MELODY, 0.1f, 0.2f), T_MELODY, L);
-	for (int s = 0; s < L; s++) {
-		NoteStep& n = p.mel[s];
-		if (!noteOn(n))
-			continue;
-		float x = (float)s / L;
-		if (L >= 32 && x >= 0.75f && n.absNote <= 115)
-			n.absNote = (int8_t)(n.absNote + 12); // the last quarter an octave up
-		scaleNote(n, 0.8f + 0.25f * x);
-	}
 	tile(p, T_MELODY, L);
 }
 
 // ================================================================= BREAK
 // no kick, hats only on 8ths and quiet, long bass roots on the chords, pads in front; a short snare pickup at the end
 static void breakDrums(Pattern& p, const Params& P, int L) {
+	// no kick, hats only on 8ths and quiet; the breakdown and the pickup over the row: shapeDrums (Edit.cpp)
 	freezeTrack(p, partP(P, T_DRUMS, -0.25f, 0.12f, 0.6f, -0.1f), T_DRUMS, L);
 	for (int s = 0; s < L; s++) {
-		float x = (float)s / L;
 		kill(p, KICK, s);
 		kill(p, OHAT, s);
 		kill(p, TOM, s);
 		kill(p, SNARE, s);
 		kill(p, CLAP, s);
-		if (s % 2 || (L >= 64 && x < 0.25f))
+		if (s % 2)
 			kill(p, CHAT, s);
 		else
 			scaleHit(p, CHAT, s, 0.7f);
 		scaleHit(p, RIM, s, 0.8f);
 		scaleHit(p, PERC, s, 0.8f);
 	}
-	if (L >= 32)
-		for (int k = 0; k < 4; k++)
-			hit(p, SNARE, L - 4 + k, 50 + k * 20);
 	tile(p, T_DRUMS, L);
 }
 
@@ -408,66 +338,20 @@ static void breakMelody(Pattern& p, const Params& P, int L) {
 // ================================================================= OUTRO
 // thins out bar by bar: toms/perc/open hat go first, then claps and ghosts, then the snare; the last bar is the kick
 static void outroDrums(Pattern& p, const Params& P, int L) {
+	// thinning out over the row: shapeDrums / shapeNote (Edit.cpp)
 	freezeTrack(p, partP(P, T_DRUMS, -0.05f, 0.2f, 0.6f), T_DRUMS, L);
-	int lb = L >= 32 ? L - 16 : L;
-	for (int s = 0; s < L; s++) {
-		float x = (float)s / L;
-		if (x >= 0.25f) {
-			kill(p, TOM, s);
-			kill(p, PERC, s);
-			kill(p, OHAT, s);
-		}
-		if (x >= 0.5f) {
-			kill(p, CLAP, s);
-			kill(p, RIM, s);
-			for (int v = 0; v < NUM_DRUMS; v++)
-				if (v != KICK && p.drums[v][s].fv && p.drums[v][s].fv < 55)
-					kill(p, v, s);
-		}
-		if (x >= 0.75f) {
-			kill(p, SNARE, s);
-			if (s % 2)
-				kill(p, CHAT, s);
-		}
-		if (s >= lb) {
-			for (int v = 0; v < NUM_DRUMS; v++)
-				if (v != KICK)
-					kill(p, v, s);
-			if (s % 8)
-				kill(p, KICK, s);
-		}
-		for (int v = 0; v < NUM_DRUMS; v++)
-			scaleHit(p, v, s, 1.f - 0.35f * x);
-	}
-	bool any = false;
-	for (int s = lb; s < L && !any; s++)
-		any = p.drums[KICK][s].fv > 0;
-	if (!any && lb < L)
-		hit(p, KICK, lb, 90);
 	tile(p, T_DRUMS, L);
 }
 
 static void outroBass(Pattern& p, const Params& P, int L) {
+	// thinning out over the row: shapeDrums / shapeNote (Edit.cpp)
 	freezeTrack(p, partP(P, T_BASS, -0.1f, 0.12f), T_BASS, L);
-	for (int s = 0; s < L; s++) {
-		float x = (float)s / L;
-		if ((x >= 0.5f && s % 8) || (L >= 32 && s >= L - 16))
-			noteOff(p.bass[s]);
-		else
-			scaleNote(p.bass[s], 1.f - 0.3f * x);
-	}
-	legato(p.bass, L >= 32 ? L - 16 : L, 8);
 	tile(p, T_BASS, L);
 }
 
 static void outroMelody(Pattern& p, const Params& P, int L) {
+	// thinning out over the row: shapeDrums / shapeNote (Edit.cpp)
 	freezeTrack(p, partP(P, T_MELODY, -0.1f, 0.12f), T_MELODY, L);
-	for (int s = 0; s < L; s++) {
-		if (L >= 32 && s >= L / 2)
-			noteOff(p.mel[s]);
-		else
-			scaleNote(p.mel[s], 1.f - 0.4f * (float)s / L);
-	}
 	tile(p, T_MELODY, L);
 }
 
@@ -499,6 +383,8 @@ void makeSection(const Slot& src, Slot& out, int sec, unsigned reroll, const Par
 		out = src;
 	out.used = true;
 	out.tag = (int8_t)sec;
+	out.pat.partTag = (uint8_t)(sec + 1); // a part: rerolled tracks run its course over the song row
+	out.pat.partMask = 0;
 	int L = LENGTH_BARS[clampi(src.lengthIdx, 0, 3)] * STEPS_PER_BAR;
 	Params P = P0;
 	P.lengthBars = L / STEPS_PER_BAR;
@@ -520,6 +406,7 @@ void makeSection(const Slot& src, Slot& out, int sec, unsigned reroll, const Par
 			generateTrack(p, t, p.trackGenre[t], rng, P);
 		if (baked(sec, t)) {
 			out.mods.dens[t] = 0.f;
+			p.partMask |= (uint8_t)(1u << t); // runs the part's course over the row (shapeDrums / shapeNote)
 			switch (sec) {
 				case SEC_INTRO: t == T_DRUMS ? introDrums(p, P, L) : (t == T_BASS ? introBass(p, P, L, bassStyle, rng) : introMelody(p, P, L)); break;
 				case SEC_BUILD: t == T_DRUMS ? buildDrums(p, P, L) : (t == T_BASS ? buildBass(p, P, L) : buildMelody(p, P, L)); break;
@@ -549,7 +436,7 @@ void makeSection(const Slot& src, Slot& out, int sec, unsigned reroll, const Par
 #define O SEC_OUTRO
 const SongForm SONG_FORMS[NUM_SONG_FORMS] = {
 	{"HOUSE · TECHNO", 8, {I, V, B, D, K, B, D, O}, {16, 16, 8, 32, 16, 8, 32, 16}},
-	{"TRANCE · SYNTHWAVE", 8, {I, V, B, D, K, B, D, O}, {16, 16, 8, 16, 32, 16, 32, 16}},
+	{"TRANCE · SYNTHWAVE", 8, {I, V, B, D, K, B, D, O}, {16, 16, 8, 16, 16, 16, 32, 16}},
 	{"GARAGE", 9, {I, V, B, D, K, V, B, D, O}, {16, 16, 8, 16, 8, 16, 8, 16, 16}},
 	{"BASS MUSIC", 7, {I, B, D, K, B, D, O}, {16, 8, 16, 16, 8, 16, 8}},
 	{"JUNGLE · DNB", 7, {I, B, D, K, B, D, O}, {32, 8, 32, 16, 8, 32, 16}},

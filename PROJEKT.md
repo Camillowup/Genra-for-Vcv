@@ -1,6 +1,6 @@
 # GENRA – Projektstand
 
-**Stand:** 9. November 2026 · **Plugin 2.27.1: 22 Module** (GENRA, GRID, ABLAUF, SCHLAG, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, GOLANA, GOLANA FX, GRUND, GRUND FX, SCHMELZ, MIX, GENRA FX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `Camillowup/Genra-for-Vcv` (vorher `CamilloGF/genra-v3`, Account nicht mehr erreichbar)
+**Stand:** 9. November 2026 · **Plugin 2.28.0: 22 Module** (GENRA, GRID, ABLAUF, SCHLAG, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, GOLANA, GOLANA FX, GRUND, GRUND FX, SCHMELZ, MIX, GENRA FX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `Camillowup/Genra-for-Vcv` (vorher `CamilloGF/genra-v3`, Account nicht mehr erreichbar)
 
 > Design-Leitfaden für neue Module (Aussehen, GENRA-Leiste, Leuchtsegmente, Follow, englische UI): **docs/DESIGN.md**
 
@@ -376,6 +376,14 @@ GENRA MONO: `g++ -std=c++17 -O2 test/test_mono.cpp -o tm && ./tm`
 - Pads per Drag & Drop in die Song-Liste: zwischen Zeilen einfügen (Linie), auf eine Zeile ersetzen (Rahmen), Undo. Ein belegtes Pad löst sein Antippen jetzt beim Loslassen aus (sonst wäre jeder Drag ein Antippen); leere Pads speichern weiter beim Drücken.
 - Song-Liste unten: Takte und Spieldauer aus GENRAs Tempo (`Genra::currentBpm`, auch für GENRAs MIDI-Export), z. B. „BAR 37 / 92 · 1:12 / 2:59“.
 - `test_ablauf`: jede Genre-Variante hat eine Form, Formlängen, `renderSong` (eine Zeile = Loop, Marker, stumme Drums, Notenbereich, Marker in der Datei).
+
+### 2.28.0 – Song-Teile über die Zeile statt über den Loop
+- Problem (Rückmeldung): MAKE SONG mit kurzem Loop – ein BREAK aus 1 Takt lief in einer 8/16-Takt-Zeile 8–16-mal hintereinander, jedes Mal mit dem Snare-Auftakt; BUILD rollte pro Loop neu an.
+- `Pattern::partTag` (1 + Abschnitt) und `partMask` (geformte Spuren), Record `ST_PART = 11`. `makeSection` setzt sie; `generateTrack` löscht das Bit seiner Spur, `copyTrack` nimmt es mit.
+- Das Backen (`introDrums` … `outroMelody`) legt nur noch das Material fest (ohne Verlauf). Der Verlauf läuft beim Abspielen: `shapeDrums` / `shapeNote` (Edit.cpp) mit `PartPos` (Position und Länge: in einer Song-Zeile die Zeile, sonst der Loop). GENRA: `curPartPos()` aus `barIndex`, `arrRowEnd`, `arrRowBars`. MIDI: `renderRange(..., asRow)`.
+- BREAK ab 8 Takten: erste Hälfte ohne Drums, danach Hats/Perc lauter werdend; Auftakt nur auf dem letzten Schlag der Zeile. BUILD: ein Wirbel über die Zeile. INTRO/OUTRO wie vorher, aber über die Zeile.
+- Phrasen-Fills: VERSE/DROP-Zeilen ab 16 Takten füllen jeden 8. Takt (`partPhraseFill`, nicht der letzte Takt). MAKE SONG setzt FILL auf VERSE/DROP vor einem anderen Teil. TRANCE-Form: BREAK 32 → 16 (danach BUILD 16).
+- Alte Teile (ohne `partTag`) spielen wie bisher. Test: `test_ablauf` „parts over the row“.
 
 ### 2.27.1 – ABLAUF: PLAY / STOP / LOOP als grosse Pads
 - `BigPad` aus `Genra.cpp` nach `src/ui/BigPad.hpp` (Namespace `genraui`), neu: `setSize()`, `latch` (Schalter, für LOOP), Symbol `I_LOOP`. ABLAUF nimmt 8-mm-Pads; die Positionen kommen aus `tools/ablauf_panel.py` (`bigpad()`), Params/Lichter unverändert.

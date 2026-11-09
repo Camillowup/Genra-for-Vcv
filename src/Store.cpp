@@ -24,6 +24,7 @@ enum StoreTag : uint8_t {
 	ST_PADS = 8,
 	ST_LENGTHS = 9, // 2.23: own cycle lengths per track and drum voice
 	ST_SWING = 10,  // 2.25: own swing per track and drum voice
+	ST_PART = 11,   // 2.28: a song part (section) and its tracks shaped over the row
 };
 
 // ---------------------------------------------------------------- writer
@@ -184,6 +185,13 @@ std::vector<uint8_t> savePattern(const Pattern& pat) {
 	for (int v = 0; v < NUM_DRUMS; v++)
 		w.u8(pat.vSwing[v]);
 	w.end();
+
+	if (pat.partTag) {
+		w.begin(ST_PART);
+		w.u8(pat.partTag);
+		w.u8(pat.partMask);
+		w.end();
+	}
 	return w.d;
 }
 
@@ -377,6 +385,12 @@ bool loadPattern(const std::vector<uint8_t>& data, Pattern& out) {
 					if (v < NUM_DRUMS)
 						pat.vLen[v] = std::min<uint8_t>(l, MAX_STEPS);
 				}
+				break;
+			}
+			case ST_PART: {
+				uint8_t tag = q.u8(), mask = q.u8();
+				pat.partTag = tag <= 6 ? tag : 0; // 1 + section (6 sections)
+				pat.partMask = (uint8_t)(mask & 0x7); // drums, bass, melody
 				break;
 			}
 			case ST_SWING: {

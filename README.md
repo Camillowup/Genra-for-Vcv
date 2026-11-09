@@ -1,6 +1,6 @@
 # GENRA – Plugin für VCV Rack 2
 
-Ein generativer, genreabhängiger 4-Spur-Sequencer mit MIDI-Grid, Performance-Effekten und passenden Instrumenten, alle im selben Look. Plugin-Version **2.27.1**, 22 Module. Projektstand und Entscheidungen: `PROJEKT.md`.
+Ein generativer, genreabhängiger 4-Spur-Sequencer mit MIDI-Grid, Performance-Effekten und passenden Instrumenten, alle im selben Look. Plugin-Version **2.28.0**, 22 Module. Projektstand und Entscheidungen: `PROJEKT.md`.
 
 | Modul | Breite | Farbe | Was es ist |
 |---|---|---|---|
@@ -143,13 +143,15 @@ Song-Arranger für GENRA, 30 HP. Verbindung wie beim Grid Editor: links oder rec
 | Form | Genres (bei AUTO) | Aufbau (Takte) |
 |---|---|---|
 | HOUSE · TECHNO | House, Deep House, Tech House, Afro House, Progressive House, Organic House, Techno, Minimal, Acid, Detroit, Melodic, Hard, Dub Techno, Hardcore, EBM | INTRO 16 · VERSE 16 · BUILD 8 · DROP 32 · BREAK 16 · BUILD 8 · DROP 32 · OUTRO 16 |
-| TRANCE · SYNTHWAVE | Trance, Psytrance, Synthwave, Electro | INTRO 16 · VERSE 16 · BUILD 8 · DROP 16 · BREAK 32 · BUILD 16 · DROP 32 · OUTRO 16 |
+| TRANCE · SYNTHWAVE | Trance, Psytrance, Synthwave, Electro | INTRO 16 · VERSE 16 · BUILD 8 · DROP 16 · BREAK 16 · BUILD 16 · DROP 32 · OUTRO 16 |
 | GARAGE | UK Garage, 2-Step, Speed Garage, UK Funky, Bassline | INTRO 16 · VERSE 16 · BUILD 8 · DROP 16 · BREAK 8 · VERSE 16 · BUILD 8 · DROP 16 · OUTRO 16 |
 | BASS MUSIC | Dubstep, Grime, Breakbeat, Big Beat, Breaks, Jersey Club, Baltimore Club | INTRO 16 · BUILD 8 · DROP 16 · BREAK 16 · BUILD 8 · DROP 16 · OUTRO 8 |
 | JUNGLE · DNB | Jungle, Drum & Bass, Footwork, Breakcore | INTRO 32 · BUILD 8 · DROP 32 · BREAK 16 · BUILD 8 · DROP 32 · OUTRO 16 |
 | HIP-HOP | Hip-Hop, Lo-Fi, Trap, Drill, Trip-Hop, Phonk | INTRO 4 · VERSE 16 · DROP 8 · VERSE 16 · DROP 8 · BREAK 4 · DROP 8 · OUTRO 4 |
 | AFRO · LATIN | Afrobeat, Afrobeats, Amapiano, Gqom, Baile Funk, Reggaeton, Dancehall, Moombahton, Cumbia, Bossa Nova | INTRO 8 · VERSE 16 · DROP 16 · VERSE 16 · BREAK 8 · DROP 16 · OUTRO 8 |
 | DUB · DOWNTEMPO · AMBIENT | Dub, Roots Reggae, Downtempo, Ambient, Drone, Dark Ambient, Ambient Techno, Berlin School | INTRO 8 · VERSE 16 · BREAK 16 · VERSE 16 · BREAK 16 · OUTRO 8 |
+
+**Teile über die ganze Zeile (ab 2.28.0):** INTRO, BUILD, BREAK und OUTRO laufen ihren Verlauf über die Länge der Song-Zeile ab, nicht über den Loop. Ein 1-Takt-Loop als BREAK in einer 16-Takt-Zeile spielt also nicht 16-mal den Auftakt, sondern: die erste Hälfte ohne Drums (Pads, Melodie, Bass-Grundtöne), dann kommen Hats und Percussion leise zurück, der Snare-Auftakt nur auf dem letzten Schlag der Zeile. BUILD: ein einziger Wirbel über die Zeile (Viertel → Achtel → 16tel → 32tel auf dem letzten Schlag), im letzten Takt Kick auf Vierteln, Bass raus, die Lücke vor dem Drop. INTRO baut sich über die Zeile auf (Bass und Melodie ab der Mitte), OUTRO dünnt sich über die Zeile aus. Ausserhalb eines Songs (PATT) gilt derselbe Verlauf über den Loop. VERSE- und DROP-Zeilen ab 16 Takten bekommen am Ende jeder 8-Takt-Phrase einen Fill; MAKE SONG setzt FILL auf VERSE- und DROP-Zeilen vor einem anderen Teil. Der MIDI-Export des Songs schreibt denselben Verlauf. Teile aus älteren Versionen haben den Verlauf noch im Loop: MAKE SONG bzw. die Teil-Taster neu drücken.
 
 **MIDI-Export pro Pad:** Rechtsklick aufs Pad › *Export as MIDI* (alle vier Spuren) oder *Export drums / bass / melody / pads only*; Dateiname z. B. `A5-DROP-1-bass.mid`. Das Pad muss dafür nicht laufen.
 

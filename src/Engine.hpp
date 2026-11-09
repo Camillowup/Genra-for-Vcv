@@ -183,6 +183,11 @@ struct Pattern {
 	// per piano track (index T_BASS..T_PADS) and per drum voice
 	uint8_t tSwing[NUM_TRACKS];
 	uint8_t vSwing[NUM_DRUMS];
+	// a song part made by ABLAUF: partTag = 1 + its section (0: none), partMask = its shaped tracks (bit per track).
+	// A shaped track runs its course (an intro building up, a break's breakdown, a build's roll ...) over the song row
+	// it plays in, not over the loop (shapeDrums / shapeNote)
+	uint8_t partTag;
+	uint8_t partMask;
 	uint8_t chop[MAX_BARS][16]; // break-chop source step per bar
 	uint8_t chopR[MAX_BARS];
 	ChordSpec prog[MAX_PROG];
@@ -381,6 +386,19 @@ std::vector<uint8_t> writeSmf(const std::vector<MidiNote>& notes, float bpm, con
                               const Pattern* pat = nullptr, const std::vector<SongMarker>* markers = nullptr);
 // drum voice for a MIDI note: GM drum map (35-81, like the import); other notes from C of their octave
 // (C kick, C# snare, D clap, D# rim, E closed hat, F open hat, F# tom, G and above perc)
+// ---- song parts over their row (ABLAUF; see Pattern::partTag)
+struct PartPos {
+	int sec = -1; // the part's section (Section in Arranger.hpp), -1: not a part
+	int pos = 0;  // step within the part's span
+	int span = 0; // the part's length in steps: the song row, or the loop outside a song
+};
+PartPos partPos(const Pattern& pat, int pos, int span);
+// the part's course on this step's drums / a note of the bass (T_BASS) or melody (T_MELODY)
+void shapeDrums(const PartPos& pp, Hit h[NUM_DRUMS]);
+void shapeNote(const PartPos& pp, int track, NoteEv& n);
+// VERSE / DROP rows of 16 bars and more: a fill closes every 8-bar phrase inside the row (bar: 0-based bar of the row)
+bool partPhraseFill(const Pattern& pat, int bar, int bars);
+
 int gmDrumVoice(int note);
 // returns number of bars imported (0 on failure); err receives a message
 int importSmf(const std::vector<uint8_t>& data, Pattern& pat, const Params& P, std::string& err);

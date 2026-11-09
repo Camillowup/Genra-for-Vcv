@@ -1,12 +1,14 @@
 // GENRA – grid editing: fixed notes, freezing generated tracks, chord follow, snapping.
 // Pure C++, no Rack dependency (tested in test/test_edit.cpp).
 #include "Engine.hpp"
+#include "Arranger.hpp"
 #include <algorithm>
 #include <cmath>
 
 namespace genra {
 
 static inline int clampi(int x, int a, int b) { return x < a ? a : (x > b ? b : x); }
+static inline float clampf(float x, float a, float b) { return x < a ? a : (x > b ? b : x); }
 static inline int mod12(int x) { return ((x % 12) + 12) % 12; }
 static inline int floordiv(int a, int b) { return a >= 0 ? a / b : -((-a + b - 1) / b); }
 
@@ -456,6 +458,9 @@ void copyTrack(const Pattern& from, Pattern& to, int track) {
 	to.trackGenre[track] = from.trackGenre[track];
 	to.tLen[track] = from.tLen[track];
 	to.tSwing[track] = from.tSwing[track];
+	to.partMask = (uint8_t)((to.partMask & ~(1u << track)) | (from.partMask & (1u << track)));
+	if (from.partMask & (1u << track))
+		to.partTag = from.partTag;
 	if (track == T_DRUMS) {
 		std::memcpy(to.vLen, from.vLen, sizeof(to.vLen));
 		std::memcpy(to.vSwing, from.vSwing, sizeof(to.vSwing));
@@ -548,6 +553,184 @@ bool pasteBar(Pattern& pat, int track, int bar, const BarClip& clip) {
 		}
 	}
 	return true;
+}
+
+// ================================================================= song parts over their row
+// The parts made by ABLAUF (INTRO, BUILD, BREAK, OUTRO) used to be shaped over the loop: a 1-bar break in a 16-bar row
+// played its pickup 16 times. Now the part's pattern holds the material and these run its course over the row.
+
+PartPos partPos(const Pattern& pat, int pos, int span) {
+	PartPos pp;
+	if (!pat.partTag || !pat.partMask || span <= 0)
+		return pp;
+	pp.sec = pat.partTag - 1;
+	pp.span = span;
+	pp.pos = clampi(pos, 0, span - 1);
+	return pp;
+}
+
+static void hitOff(Hit& h) { h.on = false; }
+static void hitPut(Hit& h, int vel, int ratchet = 1) {
+	h.on = true;
+	h.vel = clampf(vel / 127.f, 0.f, 1.f);
+	h.ratchet = ratchet;
+	h.delay = 0.f;
+	h.nudge = 0;
+}
+static void hitScale(Hit& h, float k) {
+	if (h.on)
+		h.vel = clampf(h.vel * k, 0.f, 1.f);
+}
+
+void shapeDrums(const PartPos& pp, Hit h[NUM_DRUMS]) {
+	if (pp.sec < 0 || pp.span <= 0)
+		return;
+	const int span = pp.span, pos = pp.pos, sb = pos % STEPS_PER_BAR, left = span - pos;
+	const float x = (float)pos / span;
+	switch (pp.sec) {
+		case SEC_INTRO: // the drums come in: first the kick on the one, then the backbeat, getting louder
+			if (span >= 32 && x < 0.5f) {
+				hitOff(h[SNARE]);
+				hitOff(h[CLAP]);
+				hitOff(h[RIM]);
+			}
+			if (span >= 64 && x < 0.25f && sb != 0)
+				hitOff(h[KICK]);
+			for (int v = 0; v < NUM_DRUMS; v++)
+				hitScale(h[v], 0.72f + 0.28f * x);
+			break;
+		case SEC_BUILD: { // one roll over the whole row: quarters, 8ths, 16ths, 32nds on the last beat, getting louder
+			int lb = span >= 32 ? span - 16 : span / 2;
+			float q0, q1, e1;
+			if (span >= 128)
+				q0 = 0.25f, q1 = 0.5f, e1 = 0.75f;
+			else if (span >= 64)
+				q0 = 0.f, q1 = 0.5f, e1 = 0.75f;
+			else if (span >= 32)
+				q0 = 0.f, q1 = 0.25f, e1 = 0.5f;
+			else
+				q0 = 0.f, q1 = 0.f, e1 = 0.5f;
+			if (pos >= lb) { // the last bar: kick on quarters, stops on the last beat: the drop lands in the gap
+				hitOff(h[OHAT]);
+				hitOff(h[PERC]);
+				if (sb % 4 == 0 && left > 4)
+					hitPut(h[KICK], 118);
+				else
+					hitOff(h[KICK]);
+			}
+			if (x >= 0.5f)
+				hitPut(h[CHAT], (int)(42 + 58 * x));
+			if (left <= 2)
+				hitOff(h[CHAT]);
+			bool on = false;
+			if (x >= q0)
+				on = x < q1 ? sb % 4 == 0 : (x < e1 ? sb % 2 == 0 : true);
+			if (on) {
+				int vel = (int)(36 + 91 * std::pow(x, 1.4f));
+				hitPut(h[SNARE], vel, left <= 4 ? 2 : 1);
+				if (left <= 4)
+					hitPut(h[CLAP], vel * 3 / 4);
+			}
+			break;
+		}
+		case SEC_BREAK: // a long break: the first half without drums, then hats and percussion come back
+			if (span >= 128 && x < 0.5f)
+				for (int v = 0; v < NUM_DRUMS; v++)
+					hitOff(h[v]);
+			else if (span >= 64 && x < 0.25f)
+				hitOff(h[CHAT]);
+			if (span >= 128 && x >= 0.5f)
+				for (int v = 0; v < NUM_DRUMS; v++)
+					hitScale(h[v], 0.6f + 0.8f * (x - 0.5f));
+			if (span >= 32 && left <= 4) // the snare pickup: once, into the next part
+				hitPut(h[SNARE], 50 + (4 - left) * 20);
+			break;
+		case SEC_OUTRO: { // thins out: toms/perc/open hat, then claps and ghosts, then the snare; the last bar the kick
+			int lb = span >= 32 ? span - 16 : span;
+			if (x >= 0.25f) {
+				hitOff(h[TOM]);
+				hitOff(h[PERC]);
+				hitOff(h[OHAT]);
+			}
+			if (x >= 0.5f) {
+				hitOff(h[CLAP]);
+				hitOff(h[RIM]);
+				for (int v = 0; v < NUM_DRUMS; v++)
+					if (v != KICK && h[v].on && h[v].vel < 55.f / 127.f)
+						hitOff(h[v]);
+			}
+			if (x >= 0.75f) {
+				hitOff(h[SNARE]);
+				if (pos % 2)
+					hitOff(h[CHAT]);
+			}
+			if (pos >= lb) {
+				for (int v = 0; v < NUM_DRUMS; v++)
+					if (v != KICK)
+						hitOff(h[v]);
+				if (sb % 8)
+					hitOff(h[KICK]);
+				else if (pos == lb && !h[KICK].on)
+					hitPut(h[KICK], 90);
+			}
+			for (int v = 0; v < NUM_DRUMS; v++)
+				hitScale(h[v], 1.f - 0.35f * x);
+			break;
+		}
+		default: break;
+	}
+}
+
+void shapeNote(const PartPos& pp, int track, NoteEv& n) {
+	if (!n.on || pp.sec < 0 || pp.span <= 0)
+		return;
+	const int span = pp.span, pos = pp.pos;
+	const float x = (float)pos / span;
+	const bool bass = track == T_BASS;
+	switch (pp.sec) {
+		case SEC_INTRO: // the bass and the melody enter halfway
+			if (span >= 32 && x < 0.5f)
+				n.on = false;
+			break;
+		case SEC_BUILD:
+			if (bass) { // out in the last bar: the gap before the drop
+				int lb = span >= 32 ? span - 16 : span - 4;
+				if (pos >= lb)
+					n.on = false;
+				else if (pos + n.len > lb) {
+					n.len = std::max(1, lb - pos);
+					n.slide = false;
+				}
+			}
+			else {
+				if (span >= 32 && x >= 0.75f && n.pitch <= 115)
+					n.pitch += 12; // the last quarter an octave up
+				n.vel = clampf(n.vel * (0.8f + 0.25f * x), 0.f, 1.f);
+			}
+			break;
+		case SEC_OUTRO:
+			if (bass) {
+				if ((x >= 0.5f && pos % 8) || (span >= 32 && pos >= span - 16))
+					n.on = false;
+				else
+					n.vel = clampf(n.vel * (1.f - 0.3f * x), 0.f, 1.f);
+			}
+			else {
+				if (span >= 32 && x >= 0.5f)
+					n.on = false;
+				else
+					n.vel = clampf(n.vel * (1.f - 0.4f * x), 0.f, 1.f);
+			}
+			break;
+		default: break;
+	}
+}
+
+bool partPhraseFill(const Pattern& pat, int bar, int bars) {
+	int sec = (int)pat.partTag - 1;
+	if ((sec != SEC_VERSE && sec != SEC_DROP) || bars < 16)
+		return false;
+	return bar % 8 == 7 && bar < bars - 1;
 }
 
 } // namespace genra
