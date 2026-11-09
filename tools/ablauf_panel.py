@@ -142,9 +142,28 @@ rect(mx0, ry - mh / 2, mw, mh, DARK, 1.2)
 area("MODESW", mx0, ry - mh / 2, mw, mh)
 text(mx0 + mw / 2, ry + 5.6, "MODE", 1.2, DIM, 700, "middle", 0.3)
 e(f'<line x1="{sx + 30.5}" y1="{ry - 4}" x2="{sx + 30.5}" y2="{ry + 5}" stroke="{LINE}" stroke-width="0.3"/>')
-for k, (nm, lab) in enumerate([("PLAY", "PLAY"), ("STOP", "STOP"), ("LOOP", "LOOP")]):
-    button(nm, sx + 37 + k * 9.3, ry)
-    text(sx + 37 + k * 9.3, ry + 5.0, lab, 1.35, TXT, 600, "middle", 0.25)
+# PLAY / STOP / LOOP: large pads like GENRA's transport (the module draws the lit state; preview: PLAY and LOOP lit)
+def bigpad(name, x, y, icon, label, col):
+    comps.append(("bigpad", name, x, y))
+    s_ = 8.0
+    lit = PREVIEW and name in ("PLAY", "LOOP")
+    e(f'<rect x="{x - s_/2:.2f}" y="{y - s_/2:.2f}" width="{s_}" height="{s_}" rx="1.4" fill="{col if lit else "#2c2e36"}" stroke="#0d0e11" stroke-width="0.4"/>')
+    ic = "#0d0e11" if lit else col
+    if icon == "play":
+        e(f'<path d="M{x-1.5:.2f},{y-2.0:.2f} L{x+2.0:.2f},{y:.2f} L{x-1.5:.2f},{y+2.0:.2f} Z" fill="{ic}"/>')
+    elif icon == "stop":
+        e(f'<rect x="{x-1.7:.2f}" y="{y-1.7:.2f}" width="3.4" height="3.4" rx="0.4" fill="{ic}"/>')
+    else:  # loop: a circular arrow
+        e(f'<path d="M{x+2.0:.2f},{y:.2f} A2.0,2.0 0 1 1 {x+0.9:.2f},{y-1.8:.2f}" fill="none" stroke="{ic}" stroke-width="0.55" stroke-linecap="round"/>')
+        e(f'<path d="M{x+0.2:.2f},{y-2.9:.2f} L{x+1.6:.2f},{y-1.7:.2f} L{x+0.1:.2f},{y-0.8:.2f} Z" fill="{ic}"/>')
+    text(x, y + s_/2 + 2.0, label, 1.4, TXT if lit else DIM, 700)
+
+
+py_ = ry + 1.0
+e(f'<rect x="{sx + 31.3:.2f}" y="{py_ - 4.6:.2f}" width="28.8" height="9.2" rx="1.2" fill="#ffffff" fill-opacity="0.04"/>')
+for k, (nm, ic_, lab, col) in enumerate([("PLAY", "play", "PLAY", "#5dff8a"), ("STOP", "stop", "STOP", "#ff5f5f"),
+                                         ("LOOP", "loop", "LOOP", ACC)]):
+    bigpad(nm, sx + 35.8 + k * 9.6, py_, ic_, lab, col)
 by = 96.5
 for k, (nm, lab) in enumerate([("INS", "INSERT"), ("DEL", "DELETE"), ("UNDO", "UNDO")]):
     button(nm, sx + 6.5 + k * 9, by)
@@ -232,7 +251,7 @@ def ptext(*a, **k):
 
 
 SECC = dict(SECS)
-LIT = {"PLAY": "#5dff8a", "LOOP": ACC, "FILL": ACC, "STORE": None, "TRACK0": TR[0][1], "TRACK1": TR[1][1],
+LIT = {"FILL": ACC, "STORE": None, "TRACK0": TR[0][1], "TRACK1": TR[1][1],
        "TRACK2": TR[2][1], "TRACK3": TR[3][1]}
 for k, (nm, col) in enumerate(SECS):
     LIT[f"PART{k}"] = col

@@ -10,6 +10,7 @@
 // the outputs from values the UI thread publishes.
 #include "../GenraModule.hpp"
 #include "../ui/GenraUI.hpp"
+#include "../ui/BigPad.hpp"
 #include "AblaufLayout.hpp"
 #include <deque>
 
@@ -184,6 +185,7 @@ struct Ablauf : Module {
 	std::string msg;
 	float msgTime = 0.f;
 	float blink = 0.f;
+	float stopFlash = 0.f; // STOP pad: a short flash when pressed
 
 	// knobs bound to the selected row
 	int lastZ = -1, lastP = -1, lastT = -1, lastA = -1;
@@ -261,7 +263,7 @@ struct Ablauf : Module {
 		configButton(UNDO_PARAM, "Undo");
 		configButton(FILL_PARAM, "Fill at the end of the row on / off");
 		configSwitch(MODE_PARAM, 0.f, 1.f, 0.f, "Mode", {"Pattern (play pads live)", "Song (play the list)"});
-		configButton(PLAY_PARAM, "Play (song from the selected row)");
+		configButton(PLAY_PARAM, "Play (from the selected row; while playing: start again from there)");
 		configButton(STOP_PARAM, "Stop (press again: back to the start)");
 		configSwitch(LOOP_PARAM, 0.f, 1.f, 1.f, "Loop song", {"Off (stop at the end)", "On"});
 		configSwitch(BANK_PARAM, 0.f, 3.f, 0.f, "Bank", {"A", "B", "C", "D"});
@@ -1402,6 +1404,8 @@ struct Ablauf : Module {
 			bool on = songMode() ? song.playing : (g && g->running);
 			(on ? stop : play) = true;
 		}
+		if (stop)
+			stopFlash = 1.f;
 		if (stop) {
 			// STOP: the marker stays on the row that was playing; STOP again (already stopped): back to the start
 			bool was = song.playing || (g && g->running);
@@ -1494,7 +1498,7 @@ struct Ablauf : Module {
 			song.playing = false;
 
 		publish(g);
-		updateLights();
+		updateLights(g);
 	}
 	// switched to pattern mode while the song ran: GENRA keeps playing, the list stops leading
 	void stopSongScheduling(Genra* g) {
@@ -1540,12 +1544,13 @@ struct Ablauf : Module {
 		outCvB.store(b);
 	}
 
-	void updateLights() {
+	void updateLights(Genra* g) {
 		bool hasRow = !rows.empty();
 		for (int t = 0; t < 4; t++)
 			lights[TRACK_LIGHT + t].setBrightness(hasRow && (rows[curRow].on >> t) & 1 ? 1.f : 0.f);
 		lights[FILL_LIGHT].setBrightness(hasRow && rows[curRow].fill ? 1.f : 0.f);
-		lights[PLAY_LIGHT].setBrightness(song.playing ? 1.f : 0.f);
+		// PLAY: lit while the song runs (SONG) or GENRA plays (PATT)
+		lights[PLAY_LIGHT].setBrightness(song.playing || (!songMode() && g && g->running) ? 1.f : 0.f);
 		lights[LOOP_LIGHT].setBrightness(loopOn() ? 1.f : 0.f);
 		float bl = blink < 0.5f ? 1.f : 0.25f;
 		lights[STORE_LIGHT].setBrightness(armed == 1 ? bl : (pendingStore >= 0 ? 1.f : 0.f));
@@ -1561,7 +1566,8 @@ struct Ablauf : Module {
 		lights[INS_LIGHT].setBrightness(0.f);
 		lights[DEL_LIGHT].setBrightness(0.f);
 		lights[UNDO_LIGHT].setBrightness(0.f);
-		lights[STOP_LIGHT].setBrightness(0.f);
+		stopFlash = std::max(0.f, stopFlash - 0.08f);
+		lights[STOP_LIGHT].setBrightness(stopFlash);
 	}
 
 	// ------------------------------------------------------------ persistence
@@ -2580,9 +2586,19 @@ struct AblaufWidget : ModuleWidget {
 		ModeSwitch* mode = createParam<ModeSwitch>(mm2px(Vec(L::MODESW[0], L::MODESW[1])), module, A::MODE_PARAM);
 		mode->box.size = mm2px(Vec(L::MODESW[2], L::MODESW[3]));
 		addParam(mode);
-		addParam(createLightParamCentered<VCVLightBezel<ALight<0x5d, 0xff, 0x8a>>>(ui::mm(L::PLAY), module, A::PLAY_PARAM, A::PLAY_LIGHT));
-		addParam(createLightParamCentered<VCVLightBezel<WhiteLight>>(ui::mm(L::STOP), module, A::STOP_PARAM, A::STOP_LIGHT));
-		addParam(createLightParamCentered<VCVLightBezelLatch<ALight<0xff, 0xd2, 0x3d>>>(ui::mm(L::LOOP), module, A::LOOP_PARAM, A::LOOP_LIGHT));
+		// PLAY / STOP / LOOP: large pads like GENRA's transport
+		auto pad = [&](const float* p, int id, int light, int icon, NVGcolor c, bool latch) {
+			genraui::BigPad* w = createParamCentered<genraui::BigPad>(ui::mm(p), module, id);
+			w->setSize(8.f);
+			w->lightId = light;
+			w->icon = icon;
+			w->col = c;
+			w->latch = latch;
+			addParam(w);
+		};
+		pad(L::PLAY, A::PLAY_PARAM, A::PLAY_LIGHT, genraui::BigPad::I_PLAY, nvgRGB(0x5d, 0xff, 0x8a), false);
+		pad(L::STOP, A::STOP_PARAM, A::STOP_LIGHT, genraui::BigPad::I_STOP, nvgRGB(0xff, 0x5f, 0x5f), false);
+		pad(L::LOOP, A::LOOP_PARAM, A::LOOP_LIGHT, genraui::BigPad::I_LOOP, nvgRGB(0xff, 0xd8, 0x4a), true);
 
 		const float* pp[NUM_SECTIONS] = {L::PART0, L::PART1, L::PART2, L::PART3, L::PART4, L::PART5};
 		addParam(createLightParamCentered<VCVLightBezel<ALight<0x6f, 0x86, 0xb8>>>(ui::mm(pp[0]), module, A::PART_PARAM + 0, A::PART_LIGHT + 0));

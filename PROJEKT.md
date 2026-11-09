@@ -1,6 +1,6 @@
 # GENRA – Projektstand
 
-**Stand:** 9. November 2026 · **Plugin 2.27.0: 22 Module** (GENRA, GRID, ABLAUF, SCHLAG, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, GOLANA, GOLANA FX, GRUND, GRUND FX, SCHMELZ, MIX, GENRA FX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `Camillowup/Genra-for-Vcv` (vorher `CamilloGF/genra-v3`, Account nicht mehr erreichbar)
+**Stand:** 9. November 2026 · **Plugin 2.27.1: 22 Module** (GENRA, GRID, ABLAUF, SCHLAG, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, GOLANA, GOLANA FX, GRUND, GRUND FX, SCHMELZ, MIX, GENRA FX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `Camillowup/Genra-for-Vcv` (vorher `CamilloGF/genra-v3`, Account nicht mehr erreichbar)
 
 > Design-Leitfaden für neue Module (Aussehen, GENRA-Leiste, Leuchtsegmente, Follow, englische UI): **docs/DESIGN.md**
 
@@ -376,6 +376,10 @@ GENRA MONO: `g++ -std=c++17 -O2 test/test_mono.cpp -o tm && ./tm`
 - Pads per Drag & Drop in die Song-Liste: zwischen Zeilen einfügen (Linie), auf eine Zeile ersetzen (Rahmen), Undo. Ein belegtes Pad löst sein Antippen jetzt beim Loslassen aus (sonst wäre jeder Drag ein Antippen); leere Pads speichern weiter beim Drücken.
 - Song-Liste unten: Takte und Spieldauer aus GENRAs Tempo (`Genra::currentBpm`, auch für GENRAs MIDI-Export), z. B. „BAR 37 / 92 · 1:12 / 2:59“.
 - `test_ablauf`: jede Genre-Variante hat eine Form, Formlängen, `renderSong` (eine Zeile = Loop, Marker, stumme Drums, Notenbereich, Marker in der Datei).
+
+### 2.27.1 – ABLAUF: PLAY / STOP / LOOP als grosse Pads
+- `BigPad` aus `Genra.cpp` nach `src/ui/BigPad.hpp` (Namespace `genraui`), neu: `setSize()`, `latch` (Schalter, für LOOP), Symbol `I_LOOP`. ABLAUF nimmt 8-mm-Pads; die Positionen kommen aus `tools/ablauf_panel.py` (`bigpad()`), Params/Lichter unverändert.
+- PLAY leuchtet im SONG-Modus, solange der Song läuft, im PATT-Modus, solange GENRA läuft; STOP blinkt kurz (`stopFlash`). Verhalten: PLAY startet immer ab der gewählten Zeile (auch beim Laufen), STOP wie bisher (zweimal = Song-Anfang), LOOP ist ein Schalter.
 
 ### 2.27.0 – GOLANA und GOLANA FX
 - Port der FM-1-Firmware **Golana 1.3** (Gadlele, Fork von Felucca, GPL-3.0, github.com/Gadlele/Golana): Quellen
