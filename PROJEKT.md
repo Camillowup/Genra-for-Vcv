@@ -1,6 +1,6 @@
 # GENRA – Projektstand
 
-**Stand:** 9. November 2026 · **Plugin 2.26.0: 20 Module** (GENRA, GRID, ABLAUF, SCHLAG, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, GRUND, GRUND FX, SCHMELZ, MIX, GENRA FX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `Camillowup/Genra-for-Vcv` (vorher `CamilloGF/genra-v3`, Account nicht mehr erreichbar)
+**Stand:** 9. November 2026 · **Plugin 2.26.1: 20 Module** (GENRA, GRID, ABLAUF, SCHLAG, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, GRUND, GRUND FX, SCHMELZ, MIX, GENRA FX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `Camillowup/Genra-for-Vcv` (vorher `CamilloGF/genra-v3`, Account nicht mehr erreichbar)
 
 > Design-Leitfaden für neue Module (Aussehen, GENRA-Leiste, Leuchtsegmente, Follow, englische UI): **docs/DESIGN.md**
 
@@ -376,6 +376,10 @@ GENRA MONO: `g++ -std=c++17 -O2 test/test_mono.cpp -o tm && ./tm`
 - Pads per Drag & Drop in die Song-Liste: zwischen Zeilen einfügen (Linie), auf eine Zeile ersetzen (Rahmen), Undo. Ein belegtes Pad löst sein Antippen jetzt beim Loslassen aus (sonst wäre jeder Drag ein Antippen); leere Pads speichern weiter beim Drücken.
 - Song-Liste unten: Takte und Spieldauer aus GENRAs Tempo (`Genra::currentBpm`, auch für GENRAs MIDI-Export), z. B. „BAR 37 / 92 · 1:12 / 2:59“.
 - `test_ablauf`: jede Genre-Variante hat eine Form, Formlängen, `renderSong` (eine Zeile = Loop, Marker, stumme Drums, Notenbereich, Marker in der Datei).
+
+### 2.26.1 – SCHLAG: Samples und Root im Windows-Fenster
+- Die aufklappenden Ordner-Menüs waren zu unübersichtlich: Klick auf eine Spur im Display öffnet jetzt `osdialog_file(OSDIALOG_OPEN)` (WAV-Filter, Start im Ordner der Spur bzw. im Root), ausgelöst im nächsten Frame (`Display::pickTrack`, nicht im Mausdruck). Ohne Root kommt zuerst das Ordnerfenster (`chooseRoot()`, `OSDIALOG_OPEN_DIR`). Das Eintippen des Roots ist weg.
+- Rechtsklick: eigene Abschnitte *SAMPLE ROOT FOLDER* (Root anzeigen, *Choose another root folder …*) und *SAMPLES* (die acht Spuren mit ihrem Sample).
 
 ### 2.26.0 – SCHLAG: Sample-Drums nach dem Polyend Play
 - Neues Modul **SCHLAG** (46 HP, Drum-Farbe `#7b6cff`). Panel: `tools/schlag_panel.py real` → `res/Schlag.svg`, `src/schlag/SchlagLayout.hpp` (mit Tabellen `*_T[track]`, `K_T/FN_T[track][row]`); Vorschau `docs/entwuerfe/schlag.png`.

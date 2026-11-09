@@ -273,7 +273,7 @@ struct Schlag : Module, follow::Host {
 		double at;
 	};
 	std::vector<Retired> retired;
-	/** What to set once a folder has been read (from the patch, a kit or the browser): names, not indices. */
+	/** What to set once a folder has been read (from the patch, a kit or the file window): names, not indices. */
 	struct Pending {
 		bool on = false;
 		std::string base;                        // the base sample's file name
@@ -883,7 +883,7 @@ struct Schlag : Module, follow::Host {
 				++it;
 		}
 	}
-	/** Names from the patch / kit / browser into indices of the folder now read. */
+	/** Names from the patch / kit / file window into indices of the folder now read. */
 	void resolve(int t) {
 		Pending& p = pending[t];
 		if (!p.on)
@@ -913,7 +913,7 @@ struct Schlag : Module, follow::Host {
 		p = Pending();
 	}
 
-	/** The browser: a sample chosen for track t. */
+	/** The file window: a sample chosen for track t. */
 	void chooseSample(int t, const std::string& path) {
 		std::string dir = system::getDirectory(path);
 		Pending& p = pending[t];
@@ -1280,15 +1280,17 @@ struct Schlag : Module, follow::Host {
 };
 
 // ------------------------------------------------------------------------------------------------ the panel
+void pickSample(Schlag* m, int t);
+
 /** The display: per track the sample (waveform, name, place in the folder) and its steps; the link at the right.
- * A click on a track: the sample browser. On the right: Follow GENRA. */
+ * A click on a track: the Windows file window for its sample. On the right: Follow GENRA. */
 struct Display : OpaqueWidget {
 	Schlag* module = nullptr;
 
 	float colX(int t) { return mm2px(L::STRIP_X0 - L::DISPLAY[0] + t * L::STRIP_W); }
 	float colW() { return mm2px(L::STRIP_W); }
 
-	void browser(int t);
+	int pickTrack = -1; // a track clicked: its file window opens in the next frame
 	void linkMenu();
 
 	void onButton(const ButtonEvent& e) override {
@@ -1297,8 +1299,7 @@ struct Display : OpaqueWidget {
 			if (x >= mm2px(L::MASTER_X - L::DISPLAY[0]))
 				linkMenu();
 			else {
-				int t = clamp((int) ((x - colX(0)) / colW()), 0, NT - 1);
-				browser(t);
+				pickTrack = clamp((int) ((x - colX(0)) / colW()), 0, NT - 1);
 			}
 			e.consume(this);
 			return;
@@ -1306,58 +1307,55 @@ struct Display : OpaqueWidget {
 		OpaqueWidget::onButton(e);
 	}
 	void step() override {
-		if (module)
+		if (module) {
 			module->uiStep();
+			if (pickTrack >= 0) {
+				int t = pickTrack;
+				pickTrack = -1;
+				pickSample(module, t);
+			}
+		}
 		OpaqueWidget::step();
 	}
 	void draw(const DrawArgs& args) override {}
 	void drawLayer(const DrawArgs& args, int layer) override;
 };
 
-static void addDirMenu(Menu* menu, Schlag* m, int t, const std::string& dir, int depth) {
-	std::vector<std::string> dirs, files;
-	for (const std::string& e : entries(dir)) {
-		std::string fn = system::getFilename(e);
-		if (fn.empty() || fn[0] == '.')
-			continue;
-		if (isDir(e))
-			dirs.push_back(e);
-		else if (isWav(e))
-			files.push_back(e);
-	}
-	std::sort(dirs.begin(), dirs.end(), lessName);
-	std::sort(files.begin(), files.end(), lessName);
-	if (dirs.empty() && files.empty())
-		menu->addChild(createMenuLabel("(no folders, no WAV files)"));
-	for (const std::string& d : dirs) {
-		if (depth > 12)
-			break;
-		menu->addChild(createSubmenuItem(system::getFilename(d), "", [=](Menu* sub) { addDirMenu(sub, m, t, d, depth + 1); }));
-	}
-	if (!dirs.empty() && !files.empty())
-		menu->addChild(new MenuSeparator);
-	Bank* b = m->bank[t].load();
-	std::string cur = b && b->count() ? system::join(b->dir, b->names[m->baseIndex(t, b)]) : "";
-	auto item = [=](const std::string& f) {
-		return createCheckMenuItem(system::getFilename(f), "", [=]() { return slashes(f) == slashes(cur); },
-		                           [=]() { m->chooseSample(t, f); });
-	};
-	const int BLOCK = 64;
-	if ((int) files.size() <= BLOCK)
-		for (const std::string& f : files)
-			menu->addChild(item(f));
-	else
-		for (int a = 0; a < (int) files.size(); a += BLOCK) {
-			int z = std::min((int) files.size(), a + BLOCK);
-			std::vector<std::string> part(files.begin() + a, files.begin() + z);
-			menu->addChild(createSubmenuItem(string::f("Files %d – %d", a + 1, z), "", [=](Menu* sub) {
-				for (const std::string& f : part)
-					sub->addChild(item(f));
-			}));
-		}
+/** The window to choose the sample root folder (once per computer; any time again from the right-click menu). */
+static bool chooseRoot() {
+	std::string start = isDir(rootDir()) ? rootDir() : "";
+	char* p = osdialog_file(OSDIALOG_OPEN_DIR, start.empty() ? nullptr : start.c_str(), nullptr, nullptr);
+	if (!p)
+		return false;
+	std::string r = p;
+	std::free(p);
+	while (r.size() > 3 && (r.back() == '\\' || r.back() == '/'))
+		r.pop_back();
+	rootDir() = r;
+	saveSettings();
+	return true;
 }
 
-/** A path typed into a menu: Enter applies. */
+/** The window to choose a track's sample: click through the folders, pick a WAV. Its folder becomes the track's
+ * folder, the file its base sample. The first time (no root folder yet) the root folder comes first. */
+void pickSample(Schlag* m, int t) {
+	if (!isDir(rootDir()) && !chooseRoot())
+		return;
+	Bank* b = m->bank[t].load();
+	std::string start = b && isDir(b->dir) ? b->dir : (isDir(m->folder[t]) ? m->folder[t] : rootDir());
+	std::string name = b && b->count() ? b->names[m->baseIndex(t, b)] : "";
+	osdialog_filters* f = osdialog_filters_parse("WAV:wav,WAV");
+	char* p = osdialog_file(OSDIALOG_OPEN, start.empty() ? nullptr : start.c_str(), name.empty() ? nullptr : name.c_str(), f);
+	osdialog_filters_free(f);
+	if (!p)
+		return;
+	std::string path = p;
+	std::free(p);
+	if (isWav(path))
+		m->chooseSample(t, path);
+}
+
+/** A name typed into a menu: Enter applies (saving a kit). */
 struct PathField : ui::TextField {
 	std::function<void(const std::string&)> apply;
 	void onAction(const ActionEvent& e) override {
@@ -1368,42 +1366,6 @@ struct PathField : ui::TextField {
 		e.consume(this);
 	}
 };
-
-static void addRootField(Menu* menu) {
-	menu->addChild(createMenuLabel("Sample root folder (type it, Enter sets it; e.g. D:\\Samples)"));
-	PathField* f = new PathField;
-	f->box.size.x = 280.f;
-	f->placeholder = "D:\\Samples";
-	f->text = rootDir();
-	f->apply = [](const std::string& s) {
-		std::string p = s;
-		while (!p.empty() && (p.back() == ' ' || p.back() == '\\' || p.back() == '/'))
-			p.pop_back();
-		rootDir() = p;
-		saveSettings();
-	};
-	menu->addChild(f);
-	APP->event->setSelectedWidget(f);
-}
-
-void Display::browser(int t) {
-	Schlag* m = module;
-	Menu* menu = createMenu();
-	menu->addChild(createMenuLabel(string::f("TRACK %d · %s", t + 1, TRACK_NAMES[t])));
-	std::string root = rootDir();
-	if (root.empty() || !isDir(root)) {
-		menu->addChild(createMenuLabel(root.empty() ? "Set your sample root folder once:" : "The sample root folder is not there:"));
-		addRootField(menu);
-		return;
-	}
-	addDirMenu(menu, m, t, root, 0);
-	menu->addChild(new MenuSeparator);
-	Bank* b = m->bank[t].load();
-	if (b && !b->dir.empty() && isDir(b->dir) && slashes(b->dir) != slashes(root))
-		menu->addChild(createSubmenuItem("This track's folder", system::getFilename(b->dir),
-		                                 [=](Menu* sub) { addDirMenu(sub, m, t, b->dir, 0); }));
-	menu->addChild(createSubmenuItem("Sample root folder", root, [=](Menu* sub) { addRootField(sub); }));
-}
 
 void Display::linkMenu() {
 	Schlag* m = module;
@@ -1897,11 +1859,19 @@ struct SchlagWidget : ModuleWidget {
 		m->fol.appendMenu(menu, m);
 		menu->addChild(createCheckMenuItem("Sends to GENRA FX (without cables)", "", [=]() { return m->sendAuto.load(); },
 		                                   [=]() { m->sendAuto = !m->sendAuto.load(); }));
-		menu->addChild(createSubmenuItem("Sample root folder", rootDir().empty() ? "not set" : rootDir(),
-		                                 [=](Menu* sub) { addRootField(sub); }));
 		menu->addChild(new MenuSeparator);
-		menu->addChild(createMenuLabel("Click a track in the display to choose its sample (and folder)"));
-		menu->addChild(createMenuLabel("RANDOM: turn = new samples for the steps, from the track's folder"));
+		menu->addChild(createMenuLabel("SAMPLE ROOT FOLDER"));
+		menu->addChild(createMenuLabel(rootDir().empty() ? "Not chosen yet" : rootDir()));
+		menu->addChild(createMenuItem(rootDir().empty() ? "Choose root folder …" : "Choose another root folder …", "",
+		                              []() { chooseRoot(); }));
+		menu->addChild(new MenuSeparator);
+		menu->addChild(createMenuLabel("SAMPLES"));
+		for (int t = 0; t < NT; t++) {
+			Bank* b = m->bank[t].load();
+			std::string cur = b && b->count() ? b->names[m->baseIndex(t, b)] : (b ? b->error : "");
+			menu->addChild(createMenuItem(string::f("%d %s …", t + 1, TRACK_NAMES[t]), cur, [=]() { pickSample(m, t); }));
+		}
+		menu->addChild(createMenuLabel("(or click a track in the display)"));
 	}
 };
 
