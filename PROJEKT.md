@@ -1,6 +1,6 @@
 # GENRA – Projektstand
 
-**Stand:** 9. November 2026 · **Plugin 2.26.1: 20 Module** (GENRA, GRID, ABLAUF, SCHLAG, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, GRUND, GRUND FX, SCHMELZ, MIX, GENRA FX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `Camillowup/Genra-for-Vcv` (vorher `CamilloGF/genra-v3`, Account nicht mehr erreichbar)
+**Stand:** 9. November 2026 · **Plugin 2.27.0: 22 Module** (GENRA, GRID, ABLAUF, SCHLAG, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, GOLANA, GOLANA FX, GRUND, GRUND FX, SCHMELZ, MIX, GENRA FX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `Camillowup/Genra-for-Vcv` (vorher `CamilloGF/genra-v3`, Account nicht mehr erreichbar)
 
 > Design-Leitfaden für neue Module (Aussehen, GENRA-Leiste, Leuchtsegmente, Follow, englische UI): **docs/DESIGN.md**
 
@@ -376,6 +376,27 @@ GENRA MONO: `g++ -std=c++17 -O2 test/test_mono.cpp -o tm && ./tm`
 - Pads per Drag & Drop in die Song-Liste: zwischen Zeilen einfügen (Linie), auf eine Zeile ersetzen (Rahmen), Undo. Ein belegtes Pad löst sein Antippen jetzt beim Loslassen aus (sonst wäre jeder Drag ein Antippen); leere Pads speichern weiter beim Drücken.
 - Song-Liste unten: Takte und Spieldauer aus GENRAs Tempo (`Genra::currentBpm`, auch für GENRAs MIDI-Export), z. B. „BAR 37 / 92 · 1:12 / 2:59“.
 - `test_ablauf`: jede Genre-Variante hat eine Form, Formlängen, `renderSong` (eine Zeile = Loop, Marker, stumme Drums, Notenbereich, Marker in der Datei).
+
+### 2.27.0 – GOLANA und GOLANA FX
+- Port der FM-1-Firmware **Golana 1.3** (Gadlele, Fork von Felucca, GPL-3.0, github.com/Gadlele/Golana): Quellen
+  unverändert in `golana/` (firmware/src, hal; `golana/gen`: die erzeugten Tabellen aus `tools/build.py generate`,
+  ohne Bildschirm-Schriften; Sample-Herkunft in `golana/assets/samples-cc0`). 42 HP + Expander 14 HP, Akzent cyan.
+- Kern `glcore/glcore.c`: übersetzt die Firmware wie ihre Host-Renders (`tests/hostsim.c`, `tests/golana_sound.c`):
+  Engines, Stimmen, Sequencer/Arp und MIDI, Effekte – ohne Bildschirm, Tasten und Hauptschleife. Teil 1 spielt GOLANA,
+  Noten kommen als MIDI (der Arp hört sie), Regler schreiben die Parameter, `gl_sync` leitet daraus ab, was die
+  Firmware liest (wie Golanas Oberfläche nach einer Änderung). Schnittstelle `gl_get` (API 1): render 128 Frames,
+  MIDI, Parameter (Bereich, Text der Firmware), `GLK_*` → Parameter-Id, virtuelle Werte (Arp-RES, Delay-Farbe/-Pegel,
+  BPM), Presets, LFO-Retrigger, Sync, Stimmen/Noten. Gebaut als `res/glcore.{dll,so,dylib}`, eine Kopie pro Instanz
+  (`Genra/run/glcore`), wie K-WASUB. ≈ 0,3 % eines Kerns.
+- Presets: 30 eigene nach Stil (`glcore/golana_genra.c`, im Format von `golana_factory.c`) + Golanas 25 Werksklänge
+  (GOLANA ORIGINALS). Pegel pro Preset aus `test/glcore_test.c levels` → `src/golana/GolanaLevels.hpp`.
+- Modul (`src/golana/Golana.cpp`): Bindungstabelle Regler/CV → Parameter (wie K-WASUB); Felder per `GolanaUI.hpp`;
+  Screen (Spur mit Nachleuchten aus dem Ausgang, Filterkurve, klingende Noten); GENRA-Leiste mit MOD und RESET;
+  RETRIG-Eingänge je LFO (setzen Phase aller Stimmen auf 0); FX-Summen = INSERT-MIX, DLY- und REV-Send; die
+  EIN-Taster des Expanders schalten sie stumm. Delay-COLOR und -MIX (bei Golana fest) sind im Expander frei.
+- Test `test/glcore_test.c` (läuft im Build): alle 55 Presets klingen, bleiben endlich, klingen aus; Clamping,
+  virtuelle Werte, Retrigger/Sync.
+- [ ] Test in Rack (Regler-Gefühl, Arp an GENRAs Clock, Expander-Kopplung, Pegel).
 
 ### 2.26.1 – SCHLAG: Samples und Root im Windows-Fenster
 - Die aufklappenden Ordner-Menüs waren zu unübersichtlich: Klick auf eine Spur im Display öffnet jetzt `osdialog_file(OSDIALOG_OPEN)` (WAV-Filter, Start im Ordner der Spur bzw. im Root), ausgelöst im nächsten Frame (`Display::pickTrack`, nicht im Mausdruck). Ohne Root kommt zuerst das Ordnerfenster (`chooseRoot()`, `OSDIALOG_OPEN_DIR`). Das Eintippen des Roots ist weg.

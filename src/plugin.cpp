@@ -25,6 +25,8 @@ void init(Plugin* p) {
 	p->addModel(modelKwasub);
 	p->addModel(modelKwasubFx);
 	p->addModel(modelFunke);
+	p->addModel(modelGolana);
+	p->addModel(modelGolanaFx);
 	p->addModel(modelUmlauf);
 	p->addModel(modelUmlaufFx);
 	p->addModel(modelMonk);

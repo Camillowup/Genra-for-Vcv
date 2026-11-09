@@ -1,7 +1,7 @@
 {
   "slug": "Genra",
   "name": "GENRA",
-  "version": "2.26.1",
+  "version": "2.27.0",
   "license": "GPL-3.0-only",
   "brand": "Genra",
   "author": "Bastian Ofner",
@@ -161,6 +161,30 @@
         "Synth voice",
         "Polyphonic",
         "Filter",
+        "Delay",
+        "Reverb"
+      ]
+    },
+    {
+      "slug": "Golana",
+      "name": "GOLANA",
+      "description": "Analog-style poly synth, the Golana FM-1 firmware by Gadlele (based on Felucca, GPL-3.0): 2 oscillators, sub, fold, 5 filters (incl. MS-20), 2 LFOs with retrigger, 4 patch routes, arpeggiator, 55 presets",
+      "tags": [
+        "Synth voice",
+        "Polyphonic",
+        "Filter",
+        "LFO",
+        "Arpeggiator"
+      ]
+    },
+    {
+      "slug": "GolanaFx",
+      "name": "GOLANA FX",
+      "description": "Effects expander for GOLANA: MOD FX (chorus, flanger, ensemble, phaser, metal), delay on the tempo, reverb, their order",
+      "tags": [
+        "Expander",
+        "Effect",
+        "Chorus",
         "Delay",
         "Reverb"
       ]

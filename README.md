@@ -1,6 +1,6 @@
 # GENRA – Plugin für VCV Rack 2
 
-Ein generativer, genreabhängiger 4-Spur-Sequencer mit MIDI-Grid, Performance-Effekten und passenden Instrumenten, alle im selben Look. Plugin-Version **2.26.1**, 20 Module. Projektstand und Entscheidungen: `PROJEKT.md`.
+Ein generativer, genreabhängiger 4-Spur-Sequencer mit MIDI-Grid, Performance-Effekten und passenden Instrumenten, alle im selben Look. Plugin-Version **2.27.0**, 22 Module. Projektstand und Entscheidungen: `PROJEKT.md`.
 
 | Modul | Breite | Farbe | Was es ist |
 |---|---|---|---|
@@ -11,6 +11,7 @@ Ein generativer, genreabhängiger 4-Spur-Sequencer mit MIDI-Grid, Performance-Ef
 | **GENRA MONO** | 28 HP | säuregrün | Monophoner Bass-Synth nach dem Moog Minitaur, mit Presets |
 | **K-WASUB** + **FX** | je 40 HP | säuregrün | Modern-Bass-Synth aus der FM-1-Firmware K-WASUB, mit Effekt-Expander |
 | **FUNKE** | 30 HP | cyan | Melodiestimme: 8 Modelle von Rhodes bis Saw Lead |
+| **GOLANA** + **FX** | 42 / 14 HP | cyan | Analoger Poly-Synth aus der FM-1-Firmware Golana, mit Effekt-Expander |
 | **SCHMELZ** | 32 HP | rosa | String Machine nach Waldorf Streichfett, für die Pads |
 | **SCHLAG** | 46 HP | blau-violett | Sample-Drums nach dem Polyend Play: 8 Spuren mit WAV-Ordnern, RANDOM pro Schritt |
 | **JIANT DRUM-X** | 32 HP | blau-violett | 8-spuriger Drum-Synth aus der JIANT-FM-Firmware |
@@ -188,7 +189,7 @@ Stereo-Effekt: z. B. GENRAs Drums oder MIX-Ausgang hinein, CLOCK von GENRA.
 
 ## Follow GENRA: verbinden ohne Kabel
 
-Alle Instrumente mit GENRA-Leiste (MONO, K-WASUB, FUNKE, SCHMELZ, UMLAUF, MONK, VOICE, ANIMAL, DRUM-X, SCHLAG) können eine GENRA-Spur ohne Kabel übernehmen: **Rechtsklick › Follow GENRA** › Bass, Melody oder Pad (DRUM-X und SCHLAG: Drums; ein neues SCHLAG folgt den Drums von selbst). Darunter wählst du, welches GENRA („Automatic“ nimmt das einzige bzw. erste im Patch). Dann kommen V/OCT, GATE, VEL, ACC, SLIDE, MOD sowie CLOCK und RESET direkt von GENRA, soweit das Instrument die Buchse hat und die Spur das Signal liefert (MOD nur bei Pad, ACC/SLIDE nur bei Bass und Melody).
+Alle Instrumente mit GENRA-Leiste (MONO, K-WASUB, FUNKE, GOLANA, SCHMELZ, UMLAUF, MONK, VOICE, ANIMAL, DRUM-X, SCHLAG) können eine GENRA-Spur ohne Kabel übernehmen: **Rechtsklick › Follow GENRA** › Bass, Melody oder Pad (DRUM-X und SCHLAG: Drums; ein neues SCHLAG folgt den Drums von selbst). Darunter wählst du, welches GENRA („Automatic“ nimmt das einzige bzw. erste im Patch). Dann kommen V/OCT, GATE, VEL, ACC, SLIDE, MOD sowie CLOCK und RESET direkt von GENRA, soweit das Instrument die Buchse hat und die Spur das Signal liefert (MOD nur bei Pad, ACC/SLIDE nur bei Bass und Melody).
 
 - **Die Leiste zeigt es an:** Die Linie über den Buchsen ist gedimmt gedruckt. Kommt ein Signal von GENRA, leuchtet das Segment über dieser Buchse in der Spurfarbe (CLOCK/RESET weiss) und flackert bei jeder Note kurz auf.
 - **Ein Kabel hat immer Vorrang:** Steckt ein Kabel in einer Buchse, gilt das Kabel, das Segment darüber geht aus. Alle Buchsen bleiben, andere Sequenzer und Module funktionieren wie bisher.
@@ -213,11 +214,11 @@ GENRA, GRID und ABLAUF speichern MIDI-Dateien direkt, ohne Speichern-Dialog (der
 
 ## Lautstärke der Presets (ab 2.21.0)
 
-Alle Werks-Presets von GRUND, GENRA MONO, K-WASUB, FUNKE und SCHMELZ (auch die Pads) sind auf ähnliche, hohe Lautheit eingemessen: Spitzen um 5–6 V, jedes Preset trägt seinen eigenen, unsichtbaren Ausgangspegel (in Patches und eigenen Presets gespeichert). Am Ausgang jedes dieser Instrumente sitzt ein Sicherheitslimiter: bis 6 V unverändert, darüber weich begrenzt auf höchstens 8 V. Ausgleichen der Spuren gegeneinander: am MIX.
+Alle Werks-Presets von GRUND, GENRA MONO, K-WASUB, FUNKE, GOLANA und SCHMELZ (auch die Pads) sind auf ähnliche, hohe Lautheit eingemessen: Spitzen um 5–6 V, jedes Preset trägt seinen eigenen, unsichtbaren Ausgangspegel (in Patches und eigenen Presets gespeichert). Am Ausgang jedes dieser Instrumente sitzt ein Sicherheitslimiter: bis 6 V unverändert, darüber weich begrenzt auf höchstens 8 V. Ausgleichen der Spuren gegeneinander: am MIX.
 
 ## Instrumente
 
-Das passende Set zu GENRA: **GENRA MONO** oder **K-WASUB** für den Bass, **FUNKE** für die Melodie, **SCHMELZ** für die Pads, **SCHLAG** (Samples) oder **DRUM-X** (Synth) für die Drums – zusammengeführt im **MIX**. Dazu weitere Stimmen: VOICE, ANIMAL, MONK und UMLAUF.
+Das passende Set zu GENRA: **GENRA MONO** oder **K-WASUB** für den Bass, **FUNKE** oder **GOLANA** für die Melodie, **SCHMELZ** für die Pads, **SCHLAG** (Samples) oder **DRUM-X** (Synth) für die Drums – zusammengeführt im **MIX**. Dazu weitere Stimmen: VOICE, ANIMAL, MONK und UMLAUF.
 
 **Die GENRA-Leiste (ab 2.13.0):** Jedes Instrument nimmt GENRAs Spur-Ausgänge an derselben Stelle auf – unten links, gleich beschriftet, in derselben Reihenfolge: **V/OCT · GATE · VEL · ACC · SLIDE · MOD** auf einer Fläche mit einer Linie in der Spurfarbe, rechts daneben **CLOCK · RESET** (graue Linie). Was ein Instrument nicht braucht, lässt es weg; die Reihenfolge bleibt. Alle Buchsen sind normale Ein- und Ausgänge, also auch mit anderen VCV-Modulen nutzbar. Neu dafür: MOD an SCHMELZ (auf Crescendo, Animate oder Tone, Rechtsklick-Menü), ACC und SLIDE an K-WASUB, RESET an FUNKE, DRUMS-Eingang an DRUM-X; bei MONO heissen SYNC und RETRIG jetzt CLOCK und RESET, bei FUNKE VIB jetzt MOD. Alle Module haben dieselben dunklen Regler (`res/knob/`).
 
@@ -313,6 +314,60 @@ Melodie-Ausgängen: V/OCT, GATE, VEL, ACC, SLIDE und CLOCK.
 | GRIME · DUBSTEP · DRILL | GRIME PULSE (SQUARE) · DRILL BELL (BELL) · DUBSTEP PLUCK (PLUCK) |
 | POP · SYNTHWAVE · TRANCE | SUPERSAW (SAW LEAD) · 80S POLY (SAW LEAD) · KALIMBA (PLUCK) · FLUTE SOLO (FLUTE) |
 | AMBIENT | AMBIENT BELLS (BELL) · SPACE RHODES (RHODES) · AIR PAD (FLUTE) |
+
+### GOLANA: analoger Poly-Synth (Firmware von Gadlele)
+
+![GOLANA](docs/entwuerfe/golana.png)
+
+Die Firmware [Golana](https://github.com/Gadlele/Golana) für den M-VAVE FM-1 von Gadlele (GPL-3.0, ein Fork von
+Felucca) als Modul, 42 HP, Farbe **cyan** (GENRAs Melodiefarbe). Ein analoger Synth im Aufbau des microKORG. Der Klang
+ist die Original-Firmware, unverändert (`golana/`): Sie läuft wie K-WASUB als eigene kleine Bibliothek
+(`res/glcore.*`, eine Kopie pro Modul) mit 44,1 kHz, das Modul rechnet auf die Rack-Rate um.
+
+- **OSCILLATORS:** OSC 1 mit Wellenform-Feld (SAW, PULSE, TRI, SINE, MORPH), CTRL 1 (je nach Welle: zweite Säge eine
+  Oktave höher, Pulsbreite, Falten, Kreuzmodulation, Säge → Rechteck), CTRL 2 (LFO 1 auf CTRL 1, z. B. PWM), DRIFT
+  (analoges Altern). OSC 2: Welle (SAW, SQR, TRI, MIX), SEMI, TUNE, MOD (OFF, RING, SYNC, R+S).
+- **MIXER:** OSC 1, OSC 2, NOISE, SUB (Feld: −1/−2 Oktaven, Rechteck, Sinus, Säge, Mix) und FOLD (Wavefolder vor dem Filter).
+- **FILTER:** Typ-Feld (LPF24, LPF12, BPF, HPF, MS20), CUTOFF, RESO, EG INT (±), KEY TRK, DIST (weicher Drive). Der
+  **Screen** daneben zeigt den Klang als Spur mit Nachleuchten (TRAIL), die Filterkurve und die Noten, die gerade klingen.
+- **ENVELOPES:** Filter-EG und Amp-EG (ADSR). **LFO 1 / LFO 2:** Welle (SAW, SQR, TRI, SIN, S&H), KEY SYNC (OFF, TIMBRE,
+  VOICE), SYNC im Tempo (OFF, 4 BAR … 1/32, über CLOCK), FREQ und ein **RETRIG**-Eingang: Jeder Trigger startet den LFO
+  von vorn, für alle Stimmen. **VOICE:** POLY 4, MONO, LEGATO, UNISON, DETUNE, PORTA.
+- **PATCH:** die vier Modulationswege der Firmware, je Quelle (FEG, AEG, LFO1, LFO2, VELO, KBD, MODW, MW*LFO1, MW*LFO2,
+  AFTER) → Ziel (PITCH, OSC2, CTRL1, NOISE, CUTOFF, AMP, LFO2F) mit INT. Die LFOs haben keinen eigenen Tiefe-Regler:
+  die Tiefe ist das INT ihres Patch-Wegs.
+- **ARP:** Typ (UP, DOWN, ALT1, ALT2, RANDOM, TRIGGER, ORDER, CONVERGE, PEDAL, DOUBLE), Rate (1/32 … 1/4, im Tempo von
+  CLOCK), RANGE (1–4 Oktaven), SWING, ON. Im Rechtsklick-Menü: Latch, Key Sync, Gate.
+- **FX:** MOD FX, DELAY, REVERB als Summenregler (wie bei K-WASUB); die Einzelheiten stehen im Expander.
+  Drehst du einen davon auf, schaltet er seinen Effekt im Expander ein.
+- **Presets:** 55 im Feld oben rechts: 30 eigene nach Stil (wie bei FUNKE) und Golanas 25 Werksklänge als Gruppe
+  GOLANA ORIGINALS. Eigene Presets per Rechtsklick (`Rack2/Genra/GolanaPresets`), samt den Werten von GOLANA FX.
+- **Eingänge:** die GENRA-Leiste V/OCT, GATE (bis 4 Stimmen, auf Halbtöne gerundet), VEL, ACC, SLIDE, MOD (Modrad; ohne
+  Patch-Weg ein Vibrato), CLOCK (setzt das Tempo; Standard 16tel wie GENRA), RESET (Arp und LFOs von vorn); CV für CUT,
+  RESO, EG INT, CTRL 1, FOLD, LFO 1, LFO 2, AFTER (Aftertouch, eine Patch-Quelle). **Ausgänge:** L, R, dazu SPREAD
+  (Stereobreite der Stimmen) und LEVEL.
+- Rechtsklick ausserdem: EG Reset, Clock-Auflösung, Follow GENRA (Melody, für Flächen auch Pad). Der ganze Klang wird
+  im Patch gespeichert.
+
+| Stil | Presets |
+|---|---|
+| SOUL · JAZZ · LO-FI | WARM POLY KEYS · LO-FI CHORDS · SOFT SQUARE LEAD · DUSTY BELLS |
+| HOUSE · GARAGE | HOUSE ORGAN · DEEP CHORD · GARAGE STAB · DISCO BRASS |
+| DUB · REGGAE | DUB SIREN · DUB CHORD ECHO · MELODICA |
+| TECHNO · ELECTRO | ACID LINE · HYPNOTIC ARP · DUB TECHNO CHORD · ELECTRO SYNC LEAD · MINIMAL BLIP |
+| GRIME · DUBSTEP · DRILL | GRIME SQUARE · REESE · DRILL GLIDE · WOBBLE LEAD (für den Drop: GATE auf RETRIG 1) |
+| POP · SYNTHWAVE · TRANCE | SUPERSAW · 80S BRASS · SYNTHWAVE POLY · GLIDE LEAD · TRANCE PLUCK · UNISON LEAD |
+| AMBIENT | SOFT PAD · PHASE PAD · SLOW ARP · DRONE |
+| GOLANA ORIGINALS | die 25 Werksklänge der Firmware, von FAT BASS bis SUPERSAW |
+
+### GOLANA FX: Effekt-Expander
+
+![GOLANA FX](docs/entwuerfe/golana_fx.png)
+
+Rechts neben GOLANA setzen (LINK leuchtet), 14 HP: **MOD FX** (Typ: Chorus, Flanger, Ensemble, Phaser, Metal; RATE,
+DEPTH), **DELAY** (Typ: Stereo, Cross, L/R; Zeit in Notenwerten im Tempo; FDBK, COLOR, MIX), **REVERB** (Typ: Room,
+Spring, Hall; SIZE, DAMP) und **CHAIN** (die Reihenfolge der drei). Jeder Block mit EIN-Taster, die CV-Eingänge sitzen
+in ihrer Sektion. Ohne Expander gelten die Effekte des Presets.
 
 ### GRUND: Bassstimme
 
@@ -523,6 +578,10 @@ Ein ganz besonderer Dank an **[Juan Jiant](https://github.com/juanjiant-bit)**! 
 
 Ein grosses Dankeschön an **[Omnipotard (Guizmoh)](https://github.com/Guizmoh)**! Seine Firmware [K-WASUB](https://github.com/Guizmoh/K-WASUB_Firmware_for_FM1) für den M-VAVE FM-1 ist der komplette Klang des K-WASUB-Moduls: Die Bass-Engines und Effekte laufen hier als sein unveränderter Code (GPL-3.0). K-WASUB ist aus seinem KAWA entstanden und baut auf der FM-1-Plattform von Leo Kuroshita (Hügelton Instruments) auf. Merci, Omnipotard – schaut euch sein Repo an und lasst einen Stern da! ⭐
 
+### Gadlele – GOLANA
+
+Danke an **[Gadlele](https://github.com/Gadlele)**! Seine Firmware [Golana](https://github.com/Gadlele/Golana) macht aus dem M-VAVE FM-1 einen analogen Synth im Geist des microKORG – mit Sub-Oszillator, Drift, Wavefolder, MS-20-Filter, Arpeggiator und dem Bildschirm, der den Klang zeichnet. Im GOLANA-Modul läuft sein unveränderter Code (GPL-3.0); Golana baut auf Felucca von Leo Kuroshita (Hügelton Instruments) auf. Schaut euch sein Repo an und lasst einen Stern da! ⭐
+
 ### L'Cronx – UMLAUF
 
 Ein riesiges Dankeschön an **[L'Cronx](https://github.com/sunskiefer)**! UMLAUF ist die Engine seines Vektor-Synths [VADER](https://github.com/sunskiefer/VADER) für Akai Force und MPC: vier Klangquellen in den Ecken eines Quadrats und der Orbiter, der auf einer Form durch sie hindurch kreist und den Klang dabei morphen lässt. Die Idee, die Engine und die Formen sind seine Arbeit, und dank seines offenen Codes (MIT) laufen sie jetzt auch in VCV Rack. Danke, L'Cronx – schaut euch VADER an und lasst ihm einen Stern da! ⭐
@@ -574,13 +633,16 @@ src/mix/              MIX: Modul und Engine (MixDsp.hpp, ohne Rack testbar)
 src/kwasub/           K-WASUB und K-WASUB FX: Module, Kern-Lader (KwCore), Parameter-Ids der Firmware
 kwcore/               der K-WASUB-Kern: die Firmware als Bibliothek (res/kwcore.dll beim Build)
 kwasub/               die K-WASUB-Firmware, unverändert (GPL-3.0, Omnipotard)
+src/golana/           GOLANA und GOLANA FX: Module, Kern-Lader (GlCore), Pegel der Presets (GolanaLevels.hpp)
+glcore/               der GOLANA-Kern: die Firmware als Bibliothek (res/glcore.dll beim Build), GENRAs 30 Presets (golana_genra.c)
+golana/               die Golana-Firmware, unverändert (GPL-3.0, Gadlele; gen/: ihre erzeugten Tabellen)
 src/umlauf/           UMLAUF und UMLAUF FX (Module, Schnittstelle zu VADER, eigene Presets: UmlaufPresets.h)
 src/stotter/          STOTTER (Modul, Engine StotterDsp.hpp, Layout aus tools/stotter_panel.py)
 src/schlag/           SCHLAG (Modul Schlag.cpp, Klang/WAV ohne Rack testbar: SchlagDsp.hpp, test/test_schlag.cpp; Frontplatte tools/schlag_panel.py)
 vader/                VADER (MIT), gepatcht (tools/vader_vendor.sh, tools/vader_patch.py), in plugin.dll gelinkt
 res/Schmelz.svg …     Frontplatten: tools/schmelz_panel.py, mix_panel.py, kwasub_panel.py, umlauf_panel.py,
-                      umlauf_fx_panel.py (jeweils real | preview <datei.png> <Rack-Quellen>)
-test/                 Engine- und MIDI-Tests (g++, ohne Rack); kwcore_test.c und vader_test.c (gcc), siehe Workflow
+                      umlauf_fx_panel.py, golana_panel.py, golana_fx_panel.py (jeweils real | preview <datei.png> <Rack-Quellen>)
+test/                 Engine- und MIDI-Tests (g++, ohne Rack); kwcore_test.c, glcore_test.c und vader_test.c (gcc), siehe Workflow
 ```
 
 ## Lizenz und Credits
@@ -590,6 +652,7 @@ GPL-3.0-only (siehe `LICENSE`).
 - **MONK:** Klang-Engine portiert aus [MONK-1](https://github.com/charlesvestal/fm1-monk) von Charles Vestal – GPL-3.0; DSP [MonkSynth](https://github.com/JonET/monksynth) von Jonathan Taylor – MIT. Die Sänger-Zeichnungen sind GENRAs eigene.
 - **K-WASUB:** [K-WASUB](https://github.com/Guizmoh/K-WASUB_Firmware_for_FM1) von Omnipotard – GPL-3.0 (`kwasub/`)
 - **UMLAUF:** [VADER](https://github.com/sunskiefer/VADER) von L'Cronx – MIT (`vader/`)
+- **GOLANA:** [Golana](https://github.com/Gadlele/Golana) von Gadlele, ein Fork von [Felucca](https://github.com/hugelton/Felucca) – GPL-3.0 (`golana/`); darin DaisySP und Rings (MIT) und Instrument-Samples von Versilian Studios (CC0)
 
 Alle Lizenztexte der Fremdteile liegen im Plugin-Ordner unter `licenses/` (Übersicht: `licenses/README.md`).
 

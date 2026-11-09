@@ -15,6 +15,7 @@ SOURCES += $(wildcard src/ablauf/*.cpp)
 SOURCES += $(wildcard src/grund/*.cpp)
 SOURCES += $(wildcard src/genrafx/*.cpp)
 SOURCES += $(wildcard src/schlag/*.cpp)
+SOURCES += $(wildcard src/golana/*.cpp)
 
 DISTRIBUTABLES += res
 DISTRIBUTABLES += $(wildcard LICENSE*)
@@ -78,8 +79,27 @@ $(KWCORE): kwcore/kwcore.c kwcore/kwcore.h $(wildcard kwasub/firmware/src/*.c kw
 	@mkdir -p res
 	$(CORE_CC) $(KW_FLAGS) $(filter --target% -arch% -march% -mmacosx-version-min%,$(FLAGS)) -o $@ $< -lm
 
-all: $(CORES) $(KWCORE)
-dist: $(CORES) $(KWCORE)
+# ---------------------------------------------------------------- the GOLANA core
+# The Golana firmware (golana/, unchanged; golana/gen: its generated tables) with glcore/glcore.c on top, as its host
+# renders build it (tests/hostsim.c), likewise one private copy per instance.
+GL_FLAGS := -std=gnu11 -O2 -w -ffp-contract=off -Iglcore -Igolana/gen
+ifdef ARCH_LIN
+	GL_FLAGS += -fPIC -fvisibility=hidden -shared
+endif
+ifdef ARCH_MAC
+	GL_FLAGS += -fPIC -fvisibility=hidden -dynamiclib
+endif
+ifdef ARCH_WIN
+	GL_FLAGS += -shared -static-libgcc
+endif
+GLCORE := res/glcore.$(CORE_EXT)
+
+$(GLCORE): glcore/glcore.c glcore/glcore.h glcore/golana_genra.c $(wildcard golana/firmware/src/*.c golana/firmware/src/*.h golana/gen/*.h)
+	@mkdir -p res
+	$(CORE_CC) $(GL_FLAGS) $(filter --target% -arch% -march% -mmacosx-version-min%,$(FLAGS)) -o $@ $< -lm
+
+all: $(CORES) $(KWCORE) $(GLCORE)
+dist: $(CORES) $(KWCORE) $(GLCORE)
 
 # ---------------------------------------------------------------- the VADER engine (UMLAUF)
 # vader/ is VADER (github.com/sunskiefer/VADER, MIT) as tools/vader_vendor.sh copies and patches it, built the way its

@@ -38,6 +38,8 @@ jobs:
           done
           gcc -std=gnu11 -O2 -w -ffreestanding -fno-builtin -fno-tree-loop-distribute-patterns -Ikwasub/firmware/src -Ikwasub/firmware/gen -Ikwasub/firmware/hal test/kwcore_test.c -o kt.exe -lm
           ./kt.exe
+          gcc -std=gnu11 -O2 -w -Iglcore -Igolana/gen test/glcore_test.c -o gt.exe -lm
+          ./gt.exe
           for t in test/test_tracks.cpp test/test_edit.cpp test/test_store.cpp test/test_midi.cpp test/test_cycle.cpp; do
             g++ -std=gnu++17 -O2 -Isrc "$t" src/Engine.cpp src/Genres.cpp src/Edit.cpp src/Store.cpp src/Midi.cpp -o t.exe && ./t.exe || exit 1
           done
@@ -58,11 +60,13 @@ jobs:
         run: |
           ls -la dist/Genra dist/Genra/res
           test -f dist/Genra/plugin.dll
-          for c in voicecore drumcore animalcore kwcore; do test -f dist/Genra/res/$c.dll; done
+          for c in voicecore drumcore animalcore kwcore glcore; do test -f dist/Genra/res/$c.dll; done
           test -f dist/Genra/res/Umlauf.svg
           test -f dist/Genra/res/Funke.svg
           test -f dist/Genra/res/Stotter.svg
           test -f dist/Genra/res/Schlag.svg
+          test -f dist/Genra/res/Golana.svg
+          test -f dist/Genra/res/GolanaFx.svg
           ls dist/Genra/res/umlauf/shapes
           objdump -p dist/Genra/plugin.dll | grep "DLL Name"
           ! objdump -p dist/Genra/plugin.dll | grep -iE "libwinpthread|libstdc"
