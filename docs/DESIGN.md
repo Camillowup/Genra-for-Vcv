@@ -1,7 +1,7 @@
 # GENRA und GENRA Instruments: Design-Leitfaden für neue Module
 
 Alle Entscheidungen, die über die Module hinweg gelten. Ein neues Modul hält sich daran, damit es aussieht und sich
-bedient wie die anderen. Stand: GENRA 2.29.1 / GENRA Instruments 1.0.1.
+bedient wie die anderen. Stand: GENRA und GENRA Instruments 2.29.1.
 
 ## Zwei Plugins, eine Familie
 
@@ -35,7 +35,8 @@ bedient wie die anderen. Stand: GENRA 2.29.1 / GENRA Instruments 1.0.1.
 2. Panel-Skript `tools/<modul>_panel.py` schreibt `res/<Modul>.svg` (Text als Pfade) und den Layout-Header
    `src/<modul>/<Modul>Layout.hpp` (Instrumente: unter `instruments/`); Vorschau nach `docs/entwuerfe/`.
 3. Bauen und Testen nur über GitHub Actions (Windows); Tests unter `test/` in `.github/workflows/main.yml` eintragen.
-4. Version in `plugin.json` erhöhen (Instrumente: `instruments/plugin.json`), `README.md` (Bedienung, deutsch) und `PROJEKT.md` (Technik, deutsch) nachführen.
+4. Version in `plugin.json` erhöhen, in `instruments/plugin.json` dieselbe (Rack 2 lädt nur Versionen 2.x: eine 1.x wird
+   mit „does not match Rack ABI version 2“ abgelehnt), `README.md` (Bedienung, deutsch) und `PROJEKT.md` (Technik, deutsch) nachführen.
 
 ## Aussehen
 

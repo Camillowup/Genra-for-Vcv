@@ -377,7 +377,10 @@ GENRA MONO: `g++ -std=c++17 -O2 test/test_mono.cpp -o tm && ./tm`
 - Song-Liste unten: Takte und Spieldauer aus GENRAs Tempo (`Genra::currentBpm`, auch für GENRAs MIDI-Export), z. B. „BAR 37 / 92 · 1:12 / 2:59“.
 - `test_ablauf`: jede Genre-Variante hat eine Form, Formlängen, `renderSong` (eine Zeile = Loop, Marker, stumme Drums, Notenbereich, Marker in der Datei).
 
-### 2.29.1 / Instruments 1.0.1 – SCHLAG-RANDOM als Endlos-Regler, RND ALL, Mono-Summe
+### 2.29.1 – SCHLAG-RANDOM als Endlos-Regler, RND ALL, Mono-Summe
+- **GENRA Instruments trägt jetzt dieselbe Version wie GENRA (2.29.1).** 1.0.0/1.0.1 lud Rack nicht: Rack 2 verlangt
+  Version 2.x („Plugin version 1.0.1 does not match Rack ABI version 2“ im log.txt). Die Datei im Release v2.29.0
+  (`GenraInstruments-1.0.0`) ist deshalb unbrauchbar.
 - **SCHLAG RANDOM:** `RandKnob` ist jetzt ein eigener `ParamWidget` (Drehgeber wie beim Play): kein Zeiger, Wert als Zahl
   und Bogen (`drawLayer` 1), Ziehen ändert in 1-%-Schritten (Strg: feiner), jeder Schritt würfelt (höchstens 25/s,
   der letzte Schritt und 0 % immer), Mausrad 5 %, Doppelklick 0 %; eine Drehung = ein UNDO-Eintrag. Panel: Kind
