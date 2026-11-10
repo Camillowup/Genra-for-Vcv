@@ -357,6 +357,8 @@ struct Schmelz : Module, follow::Host {
 		bus->process(bp, str, solo, l, r, st, so_);
 		outputs[L_OUTPUT].setVoltage(l);
 		outputs[R_OUTPUT].setVoltage(r);
+		if (!outputs[R_OUTPUT].isConnected() && !pulled(args.frame)) // L alone: the mono sum (as FUNKE, GRUND, MONO)
+			outputs[L_OUTPUT].setVoltage(0.5f * (outputs[L_OUTPUT].getVoltage() + outputs[R_OUTPUT].getVoltage()));
 		outputs[STR_OUTPUT].setVoltage(st);
 		outputs[SOLO_OUTPUT].setVoltage(so_);
 	}

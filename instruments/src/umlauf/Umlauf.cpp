@@ -857,6 +857,8 @@ struct Umlauf : Module, follow::Host {
 		auto clip = [](float v) { return 10.f * std::tanh(v * 0.1f); };
 		outputs[L_OUTPUT].setVoltage(clip(GAIN * cubic(ring[0])));
 		outputs[R_OUTPUT].setVoltage(clip(GAIN * cubic(ring[1])));
+		if (!outputs[R_OUTPUT].isConnected() && !pulled(args.frame)) // L alone: the mono sum (as FUNKE, GRUND, MONO)
+			outputs[L_OUTPUT].setVoltage(0.5f * (outputs[L_OUTPUT].getVoltage() + outputs[R_OUTPUT].getVoltage()));
 		if (corners)
 			for (int c = 0; c < 4; c++)
 				outputs[A_OUTPUT + c].setVoltage(clip(GAIN * cubic(ring[2 + c])));

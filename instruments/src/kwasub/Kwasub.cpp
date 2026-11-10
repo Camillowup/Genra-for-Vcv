@@ -716,6 +716,8 @@ struct Kwasub : Module, follow::Host {
 			float y = ((c3 * t + c2) * t + c1) * t + y1;
 			outputs[c ? R_OUTPUT : L_OUTPUT].setVoltage(genra_out::limit(5.f * y * presetGain));  // level + safety limiter
 		}
+		if (!outputs[R_OUTPUT].isConnected() && !pulled(args.frame)) // L alone: the mono sum (as FUNKE, GRUND, MONO)
+			outputs[L_OUTPUT].setVoltage(0.5f * (outputs[L_OUTPUT].getVoltage() + outputs[R_OUTPUT].getVoltage()));
 		pos += step;
 		outputs[ENV_OUTPUT].setVoltage(10.f * a->env());
 		outputs[LFO_OUTPUT].setVoltage(5.f * a->lfo());

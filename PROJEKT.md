@@ -1,6 +1,6 @@
 # GENRA – Projektstand
 
-**Stand:** 9. November 2026 · **Plugin 2.29.0: 22 Module** (GENRA, GRID, ABLAUF, SCHLAG, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, GOLANA, GOLANA FX, GRUND, GRUND FX, SCHMELZ, MIX, GENRA FX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `Camillowup/Genra-for-Vcv` (vorher `CamilloGF/genra-v3`, Account nicht mehr erreichbar)
+**Stand:** 9. November 2026 · **Plugin 2.29.1: 22 Module** (GENRA, GRID, ABLAUF, SCHLAG, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, GOLANA, GOLANA FX, GRUND, GRUND FX, SCHMELZ, MIX, GENRA FX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `Camillowup/Genra-for-Vcv` (vorher `CamilloGF/genra-v3`, Account nicht mehr erreichbar)
 
 > Design-Leitfaden für neue Module (Aussehen, GENRA-Leiste, Leuchtsegmente, Follow, englische UI): **docs/DESIGN.md**
 
@@ -376,6 +376,18 @@ GENRA MONO: `g++ -std=c++17 -O2 test/test_mono.cpp -o tm && ./tm`
 - Pads per Drag & Drop in die Song-Liste: zwischen Zeilen einfügen (Linie), auf eine Zeile ersetzen (Rahmen), Undo. Ein belegtes Pad löst sein Antippen jetzt beim Loslassen aus (sonst wäre jeder Drag ein Antippen); leere Pads speichern weiter beim Drücken.
 - Song-Liste unten: Takte und Spieldauer aus GENRAs Tempo (`Genra::currentBpm`, auch für GENRAs MIDI-Export), z. B. „BAR 37 / 92 · 1:12 / 2:59“.
 - `test_ablauf`: jede Genre-Variante hat eine Form, Formlängen, `renderSong` (eine Zeile = Loop, Marker, stumme Drums, Notenbereich, Marker in der Datei).
+
+### 2.29.1 / Instruments 1.0.1 – SCHLAG-RANDOM als Endlos-Regler, RND ALL, Mono-Summe
+- **SCHLAG RANDOM:** `RandKnob` ist jetzt ein eigener `ParamWidget` (Drehgeber wie beim Play): kein Zeiger, Wert als Zahl
+  und Bogen (`drawLayer` 1), Ziehen ändert in 1-%-Schritten (Strg: feiner), jeder Schritt würfelt (höchstens 25/s,
+  der letzte Schritt und 0 % immer), Mausrad 5 %, Doppelklick 0 %; eine Drehung = ein UNDO-Eintrag. Panel: Kind
+  `enc` in `tools/schlag_panel.py` (nur Beschriftung, der Ring kommt vom Modul). `Snap` hält auch die RANDOM-Werte
+  (`restore()` für UNDO und Strg+Z); BASIC setzt RANDOM auf 0 %.
+- **RND ALL** (`rollAll()`): alle Spuren auf 50 % und neu gewürfelt (vorher mit dem eigenen Wert – bei 0 % passierte
+  nichts, das sah aus wie ein Fehler).
+- **Mono-Summe auf L**, wenn R frei ist und MIX nicht abgreift: SCHMELZ, K-WASUB, GOLANA, UMLAUF, MONK (wie FUNKE,
+  GRUND, MONO).
+- `docs/DESIGN.md`: zwei Plugins, Regeln für neue Instrumente (zusammenführbar), Mono-Summe, Endlos-Regler.
 
 ### 2.29.0 – Zweites Plugin GENRA Instruments
 - K-WASUB (+FX), GOLANA (+FX), UMLAUF (+FX), MONK, VOICE und ANIMAL sind ein eigenes Plugin **GENRA Instruments** (`instruments/`, Slug `GenraInstruments`, Marke `Genra`, Version 1.0.0), im selben Repo. Im GENRA-Plugin bleiben GENRA, GRID, ABLAUF, MIX, GENRA FX, STOTTER, SCHLAG, DRUM-X, GRUND (+FX), MONO, FUNKE, SCHMELZ. Alte Patches mit den sechs Modulen finden sie nicht mehr (bewusst: kaum Downloads bisher).

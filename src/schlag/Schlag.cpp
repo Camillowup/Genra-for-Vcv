@@ -390,7 +390,7 @@ struct Schlag : Module, follow::Host {
 		for (int t = 0; t < NT; t++) {
 			std::string n = TRACK_NAMES[t];
 			configParam<SampleQuantity>(SAMPLE_PARAM + t, 0.f, 1.f, 0.f, n + " sample (in the folder)");
-			configParam(RAND_PARAM + t, 0.f, 1.f, 0.f, n + " RANDOM: turn = roll a sample for every step from the folder; how far = how far from the base sample", " %", 0.f, 100.f);
+			configParam(RAND_PARAM + t, 0.f, 1.f, 0.f, n + " RANDOM (endless): every step of a turn rolls a sample for every step from the folder; the amount = how far from the base sample, 0 % = the base sample everywhere", " %", 0.f, 100.f);
 			configButton(BASIC_PARAM + t, n + " BASIC: every step back to the base sample");
 			configSwitch(MUTE_PARAM + t, 0.f, 1.f, 0.f, n + " mute", {"Off", "On"});
 			configSwitch(SOLO_PARAM + t, 0.f, 1.f, 0.f, n + " solo", {"Off", "On"});
@@ -420,7 +420,7 @@ struct Schlag : Module, follow::Host {
 		configSwitch(CHOKE_PARAM, 0.f, 1.f, 1.f, "O.HAT CHOKE: the closed hat cuts the open hat", {"Off", "On"});
 		configParam(ACCENT_PARAM, 0.f, 1.f, 0.5f, "Accent (how much louder an accented hit is)", " %", 0.f, 100.f);
 		configParam(LEVEL_PARAM, 0.f, 1.f, 48.f / 54.f, "Level", " dB", 0.f, 54.f, -48.f);
-		configButton(RNDALL_PARAM, "RND ALL: roll every track (each with its RANDOM)");
+		configButton(RNDALL_PARAM, "RND ALL: every track to 50 % and rolled");
 		configButton(UNDO_PARAM, "UNDO: the last roll / BASIC");
 		configButton(BASICALL_PARAM, "BASIC: every track back to its base sample");
 		configButton(PRINT_PARAM, "PRINT › ABLAUF: keep the rolled samples with the ABLAUF pad GENRA plays");
@@ -969,6 +969,7 @@ struct Schlag : Module, follow::Host {
 	// ---- the rolls (with UNDO and Ctrl+Z)
 	struct Snap {
 		int16_t m[NT][MAXS];
+		float amt[NT]; // the RANDOM amounts (the encoders show them)
 	};
 	std::vector<Snap> undoStack;
 	std::string message;
@@ -983,12 +984,21 @@ struct Schlag : Module, follow::Host {
 		void apply(const Snap& s) {
 			Schlag* m = dynamic_cast<Schlag*>(APP->engine->getModule(moduleId));
 			if (m)
-				std::memcpy(m->map, s.m, sizeof s.m);
+				m->restore(s);
 		}
 		void undo() override { apply(before); }
 		void redo() override { apply(after); }
 	};
-	void snapshot(Snap& s) { std::memcpy(s.m, map, sizeof map); }
+	void snapshot(Snap& s) {
+		std::memcpy(s.m, map, sizeof map);
+		for (int t = 0; t < NT; t++)
+			s.amt[t] = params[RAND_PARAM + t].getValue();
+	}
+	void restore(const Snap& s) {
+		std::memcpy(map, s.m, sizeof map);
+		for (int t = 0; t < NT; t++)
+			params[RAND_PARAM + t].setValue(s.amt[t]);
+	}
 	// UNDO: the own stack (32) and Rack's Ctrl+Z; rolls from the RND jack only into the own stack (a clock there would
 	// fill Ctrl+Z), the moves of a turned RANDOM knob into neither (one entry when the turn ends)
 	enum UndoMode { U_ALL, U_OWN, U_NONE };
@@ -1007,7 +1017,17 @@ struct Schlag : Module, follow::Host {
 		snapshot(a->after);
 		APP->history->push(a);
 	}
-	/** RANDOM for the tracks in mask, each with its own RANDOM knob. */
+	/** RND ALL: every track to 50 % and rolled (a track at 0 % would otherwise stay on its base sample). */
+	void rollAll() {
+		Snap before;
+		snapshot(before);
+		for (int t = 0; t < NT; t++)
+			params[RAND_PARAM + t].setValue(0.5f);
+		roll(0xffu, "SCHLAG RND ALL", U_NONE);
+		pushUndo(before, "SCHLAG RND ALL");
+		say("RND ALL · 50 %");
+	}
+	/** RANDOM for the tracks in mask, each with its own RANDOM amount. */
 	void roll(uint32_t mask, const char* name = "SCHLAG roll", UndoMode um = U_ALL) {
 		Snap before;
 		snapshot(before);
@@ -1032,9 +1052,11 @@ struct Schlag : Module, follow::Host {
 		Snap before;
 		snapshot(before);
 		for (int t = 0; t < NT; t++)
-			if ((mask >> t) & 1u)
+			if ((mask >> t) & 1u) {
 				for (int s = 0; s < MAXS; s++)
 					map[t][s] = -1;
+				params[RAND_PARAM + t].setValue(0.f); // the encoder back to 0 %
+			}
 		pushUndo(before, "SCHLAG basic");
 	}
 	void undo() {
@@ -1044,7 +1066,7 @@ struct Schlag : Module, follow::Host {
 		}
 		Snap before;
 		snapshot(before);
-		std::memcpy(map, undoStack.back().m, sizeof map);
+		restore(undoStack.back());
 		undoStack.pop_back();
 		MapAction* a = new MapAction;
 		a->name = "SCHLAG undo";
@@ -1740,48 +1762,167 @@ struct LatchButton : TL1105 {
 };
 
 /** RANDOM: turning it rolls (a turn of the knob, not a value set by undo or a preset). */
-struct RandKnob : GSmallKnob {
+/** RANDOM as an endless encoder like the Polyend Play's: no pointer, the amount in the middle and as an arc around it.
+ * Every step of a turn (1 %) rolls the track anew (at most 25 times a second; the last step always rolls), up or down;
+ * at 0 % it stops: every step plays the base sample again. A whole turn is one UNDO / Ctrl+Z entry. Scroll: 5 % a
+ * notch. Double-click: 0 %. */
+struct RandKnob : app::ParamWidget {
 	int track = 0;
 	double last = -1.0;
-	bool turning = false, rolled = false;
-	Schlag::Snap atStart; // the samples before the turn: one UNDO / Ctrl+Z entry for the whole turn
-	void rollNow(Schlag::UndoMode um) {
-		Schlag* m = dynamic_cast<Schlag*>(module);
+	bool turning = false, rolled = false, dirty = false;
+	float acc = 0.f;
+	Schlag::Snap atStart;
+	RandKnob() { box.size = mm2px(Vec(10.4f, 10.4f)); }
+	Schlag* sch() { return dynamic_cast<Schlag*>(module); }
+	int pct() {
+		ParamQuantity* pq = getParamQuantity();
+		return pq ? (int) std::round(pq->getValue() * 100.f) : 0;
+	}
+	void rollNow(Schlag::UndoMode um, bool force) {
+		Schlag* m = sch();
 		if (!m)
 			return;
 		double now = system::getTime();
-		if (now - last < 0.04) // at most 25 rolls a second while turning
+		if (!force && now - last < 0.04) // at most 25 rolls a second while turning
 			return;
 		last = now;
 		m->roll(1u << track, "SCHLAG RANDOM", um);
 		rolled = true;
+		dirty = false;
+	}
+	void setPct(int p, Schlag::UndoMode um) {
+		ParamQuantity* pq = getParamQuantity();
+		if (!pq)
+			return;
+		p = clamp(p, 0, 100);
+		if (p == pct())
+			return;
+		pq->setValue(p / 100.f);
+		dirty = true;
+		rollNow(um, p == 0); // reaching 0 % always rolls: the base sample everywhere at once
 	}
 	void onDragStart(const DragStartEvent& e) override {
-		GSmallKnob::onDragStart(e);
-		if (Schlag* m = dynamic_cast<Schlag*>(module)) {
+		if (e.button != GLFW_MOUSE_BUTTON_LEFT)
+			return;
+		if (Schlag* m = sch()) {
 			m->snapshot(atStart);
 			turning = true;
-			rolled = false;
+			rolled = dirty = false;
+			acc = 0.f;
+		}
+		if (settings::allowCursorLock)
+			APP->window->cursorLock();
+	}
+	void onDragMove(const DragMoveEvent& e) override {
+		if (e.button != GLFW_MOUSE_BUTTON_LEFT || !turning)
+			return;
+		acc += (e.mouseDelta.x - e.mouseDelta.y) * ((APP->window->getMods() & RACK_MOD_MASK) == RACK_MOD_CTRL ? 0.1f : 0.4f);
+		int steps = (int) acc;
+		if (steps) {
+			acc -= steps;
+			setPct(pct() + steps, Schlag::U_NONE);
 		}
 	}
 	void onDragEnd(const DragEndEvent& e) override {
-		GSmallKnob::onDragEnd(e);
-		Schlag* m = dynamic_cast<Schlag*>(module);
-		if (m && turning && rolled)
-			m->pushUndo(atStart, "SCHLAG RANDOM");
+		if (e.button != GLFW_MOUSE_BUTTON_LEFT)
+			return;
+		if (settings::allowCursorLock)
+			APP->window->cursorUnlock();
+		if (!turning)
+			return;
+		if (dirty)
+			rollNow(Schlag::U_NONE, true); // the last step rolls too
+		if (Schlag* m = sch())
+			if (rolled)
+				m->pushUndo(atStart, "SCHLAG RANDOM");
 		turning = false;
 	}
-	void onDragMove(const DragMoveEvent& e) override {
-		float before = getParamQuantity() ? getParamQuantity()->getValue() : 0.f;
-		GSmallKnob::onDragMove(e);
-		if (getParamQuantity() && getParamQuantity()->getValue() != before)
-			rollNow(turning ? Schlag::U_NONE : Schlag::U_ALL);
-	}
 	void onHoverScroll(const HoverScrollEvent& e) override {
-		float before = getParamQuantity() ? getParamQuantity()->getValue() : 0.f;
-		GSmallKnob::onHoverScroll(e);
-		if (getParamQuantity() && getParamQuantity()->getValue() != before)
-			rollNow(Schlag::U_ALL);
+		int d = e.scrollDelta.y > 0.f ? 5 : (e.scrollDelta.y < 0.f ? -5 : 0);
+		if (d) {
+			if (Schlag* m = sch()) {
+				Schlag::Snap before;
+				m->snapshot(before);
+				rolled = false;
+				setPct(pct() + d, Schlag::U_NONE);
+				if (dirty)
+					rollNow(Schlag::U_NONE, true);
+				if (rolled)
+					m->pushUndo(before, "SCHLAG RANDOM");
+			}
+			e.consume(this);
+		}
+	}
+	void onDoubleClick(const DoubleClickEvent& e) override {
+		if (Schlag* m = sch()) {
+			Schlag::Snap before;
+			m->snapshot(before);
+			rolled = false;
+			setPct(0, Schlag::U_NONE);
+			if (rolled)
+				m->pushUndo(before, "SCHLAG RANDOM 0 %");
+		}
+		e.consume(this);
+	}
+	void draw(const DrawArgs& args) override {
+		NVGcontext* vg = args.vg;
+		Vec c = box.size.div(2.f);
+		float rr = mm2px(3.84f), ring = mm2px(3.84f + 1.15f);
+		// the arc's track
+		nvgBeginPath(vg);
+		nvgCircle(vg, c.x, c.y, ring);
+		nvgStrokeColor(vg, nvgRGB(0x2a, 0x2b, 0x36));
+		nvgStrokeWidth(vg, mm2px(0.55f));
+		nvgStroke(vg);
+		// the body: a knurled edge, a flat cap without a pointer
+		nvgBeginPath(vg);
+		nvgCircle(vg, c.x, c.y, rr);
+		nvgFillColor(vg, nvgRGB(0x16, 0x17, 0x1d));
+		nvgFill(vg);
+		nvgStrokeColor(vg, nvgRGB(0x3a, 0x3b, 0x46));
+		nvgStrokeWidth(vg, mm2px(0.25f));
+		nvgStroke(vg);
+		nvgStrokeColor(vg, nvgRGB(0x4a, 0x4b, 0x58));
+		nvgStrokeWidth(vg, mm2px(0.22f));
+		for (int k = 0; k < 28; k++) {
+			float a = 2.f * M_PI * k / 28.f;
+			nvgBeginPath(vg);
+			nvgMoveTo(vg, c.x + (rr - mm2px(0.75f)) * std::cos(a), c.y + (rr - mm2px(0.75f)) * std::sin(a));
+			nvgLineTo(vg, c.x + (rr - mm2px(0.1f)) * std::cos(a), c.y + (rr - mm2px(0.1f)) * std::sin(a));
+			nvgStroke(vg);
+		}
+		nvgBeginPath(vg);
+		nvgCircle(vg, c.x, c.y, rr - mm2px(1.1f));
+		nvgFillColor(vg, nvgRGB(0x22, 0x23, 0x2b));
+		nvgFill(vg);
+		ParamWidget::draw(args);
+	}
+	void drawLayer(const DrawArgs& args, int layer) override {
+		ParamWidget::drawLayer(args, layer);
+		if (layer != 1)
+			return;
+		NVGcontext* vg = args.vg;
+		Vec c = box.size.div(2.f);
+		float ring = mm2px(3.84f + 1.15f);
+		int p = module ? pct() : 35; // (the browser shows an example)
+		NVGcolor acc = ACCENT;
+		if (p > 0) {
+			float a0 = 0.75f * M_PI, a1 = a0 + 1.5f * M_PI * p / 100.f;
+			nvgBeginPath(vg);
+			nvgArc(vg, c.x, c.y, ring, a0, a1, NVG_CW);
+			nvgStrokeColor(vg, acc);
+			nvgStrokeWidth(vg, mm2px(0.6f));
+			nvgLineCap(vg, NVG_ROUND);
+			nvgStroke(vg);
+		}
+		std::shared_ptr<window::Font> f = gui::boldFont();
+		if (f && f->handle >= 0) {
+			nvgFontFaceId(vg, f->handle);
+			nvgFontSize(vg, mm2px(2.4f));
+			nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
+			nvgFillColor(vg, p > 0 ? acc : gui::DIM);
+			nvgText(vg, c.x, c.y + mm2px(0.1f), string::f("%d%%", p).c_str(), nullptr);
+		}
 	}
 };
 
@@ -1906,7 +2047,7 @@ struct SchlagWidget : ModuleWidget {
 			m->basic(basicMask);
 		uint32_t rnd = m->rndMask.exchange(0);
 		if (pressed(rndAllT, Schlag::RNDALL_PARAM))
-			m->roll(0xffu, "SCHLAG RND ALL");
+			m->rollAll();
 		else if (rnd) // the RND jack: UNDO yes, Ctrl+Z no (a clock there would fill it)
 			m->roll(rnd, "SCHLAG RND", Schlag::U_OWN);
 		if (pressed(undoT, Schlag::UNDO_PARAM))

@@ -8,6 +8,7 @@ Usage:  grund_panel.py real                   -> res/Schlag.svg (text as paths) 
 Coordinates in mm (30 HP, height 128.5 mm). The C++ side converts with mm2px().
 The panel holds what never changes; the module widget draws the display and the text in the two fields (model, filter).
 """
+import math
 import os
 import re
 import subprocess
@@ -177,7 +178,9 @@ for i, nm in enumerate(NAMES):
     text(cx if nm != "O.HAT" else x0 + 2.6, 32.6, nm, 1.85, ACC, 800, "middle" if nm != "O.HAT" else "start", 0.4)
     # the sample: SAMPLE picks in the folder (right-click: folder), RANDOM = Play-style randomize from the folder
     knob(f"SAMPLE{i}", cx - 5.6, 41, "SAMPLE", "small")
-    knob(f"RAND{i}", cx + 5.6, 41, "RANDOM", "small", hot=True)
+    # RANDOM: an endless encoder (the module draws it: knurled, no pointer, the amount as a number and an arc)
+    comps.append(("enc", f"RAND{i}", cx + 5.6, 41))
+    text(cx + 5.6, 41 + R["small"] + 3.4, "RANDOM", 1.7, TXT, 600, "middle", 0.3)
     for bx, bn, bl in ((cx - 6.6, "BASIC", "BASIC"), (cx + 1.0, "MUTE", "M"), (cx + 7.6, "SOLO", "S")):
         comps.append(("tl", f"{bn}{i}", bx, 51.4))
         text(bx, 56.1, bl, 1.2, DIM, 700, "middle", 0.2)
@@ -289,6 +292,22 @@ for kind, n, x, y in comps:
         img("VCVBezel", x, y)
     elif kind == "tl":
         img("TL1105_0", x, y)
+    elif kind == "enc":  # the encoder as the module draws it, with example amounts
+        pct = [35, 60, 0, 20, 75, 0, 45, 100][int(n[4:])]
+        rr, ring = R["small"], R["small"] + 1.15
+        out.insert(-1, f'<circle cx="{x}" cy="{y}" r="{ring:.2f}" fill="none" stroke="#2a2b36" stroke-width="0.55"/>')
+        if pct:
+            a0 = math.radians(135); a1 = a0 + math.radians(270 * pct / 100)
+            out.insert(-1, f'<path d="M{x + ring * math.cos(a0):.2f},{y + ring * math.sin(a0):.2f} A{ring:.2f},{ring:.2f} 0 '
+                           f'{1 if a1 - a0 > math.pi else 0} 1 {x + ring * math.cos(a1):.2f},{y + ring * math.sin(a1):.2f}" '
+                           f'fill="none" stroke="{ACC}" stroke-width="0.6" stroke-linecap="round"/>')
+        out.insert(-1, f'<circle cx="{x}" cy="{y}" r="{rr:.2f}" fill="#16171d" stroke="#3a3b46" stroke-width="0.25"/>')
+        for k in range(28):
+            a = 2 * math.pi * k / 28
+            out.insert(-1, f'<line x1="{x + (rr - 0.75) * math.cos(a):.2f}" y1="{y + (rr - 0.75) * math.sin(a):.2f}" '
+                           f'x2="{x + (rr - 0.1) * math.cos(a):.2f}" y2="{y + (rr - 0.1) * math.sin(a):.2f}" stroke="#4a4b58" stroke-width="0.22"/>')
+        out.insert(-1, f'<circle cx="{x}" cy="{y}" r="{rr - 1.1:.2f}" fill="#22232b"/>')
+        ptext(x, y + 0.75, f"{pct}%", 1.9, ACC if pct else DIM, 800, "middle", 0.1)
     else:
         img("PJ301M", x, y)
 for sx_ in (7.62, W - 7.62):

@@ -1,6 +1,6 @@
 # GENRA Instruments – Plugin für VCV Rack 2
 
-Die Instrumente der GENRA-Familie als eigenes Plugin: K-WASUB, GOLANA, UMLAUF, MONK, VOICE und ANIMAL (je mit ihren FX-Expandern). Im Rack-Browser stehen sie unter derselben Marke **Genra** wie das GENRA-Plugin (Sequencer, ABLAUF, MIX, GENRA FX, SCHLAG, DRUM-X, GRUND, MONO, FUNKE, SCHMELZ). Plugin-Version **1.0.0**; der Code liegt im Ordner `instruments/` des GENRA-Repos.
+Die Instrumente der GENRA-Familie als eigenes Plugin: K-WASUB, GOLANA, UMLAUF, MONK, VOICE und ANIMAL (je mit ihren FX-Expandern). Im Rack-Browser stehen sie unter derselben Marke **Genra** wie das GENRA-Plugin (Sequencer, ABLAUF, MIX, GENRA FX, SCHLAG, DRUM-X, GRUND, MONO, FUNKE, SCHMELZ). Plugin-Version **1.0.1**; der Code liegt im Ordner `instruments/` des GENRA-Repos.
 
 | Modul | Breite | Farbe | Was es ist |
 |---|---|---|---|

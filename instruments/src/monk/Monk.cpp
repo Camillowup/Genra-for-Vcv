@@ -241,6 +241,8 @@ struct Monk : Module, follow::Host {
 		env += (dsp.uiEnv - env) * 0.02f;
 		outputs[L_OUTPUT].setVoltage(5.f * outL[pos]);
 		outputs[R_OUTPUT].setVoltage(5.f * outR[pos]);
+		if (!outputs[R_OUTPUT].isConnected() && !pulled(args.frame)) // L alone: the mono sum (as FUNKE, GRUND, MONO)
+			outputs[L_OUTPUT].setVoltage(0.5f * (outputs[L_OUTPUT].getVoltage() + outputs[R_OUTPUT].getVoltage()));
 		outputs[DRY_OUTPUT].setVoltage(5.f * outD[pos]);
 		outputs[ENV_OUTPUT].setVoltage(10.f * env);
 		pos++;

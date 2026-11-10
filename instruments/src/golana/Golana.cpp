@@ -607,6 +607,8 @@ struct Golana : Module, follow::Host {
 			float y = ((c3 * t + c2) * t + c1) * t + y1;
 			outputs[c ? R_OUTPUT : L_OUTPUT].setVoltage(genra_out::limit(5.f * y * lvl));  // level + safety limiter
 		}
+		if (!outputs[R_OUTPUT].isConnected() && !pulled(args.frame)) // L alone: the mono sum (as FUNKE, GRUND, MONO)
+			outputs[L_OUTPUT].setVoltage(0.5f * (outputs[L_OUTPUT].getVoltage() + outputs[R_OUTPUT].getVoltage()));
 		pos += step;
 	}
 
