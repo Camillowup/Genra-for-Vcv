@@ -58,11 +58,9 @@ res/%core.$(CORE_EXT): jiantcore/%core.c jiantcore/%core.h $(JIANT_STAMP)
 all: $(CORES)
 dist: $(CORES)
 
-# std::thread / std::mutex (GENRA, SCHLAG's folder loader, the link hub): winpthread linked in whole and statically on
-# Windows, so plugin.dll loads no MinGW runtime (a plain -Bstatic -lpthread only takes what the objects named so far use)
-ifdef ARCH_WIN
-	LDFLAGS += -Wl,-Bstatic,--whole-archive -lwinpthread -Wl,--no-whole-archive,-Bdynamic
-else
+# std::thread / std::mutex (GENRA, SCHLAG's folder loader, the link hub). On Windows plugin.dll loads
+# libwinpthread-1.dll, which Rack ships (as with most plugins that use threads: Surge XT, Bogaudio, Stoermelder …)
+ifndef ARCH_WIN
 	LDFLAGS += -lpthread
 endif
 

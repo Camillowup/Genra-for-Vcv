@@ -72,7 +72,7 @@ jobs:
           test -f dist/Genra/res/Schlag.svg
           if test -f dist/Genra/res/Umlauf.svg; then exit 1; fi
           objdump -p dist/Genra/plugin.dll | grep "DLL Name"
-          if objdump -p dist/Genra/plugin.dll | grep -iE "libwinpthread|libstdc"; then echo "plugin.dll loads a MinGW runtime"; exit 1; fi
+          if objdump -p dist/Genra/plugin.dll | grep -iE "libstdc"; then echo "plugin.dll loads libstdc++"; exit 1; fi
           D=instruments/dist/GenraInstruments
           ls -la $D $D/res
           test -f $D/plugin.dll
@@ -82,7 +82,7 @@ jobs:
           ls $D/res/umlauf/shapes
           ls $D/res/monk | head -3
           objdump -p $D/plugin.dll | grep "DLL Name"
-          if objdump -p $D/plugin.dll | grep -iE "libwinpthread|libstdc"; then echo "plugin.dll loads a MinGW runtime"; exit 1; fi
+          if objdump -p $D/plugin.dll | grep -iE "libstdc"; then echo "plugin.dll loads libstdc++"; exit 1; fi
 
       - uses: actions/upload-artifact@v4
         with:
