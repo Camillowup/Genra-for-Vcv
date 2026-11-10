@@ -14,7 +14,7 @@ Gestrichen: STRING und ADD.
 - BYTE / FLOAT, CHIP (4BIT, 4B/2, 8BIT, 1BIT).
 - ENGINE mit CV: ALGO, VAR, MOTION, GRIT, BEND, LOOP. Dazu ENVELOPE und FX.
 - Schalter **KEYS / THRU**: bei THRU läuft die Formel frei wie ein Oszillator bzw. Loop (V/OCT für die Tonhöhe),
-  bei KEYS wird über GATE und die Hüllkurve gespielt.
+  bei KEYS wird sie wie ein normales Instrument über GATE und die Hüllkurve gespielt (Instrumenten-Gate wie bei SWARM).
 - Eingang **T RST**: setzt die Formel auf Anfang (im Takt neu starten).
 
 ### SWARM: Schwarm aus virtuellen Geräten
@@ -28,8 +28,11 @@ Gestrichen: STRING und ADD.
 - Sektion **AIR**: VOICES (1–8 Geräte), BUSY (Sendedichte), MOVE (Herumlaufen), NEAR (Nähe).
 - Eingänge: **NEAR** (CV), **ARRIVE** (Trigger: neues Gerät kommt), **NEW** (Trigger: neue Menge). Taster NEW im Kopf.
 - ENGINE mit CV: PLUCK, FM, IMAGE, DRIFT, OCTAVE, CHAOS. Dazu FX.
-- PLAY: THRU (summt ständig, ohne Gate) oder KEYS (V/OCT transponiert, GATE öffnet; feste weiche Hüllkurve).
-- Offen: ATK/REL statt FX?
+- PLAY: THRU (summt ständig, ohne Gate) oder KEYS (spielbar wie ein normales Instrument: V/OCT transponiert,
+  C4 = Originallage; GATE an = Ton, GATE aus = Ende).
+- **GATE = Instrumenten-Gate** wie bei den anderen GENRA-Instrumenten: Länge des Gates = Länge des Tons, kurze Rampe
+  gegen Klicks. Zusätzlich stufenlos (Spannung = Lautstärke), damit ein Envelope am GATE die Form bestimmt.
+  **Keine eigenen ATK/REL-Regler**, FX bleiben.
 
 ## Weitere Kandidaten (Panel-Entwürfe folgen)
 
