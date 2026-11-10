@@ -120,7 +120,8 @@ VADER_CC ?= $(CC)
 ifdef ARCH_WIN
 	VADER_CC := gcc
 	VADER_ENGINE_FLAGS := -include $(V)/desktop/compat.h
-	LDFLAGS += -Wl,-Bstatic -lpthread -Wl,-Bdynamic
+	# (whole: the static copy then also serves libstdc++, so plugin.dll loads no MinGW runtime)
+	LDFLAGS += -Wl,-Bstatic,--whole-archive -lwinpthread -Wl,--no-whole-archive,-Bdynamic
 else
 	LDFLAGS += -lpthread
 endif

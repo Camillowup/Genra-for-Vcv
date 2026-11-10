@@ -58,9 +58,10 @@ res/%core.$(CORE_EXT): jiantcore/%core.c jiantcore/%core.h $(JIANT_STAMP)
 all: $(CORES)
 dist: $(CORES)
 
-# std::thread (GENRA, SCHLAG's folder loader): winpthread linked in statically on Windows
+# std::thread / std::mutex (GENRA, SCHLAG's folder loader, the link hub): winpthread linked in whole and statically on
+# Windows, so plugin.dll loads no MinGW runtime (a plain -Bstatic -lpthread only takes what the objects named so far use)
 ifdef ARCH_WIN
-	LDFLAGS += -Wl,-Bstatic -lpthread -Wl,-Bdynamic
+	LDFLAGS += -Wl,-Bstatic,--whole-archive -lwinpthread -Wl,--no-whole-archive,-Bdynamic
 else
 	LDFLAGS += -lpthread
 endif
