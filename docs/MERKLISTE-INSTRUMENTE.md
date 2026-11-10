@@ -36,7 +36,13 @@ Gestrichen: STRING und ADD.
 - **FuMi-1** (github.com/cartesive/fumi-1): Shigin-Begleitung nach dem Suiko ST-50, Koto und weitere Klänge
   (6-Operator-FM), reine Stimmung (純正律) oder gleichstufig, 本数 als Tonart, 余韻, Vibrato, Triller, Verzierungen.
 - **SPELLBOX** (github.com/pjac1810/spellbox): LPC-Sprachstimme im Stil von Speak & Spell (8 kHz), SING, LETTER SYNTH,
-  SPEAK, Circuit-Bending-Regler.
+  SPEAK, Circuit-Bending-Regler. **Entschieden: kein eigenes Modul, sondern in VOICE eingebaut.**
+  - VOICE bekommt neben OFF/ES/EN/JA einen vierten Taster **SPELL** (LPC-Engine, nur Englisch).
+  - Gemeinsam: Lyrics-Feld, Wortanzeige, V/OCT, GATE, Presets, GENRA-Leiste; die Regler, die beide haben
+    (POS, ARTIC, SHIFT, LOOP), wirken in beiden Engines.
+  - Die Bending-Regler **CLOCK, CORRUPT, STUTTER** (evtl. auch SPEAKR, BITS) kommen in einen kleinen Expander
+    **VOICE BEND** und wirken nur bei SPELL.
+  - Alte VOICE-Patches müssen weiter laden: Params/Buchsen nur hinten anhängen.
 - **MIAOU** (github.com/pjac1810/miaou): Spielzeug-Klänge (Piano, Glocken, Orgel, Banjo) und eine Miau-Stimme über
   wandernde Formanten, Spielzeug-Lautsprecher.
 - **PALEOTONE** (github.com/fantasmoslam/Paleotone): SAURUS-Kreaturenrufe (20 Kreaturen, CALL KIT). Daneben gibt es dort
