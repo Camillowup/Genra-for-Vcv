@@ -79,7 +79,7 @@ inline std::shared_ptr<Sample> readWavData(const std::vector<uint8_t>& buf, std:
 		err = "unsupported WAV format";
 		return nullptr;
 	}
-	int bps = bits / 8;
+	int bps = (bits + 7) / 8; // 12 / 20 bit sit in 2 / 3 bytes (left-aligned: read as 16 / 24 bit)
 	if (!(fmt == 1 ? (bps >= 1 && bps <= 4) : (bps == 4 || bps == 8))) {
 		err = "unsupported WAV format";
 		return nullptr;
@@ -552,7 +552,9 @@ inline void rollMap(int16_t* map, int base, int n, float strength, Rng& rng) {
 			map[s] = -1;
 			continue;
 		}
-		int idx = std::max(0, std::min(n - 1, base + rng.range(-R, R)));
+		// evenly over the range around the base that lies in the folder (cut at the ends, not piled up there)
+		int lo = std::max(0, base - R), hi = std::min(n - 1, base + R);
+		int idx = rng.range(lo, hi);
 		map[s] = idx == base ? -1 : (int16_t) idx;
 	}
 }

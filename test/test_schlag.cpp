@@ -190,6 +190,16 @@ int main() {
 		hi = std::max(hi, (int) map[s]);
 	}
 	CHECK(hi > 12);
+	{ // base at the folder's start, full RANDOM: evenly over the folder, not piled up on the base (2.28.1)
+		int hits[8] = {}, N = 0;
+		for (int k = 0; k < 400; k++) {
+			rollMap(map, 0, 8, 1.f, rng);
+			for (int s = 0; s < MAXS; s++, N++)
+				hits[map[s] < 0 ? 0 : map[s]]++;
+		}
+		for (int i = 0; i < 8; i++)
+			CHECK(std::fabs(hits[i] / (float) N - 0.125f) < 0.02f);
+	}
 	rollMap(map, 0, 1, 1.f, rng); // one file: nothing to roll
 	for (int s = 0; s < MAXS; s++)
 		CHECK(map[s] == -1);

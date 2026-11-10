@@ -196,9 +196,11 @@ struct Loader {
 					std::string err;
 					std::shared_ptr<Sample> s;
 					try {
-						std::vector<uint8_t> data = system::readFile(p);
-						if (data.size() < 512u * 1024 * 1024)
+						// the size first: a multi-GB recording in the folder is skipped, not read into memory
+						if (system::getFileSize(p) < 512ull * 1024 * 1024) {
+							std::vector<uint8_t> data = system::readFile(p);
 							s = readWavData(data, err);
+						}
 					}
 					catch (std::exception& e) {
 						s = nullptr;
@@ -533,15 +535,27 @@ struct Schlag : Module, follow::Host {
 		}
 	}
 
-	/** The step a hit falls on (and the loop count for PLAY / SKIP). */
-	int stepNow(int t) {
+	/** The step a hit falls on, and its pass for PLAY / SKIP (loop). fromGenra: the hit came from GENRA's drums, which
+	 * says which step it belongs to (a hit nudged earlier fires in the step before; at the loop's start in the pass
+	 * before). Without GENRA and a clock every 16 hits of a track are a pass. */
+	int stepNow(int t, bool fromGenra, int64_t& loop) {
+		loop = loopCount;
 		if (Genra* g = followed()) {
 			float p = g->posPub.load(std::memory_order_relaxed);
-			if (p >= 0.f)
-				return ((int) p) % MAXS;
+			if (p >= 0.f) {
+				int now = (int) p;
+				int ds = fromGenra ? g->drumStepPub[t].load(std::memory_order_relaxed) : -1;
+				if (ds >= 0 && ds != now) {
+					if (ds < now) // the next loop's first steps, fired early at the end of this one
+						loop = loopCount + 1;
+					return ds % MAXS;
+				}
+				return now % MAXS;
+			}
 		}
 		if (clkStep >= 0 && inputs[CLOCK_INPUT].isConnected())
 			return clkStep % MAXS;
+		loop = tr[t].hitCount / 16;
 		return tr[t].hitCount % 16;
 	}
 
@@ -559,6 +573,8 @@ struct Schlag : Module, follow::Host {
 				clkPeriod = sinceClk;
 			sinceClk = 0.f;
 			clkStep = (clkStep + 1) % MAXS;
+			if (clkStep == 0 && gp < 0.f) // a clock without RESET: every 128 steps a new pass
+				loopCount++;
 		}
 		int s = -1;
 		if (gp >= 0.f) {
@@ -587,11 +603,12 @@ struct Schlag : Module, follow::Host {
 	}
 
 	/** A hit on track t (velocity 0..1). */
-	void hit(int t, float vel, bool accent) {
+	void hit(int t, float vel, bool accent, bool fromGenra = false) {
 		Track& k = tr[t];
-		int step = stepNow(t);
+		int64_t loop = loopCount;
+		int step = stepNow(t, fromGenra, loop);
 		k.hitCount++;
-		hitLoop[t][step] = (uint32_t) (loopCount + 1);
+		hitLoop[t][step] = (uint32_t) (loopCount + 1); // (the display: hit in the pass it shows)
 		if (!audible(t)) {
 			k.rep.on = k.delayed.on = false;
 			return;
@@ -602,7 +619,7 @@ struct Schlag : Module, follow::Host {
 		const float* v = val[t];
 		int action = stepOf(F_ACTION, v[F_ACTION]);
 		int chance = stepOf(F_CHANCE, v[F_CHANCE]);
-		bool pass = chancePasses(chance, rng.uni(), loopCount);
+		bool pass = chancePasses(chance, rng.uni(), loop);
 		if (action == A_PLAY && !pass)
 			return;
 		bool act = action != A_PLAY && pass;
@@ -692,6 +709,7 @@ struct Schlag : Module, follow::Host {
 			tr[OHAT].v.fadeOut(sr, 4.f);
 			tr[OHAT].tail.fadeOut(sr, 4.f);
 			tr[OHAT].rep.on = false;
+			tr[OHAT].delayed.on = false; // (an open hat held back by HUMANIZE)
 		}
 		if (k.v.active) { // the playing one fades out (3 ms) while the new one starts
 			std::swap(k.tail, k.v);
@@ -709,6 +727,7 @@ struct Schlag : Module, follow::Host {
 
 	void processHits() {
 		float vel[NT] = {};
+		bool fromGenra[NT] = {};
 		bool any = false;
 		// TRIG jacks
 		for (int t = 0; t < NT; t++) {
@@ -722,7 +741,7 @@ struct Schlag : Module, follow::Host {
 			for (int c = 0; c < ch; c++) {
 				float g = inputs[DRUMS_INPUT].getPolyVoltage(c);
 				if (drumIn[c].process(g, 0.05f, 0.1f))
-					vel[c] = std::max(vel[c], clamp(g / 10.f, 0.01f, 1.f)), any = true;
+					vel[c] = std::max(vel[c], clamp(g / 10.f, 0.01f, 1.f)), any = fromGenra[c] = true;
 			}
 		}
 		// V/OCT + GATE: General MIDI drum notes
@@ -758,7 +777,7 @@ struct Schlag : Module, follow::Host {
 		static const int ORDER[NT] = {CHAT, KICK, SNARE, CLAP, RIM, OHAT, TOM, PERC};
 		for (int t : ORDER)
 			if (vel[t] > 0.f)
-				hit(t, vel[t], accent);
+				hit(t, vel[t], accent, fromGenra[t] && followed() != nullptr);
 	}
 
 	void processTimers() {
@@ -875,7 +894,16 @@ struct Schlag : Module, follow::Host {
 			resolve(t);
 		}
 		for (auto it = retired.begin(); it != retired.end();) {
-			if (now - it->at > 3.0) {
+			// after 3 s the audio thread takes nothing new from an old bank; it goes once no voice holds a sample of it
+			// any more, so the sample memory is never freed in the audio thread (a voice only drops its reference there)
+			bool held = false;
+			if (now - it->at > 3.0)
+				for (const auto& f : it->b->files)
+					if (f && f.use_count() > 1) {
+						held = true;
+						break;
+					}
+			if (now - it->at > 3.0 && !held) {
 				delete it->b;
 				it = retired.erase(it);
 			}
@@ -888,9 +916,11 @@ struct Schlag : Module, follow::Host {
 		Pending& p = pending[t];
 		if (!p.on)
 			return;
-		p.on = false;
 		Bank* b = bank[t].load();
 		int n = b ? b->count() : 0;
+		if (n == 0) // the folder is missing or empty (a drive not plugged in): keep the names, maps and prints as they
+			return; // came, so a save writes them back unchanged
+		p.on = false;
 		if (!p.base.empty() && n > 0) {
 			int i = b->find(p.base);
 			if (i >= 0)
@@ -926,7 +956,8 @@ struct Schlag : Module, follow::Host {
 			resolve(t);
 			return;
 		}
-		// a new folder: the rolled samples of this track (and in the prints) point nowhere now
+		// a new folder: the rolled samples of this track (and in the prints) point nowhere now, UNDO neither
+		undoStack.clear();
 		for (int s = 0; s < MAXS; s++)
 			map[t][s] = -1;
 		for (int i = 0; i < NUM_SLOTS; i++)
@@ -958,10 +989,17 @@ struct Schlag : Module, follow::Host {
 		void redo() override { apply(after); }
 	};
 	void snapshot(Snap& s) { std::memcpy(s.m, map, sizeof map); }
-	void pushUndo(const Snap& before, const char* name) {
+	// UNDO: the own stack (32) and Rack's Ctrl+Z; rolls from the RND jack only into the own stack (a clock there would
+	// fill Ctrl+Z), the moves of a turned RANDOM knob into neither (one entry when the turn ends)
+	enum UndoMode { U_ALL, U_OWN, U_NONE };
+	void pushUndo(const Snap& before, const char* name, UndoMode um = U_ALL) {
+		if (um == U_NONE)
+			return;
 		undoStack.push_back(before);
 		if (undoStack.size() > 32)
 			undoStack.erase(undoStack.begin());
+		if (um == U_OWN)
+			return;
 		MapAction* a = new MapAction;
 		a->name = name;
 		a->moduleId = id;
@@ -970,7 +1008,7 @@ struct Schlag : Module, follow::Host {
 		APP->history->push(a);
 	}
 	/** RANDOM for the tracks in mask, each with its own RANDOM knob. */
-	void roll(uint32_t mask, const char* name = "SCHLAG roll") {
+	void roll(uint32_t mask, const char* name = "SCHLAG roll", UndoMode um = U_ALL) {
 		Snap before;
 		snapshot(before);
 		Rng r;
@@ -988,7 +1026,7 @@ struct Schlag : Module, follow::Host {
 			any = true;
 		}
 		if (any)
-			pushUndo(before, name);
+			pushUndo(before, name, um);
 	}
 	void basic(uint32_t mask) {
 		Snap before;
@@ -1026,7 +1064,6 @@ struct Schlag : Module, follow::Host {
 		}
 		std::memcpy(printMap[slot], map, sizeof map);
 		printHas[slot] = true;
-		lastSlot = slot;
 		std::string lbl = g->arrPadSlot == slot ? g->arrPadLabel : "";
 		size_t k = lbl.find(" · ");
 		say("PRINTED › " + (lbl.empty() ? string::f("PAD %d", slot + 1) : lbl.substr(0, k)));
@@ -1041,7 +1078,8 @@ struct Schlag : Module, follow::Host {
 			json_object_set_new(o, "folder", json_string(relOf(folder[t]).c_str()));
 			json_object_set_new(o, "folderAbs", json_string(folder[t].c_str()));
 			Bank* b = bank[t].load();
-			std::string base = b && b->count() ? b->names[baseIndex(t, b)] : pending[t].base;
+			// (not resolved yet – the folder still loading or missing: the base as it came)
+			std::string base = pending[t].on ? pending[t].base : (b && b->count() ? b->names[baseIndex(t, b)] : "");
 			json_object_set_new(o, "base", json_string(base.c_str()));
 			json_t* fns = json_array();
 			for (int r = 0; r < NROW; r++)
@@ -1161,6 +1199,7 @@ struct Schlag : Module, follow::Host {
 			return;
 		for (int i = 0; i < NUM_SLOTS; i++)
 			printHas[i] = false;
+		undoStack.clear(); // other folders: the old rolls mean nothing there
 		kitFromJson(j, false);
 		json_decref(j);
 		kitName = system::getStem(path);
@@ -1214,7 +1253,27 @@ struct Schlag : Module, follow::Host {
 					json_array_append_new(a, json_integer(ref(m[s])));
 				return a;
 			};
-			if (b) {
+			if (pending[t].on) { // not resolved yet (still loading, or the folder missing): as it came
+				Pending& p = pending[t];
+				for (const std::string& n : p.names)
+					names.push_back(n);
+				auto rawMap = [](const std::vector<int16_t>& m) {
+					json_t* a = json_array();
+					for (int s = 0; s < MAXS; s++)
+						json_array_append_new(a, json_integer(s < (int) m.size() ? m[s] : -1));
+					return a;
+				};
+				json_object_set_new(o, "map", rawMap(p.map));
+				json_t* prs = json_array();
+				for (auto& pr : p.prints) {
+					json_t* e = json_object();
+					json_object_set_new(e, "slot", json_integer(pr.first));
+					json_object_set_new(e, "map", rawMap(pr.second));
+					json_array_append_new(prs, e);
+				}
+				json_object_set_new(o, "prints", prs);
+			}
+			else if (b) {
 				json_object_set_new(o, "map", writeMap(map[t]));
 				json_t* prs = json_array();
 				for (int i = 0; i < NUM_SLOTS; i++)
@@ -1225,15 +1284,6 @@ struct Schlag : Module, follow::Host {
 						json_array_append_new(prs, e);
 					}
 				json_object_set_new(o, "prints", prs);
-			}
-			else if (pending[t].on) { // not read yet: as it came
-				Pending& p = pending[t];
-				for (const std::string& n : p.names)
-					names.push_back(n);
-				json_t* a = json_array();
-				for (int s = 0; s < MAXS; s++)
-					json_array_append_new(a, json_integer(s < (int) p.map.size() ? p.map[s] : -1));
-				json_object_set_new(o, "map", a);
 			}
 			json_t* ns = json_array();
 			for (const std::string& n : names)
@@ -1693,7 +1743,9 @@ struct LatchButton : TL1105 {
 struct RandKnob : GSmallKnob {
 	int track = 0;
 	double last = -1.0;
-	void rollNow() {
+	bool turning = false, rolled = false;
+	Schlag::Snap atStart; // the samples before the turn: one UNDO / Ctrl+Z entry for the whole turn
+	void rollNow(Schlag::UndoMode um) {
 		Schlag* m = dynamic_cast<Schlag*>(module);
 		if (!m)
 			return;
@@ -1701,19 +1753,35 @@ struct RandKnob : GSmallKnob {
 		if (now - last < 0.04) // at most 25 rolls a second while turning
 			return;
 		last = now;
-		m->roll(1u << track, "SCHLAG RANDOM");
+		m->roll(1u << track, "SCHLAG RANDOM", um);
+		rolled = true;
+	}
+	void onDragStart(const DragStartEvent& e) override {
+		GSmallKnob::onDragStart(e);
+		if (Schlag* m = dynamic_cast<Schlag*>(module)) {
+			m->snapshot(atStart);
+			turning = true;
+			rolled = false;
+		}
+	}
+	void onDragEnd(const DragEndEvent& e) override {
+		GSmallKnob::onDragEnd(e);
+		Schlag* m = dynamic_cast<Schlag*>(module);
+		if (m && turning && rolled)
+			m->pushUndo(atStart, "SCHLAG RANDOM");
+		turning = false;
 	}
 	void onDragMove(const DragMoveEvent& e) override {
 		float before = getParamQuantity() ? getParamQuantity()->getValue() : 0.f;
 		GSmallKnob::onDragMove(e);
 		if (getParamQuantity() && getParamQuantity()->getValue() != before)
-			rollNow();
+			rollNow(turning ? Schlag::U_NONE : Schlag::U_ALL);
 	}
 	void onHoverScroll(const HoverScrollEvent& e) override {
 		float before = getParamQuantity() ? getParamQuantity()->getValue() : 0.f;
 		GSmallKnob::onHoverScroll(e);
 		if (getParamQuantity() && getParamQuantity()->getValue() != before)
-			rollNow();
+			rollNow(Schlag::U_ALL);
 	}
 };
 
@@ -1838,9 +1906,9 @@ struct SchlagWidget : ModuleWidget {
 			m->basic(basicMask);
 		uint32_t rnd = m->rndMask.exchange(0);
 		if (pressed(rndAllT, Schlag::RNDALL_PARAM))
-			rnd = 0xffu;
-		if (rnd)
-			m->roll(rnd, "SCHLAG RND ALL");
+			m->roll(0xffu, "SCHLAG RND ALL");
+		else if (rnd) // the RND jack: UNDO yes, Ctrl+Z no (a clock there would fill it)
+			m->roll(rnd, "SCHLAG RND", Schlag::U_OWN);
 		if (pressed(undoT, Schlag::UNDO_PARAM))
 			m->undo();
 		if (pressed(printT, Schlag::PRINT_PARAM))

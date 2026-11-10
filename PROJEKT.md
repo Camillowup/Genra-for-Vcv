@@ -1,6 +1,6 @@
 # GENRA – Projektstand
 
-**Stand:** 9. November 2026 · **Plugin 2.28.0: 22 Module** (GENRA, GRID, ABLAUF, SCHLAG, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, GOLANA, GOLANA FX, GRUND, GRUND FX, SCHMELZ, MIX, GENRA FX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `Camillowup/Genra-for-Vcv` (vorher `CamilloGF/genra-v3`, Account nicht mehr erreichbar)
+**Stand:** 9. November 2026 · **Plugin 2.28.1: 22 Module** (GENRA, GRID, ABLAUF, SCHLAG, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, GOLANA, GOLANA FX, GRUND, GRUND FX, SCHMELZ, MIX, GENRA FX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `Camillowup/Genra-for-Vcv` (vorher `CamilloGF/genra-v3`, Account nicht mehr erreichbar)
 
 > Design-Leitfaden für neue Module (Aussehen, GENRA-Leiste, Leuchtsegmente, Follow, englische UI): **docs/DESIGN.md**
 
@@ -376,6 +376,15 @@ GENRA MONO: `g++ -std=c++17 -O2 test/test_mono.cpp -o tm && ./tm`
 - Pads per Drag & Drop in die Song-Liste: zwischen Zeilen einfügen (Linie), auf eine Zeile ersetzen (Rahmen), Undo. Ein belegtes Pad löst sein Antippen jetzt beim Loslassen aus (sonst wäre jeder Drag ein Antippen); leere Pads speichern weiter beim Drücken.
 - Song-Liste unten: Takte und Spieldauer aus GENRAs Tempo (`Genra::currentBpm`, auch für GENRAs MIDI-Export), z. B. „BAR 37 / 92 · 1:12 / 2:59“.
 - `test_ablauf`: jede Genre-Variante hat eine Form, Formlängen, `renderSong` (eine Zeile = Loop, Marker, stumme Drums, Notenbereich, Marker in der Datei).
+
+### 2.28.1 – SCHLAG: Fehler aus der Code-Prüfung
+- **Datenverlust beim Speichern:** `resolve()` behält `pending`, solange die Bank leer ist (Ordner fehlt / leer); `dataToJson` schreibt bei `pending.on` immer Namen, Map **und** PRINTs, wie sie kamen; `kitToJson` nimmt dann auch den Grundnamen aus `pending` (Preset auf ein bestehendes SCHLAG).
+- **Kein Freigeben im Audio-Thread:** alte Banken werden erst gelöscht, wenn nach 3 s keine Stimme mehr eins ihrer Samples hält (`use_count`).
+- **Riesige Dateien:** `system::getFileSize` vor dem Lesen (> 512 MB wird übersprungen).
+- **Vorgezogene GENRA-Drums:** GENRA veröffentlicht pro Drum-Stimme den Schritt des zuletzt gefeuerten Treffers (`drumStepPub`, gesetzt in `fireDrum`; vorgezogene Treffer tragen `next`, verzögerte `pStep`). SCHLAG nimmt für Treffer von GENRA (`fromGenra`) diesen Schritt; liegt er vor der Position, zählt er zum nächsten Durchlauf.
+- **PLAY/SKIP ohne GENRA:** nur Trigger/MIDI: alle 16 Treffer einer Spur ein Durchlauf; CLOCK ohne RESET: alle 128 Schritte.
+- **RANDOM gleichmässig** im Bereich um das Grund-Sample, der im Ordner liegt (nicht mehr an den Rändern gestaut).
+- **UNDO:** RND-Buchse nur in den eigenen Stapel (nicht Strg+Z), ein gedrehter RANDOM-Regler ein Eintrag pro Drehung; neuer Ordner / Kit leert den eigenen Stapel. 12/20-Bit-WAV (Container 2/3 Bytes) richtig gelesen. Choke stoppt auch ein per HUMANIZE verzögertes O.HAT. `print()` schreibt `lastSlot` nicht mehr aus dem UI-Thread.
 
 ### 2.28.0 – Song-Teile über die Zeile statt über den Loop
 - Problem (Rückmeldung): MAKE SONG mit kurzem Loop – ein BREAK aus 1 Takt lief in einer 8/16-Takt-Zeile 8–16-mal hintereinander, jedes Mal mit dem Snare-Auftakt; BUILD rollte pro Loop neu an.

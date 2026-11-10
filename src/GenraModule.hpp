@@ -312,6 +312,9 @@ struct Genra : Module {
 	int padSaveReq = -1;
 	// play position in steps (step + fraction of the step), -1 while stopped; read by the GRID (MIDI record)
 	std::atomic<float> posPub{-1.f};
+	// the step each drum voice's latest hit belongs to (a hit nudged earlier fires in the step before: SCHLAG takes its
+	// sample and its PLAY / SKIP count from here)
+	std::atomic<int> drumStepPub[NUM_DRUMS];
 	float sinceTick = 0.f;
 	ArrMods arrMods;
 	uint8_t arrMute = 0;
@@ -460,6 +463,7 @@ struct Genra : Module {
 		float delayCnt = -1.f; // humanize: pending hit
 		float pVel = 0.f;
 		int pRat = 1;
+		int pStep = -1; // the step the pending hit belongs to
 	} drums[NUM_DRUMS];
 	struct MonoVoice {
 		float pitch = 0.f, vel = 0.f;
@@ -491,6 +495,8 @@ struct Genra : Module {
 	}
 
 	Genra() {
+		for (int v = 0; v < NUM_DRUMS; v++)
+			drumStepPub[v].store(-1);
 		{
 			std::lock_guard<std::mutex> lk(genraRegMutex());
 			genraRegistry().insert(this);
@@ -786,23 +792,28 @@ struct Genra : Module {
 	}
 
 	// ------------------------------------------------------------ voices
-	void queueDrum(int v, const Hit& h, float sr) {
+	// forStep: the step the hit belongs to (-1: the current one)
+	void queueDrum(int v, const Hit& h, float sr, int forStep = -1) {
+		if (forStep < 0)
+			forStep = step;
 		if (h.delay > 0.f) {
 			DrumVoice& d = drums[v];
 			if (d.delayCnt >= 0.f) { // a hit is still waiting: play it now, it must not get lost
 				d.delayCnt = -1.f;
-				fireDrum(v, d.pVel, d.pRat, sr);
+				fireDrum(v, d.pVel, d.pRat, sr, d.pStep);
 			}
 			d.delayCnt = h.delay * sr;
 			d.pVel = h.vel;
 			d.pRat = h.ratchet;
+			d.pStep = forStep;
 			return;
 		}
-		fireDrum(v, h.vel, h.ratchet, sr);
+		fireDrum(v, h.vel, h.ratchet, sr, forStep);
 	}
 
-	void fireDrum(int v, float vel, int ratchet, float sr) {
+	void fireDrum(int v, float vel, int ratchet, float sr, int forStep) {
 		DrumVoice& d = drums[v];
+		drumStepPub[v].store(forStep >= 0 ? forStep : step, std::memory_order_relaxed);
 		d.vel = vel;
 		float interval = stepPeriod / std::max(1, ratchet);
 		d.trig = std::min(0.005f * sr, interval * 0.5f);
@@ -949,7 +960,7 @@ struct Genra : Module {
 					continue;
 				Hit h = hn[v];
 				h.delay += std::max(1.f, stepPeriod + off) / sr;
-				queueDrum(v, h, sr);
+				queueDrum(v, h, sr, next); // fires in this step, belongs to the next
 				earlyDrum[v] = true;
 			}
 		}
@@ -1418,7 +1429,7 @@ struct Genra : Module {
 			if (d.delayCnt >= 0.f) {
 				d.delayCnt -= 1.f;
 				if (d.delayCnt < 0.f)
-					fireDrum(v, d.pVel, d.pRat, sr);
+					fireDrum(v, d.pVel, d.pRat, sr, d.pStep);
 			}
 			if (d.ratLeft > 0) {
 				d.ratCounter -= 1.f;
