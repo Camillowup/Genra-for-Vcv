@@ -255,8 +255,8 @@ struct Ablauf : Module {
 		static const char* TN[4] = {"Drums", "Bass", "Melody", "Pads"};
 		for (int t = 0; t < 4; t++) {
 			configButton(TRACK_PARAM + t, std::string(TN[t]) + " on / off in this row");
-			configSwitch(REROLL_PARAM + t, 0.f, 1.f, 1.f, std::string("Variations: re-roll ") + TN[t],
-			             {"Keep", "Re-roll"});
+			configSwitch(REROLL_PARAM + t, 0.f, 2.f, 1.f, std::string("Variations: ") + TN[t],
+			             {"Keep", "Re-roll", "Vary (a part that comes again: its last variant, a little changed)"});
 		}
 		configButton(INS_PARAM, "Insert row (with the selected pad)");
 		configButton(DEL_PARAM, "Delete row");
@@ -384,12 +384,35 @@ struct Ablauf : Module {
 	bool songMode() { return params[MODE_PARAM].getValue() > 0.5f; }
 	bool loopOn() { return params[LOOP_PARAM].getValue() > 0.5f; }
 	int bank() { return clamp((int)std::round(params[BANK_PARAM].getValue()), 0, 3); }
-	unsigned rerollMask() {
+	unsigned rerollMask() { // Re-roll and Vary (Vary rolls a part that has no variant yet)
 		unsigned m = 0;
 		for (int t = 0; t < 4; t++)
 			if (params[REROLL_PARAM + t].getValue() > 0.5f)
 				m |= 1u << t;
 		return m;
+	}
+	unsigned varyMask() {
+		unsigned m = 0;
+		for (int t = 0; t < 4; t++)
+			if (params[REROLL_PARAM + t].getValue() > 1.5f)
+				m |= 1u << t;
+		return m;
+	}
+	/** The latest variant of part k in a family (the highest number: BREAK 2 before BREAK 1), skip excluded; -1 none. */
+	int lastVariant(int k, int family, int skip) {
+		int best = -1, top = -1;
+		if (family < 0)
+			return -1;
+		for (int i = 0; i < NUM_SLOTS; i++) {
+			if (i == skip || !slots[i].used || slots[i].family != family || slots[i].tag != k)
+				continue;
+			int n = nameNumber(slots[i].name, SECTION_NAMES[k]);
+			if (n > top) {
+				top = n;
+				best = i;
+			}
+		}
+		return best;
 	}
 	bool playable(int r) {
 		return r >= 0 && r < (int)rows.size() && rows[r].slot >= 0 && rows[r].slot < NUM_SLOTS && slots[rows[r].slot].used;
@@ -822,6 +845,10 @@ struct Ablauf : Module {
 		}
 		AblaufAction* a = beginChange(SECTION_NAMES[k], target);
 		makeSection(*session.source, slots[target], k, rerollMask(), session.P, rng, partOpts);
+		// VARY: a part that has a variant already comes again from that one, a little changed
+		int prev = varyMask() ? lastVariant(k, slots[target].family, target) : -1;
+		if (prev >= 0)
+			varySection(slots[prev], slots[target], varyMask(), session.P, rng);
 		setName(slots[target], partName(k, target, slots[target].family));
 		endChange(a);
 		session.result[k] = target;
@@ -846,7 +873,7 @@ struct Ablauf : Module {
 		return i;
 	}
 	static int slotGenre(const Slot& s) {
-		int g = s.pat.trackGenre[T_DRUMS] >= 0 ? s.pat.trackGenre[T_DRUMS] : s.pat.chordGenre;
+		int g = s.pat.trackGenre[T_DRUMS];
 		return clamp(g, 0, numProfiles() - 1);
 	}
 	/** The form MAKE SONG uses now: the chosen one, or (AUTO) the one typical for the selected pad's genre; -1: none yet. */
@@ -915,6 +942,9 @@ struct Ablauf : Module {
 					a->slot = t;
 					a->slotBefore = std::make_shared<Slot>(slots[t]);
 					makeSection(slots[src], slots[t], sec, rerollMask(), slotParams(P, slots[src]), rng, partOpts);
+					// VARY: the part's second time comes from its first, a little changed (not a new roll)
+					if (varyMask() && !have[sec].empty())
+						varySection(slots[have[sec].back()], slots[t], varyMask(), slotParams(P, slots[src]), rng);
 					setName(slots[t], partName(sec, t, slots[t].family));
 					a->slotAfter = std::make_shared<Slot>(slots[t]);
 					slotVer[t]++;
@@ -929,7 +959,10 @@ struct Ablauf : Module {
 			Row w;
 			w.slot = (int8_t)slot;
 			w.sec = (int8_t)sec;
-			w.barsIdx = (int8_t)rowBarsIdx(F.bars[k]);
+			int bars = F.bars[k];
+			if (sec == SEC_BUILD && prof(slotGenre(slots[src])).buildBars > 0) // 2.30: the genre's build length
+				bars = prof(slotGenre(slots[src])).buildBars;
+			w.barsIdx = (int8_t)rowBarsIdx(bars);
 			w.on = 0xF;
 			made.push_back(w);
 		}
@@ -2175,7 +2208,7 @@ struct Pads : AbWidget {
 				for (int t = 0; t < 4; t++) {
 					bool on = false;
 					if (used) // a track with something in it
-						on = s->pat.trackGenre[t] >= 0 && !(module->slotSilent[i] & (1 << t));
+						on = !(module->slotSilent[i] & (1 << t));
 					roundRect(vg, (x + 0.9f + t * 1.5f) * u, (y + ph - 1.3f) * u, 1.05f * u, 0.6f * u, 0.25f * u,
 					          on ? TRACK_COLORS[t] : nvgRGB(0x2f, 0x30, 0x38));
 				}
@@ -2454,10 +2487,18 @@ struct RerollBoxes : AbWidget {
 			auto bold = ui::boldFont();
 			float u = mm2px(1.f);
 			for (int t = 0; t < 4; t++) {
-				bool on = !module || module->params[Ablauf::REROLL_PARAM + t].getValue() > 0.5f;
+				float v = module ? module->params[Ablauf::REROLL_PARAM + t].getValue() : 1.f;
+				bool on = v > 0.5f && v < 1.5f, vary = v > 1.5f;
 				roundRect(vg, t * 4.6f * u, 0, 3.6f * u, 3.2f * u, 0.5f * u, on ? TRACK_COLORS[t] : nvgRGB(0x24, 0x25, 0x2c));
-				ui::text(vg, bold, (t * 4.6f + 1.8f) * u, 2.25f * u, TRACK_LETTER[t], 1.3f * u, on ? DARK : nvgRGB(0x4a, 0x4c, 0x57),
-				         NVG_ALIGN_CENTER, 0.f);
+				if (vary) { // VARY: the track's colour as a frame, the letter in it
+					nvgBeginPath(vg);
+					nvgRoundedRect(vg, t * 4.6f * u + 0.3f * u, 0.3f * u, 3.0f * u, 2.6f * u, 0.4f * u);
+					nvgStrokeColor(vg, TRACK_COLORS[t]);
+					nvgStrokeWidth(vg, 0.5f * u);
+					nvgStroke(vg);
+				}
+				ui::text(vg, bold, (t * 4.6f + 1.8f) * u, 2.25f * u, TRACK_LETTER[t], 1.3f * u,
+				         on ? DARK : (vary ? TRACK_COLORS[t] : nvgRGB(0x4a, 0x4c, 0x57)), NVG_ALIGN_CENTER, 0.f);
 			}
 		}
 		Widget::drawLayer(args, layer);
@@ -2467,7 +2508,8 @@ struct RerollBoxes : AbWidget {
 			return;
 		int t = clamp((int)(e.pos.x / mm2px(4.6f)), 0, 3);
 		Param& p = module->params[Ablauf::REROLL_PARAM + t];
-		p.setValue(p.getValue() > 0.5f ? 0.f : 1.f);
+		int v = (int)std::round(p.getValue()); // Keep → Re-roll → Vary → Keep
+		p.setValue((float)((v + 1) % 3));
 		e.consume(this);
 	}
 };

@@ -33,10 +33,11 @@ struct Family {
 	const char* name;
 	int first, count;
 };
-static const Family FAMILIES[13] = {
+static const Family FAMILIES[14] = {
 	{"House", 0, 5}, {"Techno", 5, 5}, {"Breaks & Bass", 10, 5}, {"Hip-Hop & Downtempo", 15, 6}, {"Dub · Synthwave · Ambient", 21, 3},
 	{"Afro", 24, 4}, {"Techno Styles", 28, 5}, {"Latin & Club", 33, 4},
-	{"House · Funky · Gqom", 37, 5}, {"Breaks & Club", 42, 5}, {"Hard & Fast", 47, 3}, {"Reggae & Latin", 50, 5}, {"Ambient & Drone", 55, 4}};
+	{"House · Funky · Gqom", 37, 5}, {"Breaks & Club", 42, 5}, {"Hard & Fast", 47, 3}, {"Reggae & Latin", 50, 5}, {"Ambient & Drone", 55, 4},
+	{"Dark", 59, 5}};
 
 inline std::string upper(std::string s) {
 	for (char& c : s)
@@ -209,6 +210,15 @@ struct Genra : Module {
 	// 0-10 V mode spans this many genres: 37 for patches saved before v2.24 (so their CV keeps hitting the same
 	// genres), all genres for new modules
 	int genreCvSpan = NUM_GENRES;
+	// ---- 2.30: MUTATE around an anchor (after JIANT's MUTATE modes): the anchor is the pattern before mutating (what
+	// was made, edited or cued; any change but MUTATE's own sets it anew). Audio thread only, but for the request flag.
+	int mutateMode = 0;  // 0 DRIFT (the changes add up, as before), 1 ORBIT (each pass: the anchor, changed), 2 PULSE (changed, back, changed ...)
+	int mutateWhat = 0;  // 0 everything, 1 rhythm (drums), 2 notes (bass, melody), 3 harmony (chords, pads)
+	Pattern anchor;
+	bool anchorValid = false;
+	uint32_t anchorStamp = 0;            // patChanges after MUTATE's last change
+	std::atomic<bool> anchorBackReq{false}; // the menu: back to the anchor
+	bool melPhrase = true;               // new lead / sparse melodies as phrases (Params::melPhrase)
 
 	// ---- genre per track: -1 = follows GENRE, otherwise a profile index (written by the UI thread)
 	std::atomic<int> trackSel[4];
@@ -368,6 +378,7 @@ struct Genra : Module {
 		else {
 			const Slot& s = cue.slot;
 			pat = s.pat;
+			anchorValid = false; // the cued pattern: MUTATE's new anchor
 			for (int t = 0; t < 4; t++) {
 				trackSel[t] = s.sel[t];
 				trackSelChanged[t] = false;
@@ -638,6 +649,7 @@ struct Genra : Module {
 			P.scaleOverride = true;
 		}
 		P.complexK = clamp(params[COMPLEX_PARAM].getValue() + cv01(inputs[COMPLEX_INPUT]), 0.f, 1.f);
+		P.melPhrase = melPhrase;
 		P.colorK = clamp(params[COLOR_PARAM].getValue() + cv01(inputs[COLOR_INPUT]), 0.f, 1.f);
 		P.swingK = clamp(params[SWING_PARAM].getValue() + cv01(inputs[SWING_INPUT]) * 2.f, -1.f, 1.f);
 		P.lengthBars = lengthSteps() / STEPS_PER_BAR;
@@ -1082,9 +1094,24 @@ struct Genra : Module {
 				float m = params[MUTATE_PARAM].getValue() + cv01(inputs[MUTATE_INPUT]);
 				bool lk[NUM_TRACKS];
 				locks(lk);
+				bool chLk = chordLocked();
+				switch (mutateWhat) { // what MUTATE may change
+					case 1: lk[T_BASS] = lk[T_MELODY] = lk[T_PADS] = chLk = true; break;
+					case 2: lk[T_DRUMS] = lk[T_PADS] = chLk = true; break;
+					case 3: lk[T_DRUMS] = lk[T_BASS] = lk[T_MELODY] = true; break;
+					default: break;
+				}
 				if (m > 0.001f) {
-					mutate(pat, clamp(m, 0.f, 1.f), rng, lk, chordLocked(), P);
+					if (!anchorValid || patChanges.load() != anchorStamp) { // changed by anything else: the new anchor
+						anchor = pat;
+						anchorValid = true;
+					}
+					if (mutateMode == 1 || mutateMode == 2)
+						pat = anchor; // ORBIT / PULSE: every change starts from the anchor
+					if (!(mutateMode == 2 && passCount % 2 == 0)) // PULSE: every other pass the anchor itself
+						mutate(pat, clamp(m, 0.f, 1.f), rng, lk, chLk, P);
 					patChanges++;
+					anchorStamp = patChanges.load();
 				}
 			}
 			firstPass = false;
@@ -1188,6 +1215,9 @@ struct Genra : Module {
 		templateSel = -1;
 		genreCvMode = 0;
 		genreCvSpan = NUM_GENRES;
+		mutateMode = mutateWhat = 0;
+		melPhrase = true;
+		anchorValid = false;
 		for (int t = 0; t < 4; t++) {
 			trackSel[t] = -1;
 			trackSelChanged[t] = false;
@@ -1349,6 +1379,13 @@ struct Genra : Module {
 				chordNewFlash = 1.f;
 				patChanges++;
 			}
+		}
+		if (anchorBackReq.load(std::memory_order_relaxed) && anchorBackReq.exchange(false) && anchorValid &&
+		    patChanges.load() == anchorStamp) { // back to the anchor (only while MUTATE's changes are what plays)
+			pat = anchor;
+			padHasPrev = false;
+			patChanges++;
+			anchorStamp = patChanges.load();
 		}
 		if (chordRegenRequested.load(std::memory_order_relaxed) && chordRegenRequested.exchange(false) && !chordLocked()) {
 			Params P = buildParams();
@@ -1556,6 +1593,9 @@ struct Genra : Module {
 		json_object_set_new(root, "templateSel", json_integer(templateSel));
 		json_object_set_new(root, "genreCvMode", json_integer(genreCvMode));
 		json_object_set_new(root, "genreCvSpan", json_integer(genreCvSpan));
+		json_object_set_new(root, "mutateMode", json_integer(mutateMode));
+		json_object_set_new(root, "mutateWhat", json_integer(mutateWhat));
+		json_object_set_new(root, "melPhrase", json_boolean(melPhrase));
 		std::vector<uint8_t> blob = savePattern(pat);
 		json_object_set_new(root, "pattern3", json_string(string::toBase64(blob.data(), blob.size()).c_str()));
 		json_t* sel = json_array();
@@ -1607,6 +1647,17 @@ struct Genra : Module {
 		genreCvSpan = 37; // pre-v2.24 patch: 0-10 V covered the first 37 genres
 		if ((j = json_object_get(root, "genreCvSpan")))
 			genreCvSpan = clamp((int)json_integer_value(j), 2, (int)NUM_GENRES);
+		if (genreCvSpan != 37) // "all genres" (saved as 59 before 2.30): all of today's
+			genreCvSpan = NUM_GENRES;
+		mutateMode = mutateWhat = 0;
+		if ((j = json_object_get(root, "mutateMode")))
+			mutateMode = clamp((int)json_integer_value(j), 0, 2);
+		if ((j = json_object_get(root, "mutateWhat")))
+			mutateWhat = clamp((int)json_integer_value(j), 0, 3);
+		melPhrase = true;
+		if ((j = json_object_get(root, "melPhrase")))
+			melPhrase = json_boolean_value(j);
+		anchorValid = false;
 		// "pattern3": version-independent format (v3+); "pattern": raw block of GENRA v2
 		json_t* jp = json_object_get(root, "pattern3");
 		if (!jp)

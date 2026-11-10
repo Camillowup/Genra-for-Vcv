@@ -1,6 +1,6 @@
 # GENRA – Projektstand
 
-**Stand:** 9. November 2026 · **Plugin 2.29.1: 22 Module** (GENRA, GRID, ABLAUF, SCHLAG, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, GOLANA, GOLANA FX, GRUND, GRUND FX, SCHMELZ, MIX, GENRA FX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `Camillowup/Genra-for-Vcv` (vorher `CamilloGF/genra-v3`, Account nicht mehr erreichbar)
+**Stand:** 10. November 2026 · **Plugin 2.30.0: 22 Module** (GENRA, GRID, ABLAUF, SCHLAG, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, GOLANA, GOLANA FX, GRUND, GRUND FX, SCHMELZ, MIX, GENRA FX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `Camillowup/Genra-for-Vcv` (vorher `CamilloGF/genra-v3`, Account nicht mehr erreichbar)
 
 > Design-Leitfaden für neue Module (Aussehen, GENRA-Leiste, Leuchtsegmente, Follow, englische UI): **docs/DESIGN.md**
 
@@ -10,11 +10,11 @@ Plattform: VCV Rack Pro 2.6.6 unter Windows · Build: GitHub Actions (`.github/w
 ## Konzept
 Generativer, genreabhängiger 4-Spur-Sequencer für VCV Rack 2. Erfindet Loops (1/2/4/8 Takte) für **8 Drumstimmen, Bass, Melodie und polyphone Pads (4 Stimmen)**. Alle Spuren teilen Tonart und Akkordfolge.
 
-**Genres:** v1 14 · v2 24 (46 Varianten) · v3 37 (83 Varianten) · 2.24 59 (127 Varianten), Liste im README
+**Genres:** v1 14 · v2 24 (46 Varianten) · v3 37 (83 Varianten) · 2.24 59 (127 Varianten) · 2.30 64 (138 Varianten), Liste im README
 
 ## Frontplatte (42 HP)
 - **Display:** Genre, Tonart/Tonleiter, BPM, Swing, Akkordfolge (klick-/scroll-editierbar), Step-Lauflichter der 4 Spuren
-- **Global:** GENRE, KEY, SCALE (Auto + 9 Tonleitern), BPM, SWING, COMPLEX (Rhythmus), COLOR (Harmonik), MUTATE, LENGTH · Taster NEW, RUN, CHORD LOCK
+- **Global:** GENRE, KEY, SCALE (Auto + 12 Tonleitern, ab 2.30), BPM, SWING, COMPLEX (Rhythmus), COLOR (Harmonik), MUTATE, LENGTH · Taster NEW, RUN, CHORD LOCK
 - **Drums:** DENSITY, FILL, GHOST, MUTE, LOCK · Ausgänge KICK, SNARE, CLAP, RIM, C.HAT, O.HAT, TOM, PERC (Triggerhöhe = Velocity)
 - **Bass:** DENSITY, MOVE, OCT, MUTE, LOCK · V/OCT, GATE, VEL, ACC
 - **Melodie:** DENSITY, RANGE, OCT, MUTE, LOCK · V/OCT, GATE, VEL, ACC
@@ -46,7 +46,7 @@ DJ-Effektpad nach Polyend Play (Perform) und Akai Flex Beat: 16 Pads in 4 Bänke
 | Datei | Inhalt |
 |---|---|
 | `src/Engine.hpp/.cpp` | Theorie, Akkorde, Generierung (`generate`, `mutate`), Auswertung pro Step (`drumHit`, `bassAt`, `melAt`, `padAt`) – rein C++, ohne Rack testbar |
-| `src/Genres.cpp` | Genre-Profile (59 Genres, 127 Varianten), Tonleitern |
+| `src/Genres.cpp` | Genre-Profile (64 Genres, 138 Varianten), Tonleitern, Genre-Gewohnheiten (`applyFeel`) |
 | `src/Midi.cpp` | SMF-Export/-Import |
 | `src/GenraModule.hpp` / `src/Genra.cpp` | Rack-Modul GENRA: Clock/Swing, Ausgänge, Display, Menüs, Speichern |
 | `src/Store.cpp` | Speicherformat `pattern3`, Übernahme von v2-Patches |
@@ -376,6 +376,42 @@ GENRA MONO: `g++ -std=c++17 -O2 test/test_mono.cpp -o tm && ./tm`
 - Pads per Drag & Drop in die Song-Liste: zwischen Zeilen einfügen (Linie), auf eine Zeile ersetzen (Rahmen), Undo. Ein belegtes Pad löst sein Antippen jetzt beim Loslassen aus (sonst wäre jeder Drag ein Antippen); leere Pads speichern weiter beim Drücken.
 - Song-Liste unten: Takte und Spieldauer aus GENRAs Tempo (`Genra::currentBpm`, auch für GENRAs MIDI-Export), z. B. „BAR 37 / 92 · 1:12 / 2:59“.
 - `test_ablauf`: jede Genre-Variante hat eine Form, Formlängen, `renderSong` (eine Zeile = Loop, Marker, stumme Drums, Notenbereich, Marker in der Datei).
+
+### 2.30.0 – Genre-Gewohnheiten, Melodie-Phrasen, MUTATE um einen Anker, VARY, 5 Dark-Genres
+Ideen aus DARK-1 (Polystellarflow, GPL-3.0-only; Tabellen pro Genre als Daten übernommen, kein Code), JIANT FM
+(MUTATE-Modi), Makohai (Perioden) und Tessera (DEVELOP). Alles **zusätzlich**: ohne Gewohnheit gelten die alten Regeln.
+- **`Genre`** (Engine.hpp) hat neue Felder: `habit[8]`/`nHabit` (Akkordschritte von → nach, Gewicht), `cadTo` (der
+  letzte Akkord führt von dieser Stufe heim), `noBack` (kein A–B–A), `raiseV` (V in Moll als Dur mit Dominantseptime),
+  `accents` (`AccentBits`), `breakKeep` (1 Kick, 2 Hats), `buildKick`, `padRise`, `buildBars`. Gesetzt in
+  `applyFeel()` (Genres.cpp) nach Genre-Namen, am Ende von `defineGenres()`.
+- **Akkorde:** `generateChords`, freier Weg: `habitFactor()` multipliziert die alten Gewichte (TRANS × degW) – eigener
+  Schritt × (1 + 0,4·w), A–B–A × 0, verminderter Akkord × 0,15, letzter Akkord = `cadTo` × 7 (wenn die Folge auf der
+  Tonika beginnt; vermindert → V bzw. IV). Nur in Moll-artigen Genre-Tonleitern (Terz = 3). Tonika als erster Akkord
+  90 % statt 75 %.
+- **Akzente:** `accentK()` in `drumHit` (nur generierte Drums): AC_ONE, AC_BACKBEAT, AC_SOFT_OFFHAT, AC_OFFHAT als
+  Velocity-Faktoren; AC_LATE_SNARE +6–12 ms auf Snare/Clap; AC_GHOST_HATS leise C.Hats auf leeren ungeraden 16teln
+  (Wahrscheinlichkeit 0,15 + 0,5·GHOST); AC_FLAM_PERC Ratchet 2 auf Perc/Tom auf dem Schlag (30 %).
+- **Song-Teile:** `PartPos` trägt `keep`/`buildKick` des Drum-Genres. `breakDrums` behält Kick bzw. Hats,
+  `shapeDrums` BREAK schaltet sie in der ersten Hälfte nicht ab, BUILD ohne Kick im letzten Takt bei `buildKick`
+  false. `makeSection`: Pads im BREAK = `padRise`. MAKE SONG: BUILD-Zeilen mit `buildBars` des Genres.
+- **Melodie-Phrasen:** `phraseMelody()` für MS_LEAD/MS_SPARSE (wenn `Params::melPhrase`, Menü *Melody*): Motiv 1 Takt
+  (Walk), Takt 2 Antwort (Motiv −1, endet auf Stufe 4), Takt 3 Motiv +2, Takt 4 Schluss auf 0/7 (`r = 0` auf dem
+  Landeschritt, danach `r = 255` Pause), Takte 5–8: Motiv, Antwort +1 auf Stufe 2, Motiv +4, Schluss. Landeschritt =
+  spätester starker Schritt, den das Melodie-Raster spielt (12, 8, 14 …).
+- **MUTATE-Anker** (GenraModule.hpp): `anchor`, `anchorStamp` = `patChanges` nach MUTATEs letzter Änderung; jede andere
+  Änderung (und `applyCue`, Laden) macht das Pattern zum neuen Anker. *MUTATE mode* Drift/Orbit/Pulse, *MUTATE
+  changes* (sperrt Spuren/Akkorde nur für MUTATE), *Back to the anchor*. JSON `mutateMode`, `mutateWhat`, `melPhrase`.
+- **ABLAUF VARY:** REROLL-Schalter 0/1/2 (Keep/Re-roll/Vary), Klick schaltet weiter, Vary als farbiger Rahmen.
+  `varySection()` (Arranger.cpp): Spur aus der letzten Variante desselben Teils (`lastVariant`, MAKE SONG:
+  `have[sec].back()`), dann MUTATE 0,3 auf dieser Spur; Drum-Stimmen, die der Teil ganz weglässt, bleiben leer.
+- **5 Dark-Genres** (59–63, Familie „Dark“): Witch House, Darkwave, Dungeon Synth, Industrial, Horror. **Tonleitern**
+  hinten angehängt: Locrian, Phryg. Dom., Dbl. Harmonic (`NUM_SCALES` 12, `REL_MAJOR` erweitert).
+- **`Pattern::trackGenre`/`chordGenre` jetzt `uint8_t`** (138 Profile > 127). Speicherformat: dasselbe Byte, jetzt
+  unsigned gelesen; alte Patches bleiben gleich. Der v2-Rohblock kann nur Profile < 128 (alte v2-Patches hatten nie mehr).
+- `genreCvSpan`: alles außer 37 heißt „alle Genres“ (gespeicherte 59 → 64).
+- Tests: `test/test_feel.cpp` (neue Genres/Tonleitern, Dominante, kein A–B–A, Phrasenziel, Akzente, Break/Build pro
+  Genre, Phrasen schließen auf dem Grundton, VARY nah am ersten und kein Neuwurf); `test_ablauf` und `test_store`
+  angepasst.
 
 ### 2.29.1 – SCHLAG-RANDOM als Endlos-Regler, RND ALL, Mono-Summe
 - **GENRA Instruments trägt jetzt dieselbe Version wie GENRA (2.29.1).** 1.0.0/1.0.1 lud Rack nicht: Rack 2 verlangt

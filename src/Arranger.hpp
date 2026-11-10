@@ -52,6 +52,9 @@ struct PartOpts {
  * The result is tagged with the part. */
 void makeSection(const Slot& src, Slot& out, int section, unsigned reroll, const Params& P, Rng& rng,
                  const PartOpts& opts = PartOpts());
+/** VARY (2.30): the tracks in `vary` of out (a part just made) taken from prev, an earlier variant of the same part,
+ * and changed a little (MUTATE with `amount`): a part that comes back sounds like itself, not like a new one. */
+void varySection(const Slot& prev, Slot& out, unsigned vary, const Params& P, Rng& rng, float amount = 0.3f);
 
 /** A song structure for ABLAUF's MAKE SONG: the parts in order with their length in bars. */
 static const int MAX_FORM_PARTS = 10;

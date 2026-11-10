@@ -566,6 +566,9 @@ PartPos partPos(const Pattern& pat, int pos, int span) {
 	pp.sec = pat.partTag - 1;
 	pp.span = span;
 	pp.pos = clampi(pos, 0, span - 1);
+	const Genre& G = prof(pat.trackGenre[T_DRUMS]);
+	pp.keep = G.breakKeep;
+	pp.buildKick = G.buildKick;
 	return pp;
 }
 
@@ -613,10 +616,10 @@ void shapeDrums(const PartPos& pp, Hit h[NUM_DRUMS]) {
 			if (pos >= lb) { // the last bar: kick on quarters, stops on the last beat: the drop lands in the gap
 				hitOff(h[OHAT]);
 				hitOff(h[PERC]);
-				if (sb % 4 == 0 && left > 4)
+				if (sb % 4 == 0 && left > 4 && pp.buildKick)
 					hitPut(h[KICK], 118);
 				else
-					hitOff(h[KICK]);
+					hitOff(h[KICK]); // the genre's gap before the drop (buildKick false): no kick in the last bar
 			}
 			if (x >= 0.5f)
 				hitPut(h[CHAT], (int)(42 + 58 * x));
@@ -634,10 +637,12 @@ void shapeDrums(const PartPos& pp, Hit h[NUM_DRUMS]) {
 			break;
 		}
 		case SEC_BREAK: // a long break: the first half without drums, then hats and percussion come back
-			if (span >= 128 && x < 0.5f)
+			if (span >= 128 && x < 0.5f) {
 				for (int v = 0; v < NUM_DRUMS; v++)
-					hitOff(h[v]);
-			else if (span >= 64 && x < 0.25f)
+					if (!((pp.keep & 1) && v == KICK) && !((pp.keep & 2) && (v == CHAT || v == OHAT)))
+						hitOff(h[v]); // what the genre keeps through a breakdown stays (techno's kick, DnB's hats)
+			}
+			else if (span >= 64 && x < 0.25f && !(pp.keep & 2))
 				hitOff(h[CHAT]);
 			if (span >= 128 && x >= 0.5f)
 				for (int v = 0; v < NUM_DRUMS; v++)

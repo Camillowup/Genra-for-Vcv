@@ -16,10 +16,10 @@ enum {
 	MAX_STEPS = MAX_BARS * STEPS_PER_BAR,
 	MAX_PROG = 8,
 	MAX_EVENTS = 32,
-	NUM_GENRES = 59,
+	NUM_GENRES = 64,
 	MAX_VARIANTS = 3,
 	MAX_PROFILES = 160,
-	NUM_SCALES = 9,
+	NUM_SCALES = 12,
 	NO_ABS = -128,
 };
 
@@ -32,6 +32,21 @@ enum MelStyle { MS_RIFF, MS_LEAD, MS_ARP, MS_SPARSE, MS_ACID };
 enum PadStyle { PS_SUSTAIN, PS_STABS, PS_SKANK };
 enum FillStyle { FS_SNARE, FS_TOMS, FS_CHOP, FS_DROP, FS_ROLL };
 enum DropMode { DM_NONE, DM_KICKBASS, DM_BREAK, DM_EIGHT };
+// a genre's accents (2.30): how its generated drums lean, added to the generic velocities
+enum AccentBits {
+	AC_ONE = 1,          // the kick on the one leads, the other beats a little softer
+	AC_BACKBEAT = 2,     // snare / clap on 2 and 4 full, the rest softer
+	AC_SOFT_OFFHAT = 4,  // hats off the beat soft (a pushing, not a pumping groove)
+	AC_OFFHAT = 8,       // hats on the off-beat 8ths loud, on the beat soft (house, trance)
+	AC_LATE_SNARE = 16,  // snare / clap laid back a little
+	AC_GHOST_HATS = 32,  // soft closed hats on empty 16ths
+	AC_FLAM_PERC = 64,   // perc and toms on the beat now and then doubled (a flam)
+};
+// a genre's own chord move (2.30): from a scale degree to another (0..6), weight (added to the generic rules)
+struct Habit {
+	int8_t from, to;
+	float w;
+};
 
 extern const char* DRUM_NAMES[NUM_DRUMS];
 extern const char* NOTE_NAMES[12];
@@ -93,6 +108,17 @@ struct Genre {
 	int dropMode = DM_NONE;
 	float humanize = 0.f;        // timing spread (0..1 -> 0..20 ms) on snare, clap, rim, hats
 	float chop = 0.f;            // break-chop amount (jungle)
+	// 2.30: genre habits, on top of the generic rules (all zero / empty: the generic ones only)
+	Habit habit[8] = {};         // chord moves the genre likes (FREE progressions)
+	int nHabit = 0;
+	int cadTo = -1;              // the progression's last chord leads home from this degree, -1: no rule
+	bool noBack = false;         // no A-B-A in a progression
+	bool raiseV = false;         // V in a minor key as a major chord (the leading tone raised)
+	uint16_t accents = 0;        // AccentBits
+	uint8_t breakKeep = 0;       // a BREAK keeps: 1 the kick, 2 the hats
+	bool buildKick = true;       // the kick plays the BUILD's last bar (quarters); false: a gap before the drop
+	float padRise = 0.3f;        // the pads' density offset in a BREAK
+	int buildBars = 0;           // MAKE SONG: a BUILD's bars, 0: the song form's
 
 	// parsed (filled by initGenres)
 	float pDrum[NUM_DRUMS][32];
@@ -165,8 +191,8 @@ struct ChordEvent {
 struct Pattern {
 	uint32_t magic;
 	uint32_t version;
-	int8_t trackGenre[NUM_TRACKS];
-	int8_t chordGenre;
+	uint8_t trackGenre[NUM_TRACKS]; // profile index (uint8: 2.30 has more than 127 profiles)
+	uint8_t chordGenre;
 	uint8_t melMode;  // 0 degrees, 1 arpeggio (chord tones)
 	int8_t melCenter;
 	uint8_t customTimeline;
@@ -228,6 +254,7 @@ struct Params {
 	bool fillActive = false; // this pass ends with a fill / drop (decided per loop pass)
 	int pass = 0;            // loop pass counter (CHANCE / every 2nd pass of edited notes)
 	bool ignoreChance = false; // editor view: show every edited note, also those skipped this pass
+	bool melPhrase = true;     // 2.30: lead / sparse melodies as phrases (motif, answer, sequence, close); false: the walk
 };
 
 // ---------------------------------------------------------------- chords
@@ -391,6 +418,8 @@ struct PartPos {
 	int sec = -1; // the part's section (Section in Arranger.hpp), -1: not a part
 	int pos = 0;  // step within the part's span
 	int span = 0; // the part's length in steps: the song row, or the loop outside a song
+	uint8_t keep = 0;      // the drums' genre: what a BREAK keeps (Genre::breakKeep)
+	bool buildKick = true; // the drums' genre: the kick in the BUILD's last bar (Genre::buildKick)
 };
 PartPos partPos(const Pattern& pat, int pos, int span);
 // the part's course on this step's drums / a note of the bass (T_BASS) or melody (T_MELODY)

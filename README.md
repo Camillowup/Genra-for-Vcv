@@ -1,10 +1,10 @@
 # GENRA – Plugin für VCV Rack 2
 
-Ein generativer, genreabhängiger 4-Spur-Sequencer mit MIDI-Grid, Performance-Effekten und passenden Instrumenten, alle im selben Look. Plugin-Version **2.29.1**, 13 Module. Die Instrumente K-WASUB, GOLANA, UMLAUF, MONK, VOICE und ANIMAL sind seit 2.29.0 ein eigenes Plugin, **[GENRA Instruments](instruments/README.md)** (gleiche Marke im Browser, Ordner `instruments/`). Projektstand und Entscheidungen: `PROJEKT.md`.
+Ein generativer, genreabhängiger 4-Spur-Sequencer mit MIDI-Grid, Performance-Effekten und passenden Instrumenten, alle im selben Look. Plugin-Version **2.30.0**, 13 Module. Die Instrumente K-WASUB, GOLANA, UMLAUF, MONK, VOICE und ANIMAL sind seit 2.29.0 ein eigenes Plugin, **[GENRA Instruments](instruments/README.md)** (gleiche Marke im Browser, Ordner `instruments/`). Projektstand und Entscheidungen: `PROJEKT.md`.
 
 | Modul | Breite | Farbe | Was es ist |
 |---|---|---|---|
-| **GENRA** | 58 HP | – | Generativer Sequencer: 8 Drumspuren, Bass, Melodie, Pads, 59 Genres |
+| **GENRA** | 58 HP | – | Generativer Sequencer: 8 Drumspuren, Bass, Melodie, Pads, 64 Genres |
 | **ABLAUF** | 30 HP | gelb | Song-Arranger: 128 Pattern-Plätze mit Namen, Song-Liste, Varianten für Intro, Build, Drop … |
 | **GENRA Grid** | 50 HP | – | MIDI-Grid für GENRA: Drum-Raster, Piano-Roll, Velocity/Chance |
 | **STOTTER** | 30 HP | – | Performance-Effekte: 16 Effekt-Pads, DJ-EQ und -Filter |
@@ -24,7 +24,7 @@ Die Farben folgen GENRAs Spuren: **Drums blau-violett**, **Bass säuregrün**, *
 
 ![GENRA](docs/entwuerfe/genra_v3_entwurf.png)
 
-GENRA erfindet genretypische Loops (1/2/4/8 Takte) für **8 Drumspuren, Bass, Melodie und polyphone Pads (4 Stimmen)**, die sich eine gemeinsame Tonart und Akkordfolge teilen. **59 Genres mit 127 Varianten**, jede Spur kann ihr eigenes Genre spielen, und alle Regler wirken live.
+GENRA erfindet genretypische Loops (1/2/4/8 Takte) für **8 Drumspuren, Bass, Melodie und polyphone Pads (4 Stimmen)**, die sich eine gemeinsame Tonart und Akkordfolge teilen. **64 Genres mit 138 Varianten**, jede Spur kann ihr eigenes Genre spielen, und alle Regler wirken live.
 
 ### Genres
 
@@ -43,12 +43,13 @@ GENRA erfindet genretypische Loops (1/2/4/8 Takte) für **8 Drumspuren, Bass, Me
 | Hard & Fast (ab 2.24) | Hardcore (Gabber, Happy Hardcore) · Psytrance (Full-On, Progressive Psy) · EBM (Classic, Industrial) |
 | Reggae & Latin (ab 2.24) | Dancehall (Modern, Steppers) · Roots Reggae (One Drop, Rockers) · Moombahton (Classic, Moombahcore) · Cumbia (Digital, Villera) · Bossa Nova (Classic, Samba) |
 | Ambient & Drone (ab 2.24) | Drone (Dark, Bright) · Dark Ambient (Classic, Ritual) · Ambient Techno (Classic, Dub) · Berlin School (Classic, Kosmische) |
+| Dark (ab 2.30) | Witch House (Classic, Drag) · Darkwave (Post-Punk, Coldwave) · Dungeon Synth (Torchlit, Winter) · Industrial (Machine, Rhythmic Noise) · Horror (Suspense, Cult, Locrian) |
 
-Die 22 Genres ab 2.24 hängen hinten an (Genre 37–58), alte Patches behalten ihre Genres. Hörbeispiele (8 Takte pro Genre, ohne Rack gerendert mit GENRA-Engine, GRUND, FUNKE, SCHMELZ und einem einfachen Drum-Synth): `tools/genre_demo.cpp`.
+Die 22 Genres ab 2.24 hängen hinten an (Genre 37–58), die 5 Dark-Genres ab 2.30 ebenso (Genre 59–63); alte Patches behalten ihre Genres. Hörbeispiele (8 Takte pro Genre, ohne Rack gerendert mit GENRA-Engine, GRUND, FUNKE, SCHMELZ und einem einfachen Drum-Synth): `tools/genre_demo.cpp`.
 
 ### Bedienung
 
-- **Global:** GENRE, BPM (interne Clock), KEY, SCALE (Auto = Genre), VARIANT, COMPLEX, COLOR (Harmonik), MUTATE, SWING (relativ zum Genre jeder Spur), LENGTH (1/2/4/8 Takte).
+- **Global:** GENRE, BPM (interne Clock), KEY, SCALE (Auto = Genre, dazu 11 Tonleitern; ab 2.30 hinten angehängt: Locrian, Phrygian Dominant, Double Harmonic), VARIANT, COMPLEX, COLOR (Harmonik), MUTATE, SWING (relativ zum Genre jeder Spur), LENGTH (1/2/4/8 Takte).
 - **Transport-Pads (ab 2.25):** **FILL** (Fill über den nächsten Takt) · **NEW ALL** · **RUN** (startet immer vom ersten Schritt, auch wenn GENRA schon läuft) · **STOP** · **TAP** (Tempo antippen; nur ohne Kabel an CLOCK, blinkt im Takt) · **MAKE SONG** (leuchtet, wenn ABLAUF verbunden ist: ABLAUF baut aus dem laufenden Loop einen Song; ist der Loop noch nicht auf einem Pad, wird er zuerst auf das nächste freie Pad gespeichert). GENRA steht nach dem Laden bzw. Einsetzen, bis RUN gedrückt wird oder ein ABLAUF-Song startet.
 - **HARMONY** (blaugrün): NEW, LOCK, TRIG für die gemeinsame Akkordfolge, der Bass, Melodie und Pads folgen.
 - **Pro Spur:** DENSITY + DENS-CV · zweiter Regler (Drums: FILL, GHOST · Bass: MOVE · Melodie: RANGE · Pads: VOICING) · OCT (Bass/Melodie/Pads) · Genre-Feld + GENRE-CV · MUTE · LOCK · NEW · TRIG.
@@ -56,7 +57,7 @@ Die 22 Genres ab 2.24 hängen hinten an (Genre 37–58), alte Patches behalten i
 - **Ausgänge pro Spur:** 8 Drum-Trigger (Höhe = Velocity) · Bass/Melodie: V/OCT, GATE, VEL, ACC, SLIDE · Pads: V/OCT + GATE (poly 4), VEL, MOD.
 - **Ausgänge (OUT):** CLOCK (16tel; Rechtsklick › *Clock output*: 16tel, 8tel, Viertel oder 24 PPQN), RESET (Loop-Anfang), RUN (Gate), BAR (pro Takt), END (letzter Step), FILL (Gate während Fill/Drop), ROOT (Grundton des aktuellen Akkords, V/Oct zwischen C4 und B4), CHORD (ganzer Akkord, polyphon), **DRUMS** (alle 8 Drumspuren auf einem Poly-Kabel in GENRAs Reihenfolge, z. B. in DRUM-X; die 8 Einzelausgänge bleiben).
 - **Display:** Genre und Variante, Tonart, BPM, Swing, Akkordfolge, Genre jeder Spur neben ihren Lauflichtern. Akkord anklicken = nächste Alternative, Rechtsklick = Liste, Mausrad = mehr/weniger Farbe. Akkordnamen mit # oder b passend zur Tonart.
-- **Rechtsklick-Menü:** MIDI-Export/-Import, Akkord-Modus, Akkord-Vorlage, nur Akkorde neu würfeln, *Genre sets tempo* (On/Off, Standard Off: ein Genrewechsel setzt BPM auf das typische Tempo des Genres, nur ohne Kabel an CLOCK), Genre-CV-Modus, alle Spuren auf Global, Clock-Auflösung für Eingang und Ausgang, *Verbinden mit…* (Grid Editor).
+- **Rechtsklick-Menü:** MIDI-Export/-Import, Akkord-Modus, Akkord-Vorlage, nur Akkorde neu würfeln, *Genre sets tempo* (On/Off, Standard Off: ein Genrewechsel setzt BPM auf das typische Tempo des Genres, nur ohne Kabel an CLOCK), Genre-CV-Modus, alle Spuren auf Global, Clock-Auflösung für Eingang und Ausgang, *Verbinden mit…* (Grid Editor). Ab 2.30: *Melody* (Phrasen oder freier Lauf, siehe unten), *MUTATE mode*, *MUTATE changes* und *Back to the anchor*.
 
 **Welcher Regler steuert was?**
 - **COMPLEX** → Synkopen, Hi-Hat-Rolls/Triolen, wie wild Breaks gechoppt werden, Slides der Melodie
@@ -64,10 +65,21 @@ Die 22 Genres ab 2.24 hängen hinten an (Genre 37–58), alte Patches behalten i
 - **FILL** → Wahrscheinlichkeit für Fill **und** Drop am Loop-Ende
 - **DENSITY** (Pads) → bei Grime sind Pads standardmässig aus; über der Mitte kommen sie dazu
 
+### Genre-Gewohnheiten, Melodie-Phrasen und MUTATE (ab 2.30)
+
+Nach DARK-1 (Polystellarflow) hat jedes Genre ein paar eigene Gewohnheiten, **zusätzlich** zu den allgemeinen Regeln (nichts davon ersetzt sie):
+- **Akkordfolgen** (Akkord-Modus *Free* bzw. *Mixed*, wenn keine Vorlage gewählt wird; nur in Moll-artigen Tonarten): die typischen Schritte des Genres (Trance i–VI–III–VII, Synthwave die andalusische Kadenz, Darkwave i–VII–VI–VII …) werden bevorzugt, der letzte Akkord führt zurück zur Tonika (Phrasenziel), wo das Genre es will kein A–B–A, verminderte Akkorde nur selten, und in Synthwave, Drum & Bass, Breaks, Drill, Cumbia und Dungeon Synth ist die V eine echte Dominante (Dur, Dominantseptime).
+- **Akzente der Drums** (generierte Spuren): Kick auf der Eins betont, Backbeat voll, Offbeat-Hats laut (House, Trance) oder leise (Techno), Snare leicht nach hinten (Hip-Hop, Lo-Fi, Dub), leise Ghost-Hats auf leeren 16teln (Drum & Bass, Garage, Minimal; GHOST regelt sie mit), Flams auf Perc und Toms (Afro, Latin).
+- **Song-Teile (ABLAUF):** was ein Break behält (Techno-Genres die Kick, Drum & Bass und Jungle die Hats, Industrial beides), ob die Kick im letzten Build-Takt spielt (in Dubstep, Trap, Drill, Drum & Bass … nicht: eine Lücke vor dem Drop), wie weit die Pads im Break ansteigen, und bei MAKE SONG die typische Länge eines Builds (Trance 16 Takte, Garage 4).
+
+**Melodie als Phrasen:** Lead- und Sparse-Melodien sind ein Motiv über einen Takt und daraus eine Periode über vier Takte: das Motiv, eine Antwort, die offen bleibt (endet auf der 5), das Motiv eine Terz höher, ein Schluss auf dem Grundton (danach eine Pause). Takte 5–8 noch einmal, die Antwort variiert und das Motiv eine Quint höher (der Höhepunkt). Rechtsklick › *Melody* › *Free walk (before 2.30)* stellt den alten freien Lauf ein (gilt für neu gewürfelte Melodien).
+
+**MUTATE um einen Anker:** Der Anker ist das Pattern vor MUTATE, also was zuletzt gewürfelt, bearbeitet oder von ABLAUF geladen wurde. Rechtsklick › *MUTATE mode*: *Drift* (wie bisher: die Änderungen summieren sich), *Orbit* (jede Runde: der Anker, neu verändert – das Pattern entfernt sich nie weit) oder *Pulse* (abwechselnd verändert und der Anker selbst). *MUTATE changes*: alles, nur Rhythmus (Drums), nur Töne (Bass, Melodie) oder nur Harmonie (Akkorde, Pads). *Back to the anchor* holt das Pattern vor MUTATE zurück.
+
 ### Genre pro Spur, Swing und CV
 
 - **Genre-Feld pro Spur:** Klick öffnet das Menü: *Global (folgt GENRE)* oder ein eigenes Genre, nach Familien sortiert, mit Varianten. Der Wechsel greift am nächsten Taktanfang (Feld und Display zeigen „…“). Ein eigenes Genre-Feld würfelt die Spur auch bei LOCK neu – die Auswahl ist ein bewusster Befehl. Der globale GENRE-Regler ändert nur Spuren auf *Global*.
-- **GENRE-CV pro Spur:** Mit Kabel wählt die Spannung das Genre der Spur, die Variante kommt aus dem Feld (falls gleiches Genre) oder vom VARIANT-Regler. Rechtsklick-Menü → *Genre-CV-Eingänge*: 0–10 V über alle 59 Genres oder 1/12 V pro Genre (Halbtöne – ein Keyboard über MIDI-CV wählt Genres per Taste, C = House). *Genre CV 0–10 V range*: Patches von vor 2.24 verteilen die 0–10 V weiter über die ersten 37 Genres (gleiche Spannung = gleiches Genre wie bisher); neue Module und *All 59 genres* nehmen alle.
+- **GENRE-CV pro Spur:** Mit Kabel wählt die Spannung das Genre der Spur, die Variante kommt aus dem Feld (falls gleiches Genre) oder vom VARIANT-Regler. Rechtsklick-Menü → *Genre-CV-Eingänge*: 0–10 V über alle 64 Genres oder 1/12 V pro Genre (Halbtöne – ein Keyboard über MIDI-CV wählt Genres per Taste, C = House). *Genre CV 0–10 V range*: Patches von vor 2.24 verteilen die 0–10 V weiter über die ersten 37 Genres (gleiche Spannung = gleiches Genre wie bisher); neue Module und *All 64 genres* nehmen alle.
 - **Swing pro Spur:** Jede Spur swingt wie das Genre, das sie spielt (Lo-Fi-Melodie über geradem Techno). SWING verschiebt alle gemeinsam. Gilt auch für den MIDI-Export.
 - **CV-Eingänge** VARIANT, COMPLEX, COLOR, SWING (0–10 V, zum Regler addiert), BPM (10 BPM pro Volt), LENGTH, DENS-CV pro Spur, FILL (Trigger: Fill/Drop am Loop-Ende).
 
@@ -123,27 +135,27 @@ Song-Arranger für GENRA, 30 HP. Verbindung wie beim Grid Editor: links oder rec
 
 **Namen:** Jedes Pad kann einen Namen tragen (bis 8 Zeichen, A–Z, 0–9, Leerzeichen, -). Ein Pattern von GENRA auf einem leeren Pad heisst automatisch **GENRA 1**, das nächste **GENRA 2** usw.; jedes beginnt eine Familie mit eigener Farbe. Varianten aus den Teil-Tastern und von MAKE SONG gehören zur Familie ihres Ausgangs-Patterns und heissen nach ihrem Teil, pro Familie fortlaufend nummeriert (aus GENRA 1: INTRO 1, INTRO 2, BREAK 1 …; aus GENRA 2 beginnt es wieder bei INTRO 1). COPY nimmt Name und Familie mit, Umbenennen ändert die Familie nicht. Umbenennen: Doppelklick oder Rechtsklick aufs Pad › Namen tippen, Enter (UNDO macht es rückgängig); *Clear name* entfernt ihn. Der Name steht auf dem Pad, in der Song-Liste und in der Zeile unter den Pads.
 
-**Varianten: „das Pattern ist super – mach mir ein Intro“.** Ein Taster pro Song-Teil (INTRO, VERSE, BUILD, DROP, BREAK, OUTRO) macht aus dem laufenden Pattern eine Variante auf dem nächsten freien Pad und spielt sie zum Anhören ab. Jeder weitere Druck legt eine neue Variante auf das nächste freie Pad (die vorige bleibt), immer aus dem ursprünglichen Pattern – auch die anderen Teile kommen aus diesem, solange eine seiner Varianten läuft. Ist die Bank voll, geht es in den folgenden Banks weiter; sind alle 128 Pads belegt, steht ein Hinweis in der Zeile unter den Pads. **RE-ROLL D B M P** wählt, welche Spuren neues Material bekommen; die anderen bleiben exakt (so bleiben die Teile verwandt). Akkorde bleiben immer gleich.
+**Varianten: „das Pattern ist super – mach mir ein Intro“.** Ein Taster pro Song-Teil (INTRO, VERSE, BUILD, DROP, BREAK, OUTRO) macht aus dem laufenden Pattern eine Variante auf dem nächsten freien Pad und spielt sie zum Anhören ab. Jeder weitere Druck legt eine neue Variante auf das nächste freie Pad (die vorige bleibt), immer aus dem ursprünglichen Pattern – auch die anderen Teile kommen aus diesem, solange eine seiner Varianten läuft. Ist die Bank voll, geht es in den folgenden Banks weiter; sind alle 128 Pads belegt, steht ein Hinweis in der Zeile unter den Pads. **RE-ROLL D B M P** wählt, welche Spuren neues Material bekommen; die anderen bleiben exakt (so bleiben die Teile verwandt). Akkorde bleiben immer gleich. Ein Klick schaltet weiter: *Keep* (dunkel) → *Re-roll* (farbig) → **Vary** (ab 2.30, farbiger Rahmen) → *Keep*. **Vary:** Hat der Teil schon eine Variante (z. B. BREAK 1), wird die neue daraus abgeleitet und nur leicht verändert, statt neu gewürfelt – ein Teil, der wiederkommt, klingt wie er selbst (Stimmen, die der Teil weglässt, bleiben weg). Ohne vorhandene Variante wirkt Vary wie Re-roll.
 - **INTRO:** Drums sparsam (Snare/Clap erst ab der Hälfte, Hats auf Achteln, Toms/Perc weg, leise beginnend), Bass setzt zur Hälfte ein – bei jedem Druck zufällig mit gebundenen Grundtönen, der ausgedünnten Original-Linie oder als Puls –, Melodie dünn, Pads präsenter.
 - **Bass-Art festlegen:** Rechtsklick › *Break bass* bzw. *Intro bass*: *Random (each press)* (Standard) oder eine feste Art; wird im Patch gespeichert. Gilt, wenn RE-ROLL B an ist (sonst bleibt der Bass exakt).
 - **VERSE:** Groove etwas leichter, Melodie lässt Platz (bleibt generiert, folgt den Reglern).
 - **BUILD:** Snare-Wirbel Viertel → Achtel → 16tel → 32tel, lauter werdend, 16tel-Hats in der zweiten Hälfte; im letzten Takt Kick auf Vierteln und eine Lücke auf dem letzten Schlag, der Bass fällt weg, die Melodie im letzten Viertel eine Oktave höher.
 - **DROP:** dichter, Bass auf der Eins (bleibt generiert, folgt den Reglern).
-- **BREAK:** keine Kick, leise Hats, Pads im Vordergrund, kurzer Snare-Auftakt am Ende. Der Bass wechselt bei jedem Druck zufällig zwischen fünf Arten: lange Grundtöne · ausgedünnte Original-Linie (nur auf 1 und 3 und bei Akkordwechseln, kürzer, leiser) · Puls (kurze Grundtöne auf Vierteln oder Achteln, ab und zu eine Oktave höher) · Dub-Offbeats (einzelne Töne neben dem Schlag, Grundton oder Quinte, viel Platz) · Bass raus (nur ein kurzer Auftakt auf dem letzten Schlag).
+- **BREAK:** keine Kick (ab 2.30 behalten Techno-Genres ihre Kick, Drum & Bass und Jungle ihre Hats, Industrial beides), leise Hats, Pads im Vordergrund (wie weit, bestimmt das Genre), kurzer Snare-Auftakt am Ende. Der Bass wechselt bei jedem Druck zufällig zwischen fünf Arten: lange Grundtöne · ausgedünnte Original-Linie (nur auf 1 und 3 und bei Akkordwechseln, kürzer, leiser) · Puls (kurze Grundtöne auf Vierteln oder Achteln, ab und zu eine Oktave höher) · Dub-Offbeats (einzelne Töne neben dem Schlag, Grundton oder Quinte, viel Platz) · Bass raus (nur ein kurzer Auftakt auf dem letzten Schlag).
 - **OUTRO:** dünnt Takt für Takt aus, im letzten Takt nur noch Kick (und Pads).
 
-**MAKE SONG** (unten im Song-Fenster) baut aus dem gewählten Pad einen ganzen Song in der **SONG FORM** daneben: Ausgangspunkt ist das GENRA-Original seiner Familie. Jeder Teil der Form nimmt eine vorhandene Variante der Familie (die mit der kleinsten Nummer; kommt ein Teil zweimal vor, eine andere) oder wird wie mit den Teil-Tastern neu gebaut (RE-ROLL gilt) und auf das nächste freie Pad gelegt. Die Song-Liste wird ersetzt; UNDO nimmt alles in einem Schritt zurück (Liste und neue Pads). Ohne verbundenes GENRA nimmt MAKE SONG nur vorhandene Varianten, für fehlende spielt das Original. **SONG FORM**: *AUTO* wählt die Form, die zum Genre des Patterns passt (das Feld zeigt welche), Klick öffnet die Liste, Mausrad blättert:
+**MAKE SONG** (unten im Song-Fenster) baut aus dem gewählten Pad einen ganzen Song in der **SONG FORM** daneben: Ausgangspunkt ist das GENRA-Original seiner Familie. Jeder Teil der Form nimmt eine vorhandene Variante der Familie (die mit der kleinsten Nummer; kommt ein Teil zweimal vor, eine andere) oder wird wie mit den Teil-Tastern neu gebaut (RE-ROLL gilt; mit **Vary** wird das zweite Auftreten eines Teils aus dem ersten abgeleitet) und auf das nächste freie Pad gelegt. Ab 2.30 nimmt ein BUILD die typische Länge des Genres, wo es eine hat (Trance, Psytrance, Melodic Techno, Progressive House 16 Takte · Garage, Grime, Bassline, Jersey/Baltimore Club, Footwork 4 · Dubstep, Drum & Bass, Jungle 8). Die Song-Liste wird ersetzt; UNDO nimmt alles in einem Schritt zurück (Liste und neue Pads). Ohne verbundenes GENRA nimmt MAKE SONG nur vorhandene Varianten, für fehlende spielt das Original. **SONG FORM**: *AUTO* wählt die Form, die zum Genre des Patterns passt (das Feld zeigt welche), Klick öffnet die Liste, Mausrad blättert:
 
 | Form | Genres (bei AUTO) | Aufbau (Takte) |
 |---|---|---|
-| HOUSE · TECHNO | House, Deep House, Tech House, Afro House, Progressive House, Organic House, Techno, Minimal, Acid, Detroit, Melodic, Hard, Dub Techno, Hardcore, EBM | INTRO 16 · VERSE 16 · BUILD 8 · DROP 32 · BREAK 16 · BUILD 8 · DROP 32 · OUTRO 16 |
-| TRANCE · SYNTHWAVE | Trance, Psytrance, Synthwave, Electro | INTRO 16 · VERSE 16 · BUILD 8 · DROP 16 · BREAK 16 · BUILD 16 · DROP 32 · OUTRO 16 |
+| HOUSE · TECHNO | House, Deep House, Tech House, Afro House, Progressive House, Organic House, Techno, Minimal, Acid, Detroit, Melodic, Hard, Dub Techno, Hardcore, EBM, Industrial | INTRO 16 · VERSE 16 · BUILD 8 · DROP 32 · BREAK 16 · BUILD 8 · DROP 32 · OUTRO 16 |
+| TRANCE · SYNTHWAVE | Trance, Psytrance, Synthwave, Electro, Darkwave | INTRO 16 · VERSE 16 · BUILD 8 · DROP 16 · BREAK 16 · BUILD 16 · DROP 32 · OUTRO 16 |
 | GARAGE | UK Garage, 2-Step, Speed Garage, UK Funky, Bassline | INTRO 16 · VERSE 16 · BUILD 8 · DROP 16 · BREAK 8 · VERSE 16 · BUILD 8 · DROP 16 · OUTRO 16 |
 | BASS MUSIC | Dubstep, Grime, Breakbeat, Big Beat, Breaks, Jersey Club, Baltimore Club | INTRO 16 · BUILD 8 · DROP 16 · BREAK 16 · BUILD 8 · DROP 16 · OUTRO 8 |
 | JUNGLE · DNB | Jungle, Drum & Bass, Footwork, Breakcore | INTRO 32 · BUILD 8 · DROP 32 · BREAK 16 · BUILD 8 · DROP 32 · OUTRO 16 |
-| HIP-HOP | Hip-Hop, Lo-Fi, Trap, Drill, Trip-Hop, Phonk | INTRO 4 · VERSE 16 · DROP 8 · VERSE 16 · DROP 8 · BREAK 4 · DROP 8 · OUTRO 4 |
+| HIP-HOP | Hip-Hop, Lo-Fi, Trap, Drill, Trip-Hop, Phonk, Witch House | INTRO 4 · VERSE 16 · DROP 8 · VERSE 16 · DROP 8 · BREAK 4 · DROP 8 · OUTRO 4 |
 | AFRO · LATIN | Afrobeat, Afrobeats, Amapiano, Gqom, Baile Funk, Reggaeton, Dancehall, Moombahton, Cumbia, Bossa Nova | INTRO 8 · VERSE 16 · DROP 16 · VERSE 16 · BREAK 8 · DROP 16 · OUTRO 8 |
-| DUB · DOWNTEMPO · AMBIENT | Dub, Roots Reggae, Downtempo, Ambient, Drone, Dark Ambient, Ambient Techno, Berlin School | INTRO 8 · VERSE 16 · BREAK 16 · VERSE 16 · BREAK 16 · OUTRO 8 |
+| DUB · DOWNTEMPO · AMBIENT | Dub, Roots Reggae, Downtempo, Ambient, Drone, Dark Ambient, Ambient Techno, Berlin School, Dungeon Synth, Horror | INTRO 8 · VERSE 16 · BREAK 16 · VERSE 16 · BREAK 16 · OUTRO 8 |
 
 **Teile über die ganze Zeile (ab 2.28.0):** INTRO, BUILD, BREAK und OUTRO laufen ihren Verlauf über die Länge der Song-Zeile ab, nicht über den Loop. Ein 1-Takt-Loop als BREAK in einer 16-Takt-Zeile spielt also nicht 16-mal den Auftakt, sondern: die erste Hälfte ohne Drums (Pads, Melodie, Bass-Grundtöne), dann kommen Hats und Percussion leise zurück, der Snare-Auftakt nur auf dem letzten Schlag der Zeile. BUILD: ein einziger Wirbel über die Zeile (Viertel → Achtel → 16tel → 32tel auf dem letzten Schlag), im letzten Takt Kick auf Vierteln, Bass raus, die Lücke vor dem Drop. INTRO baut sich über die Zeile auf (Bass und Melodie ab der Mitte), OUTRO dünnt sich über die Zeile aus. Ausserhalb eines Songs (PATT) gilt derselbe Verlauf über den Loop. VERSE- und DROP-Zeilen ab 16 Takten bekommen am Ende jeder 8-Takt-Phrase einen Fill; MAKE SONG setzt FILL auf VERSE- und DROP-Zeilen vor einem anderen Teil. Der MIDI-Export des Songs schreibt denselben Verlauf. Teile aus älteren Versionen haben den Verlauf noch im Loop: MAKE SONG bzw. die Teil-Taster neu drücken.
 
@@ -422,7 +434,7 @@ Ein ganz besonderer Dank an **[Juan Jiant](https://github.com/juanjiant-bit)**! 
 
 ```
 src/Engine.hpp/.cpp   Theorie, Akkorde, Generierung, Auswertung pro Step
-src/Genres.cpp        59 Genres / 127 Varianten (Wahrscheinlichkeitsraster), Tonleitern
+src/Genres.cpp        64 Genres / 138 Varianten (Wahrscheinlichkeitsraster), Tonleitern, Genre-Gewohnheiten
 src/Midi.cpp          MIDI-Export/-Import
 src/Store.cpp         Speicherformat (pattern3) + Übernahme von v2-Patches
 src/Edit.cpp          Bearbeiten: Einfrieren, Noten schreiben, Chord Follow, Snap, Copy/Paste
@@ -459,5 +471,6 @@ test/                 Engine- und MIDI-Tests (g++, ohne Rack); instruments/test:
 
 GPL-3.0-only (siehe `LICENSE`). Die Credits der Instrumente in GENRA Instruments: [instruments/README.md](instruments/README.md).
 - **DRUM-X:** [JIANT FM](https://github.com/juanjiant-bit/JIANT) von Juan Jiant, ein Fork von [Felucca](https://github.com/hugelton/Felucca) – GPL-3.0
+- **Genre-Gewohnheiten und die Dark-Genres (2.30):** nach [DARK-1](https://github.com/sparky480v/Dark-1) von Polystellarflow (ein Fork von PERF-1 von deamonSLINKY, HYP-1 von RedtailWorks, AMB-1 von Charles Vestal) – GPL-3.0-only. Ideen (ohne Code): MUTATE-Modi nach JIANT FM, Melodie-Perioden nach [Makohai](https://github.com/delirioux/makohai) (delirioux), VARY nach DEVELOP in [Tessera](https://github.com/Rastapopolix/tessera) (Theo Dainis).
 
 Alle Lizenztexte der Fremdteile liegen im Plugin-Ordner unter `licenses/` (Übersicht: `licenses/README.md`).

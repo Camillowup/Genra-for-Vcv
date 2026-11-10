@@ -22,6 +22,7 @@ in this folder. All of them are compatible with distributing the plugin under GP
 | mpc-vst-plugins (wrapper used by VADER) | sd88me | MIT | UMLAUF | `MIT-mpc-vst-plugins.txt` |
 | Braids, Plaits, stmlib | Emilie Gillet (Mutable Instruments) | MIT | UMLAUF voices | `MIT-MutableInstruments.txt`, `MIT-stmlib.txt` |
 | stb_image / stb_image_write | Sean Barrett | MIT or Public Domain | UMLAUF | `MIT-or-PublicDomain-stb.txt` |
+| DARK-1 (genre habits: chord moves, step tricks and sections per genre, the five dark genres; adapted as data, no code) | Polystellarflow; PERF-1 by deamonSLINKY, HYP-1 by RedtailWorks, AMB-1 by Charles Vestal | GPL-3.0-only | GENRA engine (`src/Genres.cpp`, `src/Engine.cpp`) | `../LICENSE` |
 | Inter (the panel lettering, drawn as vector paths) | The Inter Project Authors | SIL OFL 1.1 | all panels (`res/*.svg`) | `OFL-Inter.txt` |
 
 UMLAUF does not contain the LXR-02 firmware's wavetables (their licence forbids commercial use); it computes its own

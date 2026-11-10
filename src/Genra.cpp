@@ -668,6 +668,17 @@ struct GenraWidget : ModuleWidget {
 			}
 		}));
 		menu->addChild(createMenuItem("Re-roll chords only", "", [=]() { m->chordRegenRequested = true; }));
+		menu->addChild(createIndexSubmenuItem("Melody", {"Phrases (motif, answer, close)", "Free walk (before 2.30)"},
+		                                      [=]() { return (size_t)(m->melPhrase ? 0 : 1); },
+		                                      [=](size_t v) { m->melPhrase = v == 0; }));
+		menu->addChild(new MenuSeparator);
+		menu->addChild(createIndexSubmenuItem("MUTATE mode",
+		                                      {"Drift (the changes add up)", "Orbit (around the anchor)", "Pulse (changed, back, changed …)"},
+		                                      [=]() { return (size_t)m->mutateMode; }, [=](size_t v) { m->mutateMode = (int)v; }));
+		menu->addChild(createIndexSubmenuItem("MUTATE changes",
+		                                      {"Everything", "Rhythm (drums)", "Notes (bass, melody)", "Harmony (chords, pads)"},
+		                                      [=]() { return (size_t)m->mutateWhat; }, [=](size_t v) { m->mutateWhat = (int)v; }));
+		menu->addChild(createMenuItem("Back to the anchor", "the pattern before MUTATE", [=]() { m->anchorBackReq = true; }));
 		menu->addChild(new MenuSeparator);
 		menu->addChild(createIndexSubmenuItem("Genre sets tempo", {"Off", "On"}, [=]() { return (size_t)(m->genreTempo ? 1 : 0); },
 		                                      [=](size_t v) { m->genreTempo = v == 1; }));

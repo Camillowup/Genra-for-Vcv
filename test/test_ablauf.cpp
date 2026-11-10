@@ -156,9 +156,13 @@ int main() {
 						CHECK(out->mods.fill < 0.f, "build: random fills must be off");
 					} break;
 					case SEC_BREAK:
-						CHECK(c.drum[KICK] == 0, "%s L%d break: kick", gn, L);
+						if (prof(out->pat.trackGenre[T_DRUMS]).breakKeep & 1) // 2.30: techno keeps its kick through a break
+							CHECK(c.drum[KICK] > 0 || c0.drum[KICK] == 0, "%s L%d break: the genre's kick is gone", gn, L);
+						else
+							CHECK(c.drum[KICK] == 0, "%s L%d break: kick", gn, L);
 						CHECK(c.bass > 0 && c.bass <= 8 * LENGTH_BARS[li], "%s L%d break: bass roots %d", gn, L, c.bass);
-						CHECK(out->mods.dens[T_PADS] > 0.2f, "break: pads in front");
+						CHECK(out->mods.dens[T_PADS] == prof(out->pat.trackGenre[T_PADS]).padRise && out->mods.dens[T_PADS] > 0.1f,
+						      "break: pads in front (the genre's rise)");
 						break;
 					case SEC_OUTRO:
 						if (L >= 32) {
@@ -272,7 +276,8 @@ int main() {
 		for (int g = 0; g < numProfiles(); g++) {
 			const char* gname = prof(g).name;
 			bool house = std::strstr(gname, "House") || std::strstr(gname, "Techno") || !std::strcmp(gname, "Minimal") ||
-			             !std::strcmp(gname, "Acid") || !std::strcmp(gname, "Hardcore") || !std::strcmp(gname, "EBM");
+			             !std::strcmp(gname, "Acid") || !std::strcmp(gname, "Hardcore") || !std::strcmp(gname, "EBM") ||
+			             !std::strcmp(gname, "Industrial");
 			int f = songFormForGenre(gname);
 			if (f != SF_HOUSE || house)
 				mapped++;

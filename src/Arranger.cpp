@@ -286,18 +286,27 @@ static void buildMelody(Pattern& p, const Params& P, int L) {
 static void breakDrums(Pattern& p, const Params& P, int L) {
 	// no kick, hats only on 8ths and quiet; the breakdown and the pickup over the row: shapeDrums (Edit.cpp)
 	freezeTrack(p, partP(P, T_DRUMS, -0.25f, 0.12f, 0.6f, -0.1f), T_DRUMS, L);
+	const unsigned keep = prof(p.trackGenre[T_DRUMS]).breakKeep; // 2.30: the genre keeps its kick / its hats
 	for (int s = 0; s < L; s++) {
-		kill(p, KICK, s);
-		kill(p, OHAT, s);
+		if (keep & 1)
+			scaleHit(p, KICK, s, 0.85f);
+		else
+			kill(p, KICK, s);
 		kill(p, TOM, s);
 		kill(p, SNARE, s);
 		kill(p, CLAP, s);
+		scaleHit(p, RIM, s, 0.8f);
+		scaleHit(p, PERC, s, 0.8f);
+		if (keep & 2) {
+			scaleHit(p, OHAT, s, 0.75f);
+			scaleHit(p, CHAT, s, 0.8f);
+			continue;
+		}
+		kill(p, OHAT, s);
 		if (s % 2)
 			kill(p, CHAT, s);
 		else
 			scaleHit(p, CHAT, s, 0.7f);
-		scaleHit(p, RIM, s, 0.8f);
-		scaleHit(p, PERC, s, 0.8f);
 	}
 	tile(p, T_DRUMS, L);
 }
@@ -416,6 +425,8 @@ void makeSection(const Slot& src, Slot& out, int sec, unsigned reroll, const Par
 		}
 		else {
 			out.mods.dens[t] = lv.dens[t];
+			if (sec == SEC_BREAK && t == T_PADS) // 2.30: how far the genre's pads rise in a breakdown
+				out.mods.dens[t] = prof(p.trackGenre[T_PADS]).padRise;
 			// a drop opens with a bass note on the one
 			if (sec == SEC_DROP && t == T_BASS)
 				p.bass[0].force = 1;
@@ -424,6 +435,41 @@ void makeSection(const Slot& src, Slot& out, int sec, unsigned reroll, const Par
 			out.mods.ghost = lv.ghost;
 			out.mods.fill = lv.fill;
 		}
+	}
+}
+
+void varySection(const Slot& prev, Slot& out, unsigned vary, const Params& P0, Rng& rng, float amount) {
+	if (!prev.used)
+		return;
+	Params P = P0;
+	P.lengthBars = LENGTH_BARS[clampi(out.lengthIdx, 0, 3)];
+	P.fillActive = false;
+	for (int t = 0; t < NUM_TRACKS; t++) {
+		if (!(vary & (1u << t)))
+			continue;
+		copyTrack(prev.pat, out.pat, t);
+		out.mods.dens[t] = prev.mods.dens[t];
+		if (t == T_DRUMS) {
+			out.mods.ghost = prev.mods.ghost;
+			out.mods.fill = prev.mods.fill;
+		}
+		bool lock[NUM_TRACKS];
+		for (int k = 0; k < NUM_TRACKS; k++)
+			lock[k] = k != t;
+		// exact drums: a voice the part leaves out (the break's kick, the build's snare) stays out
+		bool silent[NUM_DRUMS] = {};
+		if (t == T_DRUMS && out.pat.fixed[T_DRUMS])
+			for (int v = 0; v < NUM_DRUMS; v++) {
+				silent[v] = true;
+				for (int st = 0; st < MAX_STEPS && silent[v]; st++)
+					silent[v] = out.pat.drums[v][st].fv == 0;
+			}
+		mutate(out.pat, amount, rng, lock, true, P);
+		if (t == T_DRUMS && out.pat.fixed[T_DRUMS])
+			for (int v = 0; v < NUM_DRUMS; v++)
+				if (silent[v])
+					for (int st = 0; st < MAX_STEPS; st++)
+						out.pat.drums[v][st].fv = 0;
 	}
 }
 
@@ -476,6 +522,8 @@ int songFormForGenre(const char* name) {
 	    {"Phonk", SF_HIPHOP},
 	    {"Gqom", SF_AFRO}, {"Dancehall", SF_AFRO}, {"Moombahton", SF_AFRO}, {"Cumbia", SF_AFRO}, {"Bossa Nova", SF_AFRO},
 	    {"Roots Reggae", SF_DUB}, {"Drone", SF_DUB}, {"Dark Ambient", SF_DUB}, {"Ambient Techno", SF_DUB}, {"Berlin School", SF_DUB},
+	    // 2.30
+	    {"Witch House", SF_HIPHOP}, {"Darkwave", SF_TRANCE}, {"Dungeon Synth", SF_DUB}, {"Industrial", SF_HOUSE}, {"Horror", SF_DUB},
 	};
 	for (const auto& m : MAP)
 		if (std::strcmp(m.genre, name) == 0)

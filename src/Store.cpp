@@ -87,10 +87,10 @@ std::vector<uint8_t> savePattern(const Pattern& pat) {
 	w.begin(ST_HEADER);
 	w.u8(NUM_TRACKS);
 	for (int t = 0; t < NUM_TRACKS; t++)
-		w.i8(pat.trackGenre[t]);
+		w.u8(pat.trackGenre[t]);
 	for (int t = 0; t < NUM_TRACKS; t++)
 		w.u8(pat.fixed[t]);
-	w.i8(pat.chordGenre);
+	w.u8(pat.chordGenre);
 	w.u8(pat.melMode);
 	w.i8(pat.melCenter);
 	w.u8(pat.customTimeline);
@@ -252,16 +252,16 @@ bool loadPattern(const std::vector<uint8_t>& data, Pattern& out) {
 			case ST_HEADER: {
 				int nt = q.u8();
 				for (int t = 0; t < nt; t++) {
-					int8_t g = q.i8();
+					int g = q.u8(); // (written signed before 2.30: the same byte, profiles < 128)
 					if (t < NUM_TRACKS)
-						pat.trackGenre[t] = (int8_t)std::max<int>(0, std::min<int>(g, numProfiles() - 1));
+						pat.trackGenre[t] = (uint8_t)std::max<int>(0, std::min<int>(g, numProfiles() - 1));
 				}
 				for (int t = 0; t < nt; t++) {
 					uint8_t f = q.u8();
 					if (t < NUM_TRACKS)
 						pat.fixed[t] = f ? 1 : 0;
 				}
-				pat.chordGenre = (int8_t)std::max<int>(0, std::min<int>(q.i8(), numProfiles() - 1));
+				pat.chordGenre = (uint8_t)std::max<int>(0, std::min<int>(q.u8(), numProfiles() - 1));
 				pat.melMode = q.u8();
 				pat.melCenter = q.i8();
 				pat.customTimeline = q.u8();
@@ -526,10 +526,10 @@ static bool loadV2Raw(const std::vector<uint8_t>& data, Pattern& out) {
 	Pattern pat;
 	initPattern(pat);
 	for (int t = 0; t < 4; t++) {
-		pat.trackGenre[t] = (int8_t)std::max<int>(0, std::min<int>(o.trackGenre[t], numProfiles() - 1));
+		pat.trackGenre[t] = (uint8_t)std::max<int>(0, std::min<int>(o.trackGenre[t], numProfiles() - 1));
 		pat.fixed[t] = o.fixed[t];
 	}
-	pat.chordGenre = (int8_t)std::max<int>(0, std::min<int>(o.chordGenre, numProfiles() - 1));
+	pat.chordGenre = (uint8_t)std::max<int>(0, std::min<int>(o.chordGenre, numProfiles() - 1));
 	pat.melMode = o.melMode;
 	pat.melCenter = o.melCenter;
 	pat.customTimeline = o.customTimeline;

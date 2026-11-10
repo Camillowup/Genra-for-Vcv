@@ -360,7 +360,7 @@ Chord chordFromPcs(uint16_t pcMask, int lowestPc, int bassPc) {
 
 // Key signature: true = sharps. Uses the relative major of key + scale (scale < 0: flats, legacy).
 bool sharpKey(int key, int scale) {
-	static const int REL_MAJOR[NUM_SCALES] = {0, 3, 10, 8, 7, 5, 3, 0, 3};
+	static const int REL_MAJOR[NUM_SCALES] = {0, 3, 10, 8, 7, 5, 3, 0, 3, 1, 8, 8};
 	if (scale < 0 || scale >= NUM_SCALES)
 		return false;
 	switch (mod12(key + REL_MAJOR[scale])) {
@@ -538,6 +538,30 @@ void initPattern(Pattern& pat) {
 	layoutTimeline(pat, 64);
 }
 
+// ---- 2.30: a genre's chord habits (Genre::habit ...), only in a minor-like key (the moves are written for one)
+static bool hasHabits(const Genre& G) {
+	return (G.nHabit > 0 || G.cadTo >= 0 || G.noBack || G.raiseV) && SCALES[G.scale].iv[2] == 3;
+}
+// the factor on the generic weight of degree d as chord i of n (degs[0..i-1] chosen)
+static float habitFactor(const Genre& G, const int* sc, const int* degs, int i, int n, int d) {
+	float f = 1.f;
+	for (int k = 0; k < G.nHabit && k < 8; k++)
+		if (G.habit[k].from == degs[i - 1] && G.habit[k].to == d)
+			f += 0.4f * G.habit[k].w; // the genre's own move
+	if (G.noBack && i >= 2 && d == degs[i - 2] && degs[i - 1] != d)
+		f = 0.f; // no A-B-A
+	if (d != 0 && diatonicQuality(sc, d) == Q_DIM)
+		f *= 0.15f; // a diminished chord: rare
+	if (G.cadTo >= 0 && i == n - 1 && n >= 3 && degs[0] == 0) {
+		int to = G.cadTo;
+		if (to != 0 && diatonicQuality(sc, to) == Q_DIM)
+			to = diatonicQuality(sc, 4) == Q_DIM ? 3 : 4;
+		if (d == to)
+			f *= 7.f; // the last chord leads home (the loop starts on the tonic)
+	}
+	return f;
+}
+
 void generateChords(Pattern& pat, int g, Rng& rng, const Params& P) {
 	const Genre& G = prof(g);
 	const int* sc = SCALES[G.scale].iv;
@@ -580,13 +604,17 @@ void generateChords(Pattern& pat, int g, Rng& rng, const Params& P) {
 			n = NS[rng.range(4)];
 		}
 		int degs[MAX_PROG];
-		degs[0] = rng.uni() < 0.75f ? 0 : pickWeighted(rng, G.degW, 7);
+		// 2.30: the genre's habits (its own moves, a goal at the end, no A-B-A, a real dominant) in a minor key
+		const bool habits = hasHabits(G);
+		degs[0] = rng.uni() < (habits ? 0.9f : 0.75f) ? 0 : pickWeighted(rng, G.degW, 7);
 		for (int i = 1; i < n; i++) {
 			float w[7];
 			for (int d = 0; d < 7; d++) {
 				w[d] = TRANS[degs[i - 1]][d] * G.degW[d];
 				if (i == n - 1 && n > 1)
 					w[d] *= 0.3f + TRANS[d][degs[0]];
+				if (habits)
+					w[d] *= habitFactor(G, sc, degs, i, n, d);
 			}
 			degs[i] = pickWeighted(rng, w, 7);
 		}
@@ -596,6 +624,11 @@ void generateChords(Pattern& pat, int g, Rng& rng, const Params& P) {
 			cs.root = (int8_t)sc[degs[i]];
 			cs.quality = (uint8_t)diatonicQuality(sc, degs[i]);
 			cs.explicitQ = 0;
+			if (habits && G.raiseV && degs[i] == 4 && cs.quality == Q_MIN) { // the dominant: major, its 7th a dominant 7th
+				cs.quality = Q_MAJ;
+				cs.explicitQ = 1;
+				cs.ext = EXT_DOM7;
+			}
 		}
 	}
 	for (int i = 0; i < n; i++) {
@@ -604,7 +637,7 @@ void generateChords(Pattern& pat, int g, Rng& rng, const Params& P) {
 		pat.prog[i].extOff = 0;
 	}
 	pat.nProg = (uint8_t)n;
-	pat.chordGenre = (int8_t)g;
+	pat.chordGenre = (uint8_t)g;
 	pat.customTimeline = 0;
 }
 
@@ -661,7 +694,7 @@ static void genDrums(Pattern& pat, int g, Rng& rng) {
 		m[0] = 0; // the downbeat always stays
 		pat.chopR[b] = rng.byte();
 	}
-	pat.trackGenre[T_DRUMS] = (int8_t)g;
+	pat.trackGenre[T_DRUMS] = (uint8_t)g;
 	pat.fixed[T_DRUMS] = 0;
 }
 
@@ -713,7 +746,7 @@ static void genBass(Pattern& pat, int g, Rng& rng) {
 			n.fvel = 0;
 		}
 	}
-	pat.trackGenre[T_BASS] = (int8_t)g;
+	pat.trackGenre[T_BASS] = (uint8_t)g;
 	pat.fixed[T_BASS] = 0;
 }
 
@@ -762,7 +795,85 @@ static int walkStep(Rng& rng, int cur, int s, int lo, int hi, int mask) {
 	return nudgeAllowed(next, mask, next >= cur ? 1 : -1);
 }
 
-static void genMelody(Pattern& pat, int g, Rng& rng) {
+// ---- 2.30: a melody as phrases. One bar's motif; over four bars a period: the motif, an answer that stays open
+// (ends on the 5th degree), the motif a third higher, and a close on the root. Bars 5-8 again, the answer varied and the
+// sequence a fifth higher (the high point). a1: scale degrees above the key (as the walk writes them).
+static int reflectDeg(int d, int lo, int hi, int mask) {
+	if (d < lo)
+		d = lo + (lo - d);
+	if (d > hi)
+		d = hi - (d - hi);
+	return nudgeAllowed(clampi(d, lo, hi), mask, 1);
+}
+static void phraseMelody(Pattern& pat, const Genre& G, Rng& rng, int mask) {
+	const int lo = 0, hi = 10;
+	static const int START[4] = {0, 2, 4, 7};
+	int motif[16];
+	uint8_t rr[16];
+	int cur = nudgeAllowed(START[rng.range(4)], mask, 1);
+	for (int s = 0; s < 16; s++) {
+		cur = walkStep(rng, cur, s, lo, hi, mask);
+		motif[s] = cur;
+		rr[s] = rng.byte();
+	}
+	// the step a phrase's last note lands on: a late, strong step the genre's rhythm plays
+	static const int LAND[8] = {12, 8, 14, 10, 13, 9, 11, 15};
+	int land = -1;
+	for (int k = 0; k < 8 && land < 0; k++)
+		if (G.pMel[LAND[k]] > 0.f)
+			land = LAND[k];
+	auto put = [&](int bar, int s, int d, uint8_t r) {
+		NoteStep& n = pat.mel[bar * 16 + s];
+		n.a1 = (int8_t)clampi(d, lo, hi);
+		n.r = r;
+	};
+	// the motif moved by k degrees (its rhythm kept)
+	auto statement = [&](int bar, int k) {
+		for (int s = 0; s < 16; s++)
+			put(bar, s, reflectDeg(motif[s] + k, lo, hi, mask), rr[s]);
+	};
+	// the first half of the motif (moved by k), then a walk down or up to the target, which lands on `land`; after it rests
+	auto cadence = [&](int bar, int k, int target, bool fresh) {
+		for (int s = 0; s < 8; s++)
+			put(bar, s, reflectDeg(motif[s] + k, lo, hi, mask), fresh ? rng.byte() : rr[s]);
+		int c = reflectDeg(motif[7] + k, lo, hi, mask);
+		if (land < 8) { // no late step in the rhythm: the second half as written, ending near the target
+			for (int s = 8; s < 16; s++) {
+				c += c < target ? 1 : (c > target ? -1 : 0);
+				put(bar, s, nudgeAllowed(c, mask, 1), rr[s]);
+			}
+			return;
+		}
+		for (int s = 8; s < 16; s++) {
+			if (s < land) {
+				int left = land - s;
+				int gap = target - c;
+				if (gap != 0 && std::abs(gap) >= left) // step toward the target in time
+					c += gap > 0 ? 1 : -1;
+				else if (gap != 0 && rng.uni() < 0.5f)
+					c += gap > 0 ? 1 : -1;
+				put(bar, s, nudgeAllowed(clampi(c, lo, hi), mask, c <= target ? 1 : -1), rr[s]);
+			}
+			else if (s == land)
+				put(bar, s, target, 0); // the phrase's note: it sounds wherever the rhythm has a note
+			else
+				put(bar, s, target, 255); // the rest after it
+		}
+	};
+	// the tonic nearest the motif's middle (0 or the octave, 7); the answer ends on the 5th (4), its variant on the 3rd (2)
+	int home = std::abs(motif[7] - 7) < std::abs(motif[7]) ? 7 : 0;
+	statement(0, 0);
+	cadence(1, -1, 4, false);               // the answer: open
+	statement(2, 2);                        // a third higher
+	cadence(3, 0, home, false);             // closed on the root
+	statement(4, 0);
+	cadence(5, 1, 2, true);                 // the answer varied (on the 3rd: still open)
+	statement(6, 4);                        // the high point: a fifth higher
+	cadence(7, 2, home, true);              // closed
+	pat.melCenter = (int8_t)((lo + hi) / 2);
+}
+
+static void genMelody(Pattern& pat, int g, Rng& rng, const Params& P) {
 	const Genre& G = prof(g);
 	int style = G.melStyle;
 	for (int i = 0; i < MAX_STEPS; i++) {
@@ -824,6 +935,12 @@ static void genMelody(Pattern& pat, int g, Rng& rng) {
 	else {
 		pat.melMode = 0;
 		int mask = melodyMask(G);
+		if (P.melPhrase && (style == MS_LEAD || style == MS_SPARSE)) {
+			phraseMelody(pat, G, rng, mask);
+			pat.trackGenre[T_MELODY] = (uint8_t)g;
+			pat.fixed[T_MELODY] = 0;
+			return;
+		}
 		int motifLen = (style == MS_RIFF) ? 16 : 32;
 		int lo = 0, hi = (style == MS_RIFF) ? 7 : 10;
 		static const int START[4] = {0, 2, 4, 7};
@@ -858,7 +975,7 @@ static void genMelody(Pattern& pat, int g, Rng& rng) {
 		}
 		pat.melCenter = (int8_t)((lo + hi) / 2);
 	}
-	pat.trackGenre[T_MELODY] = (int8_t)g;
+	pat.trackGenre[T_MELODY] = (uint8_t)g;
 	pat.fixed[T_MELODY] = 0;
 }
 
@@ -875,7 +992,7 @@ static void genPads(Pattern& pat, int g, Rng& rng) {
 		p.fvel = 0;
 		p.nNotes = 0;
 	}
-	pat.trackGenre[T_PADS] = (int8_t)g;
+	pat.trackGenre[T_PADS] = (uint8_t)g;
 	pat.fixed[T_PADS] = 0;
 }
 
@@ -886,7 +1003,7 @@ void generateTrack(Pattern& pat, int track, int g, Rng& rng, const Params& P) {
 	switch (track) {
 		case T_DRUMS: genDrums(pat, g, rng); break;
 		case T_BASS: genBass(pat, g, rng); break;
-		case T_MELODY: genMelody(pat, g, rng); break;
+		case T_MELODY: genMelody(pat, g, rng, P); break;
 		case T_PADS: genPads(pat, g, rng); break;
 		default: break;
 	}
@@ -1067,6 +1184,23 @@ static bool dropped(const Genre& G, const Params& P, int track, int voice, int s
 	}
 }
 
+// 2.30: a genre's accents (AccentBits) on a generated hit of voice v at 16th s of the bar
+static float accentK(unsigned ac, int v, int s) {
+	if (!ac)
+		return 1.f;
+	float k = 1.f;
+	const bool beat = s % 4 == 0, off8 = s % 4 == 2;
+	if ((ac & AC_ONE) && v == KICK)
+		k *= s == 0 ? 1.15f : (beat ? 0.9f : 0.85f);
+	if ((ac & AC_BACKBEAT) && (v == SNARE || v == CLAP))
+		k *= (s == 4 || s == 12) ? 1.2f : 0.8f;
+	if ((ac & AC_SOFT_OFFHAT) && (v == CHAT || v == OHAT) && !beat)
+		k *= off8 ? 0.75f : 0.6f;
+	if ((ac & AC_OFFHAT) && (v == CHAT || v == OHAT))
+		k *= off8 ? 1.2f : 0.75f;
+	return k;
+}
+
 Hit drumHit(const Pattern& pat, const Params& P, int v, int step, int L, bool fill) {
 	Hit h;
 	if (step < 0 || step >= MAX_STEPS || v < 0 || v >= NUM_DRUMS)
@@ -1119,7 +1253,11 @@ Hit drumHit(const Pattern& pat, const Params& P, int v, int step, int L, bool fi
 			vel = 0.68f;
 		if (v == CHAT)
 			vel *= 0.85f;
+		vel *= accentK(G.accents, v, sgs);
 		h.vel = vel + (d.vj / 255.f - 0.5f) * 0.18f;
+		// a flam on perc / toms on the beat (the genre's): now and then doubled
+		if ((G.accents & AC_FLAM_PERC) && (v == PERC || v == TOM) && sgs % 4 == 0 && (d.rr >> 2) / 63.f < 0.3f)
+			h.ratchet = 2;
 	}
 	else if ((v == SNARE || v == RIM || v == CHAT) && G.drumUsed[v] && P.ghost > 0.01f) {
 		float gp = P.ghost * (v == CHAT ? 0.3f : (gs % 2 == 1 ? 0.45f : 0.12f));
@@ -1127,6 +1265,12 @@ Hit drumHit(const Pattern& pat, const Params& P, int v, int step, int L, bool fi
 			h.on = true;
 			h.vel = 0.28f + d.vj / 255.f * 0.15f;
 		}
+	}
+	// the genre's ghost hats: soft closed hats on empty 16ths (GHOST scales them)
+	if (!h.on && v == CHAT && (G.accents & AC_GHOST_HATS) && G.drumUsed[CHAT] && sgs % 2 == 1 &&
+	    (255 - d.rg) / 255.f < 0.15f + 0.5f * P.ghost) {
+		h.on = true;
+		h.vel = 0.22f + d.vj / 255.f * 0.12f;
 	}
 	} // generated
 	// genre-specific fills over the end of the loop
@@ -1197,6 +1341,8 @@ Hit drumHit(const Pattern& pat, const Params& P, int v, int step, int L, bool fi
 	}
 	if (h.on && G.humanize > 0.f && (v == SNARE || v == CLAP || v == RIM || v == CHAT || v == OHAT))
 		h.delay = G.humanize * 0.02f * (d.vj / 255.f);
+	if (h.on && !fx && (G.accents & AC_LATE_SNARE) && (v == SNARE || v == CLAP))
+		h.delay += 0.006f + 0.006f * (d.vj / 255.f); // laid back
 	h.vel = clampf(h.vel, 0.1f, 1.f);
 	return h;
 }

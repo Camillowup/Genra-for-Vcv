@@ -7,6 +7,7 @@
 #include <initializer_list>
 #include <vector>
 #include <algorithm>
+#include <cstring>
 
 namespace genra {
 
@@ -23,8 +24,12 @@ const Scale SCALES[NUM_SCALES] = {
 	{"Harm. Minor", {0, 2, 3, 5, 7, 8, 11}, 0x7f},
 	{"Major Penta", {0, 2, 4, 5, 7, 9, 11}, 0x37},
 	{"Minor Penta", {0, 2, 3, 5, 7, 8, 10}, 0x5d},
+	// 2.30 (appended: the SCALE knob keeps its old positions)
+	{"Locrian", {0, 1, 3, 5, 6, 8, 10}, 0x7f},
+	{"Phryg. Dom.", {0, 1, 4, 5, 7, 8, 10}, 0x7f},
+	{"Dbl. Harmonic", {0, 1, 4, 5, 7, 8, 11}, 0x7f},
 };
-enum { S_MAJOR, S_MINOR, S_DORIAN, S_PHRYG, S_LYDIAN, S_MIXO, S_HARM };
+enum { S_MAJOR, S_MINOR, S_DORIAN, S_PHRYG, S_LYDIAN, S_MIXO, S_HARM, S_MAJPENTA, S_MINPENTA, S_LOCRIAN, S_PHRYGDOM, S_DBLHARM };
 
 static std::vector<Genre> PROFILES;
 static std::vector<int> VARIANTS[NUM_GENRES];
@@ -101,6 +106,114 @@ static int parseGrid(const char* s, float* out, bool* roll, int maxLen) {
 		n++;
 	}
 	return n > 16 ? 32 : 16;
+}
+
+
+// ================================================== 2.30: each genre's habits (chord moves, accents, song parts)
+// After DARK-1 (Polystellarflow, GPL-3.0-only): its chord habits, step tricks and sections per genre, on GENRA's
+// genres. Degrees in a minor key: 0 i, 1 ii(o) / bII, 2 III, 3 iv, 4 v / V, 5 VI, 6 VII.
+static void habit(Genre& g, int cadTo, bool noBack, bool raiseV, std::initializer_list<Habit> l) {
+	g.nHabit = 0;
+	for (const Habit& h : l)
+		if (g.nHabit < 8)
+			g.habit[g.nHabit++] = h;
+	g.cadTo = cadTo;
+	g.noBack = noBack;
+	g.raiseV = raiseV;
+}
+static bool named(const Genre& g, std::initializer_list<const char*> l) {
+	for (const char* n : l)
+		if (std::strcmp(g.name, n) == 0)
+			return true;
+	return false;
+}
+static void applyFeel() {
+	for (Genre& g : PROFILES) {
+		// ---- chord habits
+		if (named(g, {"House", "Deep House", "Tech House", "Afro House", "Organic House", "UK Garage", "2-Step",
+		              "Speed Garage", "UK Funky", "Bassline", "Jersey Club", "Baltimore Club", "Gqom"}))
+			habit(g, 6, false, false, {{0, 3, 4}, {3, 0, 4}, {0, 5, 3}, {5, 6, 4}, {6, 0, 4}});
+		else if (named(g, {"Trance", "Psytrance", "Melodic Techno", "Progressive House"}))
+			habit(g, 6, true, false, {{0, 5, 9}, {5, 2, 9}, {2, 6, 9}, {6, 0, 9}});
+		else if (named(g, {"Techno", "Minimal", "Acid", "Detroit Techno", "Hard Techno", "Dub Techno", "EBM", "Hardcore"}))
+			habit(g, 5, false, false, {{0, 5, 3}, {5, 0, 5}, {0, 6, 3}, {6, 0, 5}, {0, 3, 2}});
+		else if (named(g, {"Drum & Bass", "Jungle", "Breakcore", "Breakbeat", "Breaks", "Big Beat", "Footwork", "Grime"}))
+			habit(g, 4, false, true, {{0, 5, 8}, {5, 6, 6}, {6, 0, 8}, {0, 3, 5}, {5, 4, 3}});
+		else if (named(g, {"Dubstep"}))
+			habit(g, 5, false, false, {{0, 5, 6}, {5, 0, 8}, {0, 3, 3}, {3, 0, 4}});
+		else if (named(g, {"Hip-Hop", "Lo-Fi", "Trip-Hop", "Downtempo", "Phonk"}))
+			habit(g, 6, true, false, {{0, 3, 6}, {3, 6, 6}, {6, 2, 6}, {2, 5, 4}, {5, 0, 4}});
+		else if (named(g, {"Trap", "Drill"}))
+			habit(g, named(g, {"Drill"}) ? 4 : 6, false, named(g, {"Drill"}), {{0, 5, 6}, {5, 0, 6}, {0, 6, 3}, {6, 0, 4}});
+		else if (named(g, {"Afrobeat", "Afrobeats", "Amapiano", "Reggaeton", "Dancehall", "Moombahton", "Baile Funk"}))
+			habit(g, 6, false, false, {{0, 5, 6}, {5, 6, 6}, {6, 0, 6}, {0, 3, 4}, {3, 0, 4}});
+		else if (named(g, {"Cumbia"}))
+			habit(g, 4, false, true, {{0, 3, 5}, {3, 4, 5}, {4, 0, 8}, {0, 6, 3}});
+		else if (named(g, {"Dub", "Roots Reggae"}))
+			habit(g, 6, false, false, {{0, 6, 6}, {6, 0, 6}, {0, 3, 4}, {3, 0, 4}});
+		else if (named(g, {"Synthwave"}))
+			habit(g, 4, true, true, {{0, 6, 9}, {6, 5, 9}, {5, 4, 9}, {4, 0, 9}, {0, 5, 3}});
+		else if (named(g, {"Electro"}))
+			habit(g, 6, false, false, {{0, 3, 6}, {3, 0, 6}, {0, 6, 5}, {6, 0, 5}});
+		else if (named(g, {"Ambient", "Drone", "Dark Ambient", "Ambient Techno", "Berlin School"}))
+			habit(g, -1, false, false, {{0, 5, 6}, {5, 0, 6}, {0, 3, 4}, {3, 0, 4}});
+		else if (named(g, {"Witch House"}))
+			habit(g, 5, false, false, {{0, 5, 6}, {5, 0, 6}, {0, 3, 3}, {3, 0, 4}});
+		else if (named(g, {"Darkwave"}))
+			habit(g, 6, false, false, {{0, 6, 9}, {6, 5, 8}, {5, 6, 8}, {6, 0, 9}, {0, 3, 4}, {3, 0, 5}});
+		else if (named(g, {"Dungeon Synth"}))
+			habit(g, 4, false, true, {{0, 5, 7}, {5, 2, 6}, {2, 6, 6}, {6, 0, 8}, {0, 3, 5}, {3, 0, 5}, {5, 4, 3}, {4, 0, 4}});
+		else if (named(g, {"Industrial"}))
+			habit(g, 1, false, false, {{0, 1, 6}, {1, 0, 6}, {0, 6, 4}, {6, 0, 4}, {0, 3, 2}});
+		else if (named(g, {"Horror"}))
+			habit(g, 1, false, false, {{0, 1, 6}, {1, 0, 6}, {0, 4, 4}, {4, 0, 6}, {0, 5, 3}, {5, 4, 4}});
+
+		// ---- accents
+		if (named(g, {"House", "Deep House", "Afro House", "Organic House", "Progressive House", "Speed Garage", "Trance", "Psytrance"}))
+			g.accents = AC_OFFHAT | AC_ONE;
+		else if (named(g, {"Tech House", "Techno", "Detroit Techno", "Melodic Techno", "Acid", "Dub Techno"}))
+			g.accents = AC_ONE | AC_SOFT_OFFHAT;
+		else if (named(g, {"Minimal"}))
+			g.accents = AC_SOFT_OFFHAT | AC_GHOST_HATS;
+		else if (named(g, {"Hard Techno", "Hardcore", "EBM", "Industrial"}))
+			g.accents = AC_ONE | AC_BACKBEAT;
+		else if (named(g, {"Drum & Bass", "Jungle", "Breakcore", "UK Garage", "2-Step", "Footwork"}))
+			g.accents = AC_BACKBEAT | AC_GHOST_HATS;
+		else if (named(g, {"Breakbeat", "Breaks", "Big Beat", "Grime", "Bassline", "UK Funky", "Electro", "Synthwave", "Darkwave",
+		                   "Trap", "Drill", "Phonk", "Reggaeton", "Dancehall", "Moombahton", "Jersey Club", "Baltimore Club"}))
+			g.accents = AC_BACKBEAT;
+		else if (named(g, {"Hip-Hop", "Lo-Fi", "Trip-Hop", "Downtempo"}))
+			g.accents = AC_BACKBEAT | AC_LATE_SNARE | (named(g, {"Lo-Fi"}) ? AC_GHOST_HATS : 0);
+		else if (named(g, {"Dub", "Roots Reggae", "Witch House"}))
+			g.accents = AC_LATE_SNARE | AC_SOFT_OFFHAT;
+		else if (named(g, {"Afrobeat", "Afrobeats", "Amapiano", "Gqom", "Baile Funk", "Cumbia", "Bossa Nova", "Horror", "Dungeon Synth"}))
+			g.accents = AC_FLAM_PERC | (named(g, {"Horror", "Dungeon Synth"}) ? 0 : AC_SOFT_OFFHAT);
+
+		// ---- song parts: what a break keeps, the kick before the drop, the pads' rise, a build's bars
+		if (named(g, {"Techno", "Minimal", "Acid", "Detroit Techno", "Hard Techno", "Dub Techno", "EBM", "Tech House"}))
+			g.breakKeep = 1;
+		else if (named(g, {"Industrial"}))
+			g.breakKeep = 3;
+		else if (named(g, {"Drum & Bass", "Jungle", "Breakcore", "Footwork"}))
+			g.breakKeep = 2;
+		if (named(g, {"Dubstep", "Trap", "Drill", "Phonk", "Hip-Hop", "Drum & Bass", "Jungle", "Grime", "Big Beat", "Breakbeat",
+		              "Witch House", "Horror"}))
+			g.buildKick = false;
+		if (named(g, {"Trance", "Melodic Techno", "Ambient Techno"}))
+			g.padRise = 0.45f;
+		else if (named(g, {"Psytrance", "Progressive House", "Synthwave", "Darkwave", "Witch House"}))
+			g.padRise = 0.4f;
+		else if (named(g, {"Techno", "Hard Techno", "EBM", "Hardcore", "Industrial"}))
+			g.padRise = 0.12f;
+		else if (named(g, {"Dungeon Synth", "Horror"}))
+			g.padRise = 0.2f;
+		if (named(g, {"Trance", "Psytrance", "Melodic Techno", "Progressive House"}))
+			g.buildBars = 16;
+		else if (named(g, {"UK Garage", "2-Step", "Speed Garage", "Bassline", "Grime", "Jersey Club", "Baltimore Club", "Footwork"}))
+			g.buildBars = 4;
+		else if (named(g, {"Dubstep", "Drum & Bass", "Jungle"}))
+			g.buildBars = 8;
+	}
 }
 
 // ----------------------------------------------------------------- the genres
@@ -1217,6 +1330,100 @@ static void defineGenres() {
 		g.drum[4] = "x.x.|x.x.|x.x.|x.x."; g.bpm = 120; g.complexity = 0.35f;
 		add(58, g);
 	}
+	// ================================================== DARK (2.30, after DARK-1 by Polystellarflow, GPL-3.0-only)
+	{ // 59 WITCH HOUSE: slow half-time drag, rolling trap hats, a long sub, tolling chords
+		Genre g;
+		g.name = "Witch House"; g.variant = "Classic";
+		g.scale = S_MINOR; g.bpm = 70; g.swing = 0.5f; g.complexity = 0.35f; g.color = 0.3f; g.rolls = 0.65f;
+		harm(g, 64, 0.6f, 32, 0.4f, 128, 0.0f);
+		tpl(g, {"i bVI", "i bII", "i bVI bVII", "i iv bII"});
+		degw(g, {6, 0.3f, 0.6f, 1.2f, 0.6f, 1.6f, 1.0f});
+		drums(g, {"X...|....|..x.|....", "....|....|X...|....", "................", "................",
+		          "x.x.|x.xr|x.x.|xrx.", "................", "................", "....|..o.|....|o..."});
+		g.bassKick = 1; g.bassLen = 2; g.bassMove = 0.1f; g.slide = 0.3f; g.bass = "X...|....|..x.|....";
+		g.melStyle = MS_SPARSE; g.mel = "x...|....|....|o...";
+		g.padStyle = PS_SUSTAIN; g.pad = "X..............."; g.padBase = 1.1f;
+		g.fillStyle = FS_ROLL; g.humanize = 0.1f;
+		add(59, g);
+		g.variant = "Drag"; g.scale = S_PHRYG; g.bpm = 64; g.rolls = 0.4f; g.complexity = 0.25f;
+		g.drum[0] = "X...|....|....|..x."; g.drum[4] = "x...|x...|x..r|x...";
+		add(59, g);
+	}
+	{ // 60 DARKWAVE: post-punk drive, a running bass, gothic minor chords, a dry drum machine
+		Genre g;
+		g.name = "Darkwave"; g.variant = "Post-Punk";
+		g.scale = S_MINOR; g.bpm = 118; g.swing = 0.5f; g.complexity = 0.3f; g.color = 0.35f; g.rolls = 0.05f;
+		harm(g, 16, 0.4f, 32, 0.6f, 64, 0.0f);
+		tpl(g, {"i bVII bVI bVII", "i bVI bIII bVII", "i iv", "i bVII"});
+		minorW(g);
+		drums(g, {"X...|..x.|X...|....", "....|X...|....|X...", "................", "................",
+		          "x.x.|x.x.|x.x.|x.x.", "................", "....|....|....|..o.", "................"});
+		g.bassKick = 0; g.bassLen = 0; g.bassMove = 0.35f; g.bass = "X.x.|X.x.|X.x.|X.x.";
+		g.melStyle = MS_LEAD; g.mel = "x...|x.o.|x...|..o.";
+		g.padStyle = PS_SUSTAIN; g.pad = "X..............."; g.padBase = 0.9f;
+		g.fillStyle = FS_TOMS;
+		add(60, g);
+		g.variant = "Coldwave"; g.bpm = 126; g.color = 0.25f; g.padStyle = PS_STABS; g.pad = "x...|....|x...|...."; g.padBase = 0.7f;
+		g.drum[0] = "X...|X...|X...|X..."; g.melStyle = MS_ARP; g.mel = "x.x.|x.x.|x.x.|x.x.";
+		add(60, g);
+	}
+	{ // 61 DUNGEON SYNTH: slow minor harps over organs and choirs, almost no drums, the dominant raised
+		Genre g;
+		g.name = "Dungeon Synth"; g.variant = "Torchlit";
+		g.scale = S_MINOR; g.bpm = 72; g.swing = 0.5f; g.complexity = 0.05f; g.color = 0.2f; g.rolls = 0.0f;
+		harm(g, 64, 0.6f, 32, 0.4f, 128, 0.0f);
+		tpl(g, {"i bVI bIII bVII", "i iv i V", "i bVII bVI V", "i iv bVI V"});
+		minorW(g);
+		drums(g, {"o...|....|....|....", "................", "................", "................",
+		          "................", "................", "....|....|o...|....", "....|....|....|..o."});
+		g.bassKick = 0; g.bassLen = 2; g.bassMove = 0.1f; g.bass = "X...|....|....|....";
+		g.melStyle = MS_LEAD; g.mel = "x...|x...|x...|x.o.";
+		g.padStyle = PS_SUSTAIN; g.padBase = 1.3f;
+		g.fillStyle = FS_TOMS; g.humanize = 0.25f;
+		add(61, g);
+		g.variant = "Winter"; g.scale = S_DORIAN; g.bpm = 64; g.color = 0.3f; g.mel = "x...|....|x...|..o.";
+		add(61, g);
+	}
+	{ // 62 INDUSTRIAL: machine rhythms, metal hits, a driven bass, the flat second
+		Genre g;
+		g.name = "Industrial"; g.variant = "Machine";
+		g.scale = S_PHRYG; g.bpm = 120; g.swing = 0.5f; g.complexity = 0.45f; g.color = 0.1f; g.rolls = 0.1f;
+		harm(g, 64, 0.6f, 128, 0.4f, 32, 0.0f);
+		tpl(g, {"i", "i bII", "i bVII", "i bII i bVII"});
+		degw(g, {6, 1.4f, 0.4f, 0.8f, 0.6f, 0.8f, 1.2f});
+		drums(g, {"X...|X...|X..x|X...", "....|X...|....|X...", "....|X...|....|X..x", "..x.|....|..x.|.x..",
+		          "xxxx|xxxx|xxxx|xxxx", "................", "...o|....|..o.|....", "x..x|..x.|x..x|..x."});
+		g.bassKick = 0; g.bassLen = 0; g.bassMove = 0.2f; g.bass = "X.X.|X.X.|X.X.|X.XX";
+		g.melStyle = MS_RIFF; g.mel = "x..x|..x.|x...|x...";
+		g.padStyle = PS_STABS; g.pad = "X...|....|....|...."; g.padBase = 0.4f;
+		g.fillStyle = FS_CHOP;
+		add(62, g);
+		g.variant = "Rhythmic Noise"; g.bpm = 135; g.complexity = 0.6f; g.drum[7] = "xx.x|x.xx|.xx.|x.xx";
+		g.drum[0] = "X..x|X...|X.x.|X..."; g.padBase = 0.2f;
+		add(62, g);
+	}
+	{ // 63 HORROR: no steady pulse, dissonant scales, a tritone, sparse dry hits under a drone
+		Genre g;
+		g.name = "Horror"; g.variant = "Suspense";
+		g.scale = S_HARM; g.bpm = 80; g.swing = 0.5f; g.complexity = 0.1f; g.color = 0.3f; g.rolls = 0.0f;
+		harm(g, 64, 0.7f, 128, 0.3f, 32, 0.0f);
+		tpl(g, {"i bII", "i bV", "i bVI bII", "i iv bII i"});
+		degw(g, {6, 1.2f, 0.4f, 0.8f, 1.0f, 1.0f, 0.4f});
+		drums(g, {"x...|....|..o.|....", "................", "................", "....|....|o...|....",
+		          "................", "................", "....|..o.|....|o...", "..o.|....|.o..|...o"});
+		g.bassKick = 0; g.bassLen = 2; g.bassMove = 0.1f; g.slide = 0.2f; g.bass = "X...|....|....|....";
+		g.melStyle = MS_SPARSE; g.mel = "o...|..o.|....|o...";
+		g.padStyle = PS_SUSTAIN; g.padBase = 1.2f;
+		g.humanize = 0.2f;
+		add(63, g);
+		g.variant = "Cult"; g.scale = S_PHRYGDOM; g.bpm = 90; g.complexity = 0.2f;
+		g.drum[6] = "x...|..o.|x...|...."; g.drum[7] = "..x.|.o..|..x.|o..o";
+		add(63, g);
+		g.variant = "Locrian"; g.scale = S_LOCRIAN; g.bpm = 66; g.complexity = 0.05f;
+		tpl(g, {"io", "io bII", "io bV", "io bVI"});
+		add(63, g);
+	}
+	applyFeel();
 }
 
 void initGenres() {
