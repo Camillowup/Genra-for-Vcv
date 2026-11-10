@@ -15,7 +15,10 @@ Gestrichen: STRING und ADD.
 - ENGINE mit CV: ALGO, VAR, MOTION, GRIT, BEND, LOOP. Dazu ENVELOPE und FX.
 - Schalter **KEYS / THRU**: bei THRU läuft die Formel frei wie ein Oszillator bzw. Loop (V/OCT für die Tonhöhe),
   bei KEYS wird sie wie ein normales Instrument über GATE und die Hüllkurve gespielt (Instrumenten-Gate wie bei SWARM).
-- Eingang **T RST**: setzt die Formel auf Anfang (im Takt neu starten).
+- **CLOCK / RESET** in der GENRA-Leiste (statt T RST): Tempo für MOTION SYNC, RESET setzt die Formel auf Anfang.
+  Zusätzlich ohne Kabel per Rechtsklick (Follow GENRA: Tempo und Reset von GENRA).
+- THRU lohnt sich: mit LOOP 0 entwickelt sich die Formel frei (Rhythmus, Melodie), mit MOTION SYNC im Song-Takt.
+- **Status:** erste testbare Version wird gebaut (eigenes Repo, das er angibt).
 
 ### SWARM: Schwarm aus virtuellen Geräten
 - Quelle: `firmware/src/eng_input.c` (nur der SWARM-Teil).
