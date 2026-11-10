@@ -62,6 +62,15 @@ Gestrichen: STRING und ADD.
   - **Schalmei:** in ESTAMPIE ein Preset der 3-Oszillator-Engine (TRIO, „a nasal reed“), nicht der Drehleier. Für das
     Modul als zweite kleine Engine (REED) mitnehmen.
   - Mittelalterliche Stimmungen (pythagoreisch, mitteltönig, rein) wie in ESTAMPIE.
+  - Panel (Entwurf 10. Nov. 2026): Kopf mit ◀ PRE / PRE ▶, RING (Bordun klingt durch Pausen), Dropdown DRONE (C–B),
+    Dropdown COUP (HOLD, 1/4, 1/8, 1/8T, 1/16, CRANK), Regler **CRANK**, LEVEL. Display-Chips WHEEL / REED und
+    EQUAL / PYTH / MEAN / JUST. ENGINE mit CV: D LVL, 5TH, WHEEL, BUZZ, BODY, WOBBLE (bei REED andere Namen und
+    Funktionen, Anzeige wechselt mit; dass ein Patch dann anders klingt, ist ok). Unten V/OCT · GATE · VEL,
+    CLOCK · RESET (Stösse im Takt), **CRANK** (CV), **BUZZ** (Trigger für einen Stoss), L/R. 26 HP.
+  - **Kurbel:** Geschwindigkeit als Wert (kein Pulszähler): CRANK-Regler wie ein kleines Tempomodul (Anzeige in
+    Umdrehungen pro Minute) plus CRANK-CV dazu addiert; ein schneller Ruck (plötzlicher starker Anstieg) gibt wie in
+    GHOULBOX automatisch einen Stoss. Gilt bei COUP = CRANK; sonst dreht das Rad gleichmässig, Stösse im CLOCK-Takt.
+  - Schalmei (REED) kommt mit rein. Kommt ins Testplugin GENRA Test (Repo testmodulesvcv), wenn er „bauen“ sagt.
 
 Panel-Entwürfe aller geplanten Module wurden am 10. Nov. 2026 im Chat gezeigt (MATH, SWARM, VOICE mit SPELL + VOICE BEND,
 FUMI, MIAOU, SAURUS, KURBEL). Noch nicht freigegeben.
