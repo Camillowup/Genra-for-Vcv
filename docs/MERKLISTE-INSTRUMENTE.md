@@ -18,7 +18,7 @@ Gestrichen: STRING und ADD.
 - **CLOCK / RESET** in der GENRA-Leiste (statt T RST): Tempo für MOTION SYNC, RESET setzt die Formel auf Anfang.
   Zusätzlich ohne Kabel per Rechtsklick (Follow GENRA: Tempo und Reset von GENRA).
 - THRU lohnt sich: mit LOOP 0 entwickelt sich die Formel frei (Rhythmus, Melodie), mit MOTION SYNC im Song-Takt.
-- **Status:** erste testbare Version wird gebaut (eigenes Repo, das er angibt).
+- **Status:** erste testbare Version 2.0.0 im eigenen Testplugin **GENRA Test** (Repo Camillowup/testmodulesvcv, Slug GenraTest, Modul-Slug Math), gebaut 10. Nov. 2026, wird getestet. JIANT-Quelle: Branch codex/swarm (V10.7.16).
 
 ### SWARM: Schwarm aus virtuellen Geräten
 - Quelle: `firmware/src/eng_input.c` (nur der SWARM-Teil).
