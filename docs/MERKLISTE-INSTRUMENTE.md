@@ -42,13 +42,14 @@ Gestrichen: STRING und ADD.
     (POS, ARTIC, SHIFT, LOOP), wirken in beiden Engines.
   - Die Bending-Regler **CLOCK, CORRUPT, STUTTER** (evtl. auch SPEAKR, BITS) kommen in einen kleinen Expander
     **VOICE BEND** und wirken nur bei SPELL.
+  - VOICE-Akzent dunkler machen: `#c42f3d` statt bisher hellem Rot (gilt fürs ganze VOICE-Panel).
   - Alte VOICE-Patches müssen weiter laden: Params/Buchsen nur hinten anhängen.
 - **MIAOU** (github.com/pjac1810/miaou; Farbvorschlag Flieder `#e58cf0`; Rhythmen/Lieder/Recorder weglassen, PAW als Taster + Gate): Spielzeug-Klänge (Piano, Glocken, Orgel, Banjo) und eine Miau-Stimme über
   wandernde Formanten, Spielzeug-Lautsprecher.
 - **SAURUS** (aus PALEOTONE, github.com/fantasmoslam/Paleotone, `firmware/src/eng_saurus.c`): **eigenes Modul**, nur die
   Kreaturenrufe. 20 Kreaturen per Dropdown plus KIT (alle Rufe auf den Tasten), ENGINE: SIZE, SWOOP, LEN, GROWL, BRTH,
-  MOUTH, WILD; Eingang CALL. Farbvorschlag Vulkanrot `#d1503f`. ROAR aus PALEOTONE gehört nicht dazu (ist die Drehleier).
-- **Drehleier-Modul**, Name: eigener (Vorschlag **KURBEL**, Alternativen BORDUN, SCHNARR; Farbvorschlag Moosgrün `#8fa63a`), aus ESTAMPIE (github.com/ocean/estampie, Mittelalter-Ableger von GHOULBOX):
+  MOUTH, WILD; Eingang CALL. Farbe Echsengrün `#5c9c3a` (gewünscht: grün). ROAR aus PALEOTONE gehört nicht dazu (ist die Drehleier).
+- **Drehleier-Modul**, Name: eigener (Vorschlag **KURBEL**, Alternativen BORDUN, SCHNARR; Farbe dunkles Orange `#c25a1c`), aus ESTAMPIE (github.com/ocean/estampie, Mittelalter-Ableger von GHOULBOX):
   - Drehleier-Engine GURDY (`firmware/src/eng_gurdy.c`, = ROAR in PALEOTONE): Melodiesaite, Bordun, Quinte, Raddruck,
     Schnarren (RASP), Puls; Regler DRN, DLVL, 5TH, BRTH, RASP, PULS, BODY, WOBL. Bordun darf in Pausen weiterklingen (RING).
   - Werks-Klänge daraus: Hurdy Gurdy, Drone Wheel, Dance Gurdy, Trompette, Vielle, **Bagpipe (Dudelsack)**, Trotto.
