@@ -3,7 +3,7 @@
 // state in static variables, so a copy of the library is an engine of its own.
 #pragma once
 #include <string>
-#include "../../jiantcore/animalcore.h"
+#include "../../../jiantcore/animalcore.h"
 
 struct AnimalCore {
 	const jan_api* api = nullptr;

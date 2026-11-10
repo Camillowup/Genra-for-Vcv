@@ -3,7 +3,7 @@
 // state in static variables, so a copy of the library is an engine of its own.
 #pragma once
 #include <string>
-#include "../../jiantcore/voicecore.h"
+#include "../../../jiantcore/voicecore.h"
 
 struct VoiceCore {
 	const jvo_api* api = nullptr;

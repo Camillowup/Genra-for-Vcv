@@ -109,7 +109,7 @@ float GenraFx::timeKnob() {
 
 void GenraFx::applyParams() {
 	Module* g = followGenra.load() ? genraRef.to.load() : nullptr;
-	float bpm = g ? follow::genraBpm(g, sr) : freeBpm;
+	float bpm = g ? follow::genraBpm(genraRef, sr) : freeBpm;
 	synced.store(g != nullptr, std::memory_order_relaxed);
 	bpmNow.store(bpm, std::memory_order_relaxed);
 

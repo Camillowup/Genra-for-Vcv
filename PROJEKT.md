@@ -1,6 +1,6 @@
 # GENRA – Projektstand
 
-**Stand:** 9. November 2026 · **Plugin 2.28.1: 22 Module** (GENRA, GRID, ABLAUF, SCHLAG, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, GOLANA, GOLANA FX, GRUND, GRUND FX, SCHMELZ, MIX, GENRA FX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `Camillowup/Genra-for-Vcv` (vorher `CamilloGF/genra-v3`, Account nicht mehr erreichbar)
+**Stand:** 9. November 2026 · **Plugin 2.29.0: 22 Module** (GENRA, GRID, ABLAUF, SCHLAG, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, GOLANA, GOLANA FX, GRUND, GRUND FX, SCHMELZ, MIX, GENRA FX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `Camillowup/Genra-for-Vcv` (vorher `CamilloGF/genra-v3`, Account nicht mehr erreichbar)
 
 > Design-Leitfaden für neue Module (Aussehen, GENRA-Leiste, Leuchtsegmente, Follow, englische UI): **docs/DESIGN.md**
 
@@ -376,6 +376,12 @@ GENRA MONO: `g++ -std=c++17 -O2 test/test_mono.cpp -o tm && ./tm`
 - Pads per Drag & Drop in die Song-Liste: zwischen Zeilen einfügen (Linie), auf eine Zeile ersetzen (Rahmen), Undo. Ein belegtes Pad löst sein Antippen jetzt beim Loslassen aus (sonst wäre jeder Drag ein Antippen); leere Pads speichern weiter beim Drücken.
 - Song-Liste unten: Takte und Spieldauer aus GENRAs Tempo (`Genra::currentBpm`, auch für GENRAs MIDI-Export), z. B. „BAR 37 / 92 · 1:12 / 2:59“.
 - `test_ablauf`: jede Genre-Variante hat eine Form, Formlängen, `renderSong` (eine Zeile = Loop, Marker, stumme Drums, Notenbereich, Marker in der Datei).
+
+### 2.29.0 – Zweites Plugin GENRA Instruments
+- K-WASUB (+FX), GOLANA (+FX), UMLAUF (+FX), MONK, VOICE und ANIMAL sind ein eigenes Plugin **GENRA Instruments** (`instruments/`, Slug `GenraInstruments`, Marke `Genra`, Version 1.0.0), im selben Repo. Im GENRA-Plugin bleiben GENRA, GRID, ABLAUF, MIX, GENRA FX, STOTTER, SCHLAG, DRUM-X, GRUND (+FX), MONO, FUNKE, SCHMELZ. Alte Patches mit den sechs Modulen finden sie nicht mehr (bewusst: kaum Downloads bisher).
+- `instruments/`: eigenes `plugin.json`, `Makefile` (Kerne voice/animal aus `../jiantcore` + `../jiant.tar.gz`, kwcore/glcore, VADER), `src/plugin.cpp`, `res/` (Panels, `knob/`, `monk/`, `umlauf/`), `licenses/`, Tests (`test/kwcore_test.c`, `glcore_test.c`, `vader_test.c`). Gemeinsamer Code bleibt in `src/` und wird über Weiterleitungs-Header (`instruments/src/Follow.hpp`, `ui/…`, `jiant/JiantUI.hpp`) und `instruments/src/shared.cpp` (Follow.cpp + link/Hub.cpp) mitgebaut. Die Panel-Werkzeuge schreiben nach `instruments/`.
+- **Kabellos über die Plugin-Grenze:** `src/link/Hub.hpp/.cpp` – ein Register für Referenzen (`follow::Ref`), Hosts (Instrumente für MIX) und GENRAs, das beide Plugins teilen: das zuerst geladene legt es an und hinterlegt die Adresse in der Umgebungsvariable `GENRA_LINK_HUB`; das andere nutzt es, wenn die Version (LINK_VERSION + Grössen der geteilten Strukturen) stimmt, sonst ein eigenes (dann keine Verbindungen über die Grenze, nie ein Absturz). `follow::isGenra` per Slug, `genraFrame/genraBpm` über `Ref::genra` (GENRAs `followPub`/`stepPeriod`, von GENRA im Konstruktor gemeldet: `follow::addGenra`), GENRAs Ausgangsnummern in `link/GenraPorts.hpp` (static_assert in GenraModule.hpp). `follow::host()` nimmt für Module des anderen Plugins das Register (das Panel meldet sie: `OutLight::step` → `knownHost`).
+- CI baut beide, Artifacts `genra-windows` und `genra-instruments-windows`; ein Release enthält beide Dateien.
 
 ### 2.28.1 – SCHLAG: Fehler aus der Code-Prüfung
 - **Datenverlust beim Speichern:** `resolve()` behält `pending`, solange die Bank leer ist (Ordner fehlt / leer); `dataToJson` schreibt bei `pending.on` immer Namen, Map **und** PRINTs, wie sie kamen; `kitToJson` nimmt dann auch den Grundnamen aus `pending` (Preset auf ein bestehendes SCHLAG).

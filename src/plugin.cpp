@@ -22,15 +22,6 @@ void init(Plugin* p) {
 	p->addModel(modelGrund);
 	p->addModel(modelGrundFx);
 	p->addModel(modelGenraMono);
-	p->addModel(modelKwasub);
-	p->addModel(modelKwasubFx);
 	p->addModel(modelFunke);
-	p->addModel(modelGolana);
-	p->addModel(modelGolanaFx);
-	p->addModel(modelUmlauf);
-	p->addModel(modelUmlaufFx);
-	p->addModel(modelMonk);
-	p->addModel(modelVoice);
-	p->addModel(modelAnimal);
 	p->addModel(modelSchmelz);
 }

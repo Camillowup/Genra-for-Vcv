@@ -1,0 +1,117 @@
+{
+  "slug": "GenraInstruments",
+  "name": "GENRA Instruments",
+  "version": "1.0.0",
+  "license": "GPL-3.0-only",
+  "brand": "Genra",
+  "author": "Bastian Ofner",
+  "authorEmail": "",
+  "authorUrl": "https://github.com/Camillowup",
+  "pluginUrl": "https://github.com/Camillowup/Genra-for-Vcv",
+  "manualUrl": "https://github.com/Camillowup/Genra-for-Vcv/blob/main/instruments/README.md",
+  "sourceUrl": "https://github.com/Camillowup/Genra-for-Vcv",
+  "donateUrl": "",
+  "changelogUrl": "https://github.com/Camillowup/Genra-for-Vcv/blob/main/PROJEKT.md",
+  "modules": [
+    {
+      "slug": "Kwasub",
+      "name": "K-WASUB",
+      "description": "The K-WASUB firmware's modern bass synth (Omnipotard, GPL-3.0): 9 engines per oscillator (analog, 808, CS, wavetable, FM, growl, additive, phase distortion, hard sync), 7 filters, wobble on the tempo, 97 presets",
+      "tags": [
+        "Synth voice",
+        "Polyphonic",
+        "Filter",
+        "LFO"
+      ]
+    },
+    {
+      "slug": "KwasubFx",
+      "name": "K-WASUB FX",
+      "description": "Effects expander for K-WASUB: saturation, crush, chorus, phaser, delay, reverb, compressor with pump, multiband, 4-band EQ, master",
+      "tags": [
+        "Expander",
+        "Effect",
+        "Delay",
+        "Reverb"
+      ]
+    },
+    {
+      "slug": "Golana",
+      "name": "GOLANA",
+      "description": "Analog-style poly synth, the Golana FM-1 firmware by Gadlele (based on Felucca, GPL-3.0): 2 oscillators, sub, fold, 5 filters (incl. MS-20), 2 LFOs with retrigger, 4 patch routes, arpeggiator, 55 presets",
+      "tags": [
+        "Synth voice",
+        "Polyphonic",
+        "Filter",
+        "LFO",
+        "Arpeggiator"
+      ]
+    },
+    {
+      "slug": "GolanaFx",
+      "name": "GOLANA FX",
+      "description": "Effects expander for GOLANA: MOD FX (chorus, flanger, ensemble, phaser, metal), delay on the tempo, reverb, their order",
+      "tags": [
+        "Expander",
+        "Effect",
+        "Chorus",
+        "Delay",
+        "Reverb"
+      ]
+    },
+    {
+      "slug": "Umlauf",
+      "name": "UMLAUF",
+      "description": "Orbit vector synth, the engine of VADER by L'Cronx (MIT): an orbiter travels 50 shapes or 27 simulations between four corners, each VADER's overtone generators, one of 14 voices or a sample; CV for the orbiter, the corners' weights and each corner alone",
+      "tags": [
+        "Synth voice",
+        "Polyphonic",
+        "Oscillator",
+        "Arpeggiator"
+      ]
+    },
+    {
+      "slug": "UmlaufFx",
+      "name": "UMLAUF FX",
+      "description": "Expander for UMLAUF: envelope, unison, glide, vibrato, tremolo, the arpeggiator with a 16-step pattern, drive, chorus, delay, reverb, master",
+      "tags": [
+        "Expander",
+        "Arpeggiator",
+        "Effect",
+        "Reverb"
+      ]
+    },
+    {
+      "slug": "Monk",
+      "name": "MONK",
+      "description": "MONK-1's formant vocal synth (MonkSynth): twelve singers, five vowels, choir, vibrato and stereo echo, the singer drawn live",
+      "tags": [
+        "Synth voice",
+        "Oscillator",
+        "Delay"
+      ]
+    },
+    {
+      "slug": "Voice",
+      "name": "JIANT VOICE",
+      "description": "The JIANT FM firmware's VOICE engine: a formant singer (vowels, and words in Spanish, English and Japanese, your own lyrics), its vocal tract drawn live",
+      "tags": [
+        "Synth voice",
+        "Polyphonic",
+        "Vocoder",
+        "Physical modeling"
+      ]
+    },
+    {
+      "slug": "Animal",
+      "name": "JIANT ANIMAL",
+      "description": "The JIANT FM firmware's ANIMAL engine: animal calls from physical models (CMOS bird machine, cricket pulses, syrinx whistle, wing tones, glottis), with its creature drawn live",
+      "tags": [
+        "Synth voice",
+        "Polyphonic",
+        "Physical modeling",
+        "Noise"
+      ]
+    }
+  ]
+}

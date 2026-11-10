@@ -128,7 +128,10 @@ struct Mix : Module {
 		Module* g = duckMode.load() ? duckRef.to.load() : nullptr;
 		if (g) {
 			follow::Src k = follow::genraOut(follow::T_DRUMS, follow::DRUMS); // output 0 of the 8: the kick
-			dd.feed(inputs[DUCK_INPUT], follow::genraFrame(g, k.id, frame), 1);
+			if (const float* f = follow::genraFrame(duckRef, k.id, frame))
+				dd.feed(inputs[DUCK_INPUT], f, 1);
+			else if (dd.ch >= 0)
+				dd.release(inputs[DUCK_INPUT]);
 		}
 		else if (dd.ch >= 0)
 			dd.release(inputs[DUCK_INPUT]);

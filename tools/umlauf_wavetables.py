@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""UMLAUF's own band-limited tables for the voices LXR TONE, LXR METAL and BAZZ (vader/src/zynth/lxrtab/).
+"""UMLAUF's own band-limited tables for the voices LXR TONE, LXR METAL and BAZZ (instruments/vader/src/zynth/lxrtab/).
 
 VADER reads the LXR02 firmware's tables for these three voices. Their licence (LXR02 Open-Source) forbids commercial
 use, which GPL-3.0 (this plugin's licence) does not allow to add, so UMLAUF computes tables of the same shape instead and

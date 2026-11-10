@@ -12,7 +12,7 @@ set -e
 UP=$1
 [ -f "$UP/src/engine.c" ] || { echo "usage: $0 /path/to/VADER" >&2; exit 1; }
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
-D=$ROOT/vader
+D=$ROOT/instruments/vader
 rm -rf "$D"
 mkdir -p "$D/src/zynth/shim" "$D/desktop" "$D/shapes" "$D/third_party/mpc-vst-plugins/wrapper" "$D/third_party/stb" \
          "$D/third_party/mutable"

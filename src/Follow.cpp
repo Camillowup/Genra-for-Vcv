@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // FOLLOW GENRA (see Follow.hpp)
 #include "Follow.hpp"
-#include "GenraModule.hpp"
+#include "link/GenraPorts.hpp"
 #include <mutex>
 #include <algorithm>
 
@@ -19,68 +19,57 @@ NVGcolor trackColor(int track) {
 	}
 }
 
-// ---------------------------------------------------------------- references
-static std::mutex& regMutex() {
-	static std::mutex m;
-	return m;
-}
-static std::vector<Ref*>& refs() {
-	static std::vector<Ref*> v;
-	return v;
-}
-
-Ref::~Ref() {
-	std::lock_guard<std::mutex> lk(regMutex());
-	auto& v = refs();
-	v.erase(std::remove(v.begin(), v.end(), this), v.end());
-}
+// ---------------------------------------------------------------- references (kept in the link hub: link/Hub.hpp)
+Ref::~Ref() { genralink::hub().unref(this); }
 
 void point(Ref& r, Module* owner, Module* to) {
-	std::lock_guard<std::mutex> lk(regMutex());
-	r.owner = owner;
-	auto& v = refs();
-	if (std::find(v.begin(), v.end(), &r) == v.end())
-		v.push_back(&r);
-	r.to.store(to);
+	genralink::Hub& h = genralink::hub();
+	h.point(&r, owner, nullptr); // (readers see nothing while the GENRA info changes)
+	genralink::GenraInfo gi;
+	if (!to || !h.genraInfo(to, &gi))
+		gi = genralink::GenraInfo();
+	r.genra = gi;
+	if (to)
+		h.point(&r, owner, to);
 }
 
-void gone(Module* m) {
-	std::lock_guard<std::mutex> lk(regMutex());
-	auto& v = refs();
-	for (Ref* r : v)
-		if (r->to.load() == m)
-			r->to.store(nullptr);
-	// its own references point nowhere from now on (the memory goes with the module)
-	v.erase(std::remove_if(v.begin(), v.end(),
-	                       [m](Ref* r) {
-		                       if (r->owner != m)
-			                       return false;
-		                       r->to.store(nullptr);
-		                       return true;
-	                       }),
-	        v.end());
+void gone(Module* m) { genralink::hub().gone(m); }
+
+bool isGenra(Module* m) {
+	genralink::GenraInfo gi;
+	return m && m->model && m->model->slug == "Genra" && m->model->plugin && m->model->plugin->slug == "Genra" &&
+	       genralink::hub().genraInfo(m, &gi);
 }
 
-bool isGenra(Module* m) { return m && m->model == modelGenra; }
+void addGenra(Module* g, const float* followPub, int outputs, const float* stepPeriod) {
+	genralink::GenraInfo gi;
+	gi.followPub = followPub;
+	gi.outputs = outputs;
+	gi.stepPeriod = stepPeriod;
+	genralink::hub().addGenra(g, gi);
+}
 
-float genraBpm(Module* g, float sr) {
-	float sp = static_cast<Genra*>(g)->stepPeriod; // samples per 16th, set every sample (a benign racy read)
+float genraBpm(const Ref& r, float sr) {
+	const float* p = r.genra.stepPeriod;
+	float sp = p ? *p : 0.f; // samples per 16th, set every sample (a benign racy read)
 	return sp > 1.f ? clamp(60.f * sr / (sp * 4.f), 20.f, 400.f) : 120.f;
 }
 
-const float* genraFrame(Module* g, int outputId, int64_t frame) {
-	Genra* gg = static_cast<Genra*>(g); // (only GENRAs are pointed at as such)
-	return gg->followPub[(frame + 1) & 1][outputId];
+const float* genraFrame(const Ref& r, int outputId, int64_t frame) {
+	const genralink::GenraInfo& gi = r.genra;
+	if (!gi.followPub || outputId < 0 || outputId >= gi.outputs)
+		return nullptr;
+	return gi.followPub + ((size_t) ((frame + 1) & 1) * gi.outputs + outputId) * genraports::PUB_CHANNELS;
 }
 
 Src genraOut(int track, int sig) {
 	Src s;
 	if (sig == CLOCK) {
-		s.id = Genra::CLOCK_OUTPUT;
+		s.id = genraports::CLOCK_OUTPUT;
 		return s;
 	}
 	if (sig == RESET) {
-		s.id = Genra::RESET_OUTPUT;
+		s.id = genraports::RESET_OUTPUT;
 		return s;
 	}
 	switch (track) {
@@ -88,27 +77,27 @@ Src genraOut(int track, int sig) {
 		case T_MEL: {
 			bool b = track == T_BASS;
 			switch (sig) {
-				case VOCT: s.id = b ? Genra::BASS_VOCT_OUTPUT : Genra::MEL_VOCT_OUTPUT; break;
-				case GATE: s.id = b ? Genra::BASS_GATE_OUTPUT : Genra::MEL_GATE_OUTPUT; break;
-				case VEL: s.id = b ? Genra::BASS_VEL_OUTPUT : Genra::MEL_VEL_OUTPUT; break;
-				case ACC: s.id = b ? Genra::BASS_ACC_OUTPUT : Genra::MEL_ACC_OUTPUT; break;
-				case SLIDE: s.id = b ? Genra::BASS_SLIDE_OUTPUT : Genra::MEL_SLIDE_OUTPUT; break;
+				case VOCT: s.id = b ? genraports::BASS_VOCT_OUTPUT : genraports::MEL_VOCT_OUTPUT; break;
+				case GATE: s.id = b ? genraports::BASS_GATE_OUTPUT : genraports::MEL_GATE_OUTPUT; break;
+				case VEL: s.id = b ? genraports::BASS_VEL_OUTPUT : genraports::MEL_VEL_OUTPUT; break;
+				case ACC: s.id = b ? genraports::BASS_ACC_OUTPUT : genraports::MEL_ACC_OUTPUT; break;
+				case SLIDE: s.id = b ? genraports::BASS_SLIDE_OUTPUT : genraports::MEL_SLIDE_OUTPUT; break;
 				default: break;
 			}
 			break;
 		}
 		case T_PAD:
 			switch (sig) {
-				case VOCT: s.id = Genra::PAD_VOCT_OUTPUT, s.channels = 4; break;
-				case GATE: s.id = Genra::PAD_GATE_OUTPUT, s.channels = 4; break;
-				case VEL: s.id = Genra::PAD_VEL_OUTPUT; break;
-				case MOD: s.id = Genra::PAD_MOD_OUTPUT; break;
+				case VOCT: s.id = genraports::PAD_VOCT_OUTPUT, s.channels = 4; break;
+				case GATE: s.id = genraports::PAD_GATE_OUTPUT, s.channels = 4; break;
+				case VEL: s.id = genraports::PAD_VEL_OUTPUT; break;
+				case MOD: s.id = genraports::PAD_MOD_OUTPUT; break;
 				default: break;
 			}
 			break;
 		case T_DRUMS:
 			if (sig == DRUMS)
-				s.id = Genra::DRUM_OUTPUT, s.channels = NUM_DRUMS; // the 8 trigger outputs, one channel each
+				s.id = genraports::DRUM_OUTPUT, s.channels = genraports::NUM_DRUM_OUTPUTS; // the 8 trigger outputs, one channel each
 			break;
 		default: break;
 	}
@@ -162,14 +151,24 @@ void Follower::process(Module* self, int64_t frame) {
 		}
 		anyDriven = true;
 		float v[PORT_MAX_CHANNELS];
+		bool ok = true;
 		if (binds[i].sig == DRUMS) {
-			for (int c = 0; c < s.channels; c++)
-				v[c] = genraFrame(g, s.id + c, frame)[0];
+			for (int c = 0; c < s.channels && ok; c++) {
+				const float* f = genraFrame(genra, s.id + c, frame);
+				ok = f != nullptr;
+				v[c] = ok ? f[0] : 0.f;
+			}
 		}
 		else {
-			const float* f = genraFrame(g, s.id, frame);
-			for (int c = 0; c < s.channels; c++)
+			const float* f = genraFrame(genra, s.id, frame);
+			ok = f != nullptr;
+			for (int c = 0; c < s.channels && ok; c++)
 				v[c] = f[c];
+		}
+		if (!ok) {
+			if (drv[i].ch >= 0)
+				drv[i].release(in);
+			continue;
 		}
 		drv[i].feed(in, v, s.channels);
 	}
@@ -290,7 +289,20 @@ void Follower::appendMenu(Menu* menu, Module* self) {
 	}));
 }
 
-Host* host(Module* m) { return m ? dynamic_cast<Host*>(m) : nullptr; }
+Host* host(Module* m) {
+	if (!m)
+		return nullptr;
+	if (m->model && m->model->plugin == pluginInstance)
+		return dynamic_cast<Host*>(m); // a module of this plugin
+	return genralink::hub().findHost(m); // of the other plugin: only as its panel made it known
+}
+
+void knownHost(Module* m) {
+	if (!m || !m->model || m->model->plugin != pluginInstance)
+		return;
+	if (Host* h = dynamic_cast<Host*>(m))
+		genralink::hub().addHost(m, h);
+}
 
 // ---------------------------------------------------------------- the lit strip
 static const float SEG_W = 7.6f, SEG_H = 0.55f, SEG_DY = -4.6f + 0.275f; // mm (tools/panellib.py: SLOT 9.4, tray top -4.6)
@@ -372,6 +384,10 @@ void segment(NVGcontext* vg, Vec jack, NVGcolor c, float a) {
 
 void OutLight::step() {
 	Widget::step();
+	if (!known && module) { // (once: MIX of the other plugin can take this module's audio from now on)
+		knownHost(module);
+		known = true;
+	}
 	Host* h = host(module);
 	if (found || !h)
 		return;

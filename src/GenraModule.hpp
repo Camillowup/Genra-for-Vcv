@@ -6,6 +6,7 @@
 #include "Arranger.hpp"
 #include "Layout.hpp"
 #include "Follow.hpp"
+#include "link/GenraPorts.hpp"
 #include "MidiFolder.hpp"
 #include <osdialog.h>
 #include <atomic>
@@ -485,6 +486,7 @@ struct Genra : Module {
 	dsp::ClockDivider lightDivider;
 
 	float followPub[2][OUTPUTS_LEN][4] = {}; // the outputs per frame (even / odd) for Follow.cpp
+	static_assert(genraports::PUB_CHANNELS == 4, "followPub channels");
 	// instruments and MIX that follow this GENRA without cables let go (Follow.hpp)
 	void onRemove(const RemoveEvent& e) override { follow::gone(this); }
 
@@ -495,6 +497,8 @@ struct Genra : Module {
 	}
 
 	Genra() {
+		// followers of the other plugin (GENRA Instruments) reach GENRA's outputs and tempo through the link hub
+		follow::addGenra(this, &followPub[0][0][0], OUTPUTS_LEN, &stepPeriod);
 		for (int v = 0; v < NUM_DRUMS; v++)
 			drumStepPub[v].store(-1);
 		{
@@ -1712,3 +1716,14 @@ struct Genra : Module {
 	}
 };
 
+// the numbers the other plugin (GENRA Instruments) uses for GENRA's outputs (link/GenraPorts.hpp)
+static_assert((int) Genra::DRUM_OUTPUT == (int) genraports::DRUM_OUTPUT && (int) Genra::BASS_VOCT_OUTPUT == (int) genraports::BASS_VOCT_OUTPUT &&
+                  (int) Genra::BASS_GATE_OUTPUT == (int) genraports::BASS_GATE_OUTPUT && (int) Genra::BASS_VEL_OUTPUT == (int) genraports::BASS_VEL_OUTPUT &&
+                  (int) Genra::BASS_ACC_OUTPUT == (int) genraports::BASS_ACC_OUTPUT && (int) Genra::MEL_VOCT_OUTPUT == (int) genraports::MEL_VOCT_OUTPUT &&
+                  (int) Genra::MEL_GATE_OUTPUT == (int) genraports::MEL_GATE_OUTPUT && (int) Genra::MEL_VEL_OUTPUT == (int) genraports::MEL_VEL_OUTPUT &&
+                  (int) Genra::MEL_ACC_OUTPUT == (int) genraports::MEL_ACC_OUTPUT && (int) Genra::PAD_VOCT_OUTPUT == (int) genraports::PAD_VOCT_OUTPUT &&
+                  (int) Genra::PAD_GATE_OUTPUT == (int) genraports::PAD_GATE_OUTPUT && (int) Genra::PAD_VEL_OUTPUT == (int) genraports::PAD_VEL_OUTPUT &&
+                  (int) Genra::PAD_MOD_OUTPUT == (int) genraports::PAD_MOD_OUTPUT && (int) Genra::BASS_SLIDE_OUTPUT == (int) genraports::BASS_SLIDE_OUTPUT &&
+                  (int) Genra::MEL_SLIDE_OUTPUT == (int) genraports::MEL_SLIDE_OUTPUT && (int) Genra::CLOCK_OUTPUT == (int) genraports::CLOCK_OUTPUT &&
+                  (int) Genra::RESET_OUTPUT == (int) genraports::RESET_OUTPUT,
+              "GENRA's outputs must keep their numbers (link/GenraPorts.hpp)");

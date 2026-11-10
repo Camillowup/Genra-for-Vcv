@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """MONK's twelve singers, GENRA's own drawings: every character in every pose as a small SVG for the module.
 
-Usage:  monk_singers.py real              -> res/monk/sNN_BLV.svg (NN singer, B blink 0/1, L brows 0..3, V vowel 0..4)
+Usage:  monk_singers.py real              -> instruments/res/monk/sNN_BLV.svg (NN singer, B blink 0/1, L brows 0..3, V vowel 0..4)
         monk_singers.py sheet [DIR]       -> overview images (sheet_12.png, states_BOLT.png, states_EMBER.png)
 
-The module (src/monk/Monk.cpp) parses the files with NanoSVG, which knows no clip paths and no text: the mouth's
+The module (instruments/src/monk/Monk.cpp) parses the files with NanoSVG, which knows no clip paths and no text: the mouth's
 inside (tongue, teeth, BOLT's LED lines) is therefore cut to the mouth's outline here, as polygons.
 """
 import os, subprocess, itertools
@@ -540,7 +540,7 @@ def frame_svg(fn, blink, brow, vowel):
 
 
 def real():
-    d = os.path.join(ROOT, "res", "monk")
+    d = os.path.join(ROOT, "instruments", "res", "monk")
     os.makedirs(d, exist_ok=True)
     n = 0
     for k, (name, role, fn, lvl) in enumerate(CHARS):
@@ -549,7 +549,7 @@ def real():
                 for v in range(5):
                     open(os.path.join(d, f"s{k:02d}_{b}{l}{v}.svg"), "w").write(frame_svg(fn, b, l, v))
                     n += 1
-    print(f"wrote {n} files to res/monk")
+    print(f"wrote {n} files to instruments/res/monk")
 
 
 if __name__ == "__main__":

@@ -36,23 +36,29 @@ jobs:
           for t in test/test_mono.cpp test/test_schmelz.cpp test/test_mix.cpp test/test_funke.cpp test/test_stotter.cpp test/test_grund.cpp test/test_genrafx.cpp test/test_schlag.cpp; do
             g++ -std=gnu++17 -O2 "$t" -o t.exe && ./t.exe || exit 1
           done
-          gcc -std=gnu11 -O2 -w -ffreestanding -fno-builtin -fno-tree-loop-distribute-patterns -Ikwasub/firmware/src -Ikwasub/firmware/gen -Ikwasub/firmware/hal test/kwcore_test.c -o kt.exe -lm
-          ./kt.exe
-          gcc -std=gnu11 -O2 -w -Iglcore -Igolana/gen test/glcore_test.c -o gt.exe -lm
-          ./gt.exe
+          (cd instruments && gcc -std=gnu11 -O2 -w -ffreestanding -fno-builtin -fno-tree-loop-distribute-patterns -Ikwasub/firmware/src -Ikwasub/firmware/gen -Ikwasub/firmware/hal test/kwcore_test.c -o kt.exe -lm && ./kt.exe) || exit 1
+          (cd instruments && gcc -std=gnu11 -O2 -w -Iglcore -Igolana/gen test/glcore_test.c -o gt.exe -lm && ./gt.exe) || exit 1
           for t in test/test_tracks.cpp test/test_edit.cpp test/test_store.cpp test/test_midi.cpp test/test_cycle.cpp; do
             g++ -std=gnu++17 -O2 -Isrc "$t" src/Engine.cpp src/Genres.cpp src/Edit.cpp src/Store.cpp src/Midi.cpp -o t.exe && ./t.exe || exit 1
           done
           g++ -std=gnu++17 -O2 -Isrc test/test_ablauf.cpp src/Arranger.cpp src/Engine.cpp src/Genres.cpp src/Edit.cpp src/Store.cpp src/Midi.cpp -o ta.exe && ./ta.exe
 
-      - name: Build plugin
+      - name: Build plugin GENRA
         run: |
           VER=$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' plugin.json)
           echo "Version $VER"
           make RACK_DIR=sdk/Rack-SDK SLUG=Genra VERSION=$VER -j4 dist
 
+      - name: Build plugin GENRA Instruments
+        run: |
+          cd instruments
+          VER=$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' plugin.json)
+          echo "Version $VER"
+          make RACK_DIR=$GITHUB_WORKSPACE/sdk/Rack-SDK SLUG=GenraInstruments VERSION=$VER -j4 dist
+
       - name: Test the VADER engine (UMLAUF, without Rack)
         run: |
+          cd instruments
           gcc -std=gnu11 -O2 -Ivader/src -Ivader/third_party/mpc-vst-plugins/wrapper test/vader_test.c build/vader/libvader.a -lstdc++ -lm -lpthread -o vt.exe
           ./vt.exe vader/shapes
 
@@ -60,21 +66,33 @@ jobs:
         run: |
           ls -la dist/Genra dist/Genra/res
           test -f dist/Genra/plugin.dll
-          for c in voicecore drumcore animalcore kwcore glcore; do test -f dist/Genra/res/$c.dll; done
-          test -f dist/Genra/res/Umlauf.svg
+          test -f dist/Genra/res/drumcore.dll
           test -f dist/Genra/res/Funke.svg
           test -f dist/Genra/res/Stotter.svg
           test -f dist/Genra/res/Schlag.svg
-          test -f dist/Genra/res/Golana.svg
-          test -f dist/Genra/res/GolanaFx.svg
-          ls dist/Genra/res/umlauf/shapes
+          ! test -f dist/Genra/res/Umlauf.svg
           objdump -p dist/Genra/plugin.dll | grep "DLL Name"
           ! objdump -p dist/Genra/plugin.dll | grep -iE "libwinpthread|libstdc"
+          D=instruments/dist/GenraInstruments
+          ls -la $D $D/res
+          test -f $D/plugin.dll
+          for c in voicecore animalcore kwcore glcore; do test -f $D/res/$c.dll; done
+          for f in Kwasub KwasubFx Golana GolanaFx Umlauf UmlaufFx Monk JiantVoice JiantAnimal; do test -f $D/res/$f.svg; done
+          test -f $D/res/knob/medium.svg
+          ls $D/res/umlauf/shapes
+          ls $D/res/monk | head -3
+          objdump -p $D/plugin.dll | grep "DLL Name"
+          ! objdump -p $D/plugin.dll | grep -iE "libwinpthread|libstdc"
 
       - uses: actions/upload-artifact@v4
         with:
           name: genra-windows
           path: dist/*.vcvplugin
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: genra-instruments-windows
+          path: instruments/dist/*.vcvplugin
 
       - name: Read the release version
         if: github.ref == 'refs/heads/release'
@@ -89,11 +107,15 @@ jobs:
           tag_name: v${{ env.RELVER }}
           target_commitish: ${{ github.sha }}
           name: GENRA ${{ env.RELVER }}
-          files: dist/*.vcvplugin
+          files: |
+            dist/*.vcvplugin
+            instruments/dist/*.vcvplugin
           body: |
-            GENRA plugin for VCV Rack 2 (Windows x64).
+            GENRA plugins for VCV Rack 2 (Windows x64): GENRA (sequencer, song arranger, mixer, effects, drums and a
+            set of instruments) and GENRA Instruments (K-WASUB, GOLANA, UMLAUF, MONK, VOICE, ANIMAL). Both appear under
+            the brand "Genra" in Rack's browser; the instruments follow GENRA without cables when both are installed.
 
-            Install: download the `.vcvplugin` file and put it into your Rack user folder's `plugins-win-x64` folder
+            Install: download the `.vcvplugin` files and put them into your Rack user folder's `plugins-win-x64` folder
             (Rack › Help › Open user folder), then restart Rack.
 
             What's new: see [PROJEKT.md](https://github.com/Camillowup/Genra-for-Vcv/blob/main/PROJEKT.md) and the README.

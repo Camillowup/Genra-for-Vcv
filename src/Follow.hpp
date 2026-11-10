@@ -6,8 +6,12 @@
 // always wins: the engine writes the input after every sample, so a value we did not write means a cable is there
 // (Drive). The source is held in a Ref, an atomic pointer that is cleared when the source module is removed
 // (follow::gone() in every module's onRemove; Rack holds the engine lock there, no process() runs).
+//
+// 2.29: also across the two plugins of the family (GENRA and GENRA Instruments): references, the hosts and GENRA's
+// outputs and tempo go through the link hub (link/Hub.hpp), never into another plugin's classes directly.
 #pragma once
 #include "plugin.hpp"
+#include "link/Hub.hpp"
 #include <atomic>
 #include <vector>
 
@@ -24,6 +28,7 @@ NVGcolor trackColor(int track);
 struct Ref {
 	std::atomic<Module*> to{nullptr};
 	Module* owner = nullptr;
+	genralink::GenraInfo genra; // when `to` is a GENRA: its outputs and tempo (set by point())
 	~Ref();
 };
 /** UI thread: let r point at `to` (nullptr: nowhere). */
@@ -38,10 +43,14 @@ struct Src {
 };
 Src genraOut(int track, int sig);
 bool isGenra(Module* m);
-/** GENRA's tempo right now (from its clock: the internal BPM or the CLOCK input), for the tempo-synced effects. */
-float genraBpm(Module* genra, float sampleRate);
-/** GENRA's outputs as of the last complete frame (one sample later than a cable, never half a frame). */
-const float* genraFrame(Module* genra, int outputId, int64_t frame);
+/** GENRA's tempo right now (from its clock: the internal BPM or the CLOCK input), for the tempo-synced effects.
+ * r: a reference pointing at a GENRA. */
+float genraBpm(const Ref& r, float sampleRate);
+/** GENRA's outputs as of the last complete frame (one sample later than a cable, never half a frame); nullptr if the
+ * reference does not point at a GENRA. */
+const float* genraFrame(const Ref& r, int outputId, int64_t frame);
+/** GENRA's constructor: it can be followed (also from the other plugin). */
+void addGenra(Module* g, const float* followPub, int outputs, const float* stepPeriod);
 
 // ---------------------------------------------------------------- the virtual cable
 struct Drive {
@@ -101,7 +110,10 @@ struct Host {
 	bool pulled(int64_t frame) const { return frame - pulledAt.load(std::memory_order_relaxed) < 4096; }
 	virtual ~Host() {}
 };
+/** The host behind a module (also one of the other plugin, once its panel has made it known: knownHost()). */
 Host* host(Module* m);
+/** UI thread, from the module's panel: make the host known to the other plugin (MIX there takes its audio). */
+void knownHost(Module* m);
 
 // ---------------------------------------------------------------- panel and menu
 /** The lit strip: one segment over each jack the link feeds. jacks: (centre in px, index into fol.binds). */
@@ -121,6 +133,7 @@ struct OutLight : widget::TransparentWidget {
 	Module* module = nullptr;
 	Vec l, r;
 	bool found = false;
+	bool known = false;
 	void step() override;
 	void drawLayer(const DrawArgs& args, int layer) override;
 };

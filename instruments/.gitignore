@@ -1,0 +1,9 @@
+/build/
+/dist/
+res/*core.so
+res/*core.dll
+res/*core.dylib
+plugin.so
+plugin.dll
+plugin.dylib
+*.vcvplugin
