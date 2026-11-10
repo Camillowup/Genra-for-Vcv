@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // FOLLOW GENRA (see Follow.hpp)
 #include "Follow.hpp"
+#include "GenreMatch.hpp"
 #include "link/GenraPorts.hpp"
 #include <mutex>
 #include <algorithm>
@@ -37,8 +38,8 @@ void gone(Module* m) { genralink::hub().gone(m); }
 
 bool isGenra(Module* m) {
 	genralink::GenraInfo gi;
-	return m && m->model && m->model->slug == "Genra" && m->model->plugin && m->model->plugin->slug == "Genra" &&
-	       genralink::hub().genraInfo(m, &gi);
+	return m && m->model && (m->model->slug == "Genra" || m->model->slug == "GenraBox") && m->model->plugin &&
+	       m->model->plugin->slug == "Genra" && genralink::hub().genraInfo(m, &gi);
 }
 
 void addGenra(Module* g, const float* followPub, int outputs, const float* stepPeriod) {
@@ -220,6 +221,7 @@ void Follower::toJson(json_t* root) {
 	json_t* o = json_object();
 	json_object_set_new(o, "track", json_integer(track.load()));
 	json_object_set_new(o, "genra", json_integer(genraId.load()));
+	json_object_set_new(o, "presets", json_boolean(presets.load()));
 	json_object_set_new(root, "followGenra", o);
 }
 
@@ -231,6 +233,9 @@ void Follower::fromJson(json_t* root) {
 		track = clamp((int) json_integer_value(j), -1, NUM_TRACKS - 1);
 	if (json_t* j = json_object_get(o, "genra"))
 		genraId = (int64_t) json_integer_value(j);
+	presets = true;
+	if (json_t* j = json_object_get(o, "presets"))
+		presets = json_boolean_value(j);
 	uiTimer = 0.f;
 }
 
@@ -265,6 +270,9 @@ void Follower::appendMenu(Menu* menu, Module* self) {
 			}));
 		}
 		sub->addChild(new MenuSeparator);
+		sub->addChild(createCheckMenuItem("Presets follow GENRA (NEW picks one for the genre)", "",
+		                                  [=]() { return f->presets.load(); }, [=]() { f->presets = !f->presets.load(); }));
+		sub->addChild(new MenuSeparator);
 		sub->addChild(createMenuLabel("Which GENRA"));
 		sub->addChild(createCheckMenuItem("Automatic (the only / first one)", "", [=]() { return f->genraId.load() < 0; },
 		                                  [=]() {
@@ -277,7 +285,9 @@ void Follower::appendMenu(Menu* menu, Module* self) {
 			if (!isGenra(APP->engine->getModule(id)))
 				continue;
 			n++;
-			sub->addChild(createCheckMenuItem(string::f("GENRA #%d", n), "", [=]() { return f->genraId.load() == id; },
+			Module* gm = APP->engine->getModule(id);
+			bool box = gm && gm->model && gm->model->slug == "GenraBox";
+			sub->addChild(createCheckMenuItem(string::f(box ? "GENRA BOX #%d" : "GENRA #%d", n), "", [=]() { return f->genraId.load() == id; },
 			                                  [=]() {
 				                                  f->genraId = id;
 				                                  f->uiTimer = 0.f;
@@ -443,6 +453,44 @@ StripLight* addStrip(ModuleWidget* mw, Module* module, const std::vector<Vec>& p
 		s->jacks.push_back({pos[i], (int) i});
 	mw->addChild(s);
 	return s;
+}
+
+} // namespace follow
+
+namespace follow {
+
+int rollFollowerPresets(Module* g, int genraTrack, const char* genreName, int mode) {
+	static const int FROM_GENRA[4] = {T_DRUMS, T_BASS, T_MEL, T_PAD}; // GENRA's track -> follow::Track
+	if (!g || genraTrack < 0 || genraTrack > 3 || mode <= 0)
+		return 0;
+	int want = FROM_GENRA[genraTrack], n = 0;
+	for (int64_t id : APP->engine->getModuleIds()) {
+		Module* m = APP->engine->getModule(id);
+		Host* h = host(m);
+		if (!h || !h->follows || h->fol.genra.to.load() != g || h->fol.track.load() != want || !h->fol.presets.load())
+			continue;
+		int cnt = h->hostPresetCount(), cur = h->hostPresetCurrent();
+		if (cnt <= 1)
+			continue;
+		std::vector<std::string> styles((size_t) cnt);
+		for (int i = 0; i < cnt; i++) {
+			char nm[64], st[96];
+			h->hostPresetInfo(i, nm, sizeof(nm), st, sizeof(st));
+			styles[i] = st;
+		}
+		std::vector<int> cand;
+		if (mode == 2 && genreName)
+			cand = genrematch::candidates(cnt, [&](int i) { return styles[i].c_str(); }, genreName, cur);
+		if (cand.empty())
+			for (int i = 0; i < cnt; i++)
+				if (i != cur)
+					cand.push_back(i);
+		if (cand.empty())
+			continue;
+		h->hostPresetLoad(cand[random::u32() % cand.size()]);
+		n++;
+	}
+	return n;
 }
 
 } // namespace follow

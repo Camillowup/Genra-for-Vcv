@@ -632,6 +632,7 @@ struct GenraWidget : ModuleWidget {
 		Genra* m = dynamic_cast<Genra*>(module);
 		if (!m)
 			return;
+		m->uiPresetRolls(); // NEW: presets for the instruments that follow
 		if (m->noAblauf.exchange(false))
 			m->showMsg("NO ABLAUF – place ABLAUF next to GENRA (or link it) to make a song");
 		// "Genre sets tempo": a new global genre brings its typical tempo (not with a clock at CLOCK)
@@ -679,6 +680,8 @@ struct GenraWidget : ModuleWidget {
 		                                      {"Everything", "Rhythm (drums)", "Notes (bass, melody)", "Harmony (chords, pads)"},
 		                                      [=]() { return (size_t)m->mutateWhat; }, [=](size_t v) { m->mutateWhat = (int)v; }));
 		menu->addChild(createMenuItem("Back to the anchor", "the pattern before MUTATE", [=]() { m->anchorBackReq = true; }));
+		menu->addChild(createIndexSubmenuItem("NEW picks presets", {"Off", "All genres", "Same genre (the track's)"},
+		                                      [=]() { return (size_t)m->presetMode; }, [=](size_t v) { m->presetMode = (int)v; }));
 		menu->addChild(new MenuSeparator);
 		menu->addChild(createIndexSubmenuItem("Genre sets tempo", {"Off", "On"}, [=]() { return (size_t)(m->genreTempo ? 1 : 0); },
 		                                      [=](size_t v) { m->genreTempo = v == 1; }));

@@ -337,12 +337,12 @@ struct Ablauf : Module {
 	Genra* findGenra() {
 		if (linkedId >= 0) {
 			Module* m = APP->engine->getModule(linkedId);
-			if (m && m->model == modelGenra)
+			if (m && isGenraModel(m->model))
 				return static_cast<Genra*>(m);
 		}
 		Module* side[2] = {leftExpander.module, rightExpander.module};
 		for (Module* m : side)
-			if (m && m->model == modelGenra)
+			if (m && isGenraModel(m->model))
 				return static_cast<Genra*>(m);
 		return nullptr;
 	}
@@ -357,7 +357,7 @@ struct Ablauf : Module {
 			return g;
 		if (own >= 0) {
 			Module* o = APP->engine->getModule(own);
-			if (o && o->model == modelAblauf) {
+			if (o && (o->model == modelAblauf || o->model == modelAblaufMini)) {
 				genraBusy = true;
 				return nullptr;
 			}
@@ -2689,7 +2689,7 @@ struct AblaufWidget : ModuleWidget {
 		int n = 0;
 		for (int64_t id : APP->engine->getModuleIds()) {
 			Module* mm = APP->engine->getModule(id);
-			if (!mm || mm->model != modelGenra)
+			if (!mm || !isGenraModel(mm->model))
 				continue;
 			n++;
 			std::string label = string::f("GENRA #%d", n);

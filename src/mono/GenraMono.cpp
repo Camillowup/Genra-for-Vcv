@@ -266,6 +266,15 @@ struct GenraMono : Module, follow::Host {
 		scanUser();
 	}
 
+	// presets the followed GENRA may switch (NEW picks one for the genre; UI thread)
+	int hostPresetCount() override { return count(); }
+	void hostPresetInfo(int i, char* name, int nl, char* style, int sl) override {
+		follow::putStr(name, nl, nameOf(i).c_str());
+		follow::putStr(style, sl, i >= 0 && i < gmono::NUM_PRESETS ? gmono::PRESETS[i].style : "");
+	}
+	int hostPresetCurrent() override { return preset; }
+	void hostPresetLoad(int i) override { load(i); }
+
 	json_t* dataToJson() override {
 		json_t* j = json_object();
 		json_object_set_new(j, "preset", json_string(preset < 0 ? "" : presetName.c_str()));

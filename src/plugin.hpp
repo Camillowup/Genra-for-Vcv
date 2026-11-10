@@ -34,3 +34,7 @@ extern Model* modelGrund;
 extern Model* modelGrundFx;
 extern Model* modelGenraFx;
 extern Model* modelSchlag;
+extern Model* modelGenraBox;
+extern Model* modelAblaufMini;
+/** GENRA or a module built on it (GENRA BOX): GRID, ABLAUF and Follow work with both. */
+inline bool isGenraModel(Model* m) { return m && (m == modelGenra || m == modelGenraBox); }

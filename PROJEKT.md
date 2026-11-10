@@ -1,6 +1,6 @@
 # GENRA – Projektstand
 
-**Stand:** 10. November 2026 · **Plugin 2.30.0: 22 Module** (GENRA, GRID, ABLAUF, SCHLAG, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, GOLANA, GOLANA FX, GRUND, GRUND FX, SCHMELZ, MIX, GENRA FX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `Camillowup/Genra-for-Vcv` (vorher `CamilloGF/genra-v3`, Account nicht mehr erreichbar)
+**Stand:** 10. November 2026 · **Plugin 2.31.0: 24 Module** (GENRA, GRID, ABLAUF, GENRA BOX, ABLAUF MINI, SCHLAG, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, GOLANA, GOLANA FX, GRUND, GRUND FX, SCHMELZ, MIX, GENRA FX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `Camillowup/Genra-for-Vcv` (vorher `CamilloGF/genra-v3`, Account nicht mehr erreichbar)
 
 > Design-Leitfaden für neue Module (Aussehen, GENRA-Leiste, Leuchtsegmente, Follow, englische UI): **docs/DESIGN.md**
 
@@ -376,6 +376,22 @@ GENRA MONO: `g++ -std=c++17 -O2 test/test_mono.cpp -o tm && ./tm`
 - Pads per Drag & Drop in die Song-Liste: zwischen Zeilen einfügen (Linie), auf eine Zeile ersetzen (Rahmen), Undo. Ein belegtes Pad löst sein Antippen jetzt beim Loslassen aus (sonst wäre jeder Drag ein Antippen); leere Pads speichern weiter beim Drücken.
 - Song-Liste unten: Takte und Spieldauer aus GENRAs Tempo (`Genra::currentBpm`, auch für GENRAs MIDI-Export), z. B. „BAR 37 / 92 · 1:12 / 2:59“.
 - `test_ablauf`: jede Genre-Variante hat eine Form, Formlängen, `renderSong` (eine Zeile = Loop, Marker, stumme Drums, Notenbereich, Marker in der Datei).
+
+### 2.31.0 – GENRA BOX und ABLAUF MINI zurück, Presets nach Genre
+- **GENRA BOX** (`src/box/GenraBox.cpp`, 40 HP) auf 2.30 neu aufgesetzt: Stimmen DRUM-X, **GENRA MONO** (statt GRUND,
+  Makros CUTOFF/RESO), FUNKE, SCHMELZ. NEW und HOLD in der PATTERN-Sektion. SOUND Standard „Same genre“. Neu: MUTATE-
+  Regler, CLOCK OUT, DUCK (Kick drückt Bass und Pads), Mono-Summe auf L. `Genra`-Konstruktor nimmt zusätzliche
+  Params/Inputs/Outputs/Lights. `isGenraModel()` statt `== modelGenra` (Grid, Ablauf, Follow erkennen die Box).
+- **ABLAUF MINI** (`src/box/AblaufMini.cpp`, 16 HP): Spur-Taster Keep/Re-roll/Vary, neuer Taster **SONG** (MAKE SONG
+  mit Wiedergabe der Teile der Reihe nach, Stopp am Ende, Song im Patch, MIDI-Export des Songs).
+- **Presets nach Genre:** `src/GenreMatch.hpp` (ohne Rack, Namen kommen per `setGenreNames` aus `initGenres`): ganzer
+  Genre-Name = 2, Wort ≥ 3 Buchstaben = 1, Namen anderer Genres zählen nicht. `tools/genre_presets.py` schreibt
+  159 neue Presets (GRUND 39, FUNKE 39, SCHMELZ 39, MONO 42) zwischen Marker in die Preset-Tabellen und misst sie ein
+  (`calibrate`). Jedes Genre hat jetzt in allen vier mindestens einen Kandidaten (`test/test_match.cpp`).
+- **NEW picks presets** (GENRA, Rechtsklick: Off / All genres / Same genre, Standard Same genre): NEW wählt für folgende
+  Instrumente ein Preset (`Genra::presetRoll`, `follow::rollFollowerPresets`, UI-Thread). Follower-Option „Presets follow
+  GENRA“ (JSON `presets`). Host-API im Link-Hub (LINK_VERSION 2): GRUND, FUNKE, SCHMELZ, MONO, DRUM-X.
+- Tests: `test/test_box.cpp` (alle Box-Presets mit Makros 0/0,5/1, Match-Fälle), `test/test_match.cpp`; beide in CI.
 
 ### 2.30.0 – Genre-Gewohnheiten, Melodie-Phrasen, MUTATE um einen Anker, VARY, 5 Dark-Genres
 Ideen aus DARK-1 (Polystellarflow, GPL-3.0-only; Tabellen pro Genre als Daten übernommen, kein Code), JIANT FM

@@ -219,6 +219,28 @@ struct Genra : Module {
 	uint32_t anchorStamp = 0;            // patChanges after MUTATE's last change
 	std::atomic<bool> anchorBackReq{false}; // the menu: back to the anchor
 	bool melPhrase = true;               // new lead / sparse melodies as phrases (Params::melPhrase)
+	// ---- 2.31: NEW picks presets for the instruments that follow (Follow GENRA): 0 off, 1 all genres, 2 the track's genre
+	int presetMode = 2;
+	std::atomic<uint32_t> presetRoll[4]; // NEW (all, or one track) per GENRA track: the UI thread rolls the followers' presets
+	uint32_t presetSeen[4] = {};         // (UI thread)
+	bool presetSeenInit = false;
+	/** The mode for track t's followers (GENRA BOX: its SOUND button and per-track choice). */
+	virtual int presetModeFor(int t) { return presetMode; }
+	/** UI thread, every frame (the panel's step): the followers of a track NEW rolled load a new preset. */
+	void uiPresetRolls() {
+		for (int t = 0; t < 4; t++) {
+			uint32_t r = presetRoll[t].load();
+			if (!presetSeenInit)
+				presetSeen[t] = r;
+			if (r == presetSeen[t])
+				continue;
+			presetSeen[t] = r;
+			int mode = presetModeFor(t);
+			if (mode > 0)
+				follow::rollFollowerPresets(this, t, prof(clamp((int) pat.trackGenre[t], 0, numProfiles() - 1)).name, mode);
+		}
+		presetSeenInit = true;
+	}
 
 	// ---- genre per track: -1 = follows GENRE, otherwise a profile index (written by the UI thread)
 	std::atomic<int> trackSel[4];
@@ -507,7 +529,8 @@ struct Genra : Module {
 		genraRegistry().erase(this);
 	}
 
-	Genra() {
+	// extra: params / inputs / outputs / lights a module built on GENRA (GENRA BOX) appends after GENRA's own
+	explicit Genra(int extraParams = 0, int extraInputs = 0, int extraOutputs = 0, int extraLights = 0) {
 		// followers of the other plugin (GENRA Instruments) reach GENRA's outputs and tempo through the link hub
 		follow::addGenra(this, &followPub[0][0][0], OUTPUTS_LEN, &stepPeriod);
 		for (int v = 0; v < NUM_DRUMS; v++)
@@ -521,8 +544,9 @@ struct Genra : Module {
 			trackSel[t] = -1;
 			trackSelChanged[t] = false;
 			gridGen[t] = false;
+			presetRoll[t] = 0;
 		}
-		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
+		config(PARAMS_LEN + extraParams, INPUTS_LEN + extraInputs, OUTPUTS_LEN + extraOutputs, LIGHTS_LEN + extraLights);
 		std::vector<std::string> genreNames;
 		for (int g = 0; g < NUM_GENRES; g++)
 			genreNames.push_back(prof(profileOf(g, 0)).name);
@@ -1217,6 +1241,7 @@ struct Genra : Module {
 		genreCvSpan = NUM_GENRES;
 		mutateMode = mutateWhat = 0;
 		melPhrase = true;
+		presetMode = 2;
 		anchorValid = false;
 		for (int t = 0; t < 4; t++) {
 			trackSel[t] = -1;
@@ -1362,12 +1387,19 @@ struct Genra : Module {
 		if (regenRequested.load(std::memory_order_relaxed) && regenRequested.exchange(false)) {
 			pendingGenre = false;
 			doGenerate(true);
+			bool lk[NUM_TRACKS];
+			locks(lk);
+			for (int t = 0; t < 4; t++)
+				if (!lk[t])
+					presetRoll[t]++; // the followers of the tracks NEW made anew get a preset too (UI thread)
 		}
 		for (int t = 0; t < 4; t++) {
 			bool trig = tnewBtn[t].process(params[TNEW_PARAM + t].getValue() > 0.5f);
 			trig |= tnewTrig[t].process(inputs[TNEW_INPUT + t].getVoltage(), 0.1f, 1.f);
-			if (trig)
+			if (trig) {
 				newTrack(t); // an explicit per-track NEW works even when the track is locked
+				presetRoll[t]++;
+			}
 		}
 		{
 			bool trig = chordNewBtn.process(params[CHORDNEW_PARAM].getValue() > 0.5f);
@@ -1596,6 +1628,7 @@ struct Genra : Module {
 		json_object_set_new(root, "mutateMode", json_integer(mutateMode));
 		json_object_set_new(root, "mutateWhat", json_integer(mutateWhat));
 		json_object_set_new(root, "melPhrase", json_boolean(melPhrase));
+		json_object_set_new(root, "presetMode", json_integer(presetMode));
 		std::vector<uint8_t> blob = savePattern(pat);
 		json_object_set_new(root, "pattern3", json_string(string::toBase64(blob.data(), blob.size()).c_str()));
 		json_t* sel = json_array();
@@ -1657,6 +1690,9 @@ struct Genra : Module {
 		melPhrase = true;
 		if ((j = json_object_get(root, "melPhrase")))
 			melPhrase = json_boolean_value(j);
+		presetMode = 2;
+		if ((j = json_object_get(root, "presetMode")))
+			presetMode = clamp((int)json_integer_value(j), 0, 2);
 		anchorValid = false;
 		// "pattern3": version-independent format (v3+); "pattern": raw block of GENRA v2
 		json_t* jp = json_object_get(root, "pattern3");

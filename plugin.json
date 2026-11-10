@@ -1,7 +1,7 @@
 {
   "slug": "Genra",
   "name": "GENRA",
-  "version": "2.30.0",
+  "version": "2.31.0",
   "license": "GPL-3.0-only",
   "brand": "Genra",
   "author": "Bastian Ofner",
@@ -153,6 +153,27 @@
         "Chorus",
         "Phaser",
         "Reverb"
+      ]
+    },
+    {
+      "slug": "GenraBox",
+      "name": "GENRA BOX Groovebox",
+      "description": "GENRA's generator with four voices in one module (DRUM-X, GENRA MONO, FUNKE, SCHMELZ): genre per track, NEW picks a preset of the track's genre, MUTATE, DUCK, NOTES / GATES / DRUMS and clock outputs",
+      "tags": [
+        "Sequencer",
+        "Random",
+        "Drum",
+        "Synth voice",
+        "Polyphonic"
+      ]
+    },
+    {
+      "slug": "GenraAblaufMini",
+      "name": "ABLAUF MINI Song Parts",
+      "description": "Song parts on 16 pads for GENRA or GENRA BOX: ROOT, one button per part, re-roll / vary per track, MAKE SONG fills the pads with the genre's song form and plays it, MIDI export with markers",
+      "tags": [
+        "Sequencer",
+        "Random"
       ]
     }
   ]

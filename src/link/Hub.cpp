@@ -12,7 +12,7 @@
 namespace genralink {
 
 // what both plugins must agree on (a change of LINK_VERSION or of these layouts: no shared hub)
-static const uint64_t LINK_VERSION = 1;
+static const uint64_t LINK_VERSION = 2; // 2: Host's preset calls, Follower::presets (2.31)
 static uint64_t versionNow() {
 	return LINK_VERSION | (uint64_t) sizeof(follow::Ref) << 8 | (uint64_t) sizeof(follow::Host) << 20 |
 	       (uint64_t) sizeof(follow::Follower) << 36 | (uint64_t) sizeof(follow::Drive) << 52 |

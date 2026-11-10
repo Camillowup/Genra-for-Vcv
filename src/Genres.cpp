@@ -8,6 +8,7 @@
 #include <vector>
 #include <algorithm>
 #include <cstring>
+#include "GenreMatch.hpp"
 
 namespace genra {
 
@@ -1463,6 +1464,12 @@ void initGenres() {
 		while (G.nTemplates < 8 && G.templates[G.nTemplates])
 			G.nTemplates++;
 	}
+	// the genres' names for the preset match (src/GenreMatch.hpp: a multi-word genre name is that genre's own)
+	std::vector<std::string> names;
+	for (const Genre& G : PROFILES)
+		if (names.empty() || names.back() != G.name)
+			names.push_back(G.name);
+	genrematch::setGenreNames(names);
 }
 
 int numProfiles() { return (int)PROFILES.size(); }

@@ -205,6 +205,15 @@ struct Schmelz : Module, follow::Host {
 
 	int modTarget = 0; // MOD onto: 0 crescendo, 1 animate, 2 tone
 
+	// presets the followed GENRA may switch (NEW picks one for the genre; UI thread)
+	int hostPresetCount() override { return bank.count(); }
+	void hostPresetInfo(int i, char* name, int nl, char* style, int sl) override {
+		follow::putStr(name, nl, bank.nameOf(i).c_str());
+		follow::putStr(style, sl, i >= 0 && i < bank.f.count && bank.f.style ? bank.f.style(i) : "");
+	}
+	int hostPresetCurrent() override { return bank.preset; }
+	void hostPresetLoad(int i) override { bank.load(i); }
+
 	json_t* dataToJson() override {
 		json_t* root = json_object();
 		json_object_set_new(root, "modTarget", json_integer(modTarget));

@@ -74,7 +74,7 @@ struct GenraGrid : Module {
 	Genra* dockedGenra() {
 		Module* side[2] = {leftExpander.module, rightExpander.module};
 		for (Module* m : side)
-			if (m && m->model == modelGenra && (linkedId < 0 || m->id == linkedId))
+			if (m && isGenraModel(m->model) && (linkedId < 0 || m->id == linkedId))
 				return static_cast<Genra*>(m);
 		return nullptr;
 	}
@@ -163,12 +163,12 @@ struct GenraGrid : Module {
 	Genra* genra() {
 		if (linkedId >= 0) {
 			Module* m = APP->engine->getModule(linkedId);
-			if (m && m->model == modelGenra)
+			if (m && isGenraModel(m->model))
 				return static_cast<Genra*>(m);
 		}
 		Module* side[2] = {leftExpander.module, rightExpander.module};
 		for (Module* m : side)
-			if (m && m->model == modelGenra)
+			if (m && isGenraModel(m->model))
 				return static_cast<Genra*>(m);
 		return nullptr;
 	}
@@ -2474,7 +2474,7 @@ struct GenraGridWidget : ModuleWidget {
 		menu->addChild(createCheckMenuItem("Automatic (docked GENRA)", "", [=]() { return m->linkedId < 0; }, [=]() { m->linkedId = -1; }));
 		for (int64_t id : APP->engine->getModuleIds()) {
 			Module* mm = APP->engine->getModule(id);
-			if (!mm || mm->model != modelGenra)
+			if (!mm || !isGenraModel(mm->model))
 				continue;
 			Genra* gm = static_cast<Genra*>(mm);
 			std::string label = "GENRA · " + profileLabel(gm->curGenre) + string::f("  (#%lld)", (long long)id);

@@ -24,4 +24,6 @@ void init(Plugin* p) {
 	p->addModel(modelGenraMono);
 	p->addModel(modelFunke);
 	p->addModel(modelSchmelz);
+	p->addModel(modelGenraBox);
+	p->addModel(modelAblaufMini);
 }

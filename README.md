@@ -1,11 +1,13 @@
 # GENRA – Plugin für VCV Rack 2
 
-Ein generativer, genreabhängiger 4-Spur-Sequencer mit MIDI-Grid, Performance-Effekten und passenden Instrumenten, alle im selben Look. Plugin-Version **2.30.0**, 13 Module. Die Instrumente K-WASUB, GOLANA, UMLAUF, MONK, VOICE und ANIMAL sind seit 2.29.0 ein eigenes Plugin, **[GENRA Instruments](instruments/README.md)** (gleiche Marke im Browser, Ordner `instruments/`). Projektstand und Entscheidungen: `PROJEKT.md`.
+Ein generativer, genreabhängiger 4-Spur-Sequencer mit MIDI-Grid, Performance-Effekten und passenden Instrumenten, alle im selben Look. Plugin-Version **2.31.0**, 15 Module. Die Instrumente K-WASUB, GOLANA, UMLAUF, MONK, VOICE und ANIMAL sind seit 2.29.0 ein eigenes Plugin, **[GENRA Instruments](instruments/README.md)** (gleiche Marke im Browser, Ordner `instruments/`). Projektstand und Entscheidungen: `PROJEKT.md`.
 
 | Modul | Breite | Farbe | Was es ist |
 |---|---|---|---|
 | **GENRA** | 58 HP | – | Generativer Sequencer: 8 Drumspuren, Bass, Melodie, Pads, 64 Genres |
 | **ABLAUF** | 30 HP | gelb | Song-Arranger: 128 Pattern-Plätze mit Namen, Song-Liste, Varianten für Intro, Build, Drop … |
+| **GENRA BOX** | 40 HP | – | Groovebox: GENRAs Generator mit vier Stimmen (DRUM-X, GENRA MONO, FUNKE, SCHMELZ) |
+| **ABLAUF MINI** | 16 HP | gelb | Songteile auf 16 Pads für GENRA oder GENRA BOX, SONG macht einen ganzen Song |
 | **GENRA Grid** | 50 HP | – | MIDI-Grid für GENRA: Drum-Raster, Piano-Roll, Velocity/Chance |
 | **STOTTER** | 30 HP | – | Performance-Effekte: 16 Effekt-Pads, DJ-EQ und -Filter |
 | **GENRA MONO** | 28 HP | säuregrün | Monophoner Bass-Synth nach dem Moog Minitaur, mit Presets |
@@ -172,6 +174,60 @@ GENRA zeigt im Display den laufenden Song-Teil, seine MUTE-Lampen leuchten gedim
 
 ---
 
+## GENRA BOX: die Groovebox (ab 2.31.0)
+
+![GENRA BOX](docs/entwuerfe/genra_box.png)
+
+GENRAs Generator und vier Stimmen in einem Modul (40 HP). Die Box ist intern ein GENRA: GRID, ABLAUF, ABLAUF MINI,
+MIDI-Export und Follow GENRA funktionieren mit ihr wie mit GENRA. Spezifikation: `docs/GENRA_BOX.md`.
+
+- **Spalten** in GENRAs Reihenfolge: **DRUM-X** (Kits), **GENRA MONO** (Bass), **FUNKE** (Melodie), **SCHMELZ** (Pads).
+- **Genre:** Feld im Kopf (Familie › Genre › Variante). Pro Spur unter PATTERN ein eigenes Genre-Feld („= MAIN“ folgt
+  dem Kopf, sonst eigenes Genre, Feld farbig mit „OWN“). Wechsel greift am Taktanfang.
+- **BPM im Display:** ziehen oder Mausrad, Doppelklick = typisches Tempo des Genres, Rechtsklick = eintippen. Mit Kabel
+  in CLOCK zeigt es das gemessene Tempo und „EXT“.
+- **Generator:** KEY, COLOR, SWING, LENGTH (1/2/4/8 Takte), **MUTATE** (wie bei GENRA: verändert das Pattern um seinen
+  Anker, Modus und Umfang im Rechtsklick-Menü, „Back to the anchor“), NEW ALL, LOCK, RUN, SOUND.
+- **PATTERN pro Spur:** Genre-Feld, DENSITY, zweiter Regler (FILL · MOVE · VOICING · RANGE), **NEW** (würfelt die Spur
+  neu) und **HOLD** (das Preset bleibt beim Würfeln).
+- **SOUND pro Spur:** Preset-Feld (Klick = Liste nach Stil, Mausrad blättert), zwei Makros (DRUM-X TUNE/DECAY,
+  MONO CUTOFF/RESO, FUNKE BRIGHT/SPACE, SCHMELZ MOTION/SPACE; Mitte = Preset wie es ist), LEVEL (75 % = 0 dB), MUTE.
+- **SOUND-Taster:** an = NEW ALL bzw. NEW einer Spur würfelt auch das Preset (nicht bei HOLD). Standard ist **Same
+  genre**: ein Preset, dessen Stil zum Genre der Spur passt (Hip-Hop auf der Bass-Spur + NEW = neue Bass-Noten und ein
+  Hip-Hop-Bass). Umstellbar per Rechtsklick aufs Panel (All genres / Same genre) oder pro Spur aufs Preset-Feld.
+- **Grosse Instrumente:** Folgt ein Instrument einer Spur der Box (Rechtsklick › Follow GENRA › GENRA BOX), schweigt die
+  eigene Stimme dieser Spur; das Preset-Feld zeigt „› NAME“ und die Presets des grossen Instruments. NEW mit SOUND
+  würfelt auch dessen Preset (über den Link-Hub, auch zwischen den beiden Plugins).
+- **DUCK:** die Kick drückt Bass und Pads (3 ms an, 150 ms zurück), 0 = aus.
+- **Ausgänge:** **CLOCK** (Auflösung im Rechtsklick-Menü › Clock output), NOTES (poly 6: Bass, Melodie, 4 Pad-Stimmen),
+  GATES (gleiche Belegung), DRUMS (poly 8 wie GENRA), Spur-Ausgänge stereo (ein gestecktes Kabel nimmt die Spur aus der
+  Summe), MASTER, Summe L/R (weich begrenzt). Steckt nur L (bei Summe oder Spur), kommt dort die Mono-Summe.
+- **MIDI:** Rechtsklick › Export (alle Spuren oder eine), Import.
+
+## ABLAUF MINI: Songteile auf 16 Pads (ab 2.31.0)
+
+![ABLAUF MINI](docs/entwuerfe/ablauf_mini.png)
+
+16 HP, verbindet sich mit GENRA oder GENRA BOX (angedockt oder Rechtsklick › Connect to…, LINK leuchtet). Pro GENRA
+treibt immer nur ein ABLAUF (gross oder MINI). Die Pads speichern nur die Noten (Pattern, Spur-Genres, Länge), keine Klänge.
+
+- **PARTS:** INTRO · VERSE · BUILD · DROP · BREAK · OUTRO wählen, welcher Teil beim nächsten leeren Pad entsteht.
+- **Pads (4 × 4):** 01 ist ROOT. Leeres Pad antippen: ist ROOT leer, wird zuerst gespeichert, was gerade spielt; dann
+  macht ABLAUF MINI aus ROOT den gewählten Teil und spielt ihn. Belegtes Pad antippen = springt am Ende des Patterns
+  dorthin. Weiss umrandet: läuft bzw. als Nächstes dran.
+- **DR · BA · ME · PA** schalten reihum **Keep → Re-roll → Vary** (wie beim grossen ABLAUF): Keep = die Spur bleibt
+  exakt wie in ROOT (dunkel), Re-roll = neu gewürfelt (leuchtet), Vary = gibt es den Teil schon, entsteht die neue
+  Variante aus der letzten, ein wenig verändert (atmet); sonst wie Re-roll.
+- **SONG** (= MAKE SONG): füllt die Pads 02–16 mit der Songform des Genres (aus ROOT, nach DR · BA · ME · PA; BUILD so
+  lang wie das Genre ihn mag) und spielt den Song der Reihe nach, jeder Teil über seine Länge, am Ende stoppt er (END).
+  Ist ROOT leer, wird zuerst gespeichert, was spielt. Nochmal SONG = Stopp. Ein Pad von Hand oder NEXT verlässt den
+  Song, RESET startet ihn von vorn. UNDO holt die Pads von vorher zurück. Das Display zeigt „SONG 3/9 › DROP 1“.
+- **UNDO** (32 Schritte), **CLEAR** und dann das Pad (Rechtsklick aufs Pad: Clear pad).
+- **NEXT** (Trigger): das nächste belegte Pad, **RESET**: zurück zu ROOT – beides am Ende des Patterns.
+  **DROP** (Gate, solange ein DROP-Pad läuft), **END** (Trigger am Pattern- bzw. Song-Ende).
+- **MIDI:** Rechtsklick aufs Pad › Export pad, Rechtsklick aufs Modul › Export all pads bzw. Export the song (ein Marker
+  pro Teil).
+
 ## STOTTER: Performance-Effekte
 
 ![STOTTER](docs/entwuerfe/stotter.png)
@@ -201,6 +257,14 @@ Alle Instrumente mit GENRA-Leiste (MONO, FUNKE, GRUND, SCHMELZ, DRUM-X, SCHLAG u
 
 - **Die Leiste zeigt es an:** Die Linie über den Buchsen ist gedimmt gedruckt. Kommt ein Signal von GENRA, leuchtet das Segment über dieser Buchse in der Spurfarbe (CLOCK/RESET weiss) und flackert bei jeder Note kurz auf.
 - **Ein Kabel hat immer Vorrang:** Steckt ein Kabel in einer Buchse, gilt das Kabel, das Segment darüber geht aus. Alle Buchsen bleiben, andere Sequenzer und Module funktionieren wie bisher.
+
+**Presets nach Genre (ab 2.31.0):** NEW bei GENRA (NEW ALL oder NEW einer Spur) wählt für die Instrumente, die der Spur
+folgen, ein Preset passend zum Genre (Rechtsklick auf GENRA › **NEW picks presets**: Off / All genres / **Same genre**,
+Standard Same genre = das Genre der Spur). Geht mit GENRA MONO, GRUND, FUNKE, SCHMELZ und DRUM-X (Kits, ohne Stil:
+immer alle). Abschaltbar am Instrument: Follow GENRA › „Presets follow GENRA“. GRUND, FUNKE, SCHMELZ und GENRA MONO
+haben dafür seit 2.31.0 für jedes Genre mindestens ein Preset (rund 160 neue, eingemessen wie die anderen). Der Stil
+wird so verglichen: zuerst der ganze Genre-Name (z. B. „Lo-Fi“, „2-Step“), dann einzelne Wörter, aber nie der Name eines
+anderen Genres („Witch House“ ist kein House).
 
 **MIX:** **Rechtsklick › CH 1–4 input from** › Off, **Auto** oder ein Instrument aus dem Patch (auch STOTTER). „Auto“ nimmt das Instrument, das der Spur des Kanals folgt (CH 1 Drums, CH 2 Bass, CH 3 Melody, CH 4 Pad). Der Name der Quelle steht dann im Kanal statt „CH n“; steckt ein Kabel in IN L/R, wird er dunkel mit „CABLE“. **DUCK from › GENRA KICK** lässt DUCK ohne Kabel der Kick folgen. Die Verbindung klingt wie ein Kabel (auch ein Kabel verzögert in Rack um ein Sample); Effekte dazwischen (z. B. STOTTER) werden wie gewohnt verkabelt oder im MIX als Quelle gewählt. **RETURN A/B from › GENRA FX** (Grundeinstellung „Auto“) holt die Ausgänge von GENRA FX ohne Kabel in die Returns; über RET und SND leuchten dann eisblaue Segmente, über den Returns steht „‹ GENRA FX“.
 

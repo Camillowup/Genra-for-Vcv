@@ -77,6 +77,7 @@ struct Follower {
 	std::atomic<int> track{-1};      // -1 off, else Track
 	std::atomic<int64_t> genraId{-1}; // -1: automatic (the only / first GENRA)
 	Ref genra;
+	std::atomic<bool> presets{true}; // NEW on the GENRA (or GENRA BOX) may load a preset for the track's genre (2.31)
 	float uiTimer = 0.f;
 	bool anyDriven = false; // some jack was fed last sample (then process() still has to let go of it)
 
@@ -109,11 +110,35 @@ struct Host {
 	/** The R out counts as patched while MIX takes it (the module then plays in stereo, as with two cables). */
 	bool pulled(int64_t frame) const { return frame - pulledAt.load(std::memory_order_relaxed) < 4096; }
 	virtual ~Host() {}
+	// ---- presets the GENRA it follows may switch (NEW picks one for the genre; UI thread, 2.31). Plain buffers, no
+	// std::string: the host may live in the other plugin (each has its own C++ runtime).
+	virtual int hostPresetCount() { return 0; }
+	/** Preset i's name and style (as "HOUSE · GARAGE"; "" for a user preset) into the buffers. */
+	virtual void hostPresetInfo(int i, char* name, int nameLen, char* style, int styleLen) {
+		if (nameLen > 0)
+			name[0] = 0;
+		if (styleLen > 0)
+			style[0] = 0;
+	}
+	virtual int hostPresetCurrent() { return -1; }
+	virtual void hostPresetLoad(int i) {}
 };
+/** Copy s into a host buffer (hostPresetInfo). */
+inline void putStr(char* dst, int len, const char* s) {
+	if (len <= 0)
+		return;
+	int i = 0;
+	for (; s && s[i] && i < len - 1; i++)
+		dst[i] = s[i];
+	dst[i] = 0;
+}
 /** The host behind a module (also one of the other plugin, once its panel has made it known: knownHost()). */
 Host* host(Module* m);
 /** UI thread, from the module's panel: make the host known to the other plugin (MIX there takes its audio). */
 void knownHost(Module* m);
+/** UI thread: the instruments that follow `genra`'s track (GENRA's track numbering: 0 drums, 1 bass, 2 melody, 3 pads)
+ * and allow it load a new preset. mode 1: all genres, 2: the genre's (genreName; none fits: all). Returns how many. */
+int rollFollowerPresets(Module* genra, int genraTrack, const char* genreName, int mode);
 
 // ---------------------------------------------------------------- panel and menu
 /** The lit strip: one segment over each jack the link feeds. jacks: (centre in px, index into fol.binds). */

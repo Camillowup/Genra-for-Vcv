@@ -274,6 +274,15 @@ struct DrumX : Module, follow::Host {
 		kitReq = 0;
 	}
 
+	// kits the followed GENRA may switch (NEW: kits have no style, any other one; UI thread)
+	int hostPresetCount() override { return mix.api() ? (int) mix.api()->nkits() : 0; }
+	void hostPresetInfo(int i, char* name, int nl, char* style, int sl) override {
+		follow::putStr(name, nl, mix.api() ? mix.api()->kit_name((uint32_t) i) : "");
+		follow::putStr(style, sl, "");
+	}
+	int hostPresetCurrent() override { return shownKit.load(); }
+	void hostPresetLoad(int i) override { kitReq = i; }
+
 	json_t* dataToJson() override {
 		json_t* r = json_object();
 		json_object_set_new(r, "kit", json_integer(kit));
