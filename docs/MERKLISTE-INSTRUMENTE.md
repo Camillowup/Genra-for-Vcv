@@ -45,5 +45,13 @@ Gestrichen: STRING und ADD.
   - Alte VOICE-Patches müssen weiter laden: Params/Buchsen nur hinten anhängen.
 - **MIAOU** (github.com/pjac1810/miaou): Spielzeug-Klänge (Piano, Glocken, Orgel, Banjo) und eine Miau-Stimme über
   wandernde Formanten, Spielzeug-Lautsprecher.
-- **PALEOTONE** (github.com/fantasmoslam/Paleotone): SAURUS-Kreaturenrufe (20 Kreaturen, CALL KIT). Daneben gibt es dort
-  ROAR (Drehleier aus GHOULBOX) für Drones.
+- **SAURUS** (aus PALEOTONE, github.com/fantasmoslam/Paleotone, `firmware/src/eng_saurus.c`): **eigenes Modul**, nur die
+  Kreaturenrufe. 20 Kreaturen per Dropdown plus KIT (alle Rufe auf den Tasten), ENGINE: SIZE, SWOOP, LEN, GROWL, BRTH,
+  MOUTH, WILD; Eingang CALL. Farbvorschlag Vulkanrot `#d1503f`. ROAR aus PALEOTONE gehört nicht dazu (ist die Drehleier).
+- **Drehleier-Modul** (Name offen) aus ESTAMPIE (github.com/ocean/estampie, Mittelalter-Ableger von GHOULBOX):
+  - Drehleier-Engine GURDY (`firmware/src/eng_gurdy.c`, = ROAR in PALEOTONE): Melodiesaite, Bordun, Quinte, Raddruck,
+    Schnarren (RASP), Puls; Regler DRN, DLVL, 5TH, BRTH, RASP, PULS, BODY, WOBL. Bordun darf in Pausen weiterklingen (RING).
+  - Werks-Klänge daraus: Hurdy Gurdy, Drone Wheel, Dance Gurdy, Trompette, Vielle, **Bagpipe (Dudelsack)**, Trotto.
+  - **Schalmei:** in ESTAMPIE ein Preset der 3-Oszillator-Engine (TRIO, „a nasal reed“), nicht der Drehleier. Für das
+    Modul als zweite kleine Engine (REED) mitnehmen.
+  - Mittelalterliche Stimmungen (pythagoreisch, mitteltönig, rein) wie in ESTAMPIE.
