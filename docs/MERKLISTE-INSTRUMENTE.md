@@ -33,7 +33,7 @@ Gestrichen: STRING und ADD.
 
 ## Weitere Kandidaten (Panel-Entwürfe folgen)
 
-- **FuMi-1** (github.com/cartesive/fumi-1): Shigin-Begleitung nach dem Suiko ST-50, Koto und weitere Klänge
+- **FUMI** (FuMi-1, github.com/cartesive/fumi-1; Farbvorschlag Indigo `#6f7cf5`): Shigin-Begleitung nach dem Suiko ST-50, Koto und weitere Klänge
   (6-Operator-FM), reine Stimmung (純正律) oder gleichstufig, 本数 als Tonart, 余韻, Vibrato, Triller, Verzierungen.
 - **SPELLBOX** (github.com/pjac1810/spellbox): LPC-Sprachstimme im Stil von Speak & Spell (8 kHz), SING, LETTER SYNTH,
   SPEAK, Circuit-Bending-Regler. **Entschieden: kein eigenes Modul, sondern in VOICE eingebaut.**
@@ -43,15 +43,18 @@ Gestrichen: STRING und ADD.
   - Die Bending-Regler **CLOCK, CORRUPT, STUTTER** (evtl. auch SPEAKR, BITS) kommen in einen kleinen Expander
     **VOICE BEND** und wirken nur bei SPELL.
   - Alte VOICE-Patches müssen weiter laden: Params/Buchsen nur hinten anhängen.
-- **MIAOU** (github.com/pjac1810/miaou): Spielzeug-Klänge (Piano, Glocken, Orgel, Banjo) und eine Miau-Stimme über
+- **MIAOU** (github.com/pjac1810/miaou; Farbvorschlag Flieder `#e58cf0`; Rhythmen/Lieder/Recorder weglassen, PAW als Taster + Gate): Spielzeug-Klänge (Piano, Glocken, Orgel, Banjo) und eine Miau-Stimme über
   wandernde Formanten, Spielzeug-Lautsprecher.
 - **SAURUS** (aus PALEOTONE, github.com/fantasmoslam/Paleotone, `firmware/src/eng_saurus.c`): **eigenes Modul**, nur die
   Kreaturenrufe. 20 Kreaturen per Dropdown plus KIT (alle Rufe auf den Tasten), ENGINE: SIZE, SWOOP, LEN, GROWL, BRTH,
   MOUTH, WILD; Eingang CALL. Farbvorschlag Vulkanrot `#d1503f`. ROAR aus PALEOTONE gehört nicht dazu (ist die Drehleier).
-- **Drehleier-Modul** (Name offen) aus ESTAMPIE (github.com/ocean/estampie, Mittelalter-Ableger von GHOULBOX):
+- **Drehleier-Modul**, Name: eigener (Vorschlag **KURBEL**, Alternativen BORDUN, SCHNARR; Farbvorschlag Moosgrün `#8fa63a`), aus ESTAMPIE (github.com/ocean/estampie, Mittelalter-Ableger von GHOULBOX):
   - Drehleier-Engine GURDY (`firmware/src/eng_gurdy.c`, = ROAR in PALEOTONE): Melodiesaite, Bordun, Quinte, Raddruck,
     Schnarren (RASP), Puls; Regler DRN, DLVL, 5TH, BRTH, RASP, PULS, BODY, WOBL. Bordun darf in Pausen weiterklingen (RING).
   - Werks-Klänge daraus: Hurdy Gurdy, Drone Wheel, Dance Gurdy, Trompette, Vielle, **Bagpipe (Dudelsack)**, Trotto.
   - **Schalmei:** in ESTAMPIE ein Preset der 3-Oszillator-Engine (TRIO, „a nasal reed“), nicht der Drehleier. Für das
     Modul als zweite kleine Engine (REED) mitnehmen.
   - Mittelalterliche Stimmungen (pythagoreisch, mitteltönig, rein) wie in ESTAMPIE.
+
+Panel-Entwürfe aller geplanten Module wurden am 10. Nov. 2026 im Chat gezeigt (MATH, SWARM, VOICE mit SPELL + VOICE BEND,
+FUMI, MIAOU, SAURUS, KURBEL). Noch nicht freigegeben.
