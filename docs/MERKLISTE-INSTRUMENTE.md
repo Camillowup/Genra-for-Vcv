@@ -70,7 +70,7 @@ Gestrichen: STRING und ADD.
   - **Kurbel:** Geschwindigkeit als Wert (kein Pulszähler): CRANK-Regler wie ein kleines Tempomodul (Anzeige in
     Umdrehungen pro Minute) plus CRANK-CV dazu addiert; ein schneller Ruck (plötzlicher starker Anstieg) gibt wie in
     GHOULBOX automatisch einen Stoss. Gilt bei COUP = CRANK; sonst dreht das Rad gleichmässig, Stösse im CLOCK-Takt.
-  - Schalmei (REED) kommt mit rein. Kommt ins Testplugin GENRA Test (Repo testmodulesvcv), wenn er „bauen“ sagt.
+  - Schalmei (REED) kommt mit rein. **Status:** gebaut als GENRA Test 2.1.0 (Repo testmodulesvcv, Modul-Slug Kurbel), 10. Nov. 2026, wird getestet. Quelle: ESTAMPIE Commit 6c4f0c7.
 
 Panel-Entwürfe aller geplanten Module wurden am 10. Nov. 2026 im Chat gezeigt (MATH, SWARM, VOICE mit SPELL + VOICE BEND,
 FUMI, MIAOU, SAURUS, KURBEL). Noch nicht freigegeben.
