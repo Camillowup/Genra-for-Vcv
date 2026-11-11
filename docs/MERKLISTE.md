@@ -12,8 +12,17 @@ Quellen sind FM-1-Firmwares, alle unter GPL-3.0 (Liste: thefirmwarehub.com, gith
 
 Gebaut und in Rack zu testen (Stand GENRA Test 2.5.0, 11. Nov. 2026); wandern später nach `instruments/` (dann
 gleichzeitig aus GENRA Test entfernen): **MATH**, **KURBEL**, **SWARM** (Details unten), **LIED** (Textsänger auf
-eSpeak NG, 2.3.0), **CANTA** (2.4.0), **MIAOU**, **SAURUS** und **FUMI** (alle drei 2.5.0). Beschreibung aller Module
+eSpeak NG, 2.3.0), **CANTA** (2.4.0), **MIAOU**, **SAURUS** und **FUMI** (alle drei 2.5.0), **KESSEL** mit Expander
+**KESSEL FX** (2.6.0, Drum-Modul mit der Klang-Engine der LXR-Firmware von Erica Synths). Beschreibung aller Module
 im README von testmodulesvcv.
+
+## Umstellung aller Panels auf den Look der Vorlagen (11. Nov. 2026)
+
+Vorlagen: GENRA MONO, GRUND, FUNKE, SCHMELZ (Regeln in `docs/DESIGN.md` › Aussehen). Muster: MATH (22 HP), freigegeben.
+Jedes Panel wird zuerst als Entwurf gezeigt; gebaut wird erst nach Freigabe und „bauen“.
+- GENRA Test: CANTA, FUMI, KURBEL, LIED, MATH, MIAOU, SAURUS, SWARM.
+- GENRA Instruments: GOLANA, GOLANA FX, VOICE, VOICE BEND, ANIMAL, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, MONK.
+- GENRA: DRUM-X.
 
 ## Aus JIANT FM (github.com/juanjiant-bit/JIANT, Branch `codex/swarm`)
 

@@ -50,6 +50,17 @@ bedient wie die anderen. Stand: GENRA und GENRA Instruments 2.29.1.
 - **Ausgänge** auf farbigen Platten (Akzent auf der Platte gemischt), Eingänge ohne Platte; Ein- und Ausgänge farblich
   klar getrennt. Audio-Ausgänge L/R unten rechts.
 - Breite nach Inhalt, so schmal wie sinnvoll.
+- **Vorlagen für alle Klangmodule (seit 11. Nov. 2026):** GENRA MONO, GRUND, FUNKE und SCHMELZ. Jedes Instrument
+  (auch in GENRA Instruments und GENRA Test) sieht so aus wie sie: Preset-Feld im Kopf (statt ◀ PRESET ▶), das
+  Display über die volle Breite, Sektionen mit Farblinie oben und Titel, der wichtigste Regler einer Sektion gross
+  (`GLargeKnob`) mit gepunktetem Ring in der Akzentfarbe, die anderen mit grauem gepunktetem Ring; Werte stehen im
+  Display, nicht unter den Reglern; alle Buchsen unten in zwei Reihen (oben die GENRA-Leiste und die CV-Eingänge,
+  unten die Ausgänge auf farbigen Platten). Bestehende Module werden nach und nach umgestellt (`docs/MERKLISTE.md`).
+- **Tasten gross genug:** Mindestens so gross wie im MATH-Muster (Taster Ø 9,2 mm, Spur-/Auswahltasten etwa
+  14,6 × 6,6 mm), Schrift in der Taste. **Schriften dürfen sich nie überlappen** (die Panel-Skripte prüfen das).
+- **So schmal wie möglich**, ohne dass es eng wird (MATH-Muster: 22 HP statt 26).
+- **Alle Dropdown-Felder** (Presets, Modelle, Filtertypen, Effekte …) wechseln auch per **Mausrad**: Maus drüber,
+  drehen.
 - **Expander** (z. B. GRUND FX): eine Sektion pro Reihe, kleine Regler; die CV-Buchsen sitzen **in ihrer Sektion** rechts
   auf einem dunklen Feld (keine Buchsenleiste unten). Ein/Aus-Taster links oben in jeder Sektion, LINK-Anzeige im Kopf.
   Instrumente selbst behalten die GENRA-Leiste unten.
