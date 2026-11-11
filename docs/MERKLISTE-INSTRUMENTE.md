@@ -95,8 +95,13 @@ FUMI, MIAOU, SAURUS, KURBEL). Noch nicht freigegeben.
 - **Cutoff der Presets** etwas höher (+10–15 %), Lautstärke danach neu einmessen: nur die Presets, die der Nutzer noch
   auflistet (Liste folgt).
 
-### ABLAUF MINI (GENRA-Plugin)
-- Offene Frage: Sprung auf ein belegtes Pad am Ende des Patterns (heute) oder wie beim grossen ABLAUF am nächsten Takt?
+### ABLAUF und ABLAUF MINI (GENRA-Plugin)
+- **Pad-Sprung am Ende des Patterns** (entschieden 11. Nov. 2026), bei beiden gleich: ein angetipptes Pad, eine neue
+  Variante (Teil-Taster), NEXT und PATT-CV im Pattern-Modus springen erst, wenn das laufende Pattern zu Ende ist (wie
+  ABLAUF MINI schon heute; grosser ABLAUF bisher am nächsten Takt, `cuePattern` mit `barPub + 1`). Geprüft: passt zu
+  den Breaks, eher besser – im Pattern-Modus läuft der Verlauf eines Teils (Pickup im Break, Roll im Build) über den
+  Loop; beim Sprung am nächsten Takt beginnt das neue Pad mitten in seinem Loop, am Pattern-Ende von vorn. Sprünge in
+  der Song-Liste (Zeilen, NEXT im Song, ROW-CV) bleiben wie sie sind.
 
 ### KURBEL (GENRA Test, Repo testmodulesvcv)
 Rückmeldung zu 2.1.0: ohne Gate kein Ton (erwartet beim Kurbeln), mit Follow GENRA nur sehr leise (nicht nachgestellt;
