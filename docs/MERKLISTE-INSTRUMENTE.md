@@ -82,6 +82,11 @@ FUMI, MIAOU, SAURUS, KURBEL). Noch nicht freigegeben.
   Zufallswert **zwischen 10 und 100 %** und wird damit neu ausgewürfelt; beliebig oft hintereinander drückbar, UNDO
   holt den vorherigen Stand zurück.
 
+### GENRA (Hauptmodul)
+- **NEW ALL** (Stand 11. Nov. 2026): setzt zuerst die Genre-Felder von Drums, Bass, Melodie und Pads wieder auf das
+  Hauptgenre (Global) zurück und würfelt dann neu. Gesperrte Spuren (LOCK) bleiben, wie sie sind; eine Spur mit Kabel
+  am Genre-CV-Eingang folgt weiter dem CV.
+
 ### KURBEL (GENRA Test, Repo testmodulesvcv)
 Rückmeldung zu 2.1.0: ohne Gate kein Ton (erwartet beim Kurbeln), mit Follow GENRA nur sehr leise (nicht nachgestellt;
 der Kern liefert in Tests vollen Pegel; Verdacht COUP CRANK mit zu wenig Kurbel).
