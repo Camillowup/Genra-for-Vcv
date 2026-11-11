@@ -80,12 +80,12 @@ FUMI, MIAOU, SAURUS, KURBEL). Noch nicht freigegeben.
 ### SCHLAG (GENRA-Plugin)
 - **RND ALL** (Stand 11. Nov. 2026): statt alle 8 Spuren auf 50 % bekommt bei jedem Druck jede Spur ihren eigenen
   Zufallswert **zwischen 10 und 100 %** und wird damit neu ausgewürfelt; beliebig oft hintereinander drückbar, UNDO
-  holt den vorherigen Stand zurück.
+  holt den vorherigen Stand zurück. **Gebaut in 2.32.0.**
 
 ### GENRA (Hauptmodul)
 - **NEW ALL** (Stand 11. Nov. 2026): setzt zuerst die Genre-Felder von Drums, Bass, Melodie und Pads wieder auf das
   Hauptgenre (Global) zurück und würfelt dann neu. Gesperrte Spuren (LOCK) bleiben, wie sie sind; eine Spur mit Kabel
-  am Genre-CV-Eingang folgt weiter dem CV.
+  am Genre-CV-Eingang folgt weiter dem CV. **Gebaut in 2.32.0.**
 
 ### KURBEL (GENRA Test, Repo testmodulesvcv)
 Rückmeldung zu 2.1.0: ohne Gate kein Ton (erwartet beim Kurbeln), mit Follow GENRA nur sehr leise (nicht nachgestellt;

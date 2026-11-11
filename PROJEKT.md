@@ -1,6 +1,6 @@
 # GENRA – Projektstand
 
-**Stand:** 10. November 2026 · **Plugin 2.31.1: 24 Module, Windows + macOS (arm64/x64, ungetestet)** (GENRA, GRID, ABLAUF, GENRA BOX, ABLAUF MINI, SCHLAG, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, GOLANA, GOLANA FX, GRUND, GRUND FX, SCHMELZ, MIX, GENRA FX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `Camillowup/Genra-for-Vcv` (vorher `CamilloGF/genra-v3`, Account nicht mehr erreichbar)
+**Stand:** 11. November 2026 · **Plugin 2.32.0: 24 Module, Windows + macOS (arm64/x64, ungetestet)** (GENRA, GRID, ABLAUF, GENRA BOX, ABLAUF MINI, SCHLAG, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, GOLANA, GOLANA FX, GRUND, GRUND FX, SCHMELZ, MIX, GENRA FX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `Camillowup/Genra-for-Vcv` (vorher `CamilloGF/genra-v3`, Account nicht mehr erreichbar)
 
 > Design-Leitfaden für neue Module (Aussehen, GENRA-Leiste, Leuchtsegmente, Follow, englische UI): **docs/DESIGN.md**
 
@@ -376,6 +376,14 @@ GENRA MONO: `g++ -std=c++17 -O2 test/test_mono.cpp -o tm && ./tm`
 - Pads per Drag & Drop in die Song-Liste: zwischen Zeilen einfügen (Linie), auf eine Zeile ersetzen (Rahmen), Undo. Ein belegtes Pad löst sein Antippen jetzt beim Loslassen aus (sonst wäre jeder Drag ein Antippen); leere Pads speichern weiter beim Drücken.
 - Song-Liste unten: Takte und Spieldauer aus GENRAs Tempo (`Genra::currentBpm`, auch für GENRAs MIDI-Export), z. B. „BAR 37 / 92 · 1:12 / 2:59“.
 - `test_ablauf`: jede Genre-Variante hat eine Form, Formlängen, `renderSong` (eine Zeile = Loop, Marker, stumme Drums, Notenbereich, Marker in der Datei).
+
+### 2.32.0 – NEW ALL zurück aufs Hauptgenre, SCHLAG RND ALL 10–100 %
+- **GENRA NEW ALL** (Taster, NEW-Eingang, Randomize): setzt zuerst die Genre-Felder der ungesperrten Spuren auf das
+  Hauptgenre (Global) zurück (`resetTrackGenres`), dann wird gewürfelt. Gesperrte Spuren behalten ihr Genre, eine Spur
+  mit Kabel am Genre-CV folgt weiter dem CV. Ohne zweites Würfeln am nächsten Takt (`ownPrev`/`lastTarget` gleich mit).
+- **SCHLAG RND ALL:** jede Spur bekommt bei jedem Druck ihren eigenen RANDOM-Wert zwischen 10 und 100 % (vorher alle
+  50 %) und wird damit neu ausgewürfelt; beliebig oft hintereinander, UNDO wie bisher.
+- GENRA Instruments ebenfalls 2.32.0 (unverändert, gleicher Release).
 
 ### 2.31.1 – ABLAUF MINI nach den Regeln des grossen ABLAUF, Mac-Builds
 - **ABLAUF MINI** folgt ABLAUF (der Host gibt die Regeln vor): Teil-Taster = sofort neue Variante aufs nächste freie Pad

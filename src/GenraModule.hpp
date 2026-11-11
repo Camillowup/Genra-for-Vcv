@@ -739,6 +739,21 @@ struct Genra : Module {
 		trackSelChanged[t] = true;
 	}
 
+	/** NEW ALL: the unlocked tracks' genre fields back to the main GENRE (Global) first. A locked track keeps its
+	 * genre; a track with a cable at its genre CV input keeps following the CV. */
+	void resetTrackGenres() {
+		bool lk[NUM_TRACKS];
+		locks(lk);
+		for (int t = 0; t < 4; t++) {
+			if (lk[t] || trackHasCv(t) || trackSel[t] < 0)
+				continue;
+			trackSel[t] = -1;
+			trackSelChanged[t] = false;            // (made anew right now: no second roll at the next bar)
+			ownPrev[t] = false;
+			lastTarget[t] = trackTarget(t);
+		}
+	}
+
 	// all: NEW ALL (every unlocked track in its own genre); otherwise a global genre change
 	// (only unlocked tracks that follow GENRE)
 	void doGenerate(bool all) {
@@ -1386,6 +1401,7 @@ struct Genra : Module {
 		readChordInput();
 		if (regenRequested.load(std::memory_order_relaxed) && regenRequested.exchange(false)) {
 			pendingGenre = false;
+			resetTrackGenres();
 			doGenerate(true);
 			bool lk[NUM_TRACKS];
 			locks(lk);

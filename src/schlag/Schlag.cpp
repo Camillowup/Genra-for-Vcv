@@ -420,7 +420,7 @@ struct Schlag : Module, follow::Host {
 		configSwitch(CHOKE_PARAM, 0.f, 1.f, 1.f, "O.HAT CHOKE: the closed hat cuts the open hat", {"Off", "On"});
 		configParam(ACCENT_PARAM, 0.f, 1.f, 0.5f, "Accent (how much louder an accented hit is)", " %", 0.f, 100.f);
 		configParam(LEVEL_PARAM, 0.f, 1.f, 48.f / 54.f, "Level", " dB", 0.f, 54.f, -48.f);
-		configButton(RNDALL_PARAM, "RND ALL: every track to 50 % and rolled");
+		configButton(RNDALL_PARAM, "RND ALL: every track its own random amount (10-100 %) and rolled; press again for another");
 		configButton(UNDO_PARAM, "UNDO: the last roll / BASIC");
 		configButton(BASICALL_PARAM, "BASIC: every track back to its base sample");
 		configButton(PRINT_PARAM, "PRINT › ABLAUF: keep the rolled samples with the ABLAUF pad GENRA plays");
@@ -1017,15 +1017,16 @@ struct Schlag : Module, follow::Host {
 		snapshot(a->after);
 		APP->history->push(a);
 	}
-	/** RND ALL: every track to 50 % and rolled (a track at 0 % would otherwise stay on its base sample). */
+	/** RND ALL: every track its own random amount between 10 and 100 % and rolled with it; each press anew (10 % at
+	 * least: a track at 0 % would stay on its base sample). */
 	void rollAll() {
 		Snap before;
 		snapshot(before);
 		for (int t = 0; t < NT; t++)
-			params[RAND_PARAM + t].setValue(0.5f);
+			params[RAND_PARAM + t].setValue(0.1f + 0.9f * random::uniform());
 		roll(0xffu, "SCHLAG RND ALL", U_NONE);
 		pushUndo(before, "SCHLAG RND ALL");
-		say("RND ALL · 50 %");
+		say("RND ALL · 10-100 %");
 	}
 	/** RANDOM for the tracks in mask, each with its own RANDOM amount. */
 	void roll(uint32_t mask, const char* name = "SCHLAG roll", UndoMode um = U_ALL) {
