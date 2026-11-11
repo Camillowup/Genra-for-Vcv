@@ -34,7 +34,7 @@ ifdef ARCH_LIN
 endif
 ifdef ARCH_MAC
 	CORE_EXT := dylib
-	CORE_FLAGS += -fPIC -fvisibility=hidden -dynamiclib
+	CORE_FLAGS += -fPIC -fvisibility=hidden -dynamiclib -include jiantcore/mac_section.h
 	CORE_LIBS := -lm
 endif
 ifdef ARCH_WIN

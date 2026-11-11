@@ -29,7 +29,7 @@ ifdef ARCH_LIN
 endif
 ifdef ARCH_MAC
 	CORE_EXT := dylib
-	CORE_FLAGS += -fPIC -fvisibility=hidden -dynamiclib
+	CORE_FLAGS += -fPIC -fvisibility=hidden -dynamiclib -include ../jiantcore/mac_section.h
 	CORE_LIBS := -lm
 endif
 ifdef ARCH_WIN
@@ -66,7 +66,7 @@ ifdef ARCH_LIN
 	KW_FLAGS += -fPIC -fvisibility=hidden -shared
 endif
 ifdef ARCH_MAC
-	KW_FLAGS += -fPIC -fvisibility=hidden -dynamiclib
+	KW_FLAGS += -fPIC -fvisibility=hidden -dynamiclib -include ../jiantcore/mac_section.h
 endif
 ifdef ARCH_WIN
 	KW_FLAGS += -shared -static-libgcc
@@ -85,7 +85,7 @@ ifdef ARCH_LIN
 	GL_FLAGS += -fPIC -fvisibility=hidden -shared
 endif
 ifdef ARCH_MAC
-	GL_FLAGS += -fPIC -fvisibility=hidden -dynamiclib
+	GL_FLAGS += -fPIC -fvisibility=hidden -dynamiclib -include ../jiantcore/mac_section.h
 endif
 ifdef ARCH_WIN
 	GL_FLAGS += -shared -static-libgcc
