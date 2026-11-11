@@ -87,4 +87,13 @@ static const float CALL_IN[2] = {134.3f, 332.0f};
 static const float OUT_L[2] = {292.0f, 332.0f};
 static const float OUT_R[2] = {340.0f, 332.0f};
 }  // namespace animal
+namespace voicebend {
+static const float W = 120.f;
+static const float BEND[2] = {38.0f, 62.0f};
+static const float ON[2] = {82.0f, 62.0f};
+static const float B[4][2] = {{38.0f, 122.0f}, {38.0f, 184.0f}, {38.0f, 246.0f}, {38.0f, 308.0f}};
+static const float B_TEXT[4][4] = {{14.0f, 137.0f, 48.0f, 15.0f}, {14.0f, 199.0f, 48.0f, 15.0f}, {14.0f, 261.0f, 48.0f, 15.0f}, {14.0f, 323.0f, 48.0f, 15.0f}};
+static const float B_IN[4][2] = {{82.0f, 122.0f}, {82.0f, 184.0f}, {82.0f, 246.0f}, {82.0f, 308.0f}};
+static const float STATUS[4] = {14.0f, 347.0f, 92.0f, 12.0f};
+}  // namespace voicebend
 }  // namespace jlayout

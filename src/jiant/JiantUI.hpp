@@ -92,7 +92,7 @@ struct ScreenClock {
 };
 
 // one colour per module (keep in step with tools/panels/jiant_panel.py)
-#define JIANT_VOICE_RGB 0xff, 0x4f, 0x5a
+#define JIANT_VOICE_RGB 0xc4, 0x2f, 0x3d
 #define JIANT_DRUMX_RGB 0x7b, 0x6c, 0xff
 #define JIANT_ANIMAL_RGB 0x4f, 0xe0, 0x8a
 
@@ -256,6 +256,7 @@ struct ChipRow : app::ParamWidget {
 	NVGcolor accent = WHITE;
 	std::vector<std::string> names;
 	float gap = 3.f;
+	float size = 5.4f;  // the names' font size
 	float chipW() const { return (box.size.x - gap * (names.size() - 1)) / names.size(); }
 	void onButton(const ButtonEvent& e) override {
 		if (e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_LEFT) {
@@ -273,7 +274,7 @@ struct ChipRow : app::ParamWidget {
 			int v = pq ? (int) std::round(pq->getValue()) : 0;
 			float w = chipW();
 			for (size_t i = 0; i < names.size(); i++)
-				chip(args.vg, i * (w + gap), 0, w, box.size.y, names[i], (int) i == v, accent);
+				chip(args.vg, i * (w + gap), 0, w, box.size.y, names[i], (int) i == v, accent, size);
 		}
 		ParamWidget::drawLayer(args, layer);
 	}

@@ -1,12 +1,12 @@
 # GENRA Instruments – Plugin für VCV Rack 2
 
-Die Instrumente der GENRA-Familie als eigenes Plugin: K-WASUB, GOLANA, UMLAUF, MONK, VOICE und ANIMAL (je mit ihren FX-Expandern). Im Rack-Browser stehen sie unter derselben Marke **Genra** wie das GENRA-Plugin (Sequencer, ABLAUF, GENRA BOX, ABLAUF MINI, MIX, GENRA FX, SCHLAG, DRUM-X, GRUND, MONO, FUNKE, SCHMELZ). Plugin-Version **2.34.0** (immer dieselbe wie GENRA; Windows und macOS); der Code liegt im Ordner `instruments/` des GENRA-Repos.
+Die Instrumente der GENRA-Familie als eigenes Plugin: K-WASUB, GOLANA, UMLAUF, MONK, VOICE und ANIMAL (je mit ihren FX-Expandern, VOICE mit VOICE BEND). Im Rack-Browser stehen sie unter derselben Marke **Genra** wie das GENRA-Plugin (Sequencer, ABLAUF, GENRA BOX, ABLAUF MINI, MIX, GENRA FX, SCHLAG, DRUM-X, GRUND, MONO, FUNKE, SCHMELZ). Plugin-Version **2.35.0** (immer dieselbe wie GENRA; Windows und macOS); der Code liegt im Ordner `instruments/` des GENRA-Repos.
 
 | Modul | Breite | Farbe | Was es ist |
 |---|---|---|---|
 | **K-WASUB** + **FX** | je 40 HP | säuregrün | Modern-Bass-Synth aus der FM-1-Firmware K-WASUB, mit Effekt-Expander |
 | **GOLANA** + **FX** | 42 / 14 HP | cyan | Analoger Poly-Synth aus der FM-1-Firmware Golana, mit Effekt-Expander |
-| **JIANT VOICE** | 26 HP | rot | Formant-Sänger aus der JIANT-FM-Firmware |
+| **JIANT VOICE** + **BEND** | 26 / 8 HP | rot | Formant-Sänger aus der JIANT-FM-Firmware, dazu SPELL (LPC-Sprechstimme aus SPELLBOX) mit Bending-Expander |
 | **JIANT ANIMAL** | 26 HP | grün | Tierrufe aus physikalischen Modellen (JIANT FM) |
 | **MONK** | 26 HP | safran | Vokal-Synth aus der FM-1-Firmware MONK-1 |
 | **UMLAUF** + **FX** | 54 / 36 HP | Sith-Rot | Orbit-Vektor-Synth mit der Engine von VADER, mit Expander |
@@ -196,9 +196,13 @@ CV-Eingänge. Beim Andocken übernehmen die Regler den aktuellen Klang; ohne Exp
 |---|---|---|
 | ![VOICE](../docs/panels/jiant_voice.png) | ![DRUM-X](../docs/panels/jiant_drumx.png) | ![ANIMAL](../docs/panels/jiant_animal.png) |
 
+![VOICE BEND](../docs/panels/jiant_voicebend.png)
+
 Drei Klangerzeuger aus der Firmware von [JIANT FM](https://github.com/juanjiant-bit/JIANT) (Juan Jiant, ein Fork von [Felucca](https://github.com/hugelton/Felucca), GPL-3.0), im GENRA-Look und jeweils in einer eigenen Farbe: **VOICE rot**, **DRUM-X blau-violett** (GENRAs Drum-Farbe), **ANIMAL grün**. Das Display zeigt links die Zeichnung der Firmware (Vokaltrakt, Kit-Kolonie, Kreatur), rechts Preset bzw. Kit und die Einstellungen.
 
-- **VOICE** (26 HP): Formant-Sänger. ◀ PRE ▶ (15 Presets), LANG im Display (OFF singt Vokale, ES/EN/JA singen Wörter), ◀ LYR ▶ wählt TEXT, W1–W16 oder S1–S8, das Textfeld im Display nimmt einen eigenen Text (bis 63 Zeichen). Jede neue Note singt die nächste Silbe, WORD ↺ startet den Text neu. 8 Klangregler mit CV, ihre Namen wechseln mit LANG.
+- **VOICE** (26 HP): Formant-Sänger. ◀ PRESET ▶ (15 Presets aus JIANT + 3 für SPELL), LANG im Display (OFF singt Vokale, ES/EN/JA singen Wörter, **SPELL** ist die LPC-Sprechstimme aus SPELLBOX), ◀ LYRIC ▶ wählt TEXT, W1–W16 oder S1–S8, das Textfeld im Display nimmt einen eigenen Text (bis 63 Zeichen). Jede neue Note singt die nächste Silbe, WORD ↺ startet den Text neu. 8 Klangregler mit CV, ihre Namen wechseln mit LANG.
+- **SPELL** (in VOICE, nur Englisch, eine Stimme): rechts neben den LANG-Chips **SING** (ein Wort auf der Note, der Vokal hält mit dem Gate), **LETTER** (jede Taste ihr Buchstabe, A auf F3) oder **SPEAK** (liest den Text im Lyrics-Feld, pro Note die nächsten Wörter). Regler: POS, WORD/LETTER/WORDS, ARTIC, SHIFT, SPEED, TONE, MONO, LOOP. Das Wort leuchtet türkis Buchstabe für Buchstabe.
+- **VOICE BEND** (8 HP, rechts neben VOICE): Circuit Bending für SPELL. BEND (Taster oder Gate an ON) schaltet ein; CLOCK, CORRUPT, STUTTER, CRUSH je mit CV.
 - **ANIMAL** (26 HP): Tierrufe aus physikalischen Modellen. MODE als Regler oder per Klick im Display (CMOS, PULSE, WHSTL, WING, GLOTT), ◀ PRE ▶ (24 Presets), 7 Klangregler mit CV, ihre Namen wechseln mit MODE.
 - **Gemeinsam (VOICE, ANIMAL):** CALL spielt einen Ton ohne Kabel (auch per Gate am CALL-Eingang), POLY · MONO · LEGATO per Klick auf die Lampen, Hüllkurve ATK–REL, FX DIST–REVERB, V/OCT, GATE, VEL polyphon, LEVEL und Stereo-Ausgang (nur L gesteckt = Mono).
 - Presets bzw. Kits gibt es auch im Rechtsklick-Menü. Alte Patches mit den einzelnen Plugins *JiantVoice*, *JiantDrumX*, *JiantAnimal* finden die Module hier nicht automatisch – dort einmal neu einsetzen.
@@ -230,6 +234,7 @@ Ein riesiges Dankeschön an **[L'Cronx](https://github.com/sunskiefer)**! UMLAUF
 
 GPL-3.0-only (siehe `LICENSE`).
 - **VOICE, ANIMAL:** [JIANT FM](https://github.com/juanjiant-bit/JIANT) von Juan Jiant, ein Fork von [Felucca](https://github.com/hugelton/Felucca) – GPL-3.0
+- **VOICE SPELL, VOICE BEND:** [SPELLBOX](https://github.com/pjac1810/spellbox) von pjac1810 (LPC-Sprechstimme, Daten mit espeak-ng erzeugt, Wortauswahl nach wordfreq) – GPL-3.0, siehe `licenses/SPELLBOX-LICENSING.md`
 - **MONK:** Klang-Engine portiert aus [MONK-1](https://github.com/charlesvestal/fm1-monk) von Charles Vestal – GPL-3.0; DSP [MonkSynth](https://github.com/JonET/monksynth) von Jonathan Taylor – MIT. Die Sänger-Zeichnungen sind GENRAs eigene.
 - **K-WASUB:** [K-WASUB](https://github.com/Guizmoh/K-WASUB_Firmware_for_FM1) von Omnipotard – GPL-3.0 (`kwasub/`)
 - **UMLAUF:** [VADER](https://github.com/sunskiefer/VADER) von L'Cronx – MIT (`vader/`)

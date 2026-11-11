@@ -39,7 +39,7 @@ ifdef ARCH_WIN
 	CORE_FLAGS += -shared -I../jiantcore/compat -static
 	CORE_LIBS := -lm -lwinpthread
 endif
-CORES := res/voicecore.$(CORE_EXT) res/animalcore.$(CORE_EXT)
+CORES := res/voicecore.$(CORE_EXT) res/animalcore.$(CORE_EXT) res/spellcore.$(CORE_EXT)
 
 # The firmware sources come packed in ../jiant.tar.gz (shared with GENRA's DRUM-X); unpacked on the first build.
 # (unpacked next to it in the repo's top folder: jiantcore/*.c include ../jiant/...)
@@ -51,6 +51,9 @@ $(JIANT_STAMP): ../jiant.tar.gz
 res/%core.$(CORE_EXT): ../jiantcore/%core.c ../jiantcore/%core.h $(JIANT_STAMP)
 	@mkdir -p res
 	$(CORE_CC) $(CORE_FLAGS) $(filter --target% -arch% -march% -mmacosx-version-min%,$(FLAGS)) -o $@ $< $(CORE_LIBS)
+
+# VOICE's SPELL: SPELLBOX's speech chip and text to speech (spellbox/, GPL-3.0) in a core of its own, likewise
+res/spellcore.$(CORE_EXT): $(wildcard spellbox/*.c spellbox/*.h)
 
 # ---------------------------------------------------------------- the K-WASUB core
 # The K-WASUB firmware (kwasub/, unchanged) with kwcore/kwcore.c on top, likewise one private copy per instance.

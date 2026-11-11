@@ -1,7 +1,7 @@
 {
   "slug": "GenraInstruments",
   "name": "GENRA Instruments",
-  "version": "2.34.0",
+  "version": "2.35.0",
   "license": "GPL-3.0-only",
   "brand": "Genra",
   "author": "Bastian Ofner",
@@ -94,12 +94,21 @@
     {
       "slug": "Voice",
       "name": "JIANT VOICE",
-      "description": "The JIANT FM firmware's VOICE engine: a formant singer (vowels, and words in Spanish, English and Japanese, your own lyrics), its vocal tract drawn live",
+      "description": "The JIANT FM firmware's VOICE engine: a formant singer (vowels, and words in Spanish, English and Japanese, your own lyrics), its vocal tract drawn live; SPELL: SPELLBOX's LPC talking-toy voice (sings words, letters, speaks your text)",
       "tags": [
         "Synth voice",
         "Polyphonic",
         "Vocoder",
         "Physical modeling"
+      ]
+    },
+    {
+      "slug": "VoiceBend",
+      "name": "JIANT VOICE BEND",
+      "description": "Circuit bending for VOICE's SPELL voice: the chip's clock, corrupted coefficients, stutter, bit crush. Place it right of VOICE",
+      "tags": [
+        "Expander",
+        "Distortion"
       ]
     },
     {

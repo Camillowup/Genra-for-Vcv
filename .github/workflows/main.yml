@@ -63,6 +63,12 @@ jobs:
           gcc -std=gnu11 -O2 -Ivader/src -Ivader/third_party/mpc-vst-plugins/wrapper test/vader_test.c build/vader/libvader.a -lstdc++ -lm -lpthread -o vt.exe
           ./vt.exe vader/shapes
 
+      - name: Test the SPELL core (VOICE, without Rack)
+        run: |
+          cd instruments
+          gcc -std=gnu11 -O2 test/spellcore_test.c -lm -o spt.exe
+          ./spt.exe
+
       - name: Check the package
         run: |
           ls -la dist/Genra dist/Genra/res
@@ -77,8 +83,8 @@ jobs:
           D=instruments/dist/GenraInstruments
           ls -la $D $D/res
           test -f $D/plugin.dll
-          for c in voicecore animalcore kwcore glcore; do test -f $D/res/$c.dll; done
-          for f in Kwasub KwasubFx Golana GolanaFx Umlauf UmlaufFx Monk JiantVoice JiantAnimal; do test -f $D/res/$f.svg; done
+          for c in voicecore animalcore spellcore kwcore glcore; do test -f $D/res/$c.dll; done
+          for f in Kwasub KwasubFx Golana GolanaFx Umlauf UmlaufFx Monk JiantVoice JiantVoiceBend JiantAnimal; do test -f $D/res/$f.svg; done
           test -f $D/res/knob/medium.svg
           ls $D/res/umlauf/shapes
           ls $D/res/monk | head -3
@@ -139,7 +145,7 @@ jobs:
           test -f dist/Genra/res/drumcore.dylib
           D=instruments/dist/GenraInstruments
           test -f $D/plugin.dylib
-          for c in voicecore animalcore kwcore glcore; do test -f $D/res/$c.dylib; done
+          for c in voicecore animalcore spellcore kwcore glcore; do test -f $D/res/$c.dylib; done
           for f in dist/Genra/plugin.dylib dist/Genra/res/drumcore.dylib $D/plugin.dylib $D/res/*core.dylib; do
             echo "$f: $(lipo -archs $f)"
             lipo -archs "$f" | grep -qw "$WANT" || { echo "$f is not $WANT"; exit 1; }

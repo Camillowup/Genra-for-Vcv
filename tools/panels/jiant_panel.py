@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Panels of the JIANT voices (VOICE, DRUM-X, ANIMAL) in the GENRA look, one colour per module.
+"""Panels of the JIANT voices (VOICE with its expander VOICE BEND, DRUM-X, ANIMAL) in the GENRA look, one colour per module.
 
-Usage:  jiant_panel.py real                    -> instruments/res/JiantVoice.svg, res/JiantDrumX.svg, instruments/res/JiantAnimal.svg
+Usage:  jiant_panel.py real                    -> instruments/res/JiantVoice.svg, res/JiantDrumX.svg, instruments/res/JiantAnimal.svg,
+                                                  instruments/res/JiantVoiceBend.svg
                                                   (text as paths) + src/jiant/JiantLayout.hpp
         jiant_panel.py preview OUTDIR [RACK]   -> OUTDIR/<module>.png with Rack components and mock display content
                                                   (RACK: a Rack source tree, for res/ComponentLibrary; default ../ext/Rack)
@@ -30,7 +31,7 @@ H = 380
 
 BG, PLATE, LINE, TXT, DIM = "#17181d", "#212329", "#34363f", "#d9dbe2", "#8a8d99"
 # keep in step with src/jiant/JiantUI.hpp
-COLORS = {"Voice": "#ff4f5a", "DrumX": "#7b6cff", "Animal": "#4fe08a"}
+COLORS = {"Voice": "#c42f3d", "VoiceBend": "#c42f3d", "DrumX": "#7b6cff", "Animal": "#4fe08a"}
 
 # component radii (px)
 R_SMALL, R_TRIM, R_JACK, R_BEZEL = 11.3, 8.9, 11.8, 10.6
@@ -62,6 +63,11 @@ class Panel:
         self.e(f'<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" '
                f'width="{W * 25.4 / 75:.3f}mm" height="{H * 25.4 / 75:.3f}mm" viewBox="0 0 {W} {H}">')
         self.e(f'<rect width="{W}" height="{H}" fill="{BG}"/>')
+        if hp <= 10:  # narrow: the title centred between the screws, the subtitle and the colour bar under it
+            self.text(W / 2, 22.5, title, 13, "#e6e7ec", 800, "middle", 2.6)
+            self.text(W / 2, 33, sub, 4.8, DIM, 600, "middle", 1.2)
+            self.e(f'<rect x="{W / 2 - 17}" y="38" width="34" height="3.2" rx="1.6" fill="{self.C}"/>')
+            return
         self.text(38, 22.5, title, 15, "#e6e7ec", 800, "start", 3.2)
         self.text(38 + self.width(title, 15, 800, 3.2) + 10, 22, sub, 5.2, DIM, 600, "start", 1.4)
         self.e(f'<rect x="{W - 80}" y="16.4" width="34" height="3.2" rx="1.6" fill="{self.C}"/>')
@@ -127,6 +133,12 @@ class Panel:
         self.add("lightbutton" if light else "button", name, x, y)
         if label:
             self.text(x, ly or y + 19.5, label, 4.8)
+
+    def pair(self, n1, n2, x1, x2, y, label, ly=None):
+        """Two step buttons (◀ ▶) with ONE label centred under them: the bezels cover panel text, so no arrows on them."""
+        self.add("button", n1, x1, y)
+        self.add("button", n2, x2, y)
+        self.text((x1 + x2) / 2, ly or y + 19.5, f"◀ {label} ▶", 4.8)
 
     def area(self, name, x, y, w, h):
         """A rectangle the module widget draws into."""
@@ -226,8 +238,7 @@ def animal():
     p.plate(14, 140, 362, 40)
     p.knob("MODE", 36, 155, label="MODE", ly=175.5, v=0)
     p.sep(58, 146, 174)
-    p.button("PREV", 78, 154, "◀ PRE")
-    p.button("NEXT", 110, 154, "PRE ▶")
+    p.pair("PREV", "NEXT", 78, 110, 154, "PRESET")
     p.button("CALL", 146, 154, "CALL", light=True)
     p.sep(166, 146, 174)
     p.block(172, 143, 140, 34)
@@ -245,11 +256,9 @@ def voice():
     p = Panel("Voice", "VOICE", 26, "JIANT FM · SINGING VOICE")
     p.display(14, 30, 362, 106)
     p.plate(14, 140, 362, 40)
-    p.button("PREV", 32, 154, "◀ PRE")
-    p.button("NEXT", 62, 154, "PRE ▶")
+    p.pair("PREV", "NEXT", 32, 62, 154, "PRESET")
     p.sep(80, 146, 174)
-    p.button("LPREV", 98, 154, "◀ LYR")
-    p.button("LNEXT", 128, 154, "LYR ▶")
+    p.pair("LPREV", "LNEXT", 98, 128, 154, "LYRIC")
     p.button("CALL", 160, 154, "CALL", light=True)
     p.sep(178, 146, 174)
     p.block(184, 143, 128, 34)
@@ -259,6 +268,26 @@ def voice():
     engine(p, 8)
     env_fx(p)
     io_row(p, [("VOCT", "V/OCT"), ("GATE", "GATE"), ("VEL", "VEL"), ("CALL_IN", "CALL"), ("WORD", "WORD ↺")])
+    return p
+
+
+# ============================================================================ VOICE BEND (8 HP, VOICE's expander)
+BENDS = ["CLOCK", "CORRUPT", "STUTTER", "CRUSH"]
+
+
+def voicebend():
+    p = Panel("VoiceBend", "BEND", 8, "VOICE · SPELL")
+    W = p.W
+    p.plate(8, 46, W - 16, 48)
+    p.button("BEND", 38, 62, "BEND", light=True)
+    p.jack("ON", 82, 62, "ON", 81.5)
+    for i, lab in enumerate(BENDS):
+        y = 100 + i * 62
+        p.plate(8, y, W - 16, 56, True)
+        p.knob(f"B{i}", 38, y + 22)
+        p.area(f"B_TEXT{i}", 14, y + 37, 48, 15)
+        p.jack(f"B_IN{i}", 82, y + 22, "CV", y + 44)
+    p.area("STATUS", 14, 347, W - 28, 12)
     return p
 
 
@@ -273,8 +302,7 @@ def drumx():
     p.display(14, 30, W - 28, 98)
     # strip: kit, morph, notes | the sound of the chosen lane
     p.plate(14, 132, W - 28, 40)
-    p.button("PREV", 28, 146, "◀ KIT")
-    p.button("NEXT", 54, 146, "KIT ▶")
+    p.pair("PREV", "NEXT", 28, 54, 146, "KIT")
     p.sep(70, 138, 166)
     p.knob("MORPH", 88, 147, label="MORPH", ly=167.5, v=0.5)
     p.jack("MORPH_IN", 116, 147, "CV", 167.5)
@@ -320,7 +348,7 @@ def drumx():
     return p
 
 
-PANELS = [voice(), drumx(), animal()]
+PANELS = [voice(), drumx(), animal(), voicebend()]
 
 # ============================================================================ real
 if not PREVIEW:
@@ -329,7 +357,7 @@ if not PREVIEW:
     hdr = ["// Generated by tools/panels/jiant_panel.py - do not edit", "// Rack pixels (1 HP = 15 px).", "#pragma once",
            "namespace jlayout {"] + [p.layout() for p in PANELS] + ["}  // namespace jlayout", ""]
     open(os.path.join(ROOT, "src", "jiant", "JiantLayout.hpp"), "w").write("\n".join(hdr))
-    print("written: instruments/res/JiantVoice.svg res/JiantDrumX.svg instruments/res/JiantAnimal.svg src/jiant/JiantLayout.hpp")
+    print("written: instruments/res/JiantVoice.svg res/JiantDrumX.svg instruments/res/JiantAnimal.svg instruments/res/JiantVoiceBend.svg src/jiant/JiantLayout.hpp")
     sys.exit(0)
 
 # ============================================================================ preview
@@ -388,9 +416,10 @@ MOCK = {
     "Animal": dict(shot="animal.png", name="CMOS BIRD", sub="· 1/24", info="CMOS · POLY · CALL C5",
                    labels=["TOUCH", "COUPLE", "CAP", "HYST", "RATE", "GROUP", "FM"],
                    values=["71%", "0%", "29%", "+25%", "2.46Hz", "0", "20"]),
-    "Voice": dict(shot="voice.png", name="CANTOR ES", sub="· 8/15", info="ES · W1 · POLY",
-                  labels=["POS", "THEME", "ARTIC", "SHIFT", "BUZZ", "BREATH", "Q", "LOOP"],
-                  values=["AUTO", "ANY", "100%", "0st", "63%", "5%", "57%", "FREE"]),
+    "Voice": dict(shot="spell.png", name="TALKING TOY", sub="· 16/18", info="LANG SPELL · SING · MONO",
+                  labels=["POS", "WORD", "ARTIC", "SHIFT", "SPEED", "TONE", "MONO", "LOOP"],
+                  values=["AUTO", "APPLE", "100%", "0st", "100%", "60%", "0%", "FREE"]),
+    "VoiceBend": dict(shot="", values=["8.0k", "35%", "20%", "8 bit"]),
     "DrumX": dict(shot="drum.png", name="909 CLUB", sub="· KIT 2/9", info="MORPH 50% · SOUND KICK A"),
 }
 
@@ -419,6 +448,14 @@ for p in PANELS:
             cx = x + kw["w"] / 2
             s.append(bold(cx, y + 6.5, m["labels"][k], 5.3, TXT, "middle", 0.4))
             s.append(mono(p, cx, y + 13.5, m["values"][k], 5.0, p.C, "middle"))
+        elif kind == "area" and name.startswith("B_TEXT"):
+            k = int(name[6:])
+            cx = x + kw["w"] / 2
+            s.append(bold(cx, y + 6.5, BENDS[k], 5.3, TXT, "middle", 0.4))
+            s.append(mono(p, cx, y + 13.5, m["values"][k], 5.0, p.C, "middle"))
+        elif kind == "area" and name == "STATUS":
+            s.append(f'<circle cx="{x + 3}" cy="{y + 6}" r="2.6" fill="{p.C}"/>')
+            s.append(mono(p, x + 9, y + 8.2, "linked to VOICE", 5.0, DIM))
         elif kind == "area" and name.startswith("LANE_NAME"):
             l = int(name[9:])
             s.append(bold(x + kw["w"] / 2, y + 7.5, LANES[l], 5.0, p.C if l == 0 else TXT, "middle", 0.3))
@@ -431,7 +468,13 @@ for p in PANELS:
             s.append(chips(x + kw["w"] - 30, y - 0.5, ["A", "B"], {0}, 14, 10, p.C, 2, 4.6))
         elif kind == "area" and name == "SCREEN":
             shot = os.path.join(SHOTS, m["shot"])
-            if os.path.exists(shot):
+            if p.slug == "Voice" and not os.path.exists(shot):  # SPELL: the LPC frame as bars (the widget draws it so)
+                s.append(bold(x + 4, y + 10, "LPC · 8.0 kHz", 5.6, "#5fe0d0", "start", 0.8))
+                for i, k in enumerate([0.8, 0.55, 0.7, 0.35, 0.5, 0.3, 0.42, 0.22, 0.3, 0.18, 0.9]):
+                    bh = k * (kw["h"] - 22)
+                    s.append(f'<rect x="{x + 6 + i * (kw["w"] - 12) / 11:.1f}" y="{y + kw["h"] - 4 - bh:.1f}" '
+                             f'width="{(kw["w"] - 12) / 11 - 2.5:.1f}" height="{bh:.1f}" rx="1" fill="{"#f2f3f7" if i == 10 else "#5fe0d0"}"/>')
+            elif os.path.exists(shot):
                 b64 = base64.b64encode(open(shot, "rb").read()).decode()
                 s.append(f'<image x="{x}" y="{y}" width="{kw["w"]}" height="{kw["h"]}" preserveAspectRatio="none" '
                          f'xlink:href="data:image/png;base64,{b64}"/>')
@@ -446,15 +489,14 @@ for p in PANELS:
                 for i in range(8):
                     s.append(f'<rect x="{ix + 66 + i * 13.5}" y="{iy + 64}" width="10" height="9" rx="1.5" fill="{p.C if i < 2 else "#22232a"}"/>')
                 s.append(mono(p, ix, iy + 92, "TOUCH 71%  COUPLE 0%  CAP 29%", 5.2, p.C))
-            elif p.slug == "Voice":
-                s.append(chips(ix, iy + 41, ["OFF", "ES", "EN", "JA"], {1}, 29, 14, p.C))
-                s.append(f'<rect x="{ix + 128}" y="{iy + 41}" width="{iw - 128}" height="14" rx="2.2" fill="#0d0e12" stroke="{LINE}" stroke-width="0.8"/>')
-                s.append(mono(p, ix + 128 + (iw - 128) / 2, iy + 50.6, "W1", 5.6, p.C, "middle"))
+            elif p.slug == "Voice":  # shown in SPELL (the LPC voice of SPELLBOX), singing a word
+                s.append(chips(ix, iy + 41, ["OFF", "ES", "EN", "JA", "SPELL"], {4}, 20, 14, p.C, 3, 4.6))
+                s.append(chips(ix + 116, iy + 41, ["SING", "LETTER", "SPEAK"], {0}, (iw - 116 - 4) / 3, 14, p.C, 2, 4.2))
                 s.append(f'<rect x="{ix}" y="{iy + 60}" width="{iw}" height="14" rx="2.2" fill="#0d0e12" stroke="{tint(p.C, 0.5)}" stroke-width="0.8"/>')
-                s.append(mono(p, ix + 4, iy + 69.6, "la luna canta", 5.6, TXT))
-                s.append(bold(ix, iy + 92, "pero", 9, "#f2f3f7", "start", 0.5))
-                s.append(f'<circle cx="{ix + 32}" cy="{iy + 89}" r="2.3" fill="{p.C}"/><circle cx="{ix + 40}" cy="{iy + 89}" r="2.3" fill="#33343c"/>')
-                s.append(mono(p, ix + iw, iy + 92, "SYL 1/2", 5.2, DIM, "end"))
+                s.append(mono(p, ix + 4, iy + 69.6, "hello i am a robot", 5.6, TXT))
+                for i, ch in enumerate("APPLE"):
+                    s.append(bold(ix + 2 + i * 10, iy + 93, ch, 11, "#5fe0d0" if i < 3 else "#24403d", "start", 0))
+                s.append(mono(p, ix + iw, iy + 92, "WORD 78/162", 5.2, DIM, "end"))
             else:
                 n = len(LANES)
                 cw = (iw - 2.5 * (n - 1)) / n

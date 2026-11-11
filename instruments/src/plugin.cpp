@@ -18,5 +18,6 @@ void init(Plugin* p) {
 	p->addModel(modelUmlaufFx);
 	p->addModel(modelMonk);
 	p->addModel(modelVoice);
+	p->addModel(modelVoiceBend);
 	p->addModel(modelAnimal);
 }

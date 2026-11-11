@@ -53,6 +53,9 @@ Gestrichen: STRING und ADD.
   (6-Operator-FM), reine Stimmung (純正律) oder gleichstufig, 本数 als Tonart, 余韻, Vibrato, Triller, Verzierungen.
 - **SPELLBOX** (github.com/pjac1810/spellbox): LPC-Sprachstimme im Stil von Speak & Spell (8 kHz), SING, LETTER SYNTH,
   SPEAK, Circuit-Bending-Regler. **Entschieden: kein eigenes Modul, sondern in VOICE eingebaut.**
+  **Status: gebaut in 2.35.0** (VOICE LANG SPELL mit SING / LETTER / SPEAK, Expander VOICE BEND mit BEND, CLOCK,
+  CORRUPT, STUTTER, CRUSH; ENGINE bei SPELL: POS WORD ARTIC SHIFT SPEED TONE MONO LOOP; drei SPELL-Presets).
+  Dabei auch die PRESET-Beschriftung in VOICE, ANIMAL und DRUM-X vereinheitlicht („◀ PRESET ▶“, „◀ LYRIC ▶“, „◀ KIT ▶“).
   - VOICE bekommt neben OFF/ES/EN/JA einen vierten Taster **SPELL** (LPC-Engine, nur Englisch).
   - Gemeinsam: Lyrics-Feld, Wortanzeige, V/OCT, GATE, Presets, GENRA-Leiste; die Regler, die beide haben
     (POS, ARTIC, SHIFT, LOOP), wirken in beiden Engines.

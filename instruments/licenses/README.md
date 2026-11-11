@@ -8,6 +8,7 @@ in this folder. All of them are compatible with distributing the plugin under GP
 | --- | --- | --- | --- | --- |
 | JIANT FM, a fork of Felucca (firmware engines VOICE, DRUM-X, ANIMAL) | Juan Ignacio Antonucci (Juan Jiant); Leo Kuroshita, Hügelton Instruments (Felucca) | GPL-3.0-only | VOICE, DRUM-X, ANIMAL (`jiantcore/`, `jiant/`) | `../LICENSE`, `JIANT-Felucca-LICENSING.md` |
 | msfa (FM synthesis from Dexed), integer port in Felucca | Google Inc., Pascal Gauthier; port by Leo Kuroshita | Apache-2.0 | JIANT engines, K-WASUB, GOLANA core | `Apache-2.0-msfa.txt` |
+| SPELLBOX (LPC speech chip, text to speech, its words and dictionary), on foma / Felucca | pjac1810; data made with espeak-ng (GPL-3.0), word choice from wordfreq (CC BY-SA 4.0) | GPL-3.0-only | VOICE SPELL, VOICE BEND (`spellbox/`, `../jiantcore/spellcore.c`) | `../LICENSE`, `spellbox/LICENSE`, `SPELLBOX-LICENSING.md` |
 | CMU Pronouncing Dictionary (word list of VOICE) | Carnegie Mellon University | BSD-2-Clause | VOICE | `BSD-2-Clause-CMUdict.txt` |
 | Fukiai icon font, fm1-clk320-probe (parts of the JIANT firmware tree) | Hügelton Instruments; curist | MIT | JIANT firmware build | `MIT-Fukiai.txt`, `MIT-fm1-clk320.txt` |
 | Chakra Petch, IBM Plex Mono, Michroma (rasterised into the JIANT firmware) | The Chakra Petch / IBM Plex / Michroma Project Authors | SIL OFL 1.1 | JIANT firmware build | `OFL-ChakraPetch.txt`, `OFL-IBMPlexMono.txt`, `OFL-Michroma.txt` |

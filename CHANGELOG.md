@@ -4,6 +4,33 @@ Was in welcher Version dazukam (GENRA und GENRA Instruments). Der aktuelle Stand
 
 ## 2.21 bis heute (neueste zuerst)
 
+### 2.35.0 – VOICE SPELL + VOICE BEND, einheitliche PRESET-Beschriftung
+- **VOICE: fünfte Sprache SPELL** (GENRA Instruments): die LPC-Sprechstimme aus [SPELLBOX](https://github.com/pjac1810/spellbox)
+  (pjac1810, GPL-3.0; 10-stufiges Gitterfilter, 8 kHz, 8-Bit-Wandler, kleiner Lautsprecher), nur Englisch, eine Stimme.
+  Im Display neben OFF/ES/EN/JA der Chip **SPELL**, rechts davon **SING / LETTER / SPEAK** (`SPELL_MODE_PARAM`, hinten
+  angehängt; LANG jetzt 0..4, alte Patches laden unverändert):
+  - **SING** singt ein Wort (WORD wählt aus 162: Buchstaben, Zahlen, Sätze, 100 Wörter) auf der Note, der Vokal hält,
+    solange das Gate anliegt. **LETTER**: jede Taste ihren Buchstaben (A auf F3) oder überall einen (WORD → LETTER).
+    **SPEAK** spricht den Text im Lyrics-Feld (Wörterbuch mit 12 000 Wörtern, Endungen, Leseregeln), pro Note die
+    nächsten Wörter (WORD → WORDS: 1–8 oder ALL).
+  - ENGINE bei SPELL: POS (AUTO oder fester Startwort), WORD, ARTIC (Konsonanten), SHIFT (±12 Halbtöne), SPEED, TONE
+    (Lautsprecher), MONO (Sprachmelodie flach), LOOP (Text alle 1/2/4/8 Noten von vorn). ENVELOPE und FX wirken auch
+    bei SPELL (eigene kleine Hüllkurve und Effekte, `Spell.hpp`); SPEAK spricht unabhängig vom Gate zu Ende.
+  - Display: links das Gitterfilter als Balken (zehn Koeffizienten + Energie) mit Chip-Takt, unten das Wort in Türkis,
+    Buchstabe für Buchstabe beim Sprechen. Drei SPELL-Presets nach den 15 aus JIANT: TALKING TOY, LETTER KEYS, ROBOT READER.
+  - Engine als eigener Core (`jiantcore/spellcore.c`, Quellen in `instruments/spellbox/`, je Instanz eine Kopie wie
+    VOICE und ANIMAL); kleine Ergänzungen an SPELLBOX (ARTIC, Fortschritt, Gitter-Anzeige) sind mit GENRA markiert.
+    Test ohne Rack: `instruments/test/spellcore_test.c` (auch im Windows-Build).
+  - VOICE-Farbe dunkler: `#c42f3d`.
+- **Neu: JIANT VOICE BEND** (8 HP, Expander rechts neben VOICE): Circuit Bending für SPELL wie bei SPELLBOX.
+  BEND-Taster (rastet, leuchtet) und Gate-Eingang ON schalten alles zusammen ein; CLOCK (Chip-Takt 4–14 kHz),
+  CORRUPT (verbogene Koeffizienten), STUTTER (Rahmen doppelt), CRUSH (8 bis 3 Bit), je mit CV. Unten die Anzeige,
+  ob ein VOICE links steht und ob es auf SPELL ist.
+- **PRESET-Beschriftung:** VOICE, ANIMAL und DRUM-X haben unter den beiden Tastern nur noch eine Beschriftung
+  „◀ PRESET ▶“ (VOICE auch „◀ LYRIC ▶“, DRUM-X „◀ KIT ▶“) statt „◀ PRE“ und „PRE ▶“, die sich fast berührten.
+  Taster an derselben Stelle (`pair()` in `tools/panels/jiant_panel.py`).
+- GENRA ebenfalls 2.35.0 (nur DRUM-X-Beschriftung).
+
 ### 2.34.0 – Presets ohne Verzerrung, GRID mit Skalen-Ansicht, GHOST und ALL 4
 - **Preset-Pegel:** SCHMELZ-Presets verzerrten im Ausklang: die Spitzen eines Akkords lagen bei 7–10 V, beim
   Akkordwechsel (der alte klingt noch, der neue setzt ein) bis 17 V, weit über dem Knie des Ausgangslimiters (6 V).

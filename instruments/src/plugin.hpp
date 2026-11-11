@@ -12,4 +12,5 @@ extern Model* modelUmlauf;
 extern Model* modelUmlaufFx;
 extern Model* modelMonk;
 extern Model* modelVoice;
+extern Model* modelVoiceBend;
 extern Model* modelAnimal;

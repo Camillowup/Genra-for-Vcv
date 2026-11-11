@@ -3,9 +3,13 @@
 // Japanese) as a VCV Rack voice, its vocal tract drawn live. The engine runs unchanged in a private copy of the VOICE
 // core (Core.hpp); this file is the panel, the jacks and the glue: knobs and CV into the part's parameters, V/OCT + GATE
 // into its notes (each note sings the next syllable), the lyric typed on the panel, its 44.1 kHz audio resampled.
+// LANG SPELL (2.35.0) is a fifth language of its own: SPELLBOX's LPC talking-toy voice (Spell.hpp, SpellCore), which
+// sings a word or each key's letter, or speaks the lyric, bent by the expander VOICE BEND on its right.
 #include "../plugin.hpp"
 #include "../Follow.hpp"
 #include "VoiceCore.hpp"
+#include "Spell.hpp"
+#include "VoiceBend.hpp"
 #include <atomic>
 #include <array>
 #include <cstring>
@@ -18,7 +22,7 @@ namespace jiant_voice {
 static const int NE = 8;
 
 // ------------------------------------------------------------------------------------------------ the module
-struct Voice : Module, follow::Host {
+struct Voice : Module, follow::Host, SpellSink {
 	enum ParamId {
 		ENUMS(E_PARAM, NE),
 		ATK_PARAM, DEC_PARAM, SUS_PARAM, REL_PARAM,
@@ -26,14 +30,16 @@ struct Voice : Module, follow::Host {
 		LEVEL_PARAM,
 		VOICE_PARAM, LANG_PARAM, LYRIC_PARAM,
 		PREV_PARAM, NEXT_PARAM, LPREV_PARAM, LNEXT_PARAM, CALL_PARAM,
+		SPELL_MODE_PARAM,  // (2.35.0, appended: old patches load)
 		PARAMS_LEN
 	};
 	enum InputId { ENUMS(E_INPUT, NE), VOCT_INPUT, GATE_INPUT, VEL_INPUT, CALL_INPUT, WORD_INPUT, INPUTS_LEN };
 	enum OutputId { L_OUTPUT, R_OUTPUT, OUTPUTS_LEN };
 	enum LightId { CALL_LIGHT, LIGHTS_LEN };
-	enum { BLOCK = 32, CALL_NOTE = 60 };
+	enum { BLOCK = 32, CALL_NOTE = 60, LANG_SPELL = 4 };
 
 	VoiceCore core;
+	SpellCore spell;
 	std::string status;
 
 	// settings
@@ -54,6 +60,11 @@ struct Voice : Module, follow::Host {
 	std::atomic<int> voices{0};
 	std::array<char, 24> word{};
 	std::atomic<int> syl{0}, nsyl{0};
+	// SPELL, for the UI thread
+	std::array<char, 24> spWord{}, spNote{};
+	std::atomic<int> spLit{0}, spLen{0}, spWordI{0}, spWords{0};
+	std::array<std::atomic<int>, 10> spK{};
+	std::atomic<int> spE{0}, spClock{64};
 
 	// engine thread
 	int sent[JVO_NP];
@@ -68,6 +79,20 @@ struct Voice : Module, follow::Host {
 	bool callOn = false;
 	dsp::BooleanTrigger prevTrig, nextTrig, lprevTrig, lnextTrig;
 	dsp::SchmittTrigger wordTrig;
+	// SPELL, engine thread
+	struct SpellState {
+		bool on = false;           // LANG was SPELL in the last sample
+		int ch = -2;               // the gate channel it sings (-1: CALL, -2: none)
+		float vel = 1.f;
+		int note = 60;
+		int pos = 0, notes = 0;    // SPEAK: the next word, notes since the lyric's start
+		std::string said;          // SPEAK: the words of the last note
+		int mode = SPM_SING;
+		SpellKnobs k;
+	} sp;
+	SpellEnv spEnv;
+	SpellFx spFx;
+	float spBuf[BLOCK];
 
 	/** E1..E8: the knob 0..1 over the range the current LANG gives it, shown as the FM-1 writes it. */
 	struct EQuantity : ParamQuantity {
@@ -114,7 +139,10 @@ struct Voice : Module, follow::Host {
 		}
 		configParam<RawQuantity>(LEVEL_PARAM, 0.f, 127.f, 104.f, "Level")->snapEnabled = true;
 		configSwitch(VOICE_PARAM, 0.f, 2.f, 0.f, "Voice", {"POLY", "MONO", "LEGATO"});
-		configSwitch(LANG_PARAM, 0.f, 3.f, 0.f, "Language", {"OFF (vowels)", "ES (Spanish)", "EN (English)", "JA (Japanese)"});
+		configSwitch(LANG_PARAM, 0.f, 4.f, 0.f, "Language", {"OFF (vowels)", "ES (Spanish)", "EN (English)", "JA (Japanese)",
+		                                                     "SPELL (talking toy, English)"});
+		configSwitch(SPELL_MODE_PARAM, 0.f, 2.f, 0.f, "SPELL plays",
+		             {"SING (a word at each note's pitch)", "LETTER (each key its letter)", "SPEAK (the lyric, word by word)"});
 		std::vector<std::string> lyr = {"TEXT (the panel's lyric)"};
 		for (int i = 1; i <= 16; i++)
 			lyr.push_back(string::f("W%d (words)", i));
@@ -135,6 +163,8 @@ struct Voice : Module, follow::Host {
 		configOutput(R_OUTPUT, "Right");
 		for (int j = ATK_PARAM; j < PARAMS_LEN; j++)
 			paramQuantities[j]->randomizeEnabled = j < DIST_PARAM;
+		for (auto& k : spK)
+			k = 0;
 		for (int& s : sent)
 			s = INT32_MIN;
 	}
@@ -148,6 +178,12 @@ struct Voice : Module, follow::Host {
 		}
 		status.clear();
 		core.api->init(random::u32() | 1u);
+		if (spell.load())
+			spell.api->init(random::u32() | 1u);
+		else
+			WARN("JIANT VOICE: %s", spell.error.c_str());
+		sp = SpellState();
+		spEnv = SpellEnv();
 		for (int& s : sent)
 			s = INT32_MIN;
 		outBuf.clear();
@@ -160,14 +196,46 @@ struct Voice : Module, follow::Host {
 			core.api->set_text(text.c_str());
 		}
 		{ // a patch from a version with more (or fewer) presets: stay in range
-			int n = std::max(1, (int) core.api->npresets());
+			int n = npresets();
 			preset = ((preset % n) + n) % n;
 		}
 		if (!fromPatch)
 			applyPreset(preset);
-		else
+		else if (preset < (int) core.api->npresets())
 			core.api->load_preset(preset);       // (the knobs follow in the first block)
 		shownPreset = preset;
+	}
+
+	/** The JIANT engine's factory sounds, then SPELL's. */
+	int npresets() const { return core.api ? std::max(1, (int) core.api->npresets()) + N_SPELL_PRESETS : 1; }
+	std::string presetName(int i) const {
+		if (!core.api)
+			return "";
+		int n = (int) core.api->npresets();
+		return i < n ? core.api->preset_name((uint32_t) i) : SPELL_PRESETS[clamp(i - n, 0, N_SPELL_PRESETS - 1)].name;
+	}
+
+	/** A SPELL factory sound into the knobs. */
+	void applySpellPreset(const SpellPreset& q) {
+		params[LANG_PARAM].setValue((float) LANG_SPELL);
+		params[SPELL_MODE_PARAM].setValue((float) q.mode);
+		params[VOICE_PARAM].setValue((float) q.voice);
+		for (int k = 0; k < NE; k++)
+			params[E_PARAM + k].setValue(q.e[k]);
+		if (q.word && spell.api) { // WORD: the knob on that word
+			int n = (int) spell.api->count();
+			for (int i = 0; i < n; i++)
+				if (!std::strcmp(spell.api->text((uint32_t) i), q.word))
+					params[E_PARAM + 1].setValue((float) i / (n - 1));
+		}
+		for (int i = 0; i < 4; i++) {
+			params[ATK_PARAM + i].setValue((float) q.env[i]);
+			params[DIST_PARAM + i].setValue((float) q.fx[i]);
+		}
+		if (q.mode == SPM_SPEAK && getText().empty()) {
+			setText("hello I am a robot");
+			textSeq++;
+		}
 	}
 
 	/** The factory sound into the knobs (and the engine). */
@@ -175,9 +243,18 @@ struct Voice : Module, follow::Host {
 		const jvo_api* a = core.api;
 		if (!a)
 			return;
-		int n = (int) a->npresets();
-		preset = ((i % n) + n) % n;
+		int n = (int) a->npresets(), all = npresets();
+		preset = ((i % all) + all) % all;
 		a->all_off();
+		if (spell.api)
+			spell.api->stop();
+		if (preset >= n) {
+			applySpellPreset(SPELL_PRESETS[preset - n]);
+			for (int& s : sent)
+				s = INT32_MIN;
+			shownPreset = preset;
+			return;
+		}
 		a->load_preset((uint32_t) preset);
 		params[LANG_PARAM].setValue((float) a->get(JVO_LANG));
 		params[LYRIC_PARAM].setValue((float) a->get(JVO_LYRIC));
@@ -237,9 +314,10 @@ struct Voice : Module, follow::Host {
 		textSeq++;
 		fromPatch = true;
 		if (core.api) { // a preset loaded onto (or pasted into) a running module: Rack holds the engine lock here
-			int n = std::max(1, (int) core.api->npresets());
+			int n = npresets();
 			preset = ((preset % n) + n) % n;
-			core.api->load_preset(preset);
+			if (preset < (int) core.api->npresets())
+				core.api->load_preset(preset);
 			textDirty = true; // the text loaded with it, not the preset's
 			for (int& s : sent)
 				s = INT32_MIN; // the knobs' values follow in the next block
@@ -260,7 +338,8 @@ struct Voice : Module, follow::Host {
 		if (sent[JVO_VOICE] != INT32_MIN && sent[JVO_VOICE] != vo)
 			a->all_off();
 		push(a, JVO_VOICE, vo);
-		push(a, JVO_LANG, (int) std::round(params[LANG_PARAM].getValue()));
+		int lang = (int) std::round(params[LANG_PARAM].getValue());
+		push(a, JVO_LANG, lang == LANG_SPELL ? 0 : lang);  // (SPELL: the JIANT engine rests on its vowels, silent)
 		push(a, JVO_LYRIC, (int) std::round(params[LYRIC_PARAM].getValue()));
 		for (int k = 0; k < NE; k++) {          // (after LANG: its ranges)
 			uint32_t j = JVO_E1 + k;
@@ -282,7 +361,156 @@ struct Voice : Module, follow::Host {
 		}
 	}
 
+	bool spellLang() { return (int) std::round(params[LANG_PARAM].getValue()) == LANG_SPELL; }
+
+	/** SPELL's knobs: the ENGINE eight (CV added) as SPELL reads them, into its chip; the bends from VOICE BEND. */
+	void spellKnobs(const jsp_api* s) {
+		float x[NE];
+		for (int k = 0; k < NE; k++) {
+			x[k] = params[E_PARAM + k].getValue();
+			if (inputs[E_INPUT + k].isConnected())
+				x[k] += inputs[E_INPUT + k].getVoltage() / 10.f;
+		}
+		sp.mode = clamp((int) std::round(params[SPELL_MODE_PARAM].getValue()), 0, SPM_N - 1);
+		sp.k.read(x, sp.mode, (int) s->count());
+		s->set(JSP_ARTIC, sp.k.artic);
+		s->set(JSP_PITCH, sp.k.shift);
+		s->set(JSP_SPEED, sp.k.speed);
+		s->set(JSP_TONE, sp.k.tone);
+		s->set(JSP_MONO, sp.k.mono);
+		BendSource* b = nullptr;
+		if (rightExpander.module && rightExpander.module->model == modelVoiceBend)
+			b = dynamic_cast<BendSource*>(rightExpander.module);
+		bendSeen = b ? 1 : 0;
+		bool on = b && b->on;
+		s->set(JSP_CLOCK, on ? b->clock.load() : 64);
+		s->set(JSP_BEND, on ? b->bend.load() : 0);
+		s->set(JSP_STUTTER, on ? b->stutter.load() : 0);
+		s->set(JSP_CRUSH, on ? b->crush.load() : 0);
+		spClock = on ? b->clock.load() : 64;
+	}
+
+	/** The lyric's words in capitals (SPEAK). */
+	std::vector<std::string> lyricWords() {
+		std::vector<std::string> w;
+		std::string t = getText(), cur;
+		for (char c : t) {
+			if (std::isalpha((unsigned char) c) || (c == '\'' && !cur.empty()))
+				cur += (char) std::toupper((unsigned char) c);
+			else if (!cur.empty()) {
+				w.push_back(cur);
+				cur.clear();
+			}
+		}
+		if (!cur.empty())
+			w.push_back(cur);
+		return w;
+	}
+
+	/** A note in SPELL: SING its word, LETTER its letter (held while the gate is), SPEAK the lyric's next words. */
+	void spellNoteOn(const jsp_api* s, int note, int ch) {
+		sp.ch = ch;
+		sp.note = note;
+		int sung = clamp(note + sp.k.shift, 0, 127);
+		if (sp.mode == SPM_SING) {
+			s->say((uint32_t) sp.k.sel, (uint32_t) sung, 1);
+		} else if (sp.mode == SPM_LETTER) {
+			int L = sp.k.sel ? sp.k.sel - 1 : ((note - 53) % 26 + 26) % 26;  // (A on F3, as SPELLBOX's keys)
+			s->say(s->letter_base() + (uint32_t) L, (uint32_t) sung, 1);
+		} else {
+			std::vector<std::string> w = lyricWords();
+			if (w.empty())
+				return;
+			int nw = (int) w.size();
+			int loop = SPELL_LOOPS[sp.k.loop];
+			if (loop && sp.notes >= loop)
+				sp.pos = 0, sp.notes = 0;
+			int at = sp.k.pos ? (sp.k.pos - 1) % nw : sp.pos % nw;
+			int take = sp.k.sel >= SPELL_KWORDS ? nw : sp.k.sel + 1;
+			std::string say;
+			for (int i = 0; i < take && i < nw; i++)
+				say += (i ? " " : "") + w[(at + i) % nw];
+			s->speak(say.c_str());
+			sp.said = say;
+			sp.pos = (at + take) % nw;
+			sp.notes++;
+			spWordI = at + 1;
+			spWords = nw;
+		}
+		spEnv.gate(true);
+	}
+	void spellNoteOff(const jsp_api* s) {
+		if (sp.mode != SPM_SPEAK)
+			s->release();
+		spEnv.gate(false);
+		sp.ch = -2;
+	}
+
+	void processSpellNotes(const jsp_api* s) {
+		int n = inputs[GATE_INPUT].isConnected() ? std::max(1, inputs[GATE_INPUT].getChannels()) : 0;
+		int legato = (int) std::round(params[VOICE_PARAM].getValue()) == 2;
+		int rose = -1;
+		for (int c = 0; c < 16; c++) {  // one voice: the newest gate wins
+			CvVoice& v = cv[c];
+			bool on = false;
+			if (c < n) {
+				float g = inputs[GATE_INPUT].getPolyVoltage(c);
+				on = v.gate ? g > 0.5f : g >= 1.f;
+			}
+			int note = clamp((int) std::round(inputs[VOCT_INPUT].getPolyVoltage(c) * 12.f) + 60, 0, 127);
+			if (on && !v.gate)
+				rose = c;
+			else if (on && c == sp.ch && note != v.note && sp.mode != SPM_SPEAK) {  // the note it sings moved
+				if (legato)
+					s->sing_note((uint32_t) clamp(note + sp.k.shift, 0, 127)), sp.note = note;
+				else
+					rose = c;
+			} else if (!on && v.gate && c == sp.ch)
+				spellNoteOff(s);
+			v.gate = on;
+			v.note = note;
+		}
+		if (rose >= 0) {
+			int vel = 100;
+			if (inputs[VEL_INPUT].isConnected())
+				vel = clamp((int) std::round(inputs[VEL_INPUT].getPolyVoltage(rose) / 10.f * 127.f), 1, 127);
+			sp.vel = vel / 127.f;
+			spellNoteOn(s, cv[rose].note, rose);
+		}
+		bool call = params[CALL_PARAM].getValue() > 0.5f;
+		if (inputs[CALL_INPUT].isConnected()) {
+			float g = inputs[CALL_INPUT].getVoltage();
+			call = call || (callOn ? g > 0.5f : g >= 1.f);
+		}
+		if (call && !callOn) {
+			sp.vel = 100.f / 127.f;
+			spellNoteOn(s, CALL_NOTE, -1);
+		} else if (!call && callOn && sp.ch == -1)
+			spellNoteOff(s);
+		callOn = call;
+		lights[CALL_LIGHT].setBrightness(call ? 1.f : 0.f);
+		if (wordTrig.process(inputs[WORD_INPUT].getVoltage(), 0.1f, 1.f))
+			sp.pos = 0, sp.notes = 0;
+	}
+
 	void processNotes(const jvo_api* a) {
+		bool spl = spellLang();
+		if (spl != sp.on) {  // into SPELL or out of it: the other engine let go
+			sp.on = spl;
+			spellOn = spl ? 1 : 0;
+			if (spl)
+				a->all_off();
+			else if (spell.api) {
+				spell.api->stop();
+				spEnv.gate(false);
+			}
+			sp.ch = -2;
+		}
+		if (spl) {
+			if (spell.api)
+				processSpellNotes(spell.api);
+			return;
+		}
 		int n = inputs[GATE_INPUT].isConnected() ? std::max(1, inputs[GATE_INPUT].getChannels()) : 0;
 		for (int c = 0; c < 16; c++) {
 			CvVoice& v = cv[c];
@@ -322,9 +550,72 @@ struct Voice : Module, follow::Host {
 			a->restart();
 	}
 
+	/** SPELL's block (44.1 kHz, as the JIANT engine's): the chip, the envelope, the velocity, LEVEL, the effects. */
+	void renderSpell(const jsp_api* s) {
+		spellKnobs(s);
+		s->render(BLOCK, spBuf);
+		int adsr[4], fx[4];
+		for (int i = 0; i < 4; i++) {
+			adsr[i] = (int) std::round(params[ATK_PARAM + i].getValue());
+			fx[i] = (int) std::round(params[DIST_PARAM + i].getValue());
+		}
+		float lvl = params[LEVEL_PARAM].getValue() / 127.f;
+		for (int i = 0; i < BLOCK; i++) {
+			float e = spEnv.process(adsr, 44100.f);
+			if (sp.mode == SPM_SPEAK)
+				e = 1.f;  // (it speaks to its end, whatever the gate)
+			float l, r;
+			spFx.process(spBuf[i] * e * sp.vel * lvl, fx, l, r);
+			devL[i] += l;
+			devR[i] += r;
+		}
+	}
+
+	/** What the display shows of SPELL: the knobs' names and values, the word and how far it is, the lattice. */
+	void spellView(const jsp_api* s) {
+		for (int k = 0; k < NE; k++) {
+			std::snprintf(labels[k].data(), labels[k].size(), "%s", spellLabel(k, sp.mode));
+			std::snprintf(values[k].data(), values[k].size(), "%s", spellValue(k, sp.k, sp.mode, s).c_str());
+		}
+		bool busy = s->busy();
+		std::string w;
+		if (sp.mode == SPM_SING)
+			w = s->text((uint32_t) sp.k.sel);
+		else if (sp.mode == SPM_LETTER) {
+			static const char* NN[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
+			int L = sp.k.sel ? sp.k.sel - 1 : ((sp.note - 53) % 26 + 26) % 26;
+			w = std::string(1, (char) ('A' + L));
+			std::snprintf(spNote.data(), spNote.size(), "%s%d", NN[sp.note % 12], sp.note / 12 - 1);
+		} else { // SPEAK: the word it says now (its marks)
+			int m = (int) s->mark(), i = 0;
+			std::string cur;
+			for (size_t j = 0; j <= sp.said.size(); j++) {
+				if (j == sp.said.size() || sp.said[j] == ' ') {
+					if (++i == std::max(1, m)) {
+						w = cur;
+						break;
+					}
+					cur.clear();
+				} else
+					cur += sp.said[j];
+			}
+		}
+		std::snprintf(spWord.data(), spWord.size(), "%s", w.c_str());
+		int len = (int) w.size();
+		spLen = len;
+		spLit = !busy ? (sp.ch == -2 ? 0 : len) : sp.mode == SPM_SING ? (int) ((s->progress() * len + 128) / 256) : len;
+		int32_t k[10], e = 0;
+		s->frame(k, &e);
+		for (int i = 0; i < 10; i++)
+			spK[i] = k[i];
+		spE = e;
+	}
+
 	void renderBlock(const jvo_api* a, float sampleRate) {
 		processKnobs(a);
 		a->render(BLOCK, devL, devR);
+		if (sp.on && spell.api)
+			renderSpell(spell.api);
 		dsp::Frame<2> in[BLOCK];
 		for (int i = 0; i < BLOCK; i++) {
 			in[i].samples[0] = devL[i];
@@ -350,6 +641,8 @@ struct Voice : Module, follow::Host {
 			syl = (int) s;
 			nsyl = (int) ns;
 			voices = (int) a->active_voices();
+			if (sp.on && spell.api)
+				spellView(spell.api);
 		}
 	}
 
@@ -401,7 +694,8 @@ struct Voice : Module, follow::Host {
 // ------------------------------------------------------------------------------------------------ the panel (GENRA look)
 namespace L = jlayout::voice;
 static const NVGcolor ACCENT = nvgRGB(JIANT_VOICE_RGB);
-static const char* LANG_NAMES[4] = {"OFF", "ES", "EN", "JA"};
+static const char* LANG_NAMES[5] = {"OFF", "ES", "EN", "JA", "SPELL"};
+static const NVGcolor VFD = nvgRGB(0x5f, 0xe0, 0xd0), VFD_OFF = nvgRGB(0x24, 0x40, 0x3d);  // SPELL's word, its lattice
 static const char* VOICE_NAMES[3] = {"POLY", "MONO", "LEGATO"};
 
 static std::string lyricName(int v) {
@@ -425,6 +719,23 @@ struct ScreenWidget : Widget {
 			return;
 		}
 		module->screenClock.mark();
+		if (module->spellOn) { // SPELL: the chip's lattice now, ten coefficients and the energy, as bars
+			NVGcontext* vg = args.vg;
+			if (!module->spell.loaded()) {
+				jiant::drawStatus(vg, module->spell.error, box.size.x);
+				return;
+			}
+			int c = module->spClock;
+			float khz = c <= 64 ? 4.f + c * 4.f / 64.f : 8.f + (c - 64) * 6.f / 63.f;
+			jiant::text(vg, jiant::boldFont(), 4, 11, string::f("LPC \xc2\xb7 %.1f kHz", khz), 6.f, VFD, NVG_ALIGN_LEFT, 0.8f);
+			float bw = (box.size.x - 12) / 11, top = 18, bot = box.size.y - 4;
+			for (int i = 0; i < 11; i++) {
+				float v = i < 10 ? std::fabs((float) module->spK[i]) / 16384.f : std::min(1.f, module->spE / 1600.f);
+				float h = std::max(1.f, std::min(1.f, v) * (bot - top));
+				jiant::roundRect(vg, 6 + i * bw, bot - h, bw - 2.5f, h, 1.f, i == 10 ? jiant::WHITE : VFD);
+			}
+			return;
+		}
 		canvas.draw(args.vg, module->screen, module->screenSeq, box.size.x, box.size.y);
 	}
 };
@@ -441,24 +752,32 @@ struct InfoWidget : Widget {
 		float w = box.size.x;
 		const jvo_api* a = module ? module->core.api : nullptr;
 		int p = module ? (int) module->shownPreset : 0;
-		int lang = module ? clamp((int) std::round(module->params[Voice::LANG_PARAM].getValue()), 0, 3) : 1;
+		int lang = module ? clamp((int) std::round(module->params[Voice::LANG_PARAM].getValue()), 0, 4) : 1;
+		bool spl = lang == Voice::LANG_SPELL;
+		int spm = module ? clamp((int) std::round(module->params[Voice::SPELL_MODE_PARAM].getValue()), 0, SPM_N - 1) : 0;
 		int lyr = module ? (int) std::round(module->params[Voice::LYRIC_PARAM].getValue()) : 1;
 		int vo = module ? clamp((int) std::round(module->params[Voice::VOICE_PARAM].getValue()), 0, 2) : 0;
-		jiant::text(vg, bold, 0, 20, a ? a->preset_name((uint32_t) p) : "CHOIR AAH", 15.f, jiant::WHITE, NVG_ALIGN_LEFT, 0.6f);
-		jiant::text(vg, bold, w, 20, string::f("\xc2\xb7 %d/%u", p + 1, a ? a->npresets() : 15u), 6.5f, jiant::DIM,
+		jiant::text(vg, bold, 0, 20, a ? module->presetName(p) : "CHOIR AAH", 15.f, jiant::WHITE, NVG_ALIGN_LEFT, 0.6f);
+		jiant::text(vg, bold, w, 20, string::f("\xc2\xb7 %d/%d", p + 1, a ? module->npresets() : 18), 6.5f, jiant::DIM,
 		            NVG_ALIGN_RIGHT, 0.8f);
-		jiant::text(vg, mono, 0, 33, string::f("LANG %s \xc2\xb7 LYRIC %s \xc2\xb7 %s", LANG_NAMES[lang], lyricName(lyr).c_str(),
-		                                       VOICE_NAMES[vo]), 7.f, jiant::DIM, NVG_ALIGN_LEFT, 0.f);
-		// LANG chips at x 0..125; the lyric chosen right of them
-		float lx = 128;
-		nvgBeginPath(vg);
-		nvgRoundedRect(vg, lx, 41, w - lx, 14, 2.2f);
-		nvgFillColor(vg, jiant::FIELD);
-		nvgFill(vg);
-		nvgStrokeColor(vg, jiant::EDGE);
-		nvgStrokeWidth(vg, 0.8f);
-		nvgStroke(vg);
-		jiant::text(vg, mono, lx + (w - lx) / 2, 51, lyricName(lyr), 8.f, ACCENT, NVG_ALIGN_CENTER, 0.f);
+		if (spl)
+			jiant::text(vg, mono, 0, 33, string::f("LANG SPELL \xc2\xb7 %s \xc2\xb7 %s", SPM_NAMES[spm], VOICE_NAMES[vo]), 7.f,
+			            jiant::DIM, NVG_ALIGN_LEFT, 0.f);
+		else
+			jiant::text(vg, mono, 0, 33, string::f("LANG %s \xc2\xb7 LYRIC %s \xc2\xb7 %s", LANG_NAMES[lang], lyricName(lyr).c_str(),
+			                                       VOICE_NAMES[vo]), 7.f, jiant::DIM, NVG_ALIGN_LEFT, 0.f);
+		// LANG chips at x 0..112; right of them the lyric chosen, or (SPELL) its SING / LETTER / SPEAK chips
+		float lx = 116;
+		if (!spl) {
+			nvgBeginPath(vg);
+			nvgRoundedRect(vg, lx, 41, w - lx, 14, 2.2f);
+			nvgFillColor(vg, jiant::FIELD);
+			nvgFill(vg);
+			nvgStrokeColor(vg, jiant::EDGE);
+			nvgStrokeWidth(vg, 0.8f);
+			nvgStroke(vg);
+			jiant::text(vg, mono, lx + (w - lx) / 2, 51, lyricName(lyr), 8.f, ACCENT, NVG_ALIGN_CENTER, 0.f);
+		}
 		// the lyric's field
 		nvgBeginPath(vg);
 		nvgRoundedRect(vg, 0, 60, w, 14, 2.2f);
@@ -469,8 +788,24 @@ struct InfoWidget : Widget {
 		nvgStrokeColor(vg, edge);
 		nvgStrokeWidth(vg, 0.8f);
 		nvgStroke(vg);
-		// the word sung, its syllables as dots (lit: sung)
-		if (module && module->word[0]) {
+		// SPELL: the word in the chip's display colour, letter by letter as it is said
+		if (module && spl) {
+			std::string wd = module->spWord.data();
+			int lit = module->spLit;
+			float x = 0;
+			for (size_t i = 0; i < wd.size() && i < 12; i++) {
+				std::string ch(1, wd[i]);
+				jiant::text(vg, bold, x, 93, ch, 12.f, (int) i < lit ? VFD : VFD_OFF, NVG_ALIGN_LEFT, 0.f);
+				x += nvgTextBounds(vg, 0, 0, ch.c_str(), nullptr, nullptr) + 2.5f;
+			}
+			int cnt = module->spell.api ? (int) module->spell.api->count() : 162;
+			int idx = (int) std::round(clamp(module->params[Voice::E_PARAM + 1].getValue(), 0.f, 1.f) * (cnt - 1)) + 1;
+			std::string right = spm == SPM_LETTER  ? std::string(module->spNote.data())
+			                    : spm == SPM_SPEAK ? string::f("WORD %d/%d", (int) module->spWordI, (int) module->spWords)
+			                                       : string::f("WORD %d/%d", idx, cnt);
+			jiant::text(vg, mono, w, 92, right, 6.6f, jiant::DIM, NVG_ALIGN_RIGHT, 0.f);
+		} else if (module && module->word[0]) {
+			// the word sung, its syllables as dots (lit: sung)
 			std::string wd = module->word.data();
 			jiant::text(vg, bold, 0, 92, wd, 11.f, jiant::WHITE, NVG_ALIGN_LEFT, 0.4f);
 			float tw = nvgTextBounds(vg, 0, 0, wd.c_str(), nullptr, nullptr);
@@ -486,6 +821,15 @@ struct InfoWidget : Widget {
 			int nv = module->voices;
 			jiant::text(vg, mono, 0, 92, string::f("%d VOICE%s", nv, nv == 1 ? "" : "S"), 7.f, jiant::DIM, NVG_ALIGN_LEFT, 0.f);
 		}
+	}
+};
+
+/** SPELL's SING / LETTER / SPEAK, right of the LANG chips (only while LANG is SPELL). */
+struct SpellModeChips : jiant::ChipRow {
+	Voice* voice = nullptr;
+	void step() override {
+		visible = voice && voice->spellOn;
+		jiant::ChipRow::step();
 	}
 };
 
@@ -519,6 +863,8 @@ struct LyricField : jiant::DisplayTextField {
 				module->paramQuantities[Voice::LYRIC_PARAM]->setValue(0.f);
 				if (module->params[Voice::LANG_PARAM].getValue() < 0.5f)
 					module->paramQuantities[Voice::LANG_PARAM]->setValue(2.f);
+				if (module->spellOn)  // SPELL: typing reads it out
+					module->paramQuantities[Voice::SPELL_MODE_PARAM]->setValue((float) SPM_SPEAK);
 			}
 		}
 		DisplayTextField::onChange(e);
@@ -541,10 +887,19 @@ struct VoiceWidget : ModuleWidget {
 		info->box = jiant::area(L::INFO);
 		addChild(info);
 		jiant::ChipRow* lang = createParam<jiant::ChipRow>(Vec(L::INFO[0], L::INFO[1] + 41), module, Voice::LANG_PARAM);
-		lang->box.size = Vec(125, 14);
-		lang->names = {"OFF", "ES", "EN", "JA"};
+		lang->box.size = Vec(112, 14);
+		lang->names = {"OFF", "ES", "EN", "JA", "SPELL"};
+		lang->size = 4.6f;
 		lang->accent = ACCENT;
 		addParam(lang);
+		SpellModeChips* spm = createParam<SpellModeChips>(Vec(L::INFO[0] + 116, L::INFO[1] + 41), module, Voice::SPELL_MODE_PARAM);
+		spm->box.size = Vec(L::INFO[2] - 116, 14);
+		spm->names = {"SING", "LETTER", "SPEAK"};
+		spm->size = 4.2f;
+		spm->gap = 2.f;
+		spm->accent = ACCENT;
+		spm->voice = module;
+		addParam(spm);
 		LyricField* lf = createWidget<LyricField>(Vec(L::INFO[0], L::INFO[1] + 60));
 		lf->box.size = Vec(L::INFO[2], 14);
 		lf->module = module;
@@ -600,13 +955,16 @@ struct VoiceWidget : ModuleWidget {
 			return;
 		menu->addChild(new MenuSeparator);
 		std::vector<std::string> names;
-		for (uint32_t i = 0; i < m->core.api->npresets(); i++)
-			names.push_back(m->core.api->preset_name(i));
+		for (int i = 0; i < m->npresets(); i++)
+			names.push_back(m->presetName(i));
 		menu->addChild(createIndexSubmenuItem("Preset", names, [=]() { return (size_t) m->shownPreset; },
 		                                      [=](size_t i) { m->presetReq = (int) i; }));
 		menu->addChild(new MenuSeparator);
 		menu->addChild(createMenuLabel("Each note sings the next syllable; WORD \xe2\x86\xba starts the lyric over"));
+		menu->addChild(createMenuLabel("SPELL: one voice; SING and LETTER hold while the gate does, SPEAK says the lyric's next words"));
+		menu->addChild(createMenuLabel("VOICE BEND on the right bends SPELL (clock, corrupt, stutter, crush)"));
 		menu->addChild(createMenuLabel("Engine: VOICE from JIANT FM by Juan Jiant (a Felucca fork), GPL-3.0"));
+		menu->addChild(createMenuLabel("SPELL: SPELLBOX by pjac1810 (LPC speech, espeak-ng data), GPL-3.0"));
 	}
 };
 

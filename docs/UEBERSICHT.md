@@ -31,7 +31,7 @@ Pfade relativ zu `instruments/`; Panel-Skripte und Bilder liegen im Hauptordner 
 | GOLANA (`Golana`), GOLANA FX (`GolanaFx`) | `src/golana/` | `golana/` (Firmware, unverändert), `glcore/` | `golana_panel.py`, `golana_fx_panel.py` | `Golana.svg`, `GolanaFx.svg` | `glcore_test.c` |
 | UMLAUF (`Umlauf`), UMLAUF FX (`UmlaufFx`) | `src/umlauf/` | `vader/` (VADER, per `tools/vader_vendor.sh`) | `umlauf_panel.py`, `umlauf_fx_panel.py` | `Umlauf.svg`, `UmlaufFx.svg`, `umlauf/shapes` | `vader_test.c` |
 | MONK (`Monk`) | `src/monk/` | – (Sänger-Bilder `res/monk/`, aus `tools/monk_singers.py`) | `monk_panel.py` | `Monk.svg` | – |
-| VOICE (`Voice`), ANIMAL (`Animal`) | `src/jiant/` | `../jiantcore/` (`voicecore.c`, `animalcore.c`) | `jiant_panel.py` | `JiantVoice.svg`, `JiantAnimal.svg` | – |
+| VOICE (`Voice`), VOICE BEND (`VoiceBend`), ANIMAL (`Animal`) | `src/jiant/` | `../jiantcore/` (`voicecore.c`, `spellcore.c` mit `spellbox/`, `animalcore.c`) | `jiant_panel.py` | `JiantVoice.svg`, `JiantVoiceBend.svg`, `JiantAnimal.svg` | `test/spellcore_test.c` |
 
 ## Gemeinsame Teile (in `src/`, von allen GENRA-Plugins benutzt)
 
