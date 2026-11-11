@@ -103,6 +103,19 @@ FUMI, MIAOU, SAURUS, KURBEL). Noch nicht freigegeben.
 
 ## Offene Änderungen an bestehenden Modulen (gesammelt, noch nicht gebaut)
 
+### GENRA GRID (GENRA-Plugin) – für den nächsten Bau
+- **Skalen-Ansicht** im Piano-Roll (Entwurf 10. Nov. 2026): drei Ansichten **ALL** (alle 12 Töne, wie heute) /
+  **SCALE** (nur Töne der Tonart, Zeilen dazwischen fallen weg) / **USED** (nur Tonhöhen, auf denen in der Spur Noten
+  liegen), Umschalter als Taster in der Kopfleiste. Akkordtöne des jeweiligen Akkords hervorheben.
+- **VIEW: ONE · GHOST · ALL 4** (gewählt 11. Nov. 2026, beide Modi; Entwürfe `docs/panels/grid_entwurf_ghost.png`,
+  `grid_entwurf_all4.png`):
+  - **ONE:** wie heute, eine Spur.
+  - **GHOST:** die bearbeitete Spur voll, Melodie/Bass/Pads der anderen Spuren als blasse Umrisse in ihren Spurfarben
+    dahinter (nicht anklickbar, nur zur Orientierung; Drums nicht, keine Tonhöhen). Tonbereich passt sich an.
+  - **ALL 4:** alle vier Spuren als Streifen untereinander (Drums, Bass, Melodie, Pads), jede in ihrem eigenen
+    Tonbereich; Klick = diese Spur bearbeiten (weiss umrandet), Doppelklick = gross in ONE.
+- Nicht gewünscht (bleibt so): Teil neu generieren, Euklid/Drum-Zeilen, Akkord-Stempel, weitere Ableton-Ideen.
+
 ### FUNKE, SCHMELZ, GRUND, GENRA MONO (GENRA-Plugin)
 - **Cutoff der Presets** etwas höher (+10–15 %), Lautstärke danach neu einmessen: nur die Presets, die der Nutzer noch
   auflistet (Liste folgt).
