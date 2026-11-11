@@ -389,6 +389,9 @@ GENRA MONO: `g++ -std=c++17 -O2 test/test_mono.cpp -o tm && ./tm`
 - **CI:** Job `mac` (macos-latest, Matrix arm64/x64; x64 per `clang -arch x86_64` gegen das x64-SDK), prüft mit `lipo`
   die Architektur von plugin.dylib und allen Cores, Artifacts `genra(-instruments)-mac-arm64/-x64`. Release ist ein
   eigener Job (`needs: [windows, mac]`), der alle Artifacts einsammelt. Mac noch auf keinem echten Gerät getestet.
+  Für clang: `-fno-tree-loop-distribute-patterns` (K-WASUB-Core) nur ausserhalb des Mac; `jiantcore/mac_section.h`
+  (per `-include` in allen Cores) macht aus den FM1-Linker-Sektionen (`.pool`, `.noinit`, `.ram_text`) ein `used`,
+  da Mach-O „Segment,Sektion“ verlangt. Die Firmwares bleiben unverändert.
 
 ### 2.31.0 – GENRA BOX und ABLAUF MINI zurück, Presets nach Genre
 - **GENRA BOX** (`src/box/GenraBox.cpp`, 40 HP) auf 2.30 neu aufgesetzt: Stimmen DRUM-X, **GENRA MONO** (statt GRUND,
