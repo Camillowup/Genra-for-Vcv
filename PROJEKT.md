@@ -1,6 +1,6 @@
 # GENRA – Projektstand
 
-**Stand:** 10. November 2026 · **Plugin 2.31.0: 24 Module** (GENRA, GRID, ABLAUF, GENRA BOX, ABLAUF MINI, SCHLAG, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, GOLANA, GOLANA FX, GRUND, GRUND FX, SCHMELZ, MIX, GENRA FX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `Camillowup/Genra-for-Vcv` (vorher `CamilloGF/genra-v3`, Account nicht mehr erreichbar)
+**Stand:** 10. November 2026 · **Plugin 2.31.1: 24 Module, Windows + macOS (arm64/x64, ungetestet)** (GENRA, GRID, ABLAUF, GENRA BOX, ABLAUF MINI, SCHLAG, VOICE, DRUM-X, ANIMAL, MONK, GENRA MONO, FUNKE, GOLANA, GOLANA FX, GRUND, GRUND FX, SCHMELZ, MIX, GENRA FX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, STOTTER) · Repo: `Camillowup/Genra-for-Vcv` (vorher `CamilloGF/genra-v3`, Account nicht mehr erreichbar)
 
 > Design-Leitfaden für neue Module (Aussehen, GENRA-Leiste, Leuchtsegmente, Follow, englische UI): **docs/DESIGN.md**
 
@@ -376,6 +376,19 @@ GENRA MONO: `g++ -std=c++17 -O2 test/test_mono.cpp -o tm && ./tm`
 - Pads per Drag & Drop in die Song-Liste: zwischen Zeilen einfügen (Linie), auf eine Zeile ersetzen (Rahmen), Undo. Ein belegtes Pad löst sein Antippen jetzt beim Loslassen aus (sonst wäre jeder Drag ein Antippen); leere Pads speichern weiter beim Drücken.
 - Song-Liste unten: Takte und Spieldauer aus GENRAs Tempo (`Genra::currentBpm`, auch für GENRAs MIDI-Export), z. B. „BAR 37 / 92 · 1:12 / 2:59“.
 - `test_ablauf`: jede Genre-Variante hat eine Form, Formlängen, `renderSong` (eine Zeile = Loop, Marker, stumme Drums, Notenbereich, Marker in der Datei).
+
+### 2.31.1 – ABLAUF MINI nach den Regeln des grossen ABLAUF, Mac-Builds
+- **ABLAUF MINI** folgt ABLAUF (der Host gibt die Regeln vor): Teil-Taster = sofort neue Variante aufs nächste freie Pad
+  (02–16, ROOT zuletzt) aus dem spielenden Pattern, mit derselben Session-Regel (spielt eine Variante der Session
+  unverändert: dieselbe Quelle; `slotVer` pro Pad, `patChanges == patChangesAtCue`). Nichts gespeichert: das Spielende
+  wird ROOT. Leeres Pad = speichern (eigene Familie, `Slot::family`, JSON `family`; ROOT bzw. „GENRA n“). Namen und VARY
+  pro Familie (`nextName`, `lastVariant`). SONG wie `Ablauf::makeSong`: Quelle = Familie des spielenden Pads (sonst
+  ROOT, sonst erst speichern), vorhandene Varianten zuerst, fehlende neu, Pads voll = Original. `makeSongReq` (MAKE-SONG-
+  Pad an GENRA / Box) wirkt auch auf MINI. Rechtsklick Break bass / Intro bass (`PartOpts`, JSON `breakBass`/`introBass`).
+  MIDI-Export über `midifolder::save` statt Dateidialog. Ein Cue-Zähler für Pads und Song.
+- **CI:** Job `mac` (macos-latest, Matrix arm64/x64; x64 per `clang -arch x86_64` gegen das x64-SDK), prüft mit `lipo`
+  die Architektur von plugin.dylib und allen Cores, Artifacts `genra(-instruments)-mac-arm64/-x64`. Release ist ein
+  eigener Job (`needs: [windows, mac]`), der alle Artifacts einsammelt. Mac noch auf keinem echten Gerät getestet.
 
 ### 2.31.0 – GENRA BOX und ABLAUF MINI zurück, Presets nach Genre
 - **GENRA BOX** (`src/box/GenraBox.cpp`, 40 HP) auf 2.30 neu aufgesetzt: Stimmen DRUM-X, **GENRA MONO** (statt GRUND,

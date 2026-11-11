@@ -4,6 +4,10 @@
 // one arranger per GENRA (arrOwner). All of its own logic runs on the UI thread (AblaufMiniWidget::step).
 // 2.31: the track buttons Keep / Re-roll / Vary (as ABLAUF's), SONG (MAKE SONG: the pads filled with the genre's song
 // form, played one after another over their rows).
+// 2.31.1: the rules of the big ABLAUF (it is the host, MINI follows): a part button makes a new variant on the next
+// free pad at once, from the pattern that plays (while one of this session's variants plays unchanged: from the same
+// source); an empty pad stores what plays; SONG takes the family's variants first; break / intro bass; GENRA's
+// MAKE SONG pad; MIDI into the export folder without a dialog.
 #include "../GenraModule.hpp"
 #include "AblaufMiniLayout.hpp"
 
@@ -33,7 +37,7 @@ struct AblaufMini : Module {
 
 	// ---- kept with the patch (UI thread)
 	Slot slots[NUM_PADS];
-	int part = SEC_DROP;     // the part a new pad becomes
+	PartOpts partOpts;       // the bass styles of BREAK / INTRO (-1: one at random on every press), as ABLAUF's
 	int64_t linkedId = -1;   // -1: the docked GENRA / GENRA BOX
 
 	// ---- UI thread
@@ -58,9 +62,23 @@ struct AblaufMini : Module {
 		bool waitStop = false;
 	} play;
 	uint32_t cueCounter = 1;
-	bool songPending = false;  // SONG pressed with ROOT empty: ROOT is stored first
+	bool songAfterStore = false; // SONG / GENRA's MAKE SONG with nothing stored: what plays is stored first
+	// ---- the part buttons' session (as ABLAUF's): the source the variants of one go come from
+	struct Session {
+		bool active = false;
+		Slot source;
+		Params P;
+		std::vector<std::pair<int, uint32_t>> made; // pad, its version when made
+		void clear() {
+			active = false;
+			made.clear();
+		}
+	} session;
+	uint32_t slotVer[NUM_PADS] = {};
+	int pendingPart = -1;    // a part button waits for GENRA's snapshot
+	float partFlash[NUM_SECTIONS] = {};
 	std::vector<Undo> undo;
-	int pendingPad = -1;     // waits for GENRA's snapshot
+	int pendingPad = -1;     // an empty pad waits for GENRA's snapshot (stores it)
 	int pendingCue = -1;     // waits for the cue mailbox
 	bool clearArmed = false;
 	std::string msg;
@@ -76,7 +94,7 @@ struct AblaufMini : Module {
 	AblaufMini() {
 		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
 		for (int k = 0; k < NUM_SECTIONS; k++)
-			configButton(PART_PARAM + k, std::string("Part: ") + SECTION_NAMES[k] + " (a tap on an empty pad makes one)");
+			configButton(PART_PARAM + k, std::string(SECTION_NAMES[k]) + " from the playing pattern (each press: a new variant on the next free pad)");
 		static const char* TN[4] = {"drums", "bass", "melody", "pads"};
 		for (int t = 0; t < 4; t++) {
 			configSwitch(TRACK_PARAM + t, 0.f, 2.f, t < 2 ? 1.f : 0.f, std::string("New parts: ") + TN[t],
@@ -85,7 +103,7 @@ struct AblaufMini : Module {
 		}
 		configButton(UNDO_PARAM, "Undo the last pad change");
 		configButton(CLEAR_PARAM, "Clear: then tap the pad to clear");
-		configButton(SONG_PARAM, "SONG: make a song of the genre's form from ROOT and play it (again: stop)");
+		configButton(SONG_PARAM, "SONG: make a song of the genre's form from the playing pad (or ROOT) and play it (again: stop)");
 		configInput(NEXT_INPUT, "Next pad (trigger: the next used pad at the end of the pattern)");
 		configInput(RESET_INPUT, "Reset (trigger: back to ROOT at the end of the pattern)");
 		configOutput(DROP_OUTPUT, "Drop (gate while a DROP pad plays)");
@@ -186,36 +204,82 @@ struct AblaufMini : Module {
 				m |= 1u << t;
 		return m;
 	}
-	/** The latest pad of part k (the highest number), skip excluded; -1 none. */
-	int lastVariant(int k, int skip) {
+	static int nameNumber(const char* name, const std::string& base) {
+		std::string n = name;
+		if (n.size() > base.size() + 1 && n.compare(0, base.size() + 1, base + " ") == 0)
+			return std::atoi(n.c_str() + base.size() + 1);
+		return 0;
+	}
+	/** The latest variant of part k in a family (the highest number), skip excluded; -1 none (as ABLAUF's). */
+	int lastVariant(int k, int family, int skip) {
 		int best = -1, top = -1;
-		std::string base = SECTION_NAMES[k];
-		for (int i = 1; i < NUM_PADS; i++) {
-			if (i == skip || !slots[i].used || slots[i].tag != k)
+		if (family < 0)
+			return -1;
+		for (int i = 0; i < NUM_PADS; i++) {
+			if (i == skip || !slots[i].used || slots[i].family != family || slots[i].tag != k)
 				continue;
-			std::string n = slots[i].name;
-			int num = n.size() > base.size() + 1 ? std::atoi(n.c_str() + base.size() + 1) : 0;
-			if (num > top)
-				top = num, best = i;
+			int n = nameNumber(slots[i].name, SECTION_NAMES[k]);
+			if (n > top)
+				top = n, best = i;
 		}
 		return best;
 	}
-	std::string partName(int k) {
-		std::string base = SECTION_NAMES[k];
+	/** base + the next free number in a family (every family counts on its own, as ABLAUF's). */
+	std::string nextName(const std::string& base, int skip, int family) {
 		int top = 0;
-		for (int i = 0; i < NUM_PADS; i++) {
-			if (!slots[i].used)
-				continue;
-			std::string n = slots[i].name;
-			if (n.size() > base.size() + 1 && n.compare(0, base.size() + 1, base + " ") == 0)
-				top = std::max(top, std::atoi(n.c_str() + base.size() + 1));
-		}
+		for (int i = 0; i < NUM_PADS; i++)
+			if (i != skip && slots[i].used && slots[i].family == family)
+				top = std::max(top, nameNumber(slots[i].name, base));
 		return base + " " + std::to_string(top + 1);
+	}
+	/** A new family for a pattern stored from GENRA: one above all families (ROOT included). */
+	int newFamily() {
+		int top = 0;
+		for (int i = 0; i < NUM_PADS; i++)
+			if (slots[i].used)
+				top = std::max(top, (int) slots[i].family);
+		return top + 1;
+	}
+	/** The next free pad: 02-16 first, ROOT (01) last. */
+	int freePad() {
+		for (int i = 1; i < NUM_PADS; i++)
+			if (!slots[i].used)
+				return i;
+		return slots[0].used ? -1 : 0;
+	}
+	/** The pad a family started with (stored from GENRA), or i itself. */
+	int familySource(int i) {
+		if (i < 0 || i >= NUM_PADS || !slots[i].used)
+			return -1;
+		int f = slots[i].family;
+		if (f >= 0)
+			for (int k = 0; k < NUM_PADS; k++)
+				if (slots[k].used && slots[k].family == f && slots[k].tag < 0)
+					return k;
+		return i;
+	}
+	/** The pad GENRA plays unchanged (no NEW, MUTATE or edit since), -1 none. */
+	int playingPad(Genra* g) {
+		int pl = g->arrSlotPub.load();
+		if (pl >= 0 && pl < NUM_PADS && slots[pl].used && g->patChanges.load() == g->patChangesAtCue.load())
+			return pl;
+		return -1;
 	}
 	void remember(int i) {
 		undo.push_back({i, slots[i], nullptr});
 		if (undo.size() > 32)
 			undo.erase(undo.begin());
+		slotVer[i]++;
+	}
+	void rememberAll() {
+		Undo u;
+		u.pad = -1;
+		u.all = std::make_shared<std::vector<Slot>>(slots, slots + NUM_PADS);
+		undo.push_back(u);
+		if (undo.size() > 32)
+			undo.erase(undo.begin());
+		for (int i = 0; i < NUM_PADS; i++)
+			slotVer[i]++;
 	}
 
 	/** The bar line where GENRA's loop starts again. */
@@ -230,7 +294,6 @@ struct AblaufMini : Module {
 			pendingCue = i;
 			return false;
 		}
-		static uint32_t counter = 1;
 		Genra::ArrCue& c = g->cue;
 		c.slot = slots[i];
 		c.mute = 0;
@@ -242,13 +305,20 @@ struct AblaufMini : Module {
 		c.row = -1;
 		c.tag = slots[i].tag;
 		c.slotIdx = i;
-		c.id = counter++;
+		c.id = cueCounter++;
 		g->cueCommit();
 		pendingCue = -1;
 		return true;
 	}
 
-	/** A pad tapped (UI thread). */
+	void requestSnap(Genra* g) {
+		int e = 0;
+		if (!g->snapState.compare_exchange_strong(e, 1) && e == 2) {
+			e = 2;
+			g->snapState.compare_exchange_strong(e, 1);
+		}
+	}
+	/** A pad tapped (UI thread): a used pad plays at the end of the pattern, an empty one stores what plays. */
 	void tap(int i) {
 		Genra* g = attached;
 		if (clearArmed) {
@@ -270,48 +340,100 @@ struct AblaufMini : Module {
 			cue(i, g);
 			return;
 		}
-		// empty: ROOT takes what plays now; any other pad becomes a part made from ROOT (ROOT first, if empty)
 		pendingPad = i;
-		int e = 0;
-		if (!g->snapState.compare_exchange_strong(e, 1) && e == 2) {
-			e = 2;
-			g->snapState.compare_exchange_strong(e, 1);
-		}
+		requestSnap(g);
+	}
+	/** GENRA's pattern stored on pad i: a family of its own (ROOT on pad 01, else GENRA n). */
+	void storeSnap(Genra* g, int i) {
+		remember(i);
+		slots[i] = g->snap;
+		slots[i].used = true;
+		slots[i].tag = -1;
+		int f = newFamily();
+		slots[i].family = (int8_t) f;
+		setName(slots[i], i == 0 ? std::string("ROOT") : "GENRA " + std::to_string(f));
 	}
 	void snapArrived(Genra* g) {
-		int i = pendingPad;
-		pendingPad = -1;
-		if (i < 0)
-			return;
-		if (!slots[0].used || i == 0) {
-			remember(0);
-			slots[0] = g->snap;
-			slots[0].used = true;
-			slots[0].tag = -1;
-			setName(slots[0], "ROOT");
-			if (i == 0) {
-				if (songPending) { // SONG with ROOT empty: now the song
-					songPending = false;
-					makeSong(g);
-					return;
+		if (pendingPad >= 0) {
+			int i = pendingPad;
+			pendingPad = -1;
+			if (!slots[i].used) {
+				storeSnap(g, i);
+				session.clear();
+				say(std::string(slots[i].name) + " stored");
+				if (songAfterStore) { // what plays is this pad now: the song comes from it
+					songAfterStore = false;
+					g->arrSlotPub.store(i);
+					g->patChangesAtCue.store(g->patChanges.load());
+					makeSong(g, i);
 				}
-				say("ROOT stored");
-				return;
 			}
 		}
-		remember(i);
-		makeSection(slots[0], slots[i], part, rerollMask(), g->snapP, rng);
-		int prev = varyMask() ? lastVariant(part, i) : -1; // VARY: from the part's last variant, a little changed
+		if (pendingPart >= 0) {
+			int k = pendingPart;
+			pendingPart = -1;
+			int pl = playingPad(g);
+			session.clear();
+			if (!slots[0].used && pl < 0) { // nothing stored yet: what plays becomes ROOT, the parts its family
+				storeSnap(g, 0);
+				session.source = slots[0];
+			}
+			else {
+				session.source = g->snap;
+				setName(session.source, pl >= 0 ? std::string(slots[pl].name) : "");
+				session.source.family = pl >= 0 ? slots[pl].family : (int8_t) -1; // the family of what it comes from
+			}
+			session.P = g->snapP;
+			session.active = true;
+			makePart(k, g);
+		}
+	}
+	// ------------------------------------------------------------ the part buttons (ABLAUF's rules)
+	void partButton(int k, Genra* g) {
+		partFlash[k] = 0.3f;
+		if (!g) {
+			say(busy ? "GENRA is driven by another ABLAUF" : "No GENRA connected");
+			return;
+		}
+		// still on one of this session's variants (unchanged)? then the same source: "this pattern is great – an
+		// intro, a break, ..." always starts from the great one; every press writes a new variant on the next free pad
+		bool same = false;
+		if (session.active) {
+			int pl = playingPad(g);
+			for (auto& mv : session.made)
+				if (pl >= 0 && mv.first == pl && slotVer[pl] == mv.second)
+					same = true;
+		}
+		if (same) {
+			makePart(k, g);
+			return;
+		}
+		pendingPart = k;
+		requestSnap(g);
+	}
+	void makePart(int k, Genra* g) {
+		int t = freePad();
+		if (t < 0) {
+			say("All 16 pads are full");
+			return;
+		}
+		remember(t);
+		makeSection(session.source, slots[t], k, rerollMask(), session.P, rng, partOpts);
+		// VARY: a part that has a variant already comes again from that one, a little changed
+		int prev = varyMask() ? lastVariant(k, slots[t].family, t) : -1;
 		if (prev >= 0)
-			varySection(slots[prev], slots[i], varyMask(), g->snapP, rng);
-		slots[i].used = true;
-		setName(slots[i], partName(part));
-		say(std::string(slots[i].name) + " made from ROOT");
-		cue(i, g);
+			varySection(slots[prev], slots[t], varyMask(), session.P, rng);
+		slots[t].used = true;
+		setName(slots[t], nextName(SECTION_NAMES[k], t, slots[t].family));
+		slotVer[t]++;
+		session.made.push_back({t, slotVer[t]});
+		say(std::string(slots[t].name) + string::f(" \xe2\x86\x92 pad %02d", t + 1));
+		if (!play.on)
+			cue(t, g);
 	}
 	// ------------------------------------------------------------ MAKE SONG
-	/** SONG: the pads 2-16 become the parts of the genre's song form (from ROOT; RE-ROLL / VARY as for a part), then it
-	 * plays from the top. ROOT empty: what GENRA plays is stored as ROOT first. */
+	/** SONG: a song of the genre's form from the playing pad's family (or ROOT's), played from the top. Nothing
+	 * stored: what GENRA plays is stored first. Again: stop. */
 	void songButton(Genra* g) {
 		if (!g) {
 			say(busy ? "GENRA is driven by another ABLAUF" : "No GENRA connected");
@@ -322,70 +444,97 @@ struct AblaufMini : Module {
 			say("Song stopped");
 			return;
 		}
-		if (!slots[0].used) {
-			songPending = true;
-			tapSnapshot(g, 0);
+		songFromGenra(g, true);
+	}
+	/** The source of a song: the pad that plays unchanged, else ROOT; nothing (ROOT empty, or GENRA's MAKE SONG pad
+	 * with a changed loop): what plays is stored on a free pad first (as ABLAUF's makeSongFromGenra). */
+	void songFromGenra(Genra* g, bool rootFallback) {
+		if (pendingPad >= 0 || pendingPart >= 0)
+			return; // a snapshot is on its way
+		int pl = playingPad(g);
+		if (pl >= 0) {
+			makeSong(g, pl);
 			return;
 		}
-		makeSong(g);
-	}
-	void tapSnapshot(Genra* g, int pad) {
-		pendingPad = pad;
-		int e = 0;
-		if (!g->snapState.compare_exchange_strong(e, 1) && e == 2) {
-			e = 2;
-			g->snapState.compare_exchange_strong(e, 1);
+		if (rootFallback && slots[0].used) {
+			makeSong(g, 0);
+			return;
 		}
+		int t = slots[0].used ? freePad() : 0;
+		if (t < 0) {
+			say("Pads full \xe2\x80\x93 clear a pad for SONG");
+			return;
+		}
+		pendingPad = t;
+		songAfterStore = true;
+		requestSnap(g);
 	}
-	void makeSong(Genra* g) {
-		const char* gname = prof(clamp((int) slots[0].pat.trackGenre[T_DRUMS], 0, numProfiles() - 1)).name;
-		int form = clamp(songFormForGenre(gname), 0, NUM_SONG_FORMS - 1);
+	/** As ABLAUF's MAKE SONG: every part of the form from the family's variants (lowest number first; a part that
+	 * comes again takes the next one) or made new like the part buttons on a free pad; pads full: the original. */
+	void makeSong(Genra* g, int sel) {
+		int src = familySource(sel);
+		if (src < 0) {
+			say("Tap a pad with a pattern first");
+			return;
+		}
+		int fam = slots[src].family;
+		const Genre& G = prof(clamp((int) slots[src].pat.trackGenre[T_DRUMS], 0, numProfiles() - 1));
+		int form = clamp(songFormForGenre(G.name), 0, NUM_SONG_FORMS - 1);
 		const SongForm& F = SONG_FORMS[form];
-		Undo u;
-		u.pad = -1;
-		u.all = std::make_shared<std::vector<Slot>>(slots, slots + NUM_PADS);
-		undo.push_back(u);
-		if (undo.size() > 32)
-			undo.erase(undo.begin());
-		for (int i = 1; i < NUM_PADS; i++)
-			slots[i] = Slot();
-		Params P = g->buildParams(false);
-		P.lengthBars = LENGTH_BARS[clamp((int) slots[0].lengthIdx, 0, 3)];
 		std::vector<int> have[NUM_SECTIONS];
-		int taken[NUM_SECTIONS] = {}, next = 1;
+		if (fam >= 0)
+			for (int i = 0; i < NUM_PADS; i++)
+				if (i != src && slots[i].used && slots[i].family == fam && slots[i].tag >= 0 && slots[i].tag < NUM_SECTIONS)
+					have[slots[i].tag].push_back(i);
+		for (int k = 0; k < NUM_SECTIONS; k++)
+			std::stable_sort(have[k].begin(), have[k].end(), [&](int a, int b) {
+				return nameNumber(slots[a].name, SECTION_NAMES[k]) < nameNumber(slots[b].name, SECTION_NAMES[k]);
+			});
+		rememberAll();
+		Params P = g->buildParams(false);
+		P.lengthBars = LENGTH_BARS[clamp((int) slots[src].lengthIdx, 0, 3)];
+		P = withMods(P, slots[src].mods);
+		int taken[NUM_SECTIONS] = {}, fallback = 0;
 		song.clear();
-		const Genre& G = prof(clamp((int) slots[0].pat.trackGenre[T_DRUMS], 0, numProfiles() - 1));
 		for (int k = 0; k < F.n; k++) {
 			int sec = clamp(F.sec[k], 0, NUM_SECTIONS - 1);
 			int pad = -1;
-			bool again = taken[sec] < (int) have[sec].size();
-			if (again && !(rerollMask() & ~varyMask()) && !varyMask())
-				pad = have[sec][taken[sec]]; // all Keep: a part that comes again is the same pad
-			else if (next < NUM_PADS) {
-				pad = next++;
-				makeSection(slots[0], slots[pad], sec, rerollMask(), P, rng);
-				if (varyMask() && !have[sec].empty()) // VARY: its second time from its first, a little changed
-					varySection(slots[have[sec].back()], slots[pad], varyMask(), P, rng);
-				slots[pad].used = true;
-				setName(slots[pad], partName(sec));
-				have[sec].push_back(pad);
+			if (taken[sec] < (int) have[sec].size())
+				pad = have[sec][taken[sec]];
+			else {
+				int t = freePad();
+				if (t >= 0) { // a new variant, like the part button, on the next free pad
+					makeSection(slots[src], slots[t], sec, rerollMask(), P, rng, partOpts);
+					// VARY: the part's second time comes from its first, a little changed (not a new roll)
+					if (varyMask() && !have[sec].empty())
+						varySection(slots[have[sec].back()], slots[t], varyMask(), P, rng);
+					slots[t].used = true;
+					setName(slots[t], nextName(SECTION_NAMES[sec], t, slots[t].family));
+					have[sec].push_back(t);
+					pad = t;
+				}
 			}
-			else
-				pad = have[sec].empty() ? 0 : have[sec].back(); // the pads are full: the last one of the part again
+			if (pad < 0)
+				pad = src, fallback++; // the pads are full: the original plays there
 			taken[sec]++;
 			int bars = F.bars[k];
-			if (sec == SEC_BUILD && G.buildBars > 0)
+			if (sec == SEC_BUILD && G.buildBars > 0) // the genre's build length
 				bars = G.buildBars;
 			song.push_back({pad, bars, false});
 		}
-		for (size_t k = 0; k + 1 < song.size(); k++) { // a fill leads out of a verse or a drop into another part
-			int a = slots[song[k].pad].tag, b = slots[song[k + 1].pad].tag;
+		// a fill leads out of a verse or a drop into another part
+		for (size_t k = 0; k + 1 < song.size(); k++) {
+			int a = F.sec[k], b = F.sec[k + 1];
 			song[k].fill = (a == SEC_VERSE || a == SEC_DROP) && b != a;
 		}
+		session.clear();
 		int total = 0;
 		for (const Part& p : song)
 			total += p.bars;
-		say(string::f("Song: %s, %d bars", F.name, total));
+		std::string m = string::f("Song: %s, %d bars", F.name, total);
+		if (fallback)
+			m += string::f(" \xe2\x80\x93 pads full: %d parts play the original", fallback);
+		say(m);
 		msgTime = 4.f;
 		startSong(g);
 	}
@@ -474,19 +623,7 @@ struct AblaufMini : Module {
 		Genra* g = attached ? attached : findGenra();
 		if (!g)
 			return;
-		osdialog_filters* filters = osdialog_filters_parse("MIDI file:mid,midi");
-		std::string name = only >= 0 ? std::string("ablauf-") + slots[only].name : (asSong ? "ablauf-song" : "ablauf-pads");
-		for (char& c : name)
-			if (c == ' ')
-				c = '_';
-		char* pathC = osdialog_file(OSDIALOG_SAVE, NULL, (name + ".mid").c_str(), filters);
-		osdialog_filters_free(filters);
-		if (!pathC)
-			return;
-		std::string path = pathC;
-		std::free(pathC);
-		if (system::getExtension(path) != ".mid" && system::getExtension(path) != ".midi")
-			path += ".mid";
+		std::string name = only >= 0 ? std::string("ablauf-mini-") + slots[only].name : (asSong ? "ablauf-mini-song" : "ablauf-mini-pads");
 		Params P = g->buildParams(false);
 		std::vector<SongPart> parts;
 		auto add = [&](int i, int bars, bool fill) {
@@ -518,12 +655,10 @@ struct AblaufMini : Module {
 			total += sp.bars * STEPS_PER_BAR;
 		float bpm = g->params[Genra::BPM_PARAM].getValue();
 		std::vector<uint8_t> data = writeSmf(notes, bpm, prof(g->curGenre).name, total, only >= 0 ? &slots[only].pat : nullptr, &marks);
-		try {
-			system::writeFile(path, data);
-		}
-		catch (Exception& e) {
-			osdialog_message(OSDIALOG_ERROR, OSDIALOG_OK, ("Saving failed: " + std::string(e.what())).c_str());
-		}
+		// into the MIDI export folder, no dialog (a save dialog can stall the audio driver), as ABLAUF's
+		std::string err, file = midifolder::save(name, data, &err);
+		say(file.empty() ? "Saving failed: " + err : "Saved: " + file);
+		msgTime = 4.f;
 	}
 
 	// ------------------------------------------------------------ the UI thread's frame
@@ -545,23 +680,23 @@ struct AblaufMini : Module {
 		// buttons
 		for (int k = 0; k < NUM_SECTIONS; k++) {
 			bool d = params[PART_PARAM + k].getValue() > 0.5f;
-			if (d && !partBtn[k]) {
-				part = k;
-				say(std::string("Next new pad: ") + SECTION_NAMES[k]);
-			}
+			if (d && !partBtn[k])
+				partButton(k, g);
 			partBtn[k] = d;
+			partFlash[k] = std::max(0.f, partFlash[k] - dt);
 		}
 		bool u = params[UNDO_PARAM].getValue() > 0.5f;
 		if (u && !undoBtn && !undo.empty()) {
 			if (undo.back().pad < 0 && undo.back().all) {
 				for (int i = 0; i < NUM_PADS && i < (int) undo.back().all->size(); i++)
-					slots[i] = (*undo.back().all)[i];
+					slots[i] = (*undo.back().all)[i], slotVer[i]++;
 				if (play.on && g)
 					stopSong(g, false);
 				song.clear();
 			}
 			else
-				slots[undo.back().pad] = undo.back().before;
+				slots[undo.back().pad] = undo.back().before, slotVer[undo.back().pad]++;
+			session.clear();
 			say("Undo");
 			undo.pop_back();
 		}
@@ -580,7 +715,9 @@ struct AblaufMini : Module {
 		if (g)
 			songStep(g);
 		// snapshot, waiting cue, NEXT / RESET
-		if (g && pendingPad >= 0 && g->snapState.load(std::memory_order_acquire) == 2) {
+		if (g && g->makeSongReq.exchange(false)) // GENRA's MAKE SONG pad: the running loop becomes a song
+			songFromGenra(g, false);
+		if (g && (pendingPad >= 0 || pendingPart >= 0) && g->snapState.load(std::memory_order_acquire) == 2) {
 			snapArrived(g);
 			g->snapState.store(0);
 		}
@@ -601,7 +738,7 @@ struct AblaufMini : Module {
 		seenNext = n, seenReset = r;
 		// lights
 		for (int k = 0; k < NUM_SECTIONS; k++)
-			lights[PART_LIGHT + k].setBrightness(k == part ? 1.f : 0.25f);
+			lights[PART_LIGHT + k].setBrightness(partFlash[k] > 0.f ? 1.f : 0.25f);
 		static float breath = 0.f;
 		breath += dt;
 		for (int t = 0; t < 4; t++) { // Keep dark, Re-roll lit, Vary breathing
@@ -617,7 +754,8 @@ struct AblaufMini : Module {
 	// ------------------------------------------------------------ patch
 	json_t* dataToJson() override {
 		json_t* r = json_object();
-		json_object_set_new(r, "part", json_integer(part));
+		json_object_set_new(r, "breakBass", json_integer(partOpts.breakBass));
+		json_object_set_new(r, "introBass", json_integer(partOpts.introBass));
 		json_object_set_new(r, "linkedId", json_integer(linkedId));
 		json_t* a = json_array();
 		for (int i = 0; i < NUM_PADS; i++) {
@@ -632,6 +770,7 @@ struct AblaufMini : Module {
 				json_object_set_new(s, "length", json_integer(slots[i].lengthIdx));
 				json_object_set_new(s, "tag", json_integer(slots[i].tag));
 				json_object_set_new(s, "name", json_string(slots[i].name));
+				json_object_set_new(s, "family", json_integer(slots[i].family));
 				json_t* d = json_array();
 				for (int t = 0; t < 4; t++)
 					json_array_append_new(d, json_real(slots[i].mods.dens[t]));
@@ -654,8 +793,10 @@ struct AblaufMini : Module {
 		return r;
 	}
 	void dataFromJson(json_t* r) override {
-		if (json_t* j = json_object_get(r, "part"))
-			part = clamp((int)json_integer_value(j), 0, NUM_SECTIONS - 1);
+		if (json_t* j = json_object_get(r, "breakBass"))
+			partOpts.breakBass = clamp((int) json_integer_value(j), -1, NUM_BREAK_BASS - 1);
+		if (json_t* j = json_object_get(r, "introBass"))
+			partOpts.introBass = clamp((int) json_integer_value(j), -1, NUM_INTRO_BASS - 1);
 		if (json_t* j = json_object_get(r, "linkedId"))
 			linkedId = json_integer_value(j);
 		json_t* a = json_object_get(r, "pads");
@@ -681,6 +822,8 @@ struct AblaufMini : Module {
 				slots[i].tag = (int8_t)clamp((int)json_integer_value(j), -1, NUM_SECTIONS - 1);
 			if (json_t* j = json_object_get(s, "name"))
 				setName(slots[i], json_string_value(j) ? json_string_value(j) : "");
+			if (json_t* j = json_object_get(s, "family"))
+				slots[i].family = (int8_t) clamp((int) json_integer_value(j), -1, 127);
 			json_t* d = json_object_get(s, "dens");
 			for (int t = 0; t < 4; t++) {
 				json_t* v = d ? json_array_get(d, t) : nullptr;
@@ -692,6 +835,7 @@ struct AblaufMini : Module {
 				slots[i].mods.fill = (float)json_number_value(j);
 		}
 		undo.clear();
+		session.clear();
 		song.clear();
 		play = Play();
 		if (json_t* sg = json_object_get(r, "song")) {
@@ -768,7 +912,7 @@ struct Display : Widget {
 					else if (m->clearArmed)
 						nxt = "CLEAR: tap a pad";
 					else
-						nxt = std::string("NEW PAD \xe2\x80\xba ") + SECTION_NAMES[m->part];
+						nxt = "PART: a new variant \xc2\xb7 empty pad: store";
 				}
 				int L = std::max(16, g->lengthSteps());
 				int s = std::max(0, g->step) % L;
@@ -930,7 +1074,18 @@ struct AblaufMiniWidget : ModuleWidget {
 			menu->addChild(createCheckMenuItem(label, "", [=]() { return m->linkedId == id; }, [=]() { m->linkedId = id; }));
 		}
 		menu->addChild(new MenuSeparator);
-		menu->addChild(createMenuLabel("MIDI"));
+		menu->addChild(createMenuLabel("New parts (as ABLAUF)"));
+		auto styleMenu = [=](const char* label, int* opt, const char* const* names, int n) {
+			menu->addChild(createSubmenuItem(label, *opt < 0 ? "Random" : names[*opt], [=](Menu* sm) {
+				sm->addChild(createCheckMenuItem("Random (each press)", "", [=]() { return *opt < 0; }, [=]() { *opt = -1; }));
+				for (int k = 0; k < n; k++)
+					sm->addChild(createCheckMenuItem(names[k], "", [=]() { return *opt == k; }, [=]() { *opt = k; }));
+			}));
+		};
+		styleMenu("Break bass", &m->partOpts.breakBass, BREAK_BASS_NAMES, NUM_BREAK_BASS);
+		styleMenu("Intro bass", &m->partOpts.introBass, INTRO_BASS_NAMES, NUM_INTRO_BASS);
+		menu->addChild(new MenuSeparator);
+		menu->addChild(createMenuLabel("MIDI (into the MIDI export folder)"));
 		menu->addChild(createMenuItem("Export all pads as MIDI…", "one after another, a marker per pad", [=]() { m->exportMidi(-1); }));
 		if (!m->song.empty())
 			menu->addChild(createMenuItem("Export the song as MIDI…", "its parts over their rows, a marker per part", [=]() { m->exportMidi(-1, true); }));
@@ -946,7 +1101,7 @@ struct AblaufMiniWidget : ModuleWidget {
 				}
 			}));
 		else
-			menu->addChild(createMenuLabel("(SONG makes one from ROOT)"));
+			menu->addChild(createMenuLabel("(SONG makes one from the playing pad or ROOT)"));
 		menu->addChild(createMenuLabel("(one pad: right-click the pad)"));
 	}
 };

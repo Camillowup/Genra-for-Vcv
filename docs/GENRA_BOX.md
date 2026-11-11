@@ -1,6 +1,6 @@
 # GENRA BOX + ABLAUF MINI – Spezifikation
 
-Stand: 10. November 2026 · Plugin 2.31.0 · Panels: `docs/entwuerfe/genra_box.png`, `docs/entwuerfe/ablauf_mini.png`
+Stand: 11. November 2026 · Plugin 2.31.1 · Panels: `docs/entwuerfe/genra_box.png`, `docs/entwuerfe/ablauf_mini.png`
 (erzeugt mit `tools/genrabox_panel.py` und `tools/ablaufmini_panel.py`, die auch `src/box/*Layout.hpp` schreiben).
 
 Erstmals gebaut in 2.20.0–2.23.0 (auf dem alten Stand), in 2.31.0 auf 2.30 neu aufgesetzt und erweitert.
@@ -33,13 +33,17 @@ Alle Regeln aus `docs/DESIGN.md` gelten.
 ## ABLAUF MINI
 - Code: `src/box/AblaufMini.cpp`, Slug `GenraAblaufMini`. Arbeitet über GENRAs Arranger-Mailboxen wie ABLAUF
   (Snapshot, Cue, `arrOwner`), alles auf dem UI-Thread.
-- PARTS, 4 × 4 Pads (ROOT oben links), UNDO, CLEAR, NEXT/RESET rein, DROP/END raus.
-- **DR · BA · ME · PA:** Keep / Re-roll / Vary. Vary: `makeSection` aus ROOT, dann `varySection` von der letzten
-  Variante desselben Teils (höchste Nummer), falls es eine gibt.
-- **SONG:** `songFormForGenre` nach dem Genre der Drum-Spur von ROOT, Pads 2–16 werden ersetzt (ein Undo-Schritt für alle
-  Pads). Wiederholte Teile: mit Vary bzw. Re-roll eine neue Variante, bei lauter Keep dasselbe Pad. BUILD-Länge =
-  `Genre::buildBars`. Fill vor dem Wechsel aus VERSE oder DROP. Wiedergabe: pro Teil ein Cue mit `rowBars` und
-  `atBar = rowStartPub + bars`, am Ende ein Stopp-Cue. Song in JSON (`song`), Export als MIDI mit Markern.
+- **Regeln = die des grossen ABLAUF (ab 2.31.1).** ABLAUF ist der Host, MINI folgt; eine neue Regel dort gilt auch hier.
+- PARTS: jeder Druck = neue Variante aufs nächste freie Pad (02–16, ROOT zuletzt) aus dem spielenden Pattern;
+  Session-Regel wie `Ablauf::part` (spielt eine Variante der Session unverändert: dieselbe Quelle). Nichts gespeichert:
+  das Spielende wird zuerst ROOT. Break bass / Intro bass im Rechtsklick-Menü (`PartOpts`).
+- Pads: leer = speichern (eigene Familie; ROOT auf 01, sonst „GENRA n“), belegt = springen am Pattern-Ende. UNDO, CLEAR.
+- **DR · BA · ME · PA:** Keep / Re-roll / Vary (Vary: `varySection` von der letzten Variante desselben Teils der Familie).
+- **SONG:** wie `Ablauf::makeSong`, aus der Familie des spielenden Pads (sonst ROOT). Vorhandene Varianten zuerst,
+  fehlende neu, Pads voll = Original. BUILD-Länge = `Genre::buildBars`. Fill vor dem Wechsel aus VERSE oder DROP.
+  Wiedergabe: pro Teil ein Cue mit `rowBars` und `atBar = rowStartPub + bars`, am Ende ein Stopp-Cue. Song in JSON
+  (`song`). GENRAs MAKE-SONG-Pad (`makeSongReq`) startet ihn aus dem laufenden Loop.
+- NEXT/RESET rein, DROP/END raus. MIDI ohne Dialog in den Export-Ordner (`midifolder::save`).
 
 ## Weiter offen
 - GENRA Instruments (K-WASUB, UMLAUF …) haben die Preset-Host-API noch nicht.

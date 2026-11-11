@@ -1,6 +1,6 @@
 # GENRA – Plugin für VCV Rack 2
 
-Ein generativer, genreabhängiger 4-Spur-Sequencer mit MIDI-Grid, Performance-Effekten und passenden Instrumenten, alle im selben Look. Plugin-Version **2.31.0**, 15 Module. Die Instrumente K-WASUB, GOLANA, UMLAUF, MONK, VOICE und ANIMAL sind seit 2.29.0 ein eigenes Plugin, **[GENRA Instruments](instruments/README.md)** (gleiche Marke im Browser, Ordner `instruments/`). Projektstand und Entscheidungen: `PROJEKT.md`.
+Ein generativer, genreabhängiger 4-Spur-Sequencer mit MIDI-Grid, Performance-Effekten und passenden Instrumenten, alle im selben Look. Plugin-Version **2.31.1**, 15 Module, für Windows und (neu, noch ungetestet) macOS. Die Instrumente K-WASUB, GOLANA, UMLAUF, MONK, VOICE und ANIMAL sind seit 2.29.0 ein eigenes Plugin, **[GENRA Instruments](instruments/README.md)** (gleiche Marke im Browser, Ordner `instruments/`). Projektstand und Entscheidungen: `PROJEKT.md`.
 
 | Modul | Breite | Farbe | Was es ist |
 |---|---|---|---|
@@ -211,22 +211,32 @@ MIDI-Export und Follow GENRA funktionieren mit ihr wie mit GENRA. Spezifikation:
 16 HP, verbindet sich mit GENRA oder GENRA BOX (angedockt oder Rechtsklick › Connect to…, LINK leuchtet). Pro GENRA
 treibt immer nur ein ABLAUF (gross oder MINI). Die Pads speichern nur die Noten (Pattern, Spur-Genres, Länge), keine Klänge.
 
-- **PARTS:** INTRO · VERSE · BUILD · DROP · BREAK · OUTRO wählen, welcher Teil beim nächsten leeren Pad entsteht.
-- **Pads (4 × 4):** 01 ist ROOT. Leeres Pad antippen: ist ROOT leer, wird zuerst gespeichert, was gerade spielt; dann
-  macht ABLAUF MINI aus ROOT den gewählten Teil und spielt ihn. Belegtes Pad antippen = springt am Ende des Patterns
-  dorthin. Weiss umrandet: läuft bzw. als Nächstes dran.
+ABLAUF MINI folgt den Regeln des grossen ABLAUF (ab 2.31.1):
+
+- **PARTS:** INTRO · VERSE · BUILD · DROP · BREAK · OUTRO. Jeder Druck macht sofort eine neue Variante auf dem nächsten
+  freien Pad und spielt sie (3× BUILD = BUILD 1, 2, 3). Die Variante kommt aus dem Pattern, das gerade spielt; spielt eine
+  Variante, die du gerade gemacht hast, kommt die nächste aus demselben Original davor. Ist noch nichts gespeichert, wird
+  das spielende Pattern zuerst ROOT.
+- **Pads (4 × 4):** Leeres Pad antippen = speichert, was gerade spielt (Pad 01 als ROOT, sonst „GENRA n“; jedes bekommt
+  seine eigene Familie mit eigener Zählung). Belegtes Pad antippen = springt am Ende des Patterns dorthin. Weiss
+  umrandet: läuft bzw. als Nächstes dran.
 - **DR · BA · ME · PA** schalten reihum **Keep → Re-roll → Vary** (wie beim grossen ABLAUF): Keep = die Spur bleibt
   exakt wie in ROOT (dunkel), Re-roll = neu gewürfelt (leuchtet), Vary = gibt es den Teil schon, entsteht die neue
   Variante aus der letzten, ein wenig verändert (atmet); sonst wie Re-roll.
-- **SONG** (= MAKE SONG): füllt die Pads 02–16 mit der Songform des Genres (aus ROOT, nach DR · BA · ME · PA; BUILD so
-  lang wie das Genre ihn mag) und spielt den Song der Reihe nach, jeder Teil über seine Länge, am Ende stoppt er (END).
-  Ist ROOT leer, wird zuerst gespeichert, was spielt. Nochmal SONG = Stopp. Ein Pad von Hand oder NEXT verlässt den
-  Song, RESET startet ihn von vorn. UNDO holt die Pads von vorher zurück. Das Display zeigt „SONG 3/9 › DROP 1“.
+- **SONG** (= MAKE SONG): ein Song in der Songform des Genres aus der Familie des Pads, das gerade spielt (sonst ROOT).
+  Wie beim grossen ABLAUF nimmt er zuerst die Varianten, die schon da sind (BUILD 1, beim zweiten Mal BUILD 2 …), und
+  macht nur die fehlenden neu auf freie Pads (nach DR · BA · ME · PA; BUILD so lang wie das Genre ihn mag). Sind die Pads
+  voll, spielt dort das Original. Dann spielt der Song der Reihe nach, jeder Teil über seine Länge, am Ende stoppt er
+  (END). Nochmal SONG = Stopp. Ein Pad von Hand oder NEXT verlässt den Song, RESET startet ihn von vorn. UNDO holt die
+  Pads von vorher zurück. Das Display zeigt „SONG 3/9 › DROP 1“. Das MAKE-SONG-Pad an GENRA bzw. der Box macht dasselbe
+  aus dem laufenden Loop.
+- **Rechtsklick › Break bass / Intro bass:** wie der Bass in einem neuen BREAK bzw. INTRO klingt (Long roots, Thinned
+  line, Pulse, Dub offbeats, Bass out bzw. Legato roots, Thinned line, Pulse; Standard Random, bei jedem Druck neu).
 - **UNDO** (32 Schritte), **CLEAR** und dann das Pad (Rechtsklick aufs Pad: Clear pad).
 - **NEXT** (Trigger): das nächste belegte Pad, **RESET**: zurück zu ROOT – beides am Ende des Patterns.
   **DROP** (Gate, solange ein DROP-Pad läuft), **END** (Trigger am Pattern- bzw. Song-Ende).
 - **MIDI:** Rechtsklick aufs Pad › Export pad, Rechtsklick aufs Modul › Export all pads bzw. Export the song (ein Marker
-  pro Teil).
+  pro Teil). Wie beim grossen ABLAUF ohne Dateidialog direkt in den MIDI-Export-Ordner.
 
 ## STOTTER: Performance-Effekte
 
@@ -481,7 +491,9 @@ Ein ganz besonderer Dank an **[Juan Jiant](https://github.com/juanjiant-bit)**! 
 
 ---
 
-## Installation unter Windows
+## Installation
+
+### Windows
 
 **Fertige Version (empfohlen):** Unter [**Releases**](https://github.com/Camillowup/Genra-for-Vcv/releases) die neueste `Genra-2.x.x-win-x64.vcvplugin` herunterladen, dazu `GenraInstruments-…-win-x64.vcvplugin` für die Instrumente aus GENRA Instruments.
 
@@ -490,7 +502,25 @@ Ein ganz besonderer Dank an **[Juan Jiant](https://github.com/juanjiant-bit)**! 
 
 **Testversion aus der Entwicklung:** Jeder Push baut automatisch (4–6 Minuten). Unter **Actions** den grünen Lauf öffnen → unten bei **Artifacts** `genra-windows` (und `genra-instruments-windows`) laden → Zip entpacken → wie oben installieren. Diese Builds löscht GitHub nach 90 Tagen; Releases bleiben.
 
-**Neue Version veröffentlichen:** Versionsnummer in `plugin.json` erhöhen (Hauptversion bleibt 2), testen, `main` auf den Branch `release` pushen. Der Workflow baut, legt den Tag `v<Version>` an und veröffentlicht den Release mit beiden `.vcvplugin`-Dateien (GENRA und GENRA Instruments; dessen Version steht in `instruments/plugin.json`). Entwickelt wird auf `dev`, `main` wird einmal am Tag aktualisiert.
+### macOS (neu ab 2.31.1, noch ungetestet)
+
+Für den Mac gibt es zwei Dateien pro Plugin: **`…-mac-arm64.vcvplugin`** für Macs mit Apple-Chip (M1 und neuer) und
+**`…-mac-x64.vcvplugin`** für ältere Intel-Macs. Die Datei in den Plugin-Ordner des Rack-Benutzerordners kopieren (in
+Rack: *Help › Open user folder*, dort `plugins-mac-arm64` bzw. `plugins-mac-x64`), Rack neu starten. Testversionen: in
+**Actions** bei **Artifacts** `genra-mac-arm64` / `genra-instruments-mac-arm64` (bzw. `-x64`).
+
+Es ist dasselbe Plugin wie unter Windows, aus demselben Code: gleiche Module, gleiche Version, Patches laufen auf beiden
+Systemen.
+
+> 🍎 **Tester für Apple-Geräte gesucht!** Die Mac-Versionen werden automatisch gebaut, aber noch niemand hat sie auf
+> einem echten Mac ausprobiert. Wenn du einen Mac mit VCV Rack 2 hast: Plugins installieren, ein paar Module laden
+> (vor allem DRUM-X, VOICE, ANIMAL, K-WASUB, GOLANA, UMLAUF, Follow GENRA zwischen den beiden Plugins, MIDI-Export) und
+> in einem [Issue](https://github.com/Camillowup/Genra-for-Vcv/issues) kurz schreiben, was geht und was nicht
+> (Mac-Modell, macOS- und Rack-Version, bei Problemen Rack › *Help › Open user folder* › `log.txt`). Danke!
+
+### Neue Version veröffentlichen
+
+**Neue Version veröffentlichen:** Versionsnummer in `plugin.json` erhöhen (Hauptversion bleibt 2), testen, `main` auf den Branch `release` pushen. Der Workflow baut, legt den Tag `v<Version>` an und veröffentlicht den Release mit allen `.vcvplugin`-Dateien (GENRA und GENRA Instruments, je für Windows, Mac arm64 und Mac x64; die Version von GENRA Instruments steht in `instruments/plugin.json`). Entwickelt wird auf `dev`, `main` wird einmal am Tag aktualisiert.
 
 ---
 
