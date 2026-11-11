@@ -26,7 +26,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 RACK = sys.argv[3] if PREVIEW and len(sys.argv) > 3 else os.path.join(ROOT, "..", "ext", "Rack")
 CL = os.path.join(RACK, "res", "ComponentLibrary")
 
-HP = 32
+HP = 28
 W, H = HP * 5.08, 128.5
 BG, PLATE, LINE, TXT, DIM, DARK = "#17181d", "#212329", "#34363f", "#d9dbe2", "#8a8d99", "#07080a"
 TITLE, RING = "#e6e7ec", "#4a4c57"
@@ -126,7 +126,7 @@ e(f'<rect width="{W:.2f}" height="{H}" fill="{BG}"/>')
 text(12.9, 7.6, "SCHMELZ", 5.1, TITLE, 800, "start", 1.08)
 text(12.9 + width("SCHMELZ", 5.1, 800, 1.08) + 3.4, 7.45, "GENRA · STRING MACHINE", 1.76, DIM, 600, "start", 0.47)
 # presets: a field in the header (as on GENRA MONO and GRUND), the accent bar after it
-PF = (W - 70, 3.4, 46, 5.4)
+PF = (W - 59.5, 3.4, 36, 5.4)  # 28 HP: shorter, after the subtitle
 e(f'<rect x="{PF[0]:.2f}" y="{PF[1]}" width="{PF[2]}" height="{PF[3]}" rx="0.9" fill="{DARK}" stroke="{LINE}" stroke-width="0.4"/>')
 e(f'<polyline points="{PF[0] + PF[2] - 4.2:.2f},{PF[1] + 2.1:.2f} {PF[0] + PF[2] - 3:.2f},{PF[1] + 3.4:.2f} '
   f'{PF[0] + PF[2] - 1.8:.2f},{PF[1] + 2.1:.2f}" fill="none" stroke="{ACC}" stroke-width="0.4" stroke-linecap="round" '
@@ -138,26 +138,26 @@ e(f'<rect x="{DISPLAY[0]}" y="{DISPLAY[1]}" width="{DISPLAY[2]:.2f}" height="{DI
   f'stroke="{LINE}" stroke-width="0.4"/>')
 
 # ---------------------------------------------------------------- strings
-section(3, 26.5, 77, 52, "STRINGS")
-knob("REG", 16, 45, "REGISTRATION", "large", hot=True)
-knob("CRESC", 37, 42.5, "CRESC")
-knob("REL", 52, 42.5, "RELEASE")
-knob("TONE", 67, 42.5, "TONE")
-knob("ENSDEPTH", 16, 68.5, "ENS DEPTH", "small")
-lamps("OCT", 42, 11, 58.5, ["BASE", "BOTH", "8VA"], "OCT")
-lamps("ENS", 40, 10.5, 68.5, ["OFF", "ENS", "E+C", "CHO"], "ENS")
+section(3, 26.5, 69, 52, "STRINGS")
+knob("REG", 15, 45, "REGISTRATION", "large", hot=True)
+knob("CRESC", 33, 42.5, "CRESC")
+knob("REL", 47, 42.5, "RELEASE")
+knob("TONE", 61, 42.5, "TONE")
+knob("ENSDEPTH", 15, 68.5, "ENS DEPTH", "small")
+lamps("OCT", 39, 10.5, 58.5, ["BASE", "BOTH", "8VA"], "OCT")
+lamps("ENS", 36.5, 9.5, 68.5, ["OFF", "ENS", "E+C", "CHO"], "ENS")
 
 # ---------------------------------------------------------------- solo
-section(82, 26.5, W - 85, 52, "SOLO")
-knob("SOUND", 96, 45, "SOUND", "large", hot=True)
-knob("DECAY", 117, 42.5, "DECAY")
-knob("SUSTAIN", 132, 42.5, "SUSTAIN")
-knob("TREM", 147, 42.5, "TREMOLO")
-lamps("SPLIT", 123, 12, 58.5, ["LAYER", "LOW", "HIGH"], "SPLIT")
-knob("ATK", 117, 70.5, "ATTACK", "small")
-knob("TRATE", 132, 70.5, "T.RATE", "small")
-knob("VEL", 147, 70.5, "VEL", "small")
-button("HOLD", 96, 64.5, "SUSTAIN")
+section(74, 26.5, W - 77, 52, "SOLO")
+knob("SOUND", 86, 45, "SOUND", "large", hot=True)
+knob("DECAY", 103.5, 42.5, "DECAY")
+knob("SUSTAIN", 117.5, 42.5, "SUSTAIN")
+knob("TREM", 131.5, 42.5, "TREMOLO")
+lamps("SPLIT", 107.5, 12, 58.5, ["LAYER", "LOW", "HIGH"], "SPLIT")
+knob("ATK", 103.5, 70.5, "ATTACK", "small")
+knob("TRATE", 117.5, 70.5, "T.RATE", "small")
+knob("VEL", 131.5, 70.5, "VEL", "small")
+button("HOLD", 86, 64.5, "SUSTAIN")
 
 # ---------------------------------------------------------------- effects, master
 section(3, 80.5, W - 6, 21.8, "EFFECTS · MASTER")
@@ -165,7 +165,7 @@ for i, (n, l, k, hot) in enumerate([("BAL", "BALANCE", "knob", True), ("ANIM", "
                                      ("ARATE", "A.RATE", "small", False), ("PHASER", "PHASER", "knob", False),
                                      ("PRATE", "P.RATE", "small", False), ("VERB", "REVERB", "knob", False),
                                      ("SIZE", "SIZE", "small", False), ("VOLUME", "VOLUME", "knob", False)]):
-    knob(n, 14 + i * 19.2, 93.8, l, k, hot)
+    knob(n, 13 + i * 16.6, 93.8, l, k, hot)
 
 # ---------------------------------------------------------------- in / out
 e(f'<rect x="3" y="104.0" width="{W - 6:.2f}" height="23.8" rx="1.2" fill="{PLATE}"/>')
@@ -179,10 +179,10 @@ x += 2.2
 _tray(e, x, 109.0, 3, DIM)
 for i, (n, l) in enumerate([("SOLO_VOCT", "V/OCT"), ("SOLO_GATE", "GATE"), ("SOLO_VEL", "VEL")]):
     jack(n, x + SLOT / 2 + i * SLOT, 109.0, l)
-x += 3 * SLOT + 3.5
+x += 3 * SLOT + 2.6
 for i, (n, l) in enumerate([("IN_REG", "REG"), ("IN_CRESC", "CRESC"), ("IN_REL", "REL"), ("IN_TONE", "TONE"),
                             ("IN_ENS", "ENS"), ("IN_OCT", "OCT")]):
-    jack(n, x + SLOT / 2 + i * 10.6, 109.0, l)
+    jack(n, x + SLOT / 2 + i * 9.9, 109.0, l)
 for i, (n, l) in enumerate(ROW2):
     jack(n, X[i + 1], 121.0, l)
 for i, (n, l) in enumerate([("OUT_ENV", "ENV"), ("OUT_STR", "STR"), ("OUT_SOLO", "SOLO"), ("OUT_L", "L"),
@@ -256,18 +256,18 @@ for n, on in (("OCT", 0), ("ENS", 2), ("SPLIT", 0)):
 dx, dy, dw, dh = DISPLAY
 ptext(dx + 4, dy + 7.6, "VIOLA", 4.4, "#ffffff", 800, "start", 0.3)
 ptext(dx + 4, dy + 11.7, "> CELLO 40%", 1.8, ACC, 700, "start", 0.3)
-bx, bw = dx + 45, 56
+bx, bw = dx + 38, 46
 out.insert(-1, f'<line x1="{bx}" y1="{dy + 5.5}" x2="{bx + bw}" y2="{dy + 5.5}" stroke="{LINE}" stroke-width="0.5"/>')
 for i, n in enumerate(["BAS", "CEL", "VLA", "VLN", "BRS", "ORG", "CHO", "SYN"]):
     x = bx + i * bw / 7
     out.insert(-1, f'<circle cx="{x:.2f}" cy="{dy + 5.5}" r="0.7" fill="#3a3c46"/>')
     ptext(x, dy + 10.9, n, 1.6, TXT if i in (1, 2) else DIM, 600, "middle", 0.2)
 out.insert(-1, f'<circle cx="{bx + 1.6 * bw / 7:.2f}" cy="{dy + 5.5}" r="1.4" fill="{ACC}"/>')
-ptext(dx + 109, dy + 5.1, "SOLO", 1.7, DIM, 700, "start", 0.3)
-ptext(dx + 109, dy + 10.7, "E-PIANO", 3.0, "#ffffff", 800, "start", 0.3)
-ptext(dx + 133, dy + 5.1, "VOICES 4", 1.6, DIM, 600, "start", 0.3)
+ptext(dx + 90, dy + 5.1, "SOLO", 1.7, DIM, 700, "start", 0.3)
+ptext(dx + 90, dy + 10.7, "E-PIANO", 3.0, "#ffffff", 800, "start", 0.3)
+ptext(dx + 114, dy + 5.1, "VOICES 4", 1.6, DIM, 600, "start", 0.3)
 for i in range(16):
-    out.insert(-1, f'<rect x="{dx + 133 + i * 1.3:.2f}" y="{dy + 8.5}" width="0.9" height="2.2" rx="0.2" '
+    out.insert(-1, f'<rect x="{dx + 114 + i * 1.2:.2f}" y="{dy + 8.5}" width="0.9" height="2.2" rx="0.2" '
                    f'fill="{ACC if i < 4 else "#2a2b33"}"/>')
 ptext(PF[0] + 2, PF[1] + 3.75, "01  SOLINA DREAM", 1.9, TXT, 700, "start", 0.35)
 svg = sys.argv[2].rsplit(".", 1)[0] + ".svg"

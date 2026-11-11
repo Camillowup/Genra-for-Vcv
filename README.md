@@ -1,6 +1,6 @@
 # GENRA – Plugin für VCV Rack 2
 
-Ein generativer, genreabhängiger 4-Spur-Sequencer mit MIDI-Grid, Performance-Effekten und passenden Instrumenten, alle im selben Look. Plugin-Version **2.32.0**, 15 Module, für Windows und (neu, noch ungetestet) macOS. Die Instrumente K-WASUB, GOLANA, UMLAUF, MONK, VOICE und ANIMAL sind seit 2.29.0 ein eigenes Plugin, **[GENRA Instruments](instruments/README.md)** (gleiche Marke im Browser, Ordner `instruments/`). Projektstand und Entscheidungen: `PROJEKT.md`, wo welches Modul liegt: `docs/UEBERSICHT.md`, Versionsgeschichte: `CHANGELOG.md`.
+Ein generativer, genreabhängiger 4-Spur-Sequencer mit MIDI-Grid, Performance-Effekten und passenden Instrumenten, alle im selben Look. Plugin-Version **2.33.0**, 15 Module, für Windows und (neu, noch ungetestet) macOS. Die Instrumente K-WASUB, GOLANA, UMLAUF, MONK, VOICE und ANIMAL sind seit 2.29.0 ein eigenes Plugin, **[GENRA Instruments](instruments/README.md)** (gleiche Marke im Browser, Ordner `instruments/`). Projektstand und Entscheidungen: `PROJEKT.md`, wo welches Modul liegt: `docs/UEBERSICHT.md`, Versionsgeschichte: `CHANGELOG.md`.
 
 | Modul | Breite | Farbe | Was es ist |
 |---|---|---|---|
@@ -11,8 +11,8 @@ Ein generativer, genreabhängiger 4-Spur-Sequencer mit MIDI-Grid, Performance-Ef
 | **GENRA Grid** | 50 HP | – | MIDI-Grid für GENRA: Drum-Raster, Piano-Roll, Velocity/Chance |
 | **STOTTER** | 30 HP | – | Performance-Effekte: 16 Effekt-Pads, DJ-EQ und -Filter |
 | **GENRA MONO** | 28 HP | säuregrün | Monophoner Bass-Synth nach dem Moog Minitaur, mit Presets |
-| **FUNKE** | 30 HP | cyan | Melodiestimme: 8 Modelle von Rhodes bis Saw Lead |
-| **SCHMELZ** | 32 HP | rosa | String Machine nach Waldorf Streichfett, für die Pads |
+| **FUNKE** | 28 HP | cyan | Melodiestimme: 8 Modelle von Rhodes bis Saw Lead |
+| **SCHMELZ** | 28 HP | rosa | String Machine nach Waldorf Streichfett, für die Pads |
 | **SCHLAG** | 46 HP | blau-violett | Sample-Drums nach dem Polyend Play: 8 Spuren mit WAV-Ordnern, RANDOM pro Schritt |
 | **JIANT DRUM-X** | 32 HP | blau-violett | 8-spuriger Drum-Synth aus der JIANT-FM-Firmware |
 | **MIX** | 28 HP | Spurfarben | 4-Kanal-Stereomixer für die GENRA-Spuren |
@@ -133,7 +133,7 @@ Das MIDI-Grid zu GENRA (50 HP): Hier bearbeitest du den erzeugten Loop Note für
 
 Song-Arranger für GENRA, 30 HP. Verbindung wie beim Grid Editor: links oder rechts neben GENRA setzen (LINK-LED leuchtet) oder im Rechtsklick-Menü *Verbinden mit…* ein beliebiges GENRA im Patch wählen.
 
-**Patterns (rechts):** 128 Plätze in den Banks A–D, je 8 × 4 Pads. Ein **leeres Pad antippen** speichert, was GENRA gerade spielt (alle Spuren, Akkorde, Spur-Genres, Länge). Einen belegten Platz überschreiben: Rechtsklick aufs Pad › *Overwrite with GENRA* (Name, Teil und Farbe bleiben). **COPY**: erst Quelle, dann Ziel. **CLEAR**, dann ein Pad: löscht den Platz. **CLR ALL** zweimal drücken: leert alle 128 Pads (die Song-Liste bleibt, UNDO holt sie zurück). Einzelne Banks leeren: Rechtsklick › Clear bank A–D. Im Modus **PATT** spielt ein angetipptes Pad ab dem nächsten Takt (bei gestopptem GENRA sofort). Die Pads haben die Farbe ihres Song-Teils; der Balken oben zeigt die **Familie**: die Farbe des GENRA-Originals, aus dem das Pad kommt (GENRA 1 orange, GENRA 2 hellgrau, dann türkis, gelbgrün, magenta, blau, gold, lila). Die kleinen Balken unten zeigen, welche Spuren etwas spielen. Weisser Rahmen = läuft, gestrichelt = kommt am nächsten Takt. Rechtsklick aufs Pad: umbenennen, Abschnitt setzen, in den Song einfügen, *Overwrite with GENRA*, als MIDI exportieren, löschen. **Doppelklick** aufs Pad: umbenennen.
+**Patterns (rechts):** 128 Plätze in den Banks A–D, je 8 × 4 Pads. Ein **leeres Pad antippen** speichert, was GENRA gerade spielt (alle Spuren, Akkorde, Spur-Genres, Länge). Einen belegten Platz überschreiben: Rechtsklick aufs Pad › *Overwrite with GENRA* (Name, Teil und Farbe bleiben). **COPY**: erst Quelle, dann Ziel. **CLEAR**, dann ein Pad: löscht den Platz. **CLR ALL** zweimal drücken: leert alle 128 Pads (die Song-Liste bleibt, UNDO holt sie zurück). Einzelne Banks leeren: Rechtsklick › Clear bank A–D. Im Modus **PATT** spielt ein angetipptes Pad, sobald das laufende Pattern zu Ende ist (ab 2.33.0, vorher am nächsten Takt; bei gestopptem GENRA sofort). So beginnt das neue Pad oben in seinem Loop, und der Verlauf eines Teils (Auftakt im Break, Wirbel im Build) läuft ganz durch, wie bei ABLAUF MINI. Die Pads haben die Farbe ihres Song-Teils; der Balken oben zeigt die **Familie**: die Farbe des GENRA-Originals, aus dem das Pad kommt (GENRA 1 orange, GENRA 2 hellgrau, dann türkis, gelbgrün, magenta, blau, gold, lila). Die kleinen Balken unten zeigen, welche Spuren etwas spielen. Weisser Rahmen = läuft, gestrichelt = kommt als Nächstes dran. Rechtsklick aufs Pad: umbenennen, Abschnitt setzen, in den Song einfügen, *Overwrite with GENRA*, als MIDI exportieren, löschen. **Doppelklick** aufs Pad: umbenennen.
 
 **Namen:** Jedes Pad kann einen Namen tragen (bis 8 Zeichen, A–Z, 0–9, Leerzeichen, -). Ein Pattern von GENRA auf einem leeren Pad heisst automatisch **GENRA 1**, das nächste **GENRA 2** usw.; jedes beginnt eine Familie mit eigener Farbe. Varianten aus den Teil-Tastern und von MAKE SONG gehören zur Familie ihres Ausgangs-Patterns und heissen nach ihrem Teil, pro Familie fortlaufend nummeriert (aus GENRA 1: INTRO 1, INTRO 2, BREAK 1 …; aus GENRA 2 beginnt es wieder bei INTRO 1). COPY nimmt Name und Familie mit, Umbenennen ändert die Familie nicht. Umbenennen: Doppelklick oder Rechtsklick aufs Pad › Namen tippen, Enter (UNDO macht es rückgängig); *Clear name* entfernt ihn. Der Name steht auf dem Pad, in der Song-Liste und in der Zeile unter den Pads.
 
@@ -167,7 +167,7 @@ INTRO, BUILD, BREAK und OUTRO werden als exakte Noten gebaut (auch im Grid Edito
 
 **Song (links):** eine Liste von Zeilen: Pattern (mit Familienfarbe und Name) · Takte · Fill · Abschnitt. **Pad in die Liste ziehen:** zwischen zwei Zeilen fallen lassen fügt eine neue Zeile ein (Länge und Abschnitt vom Pad, eine gelbe Linie zeigt wo), auf eine Zeile fallen lassen ersetzt deren Pattern. Oder Pad antippen, dann **INSERT**: neue Zeile nach der gewählten. **ROW** wählt die Zeile (oder Klick in die Liste, Mausrad), **PATTERN**, **BARS** (1–32) und **PART** (Farbskala um den Regler) ändern sie, **FILL** setzt einen Fill am Ende der Zeile. Spuren stummschalten geht an GENRA, am MIX oder an den Instrumenten (Zeilen aus älteren Patches mit stummen Spuren bleiben so, sie tragen ein kleines M). Unten in der Liste: Takte und Spieldauer aus GENRAs Tempo, z. B. *BAR 37 / 92 · 1:12 / 2:59*. **DELETE** entfernt die Zeile, **UNDO** macht Schritte rückgängig (auch Strg+Z). Rechtsklick auf eine Zeile: CV A / CV B, duplizieren, löschen. Rechtsklick aufs Modul › *Export song as MIDI*: der ganze Song in einer Datei; *Export song – drums / bass / melody / pads only*: nur diese Spur (Zeilen hintereinander mit ihren Takten, Fills und stummen Spuren, Kanäle wie bei GENRA, ein Marker pro Zeile mit ihrem Namen). Der grosse Schalter **PATT | SONG** wählt den Modus (Klick auf eine Hälfte, die aktive leuchtet gelb). **PLAY**, **STOP** und **LOOP** sind grosse Pads wie bei GENRA (ab 2.27.1): PLAY leuchtet grün, solange der Song bzw. GENRA läuft, STOP blinkt rot, LOOP leuchtet gelb, wenn es an ist. Im Modus **SONG** startet **PLAY** ab der gewählten Zeile, auch während der Song läuft (Neustart von dort), GENRA wechselt taktgenau; im Modus **PATT** startet PLAY das gewählte Pad von vorn. **STOP** lässt die Markierung auf der Zeile stehen, die gerade lief; **STOP** ein zweites Mal setzt sie an den Song-Anfang; **LOOP** wiederholt den Song, sonst stoppt er am Ende.
 
-**Eingänge:** RUN (Trigger: Play/Stop), RESET (Song an den Anfang), NEXT (nächste Zeile bzw. nächstes Pattern am nächsten Takt), PATT CV (0–10 V über die 128 Plätze, Pattern-Modus), ROW CV (0–10 V über die Song-Liste, springt am nächsten Takt).
+**Eingänge:** RUN (Trigger: Play/Stop), RESET (Song an den Anfang), NEXT (nächste Zeile am nächsten Takt bzw. nächstes Pattern am Ende des Patterns), PATT CV (0–10 V über die 128 Plätze, Pattern-Modus, springt am Ende des Patterns), ROW CV (0–10 V über die Song-Liste, springt am nächsten Takt).
 **Ausgänge:** END (Trigger am Song-Ende und beim Wiederholen), ROW (Trigger bei jeder neuen Zeile), BUILD und DROP (Gates, solange ein Build bzw. Drop läuft – auch im Pattern-Modus), POS (Song-Position 0–10 V), CV A / CV B (Werte der laufenden Zeile).
 
 GENRA zeigt im Display den laufenden Song-Teil, seine MUTE-Lampen leuchten gedimmt für Spuren, die ABLAUF stummschaltet.
@@ -328,7 +328,7 @@ Monophoner Synth (28 HP, Stand 2.10.0) im Look von MONK und den JIANT-Stimmen, F
 
 ![FUNKE](docs/panels/funke.png)
 
-Die Stimme für GENRAs Melodiespur, 30 HP, Farbe **cyan** (GENRAs Melodiefarbe). Die Eingänge passen zu GENRAs
+Die Stimme für GENRAs Melodiespur, 28 HP (bis 2.32: 30 HP), Farbe **cyan** (GENRAs Melodiefarbe). Die Eingänge passen zu GENRAs
 Melodie-Ausgängen: V/OCT, GATE, VEL, ACC, SLIDE und CLOCK.
 
 - **MODEL** (Feld: Klick öffnet die Liste, Mausrad blättert; CV-Eingang, übernommen bei jeder neuen Note):
@@ -406,7 +406,7 @@ Expander GRUNDs Werte.
 
 ![SCHMELZ](docs/panels/schmelz.png)
 
-String Machine im Geist der 70er/80er (Vorbild: Waldorf Streichfett), 32 HP, Farbe **rosa** (GENRAs Pad-Farbe). Zwei Klangteile, je bis
+String Machine im Geist der 70er/80er (Vorbild: Waldorf Streichfett), 28 HP (bis 2.32: 32 HP), Farbe **rosa** (GENRAs Pad-Farbe). Zwei Klangteile, je bis
 16 Stimmen, dazu Effekte.
 
 - **Strings:** REGISTRATION überblendet stufenlos BASS · CELLO · VIOLA · VIOLIN · BRASS · ORGAN · CHOIR · SYNTH (ab 2.17

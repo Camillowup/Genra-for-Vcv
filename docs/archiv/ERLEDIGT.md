@@ -2,6 +2,27 @@
 
 Wünsche aus `docs/MERKLISTE.md`, die gebaut sind – zum Nachschauen.
 
+## Gebaut in GENRA 2.33.0 (11. Nov. 2026)
+
+### FUNKE und SCHMELZ (GENRA-Plugin)
+- **Schmaler** (Stand 11. Nov. 2026, Entwurf freigegeben): beide **28 HP** (FUNKE war 30, SCHMELZ 32). Alle Regler und
+  Buchsen bleiben, Abstände enger; SCHMELZ-Preset-Feld kürzer (36 mm, nach dem Untertitel). Display-Inhalte im Code
+  mitrücken (FUNKE: Scope ab 52 mm, 42 mm breit; SCHMELZ: Registerleiste ab 38 mm, 46 mm breit, SOLO bei 90 mm,
+  VOICES bei 114 mm mit 1,2 mm Abstand). Panel-Skripte `tools/panels/funke_panel.py`, `tools/panels/schmelz_panel.py`.
+
+### SCHLAG (GENRA-Plugin), Panel
+- **Regler nicht überlappend** (Stand 11. Nov. 2026, Entwurf freigegeben): die vier frei belegbaren Regler pro Spur
+  stiessen beim Hineinzoomen aneinander (8,4 mm Abstand). Neu `ROWS = [62.6, 71.6, 80.6, 89.6]` (9 mm), Ring dieser
+  Regler enger (R + 0,4 statt + 0,88), TRIG/OUT und MASTER L/R von 98,4 auf 99,4 mm. Sonst alles gleich.
+
+### ABLAUF und ABLAUF MINI (GENRA-Plugin)
+- **Pad-Sprung am Ende des Patterns** (entschieden 11. Nov. 2026), bei beiden gleich: ein angetipptes Pad, eine neue
+  Variante (Teil-Taster), NEXT und PATT-CV im Pattern-Modus springen erst, wenn das laufende Pattern zu Ende ist (wie
+  ABLAUF MINI schon heute; grosser ABLAUF bisher am nächsten Takt, `cuePattern` mit `barPub + 1`). Geprüft: passt zu
+  den Breaks, eher besser – im Pattern-Modus läuft der Verlauf eines Teils (Pickup im Break, Roll im Build) über den
+  Loop; beim Sprung am nächsten Takt beginnt das neue Pad mitten in seinem Loop, am Pattern-Ende von vorn. Sprünge in
+  der Song-Liste (Zeilen, NEXT im Song, ROW-CV) bleiben wie sie sind.
+
 ## Gebaut in GENRA 2.32.0 (11. Nov. 2026)
 
 ### SCHLAG

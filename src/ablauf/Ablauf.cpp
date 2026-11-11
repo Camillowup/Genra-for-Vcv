@@ -279,8 +279,8 @@ struct Ablauf : Module {
 			paramQuantities[i]->randomizeEnabled = false;
 		configInput(RUN_INPUT, "Run (trigger: play / stop)");
 		configInput(RESET_INPUT, "Reset (song to the start)");
-		configInput(NEXT_INPUT, "Next row / next pattern (trigger, at the next bar)");
-		configInput(PATT_INPUT, "Pattern CV (0–10 V across all 128 pads, pattern mode)");
+		configInput(NEXT_INPUT, "Next row (at the next bar) / next pattern (at the end of the pattern), trigger");
+		configInput(PATT_INPUT, "Pattern CV (0–10 V across all 128 pads, pattern mode; jumps at the end of the pattern)");
 		configInput(ROW_INPUT, "Row CV (0–10 V across the song list, jumps at the next bar)");
 		configOutput(END_OUTPUT, "End (trigger at song end and on loop)");
 		configOutput(ROW_OUTPUT, "Row (trigger on every new row)");
@@ -777,7 +777,16 @@ struct Ablauf : Module {
 		}
 	}
 
-	// pattern mode: the pad plays from the next bar line (at once if GENRA is stopped)
+	/** The bar line where GENRA's loop starts again (as ABLAUF MINI's). */
+	static int64_t loopEndBar(Genra* g) {
+		int L = std::max(16, g->lengthSteps());
+		int s = std::max(0, g->step);
+		int barIn = (s % L) / 16;
+		return g->barPub.load() + (L / 16 - barIn);
+	}
+	// pattern mode: the pad plays when the running pattern ends (at once if GENRA is stopped). Since 2.33 (was: the
+	// next bar line): the new pad starts at the top of its loop, so a part's course (a break's pickup, a build's roll)
+	// runs whole, as in ABLAUF MINI.
 	bool cuePattern(int i, Genra* g) {
 		if (!g->cueBegin()) {
 			pendingPadCue = i;
@@ -790,7 +799,7 @@ struct Ablauf : Module {
 		c.rowBars = 0;
 		c.now = !g->running;
 		c.stop = false;
-		c.atBar = g->barPub.load() + 1;
+		c.atBar = loopEndBar(g);
 		c.row = -1;
 		c.tag = slots[i].tag;
 		c.slotIdx = i;

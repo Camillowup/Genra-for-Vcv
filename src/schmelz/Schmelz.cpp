@@ -409,7 +409,7 @@ struct Display : Widget {
 			         NVG_ALIGN_LEFT, 0.9f);
 
 		// the morph bar
-		float bx = mm2px(45.f), bw = mm2px(56.f), by = mm2px(5.5f);
+		float bx = mm2px(38.f), bw = mm2px(46.f), by = mm2px(5.5f); // 28 HP since 2.33
 		nvgBeginPath(vg);
 		nvgMoveTo(vg, bx, by);
 		nvgLineTo(vg, bx + bw, by);
@@ -434,16 +434,16 @@ struct Display : Widget {
 		int sm, so;
 		float st;
 		morph(snd, NUM_SOUNDS, sm, so, st);
-		ui::text(vg, bold, mm2px(109.f), mm2px(5.1f), "SOLO", 5.8f, ui::DIM, NVG_ALIGN_LEFT, 0.9f);
-		ui::text(vg, bold, mm2px(109.f), mm2px(10.7f), SOUND_NAMES[sm], 10.f, ui::WHITE, NVG_ALIGN_LEFT, 0.8f);
+		ui::text(vg, bold, mm2px(90.f), mm2px(5.1f), "SOLO", 5.8f, ui::DIM, NVG_ALIGN_LEFT, 0.9f);
+		ui::text(vg, bold, mm2px(90.f), mm2px(10.7f), SOUND_NAMES[sm], 10.f, ui::WHITE, NVG_ALIGN_LEFT, 0.8f);
 
 		// voices
 		int on = module ? module->voicesOn : 4;
-		ui::text(vg, bold, mm2px(133.f), mm2px(5.1f), string::f("VOICES %d", on), 5.6f, ui::DIM, NVG_ALIGN_LEFT, 0.9f);
+		ui::text(vg, bold, mm2px(114.f), mm2px(5.1f), string::f("VOICES %d", on), 5.6f, ui::DIM, NVG_ALIGN_LEFT, 0.9f);
 		for (int i = 0; i < MAXV; i++) {
 			bool lit = module ? module->voiceOn[i] : i < 4;
 			nvgBeginPath(vg);
-			nvgRoundedRect(vg, mm2px(133.f + i * 1.3f), mm2px(8.5f), mm2px(0.9f), mm2px(2.2f), 0.6f);
+			nvgRoundedRect(vg, mm2px(114.f + i * 1.2f), mm2px(8.5f), mm2px(0.9f), mm2px(2.2f), 0.6f);
 			nvgFillColor(vg, lit ? ACCENT : ui::OFF);
 			nvgFill(vg);
 		}

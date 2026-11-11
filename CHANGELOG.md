@@ -4,6 +4,18 @@ Was in welcher Version dazukam (GENRA und GENRA Instruments). Der aktuelle Stand
 
 ## 2.21 bis heute (neueste zuerst)
 
+### 2.33.0 – FUNKE und SCHMELZ schmaler, Pad-Sprung am Pattern-Ende, SCHLAG-Regler mit Abstand
+- **FUNKE** 30 → **28 HP**, **SCHMELZ** 32 → **28 HP**: alle Regler, Taster und Buchsen bleiben, Abstände enger
+  (`tools/panels/funke_panel.py`, `schmelz_panel.py`). SCHMELZ-Preset-Feld 36 mm, nach dem Untertitel. Display-Inhalte
+  mitgerückt: FUNKE-Scope ab 49 mm (42 mm breit), SCHMELZ-Registerleiste ab 38 mm (46 mm), SOLO bei 90 mm, VOICES bei
+  114 mm. Alte Patches laden; die Module sind darin schmaler (Lücke rechts).
+- **ABLAUF, Pattern-Modus:** ein angetipptes Pad, NEXT und PATT-CV springen erst am Ende des laufenden Patterns
+  (`loopEndBar`, wie ABLAUF MINI), vorher am nächsten Takt. Das neue Pad beginnt oben in seinem Loop, so läuft der
+  Verlauf eines Teils (Auftakt im Break, Wirbel im Build) ganz durch. Song-Zeilen, NEXT im Song und ROW-CV unverändert.
+- **SCHLAG:** die vier frei belegbaren Regler pro Spur 9 mm auseinander (vorher 8,4 mm, sie stiessen beim
+  Hineinzoomen aneinander), ihr Ring enger; TRIG/OUT und MASTER L/R 1 mm tiefer.
+- GENRA Instruments ebenfalls 2.33.0 (unverändert, gleicher Release).
+
 ### 2.32.0 – NEW ALL zurück aufs Hauptgenre, SCHLAG RND ALL 10–100 %
 - **GENRA NEW ALL** (Taster, NEW-Eingang, Randomize): setzt zuerst die Genre-Felder der ungesperrten Spuren auf das
   Hauptgenre (Global) zurück (`resetTrackGenres`), dann wird gewürfelt. Gesperrte Spuren behalten ihr Genre, eine Spur

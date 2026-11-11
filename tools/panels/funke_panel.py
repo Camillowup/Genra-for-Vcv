@@ -5,7 +5,7 @@ Usage:  funke_panel.py real                   -> res/Funke.svg (text as paths) +
         funke_panel.py preview OUT.png [RACK]   -> preview with Rack components and mock display content
                                                    (RACK: a Rack source tree, for res/ComponentLibrary; default ../ext/Rack)
 
-Coordinates in mm (30 HP, height 128.5 mm). The C++ side converts with mm2px().
+Coordinates in mm (28 HP since 2.33, height 128.5 mm). The C++ side converts with mm2px().
 The panel holds what never changes; the module widget draws the display and the text in the two fields (model, filter).
 """
 import os
@@ -26,7 +26,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 RACK = sys.argv[3] if PREVIEW and len(sys.argv) > 3 else os.path.join(ROOT, "..", "ext", "Rack")
 CL = os.path.join(RACK, "res", "ComponentLibrary")
 
-HP = 30
+HP = 28
 W, H = HP * 5.08, 128.5
 BG, PLATE, LINE, TXT, DIM, DARK = "#17181d", "#212329", "#34363f", "#d9dbe2", "#8a8d99", "#07080a"
 TITLE, RING = "#e6e7ec", "#4a4c57"
@@ -147,40 +147,40 @@ e(f'<rect x="{DISPLAY[0]}" y="{DISPLAY[1]}" width="{DISPLAY[2]:.2f}" height="{DI
   f'stroke="{LINE}" stroke-width="0.4"/>')
 
 # ---------------------------------------------------------------- voice
-section(3, 27, 72, 47, "VOICE")
-field("MODELF", 6, 33.5, 66)
-knob("TIMBRE", 16, 51, "TIMBRE", "large", hot=True)
-knob("BITE", 33, 48, "BITE")
-knob("WIDTH", 47, 48, "WIDTH")
-knob("SUB", 61, 48, "SUB")
-lamps("VMODE", 11, 10, 67.5, ["MONO", "LEGATO", "POLY"], "")
-knob("GLIDE", 48, 65.5, "GLIDE", "small")
-knob("ACCENT", 61, 65.5, "ACCENT", "small")
+section(3, 27, 67, 47, "VOICE")
+field("MODELF", 6, 33.5, 61)
+knob("TIMBRE", 15, 51, "TIMBRE", "large", hot=True)
+knob("BITE", 31, 48, "BITE")
+knob("WIDTH", 44, 48, "WIDTH")
+knob("SUB", 57, 48, "SUB")
+lamps("VMODE", 9.5, 9.5, 67.5, ["MONO", "LEGATO", "POLY"], "")
+knob("GLIDE", 44, 65.5, "GLIDE", "small")
+knob("ACCENT", 57, 65.5, "ACCENT", "small")
 
 # ---------------------------------------------------------------- filter
-section(77, 27, W - 80, 47, "FILTER")
-field("FTYPEF", 80, 33.5, W - 86)
-knob("CUTOFF", 91, 51, "CUTOFF", "large", hot=True)
-knob("RES", 108, 48, "RES")
-knob("FENV", 122, 48, "ENV")
-knob("KEY", 136, 48, "KEY")
-knob("FATK", 108, 65.5, "F.ATK", "small")
-knob("FDEC", 122, 65.5, "F.DEC", "small")
-knob("DRIVE", 136, 65.5, "DRIVE", "small")
+section(72, 27, W - 75, 47, "FILTER")
+field("FTYPEF", 75, 33.5, W - 81)
+knob("CUTOFF", 84, 51, "CUTOFF", "large", hot=True)
+knob("RES", 100, 48, "RES")
+knob("FENV", 113, 48, "ENV")
+knob("KEY", 126, 48, "KEY")
+knob("FATK", 100, 65.5, "F.ATK", "small")
+knob("FDEC", 113, 65.5, "F.DEC", "small")
+knob("DRIVE", 126, 65.5, "DRIVE", "small")
 
 # ---------------------------------------------------------------- envelope, vibrato, fx
-section(3, 76, 46, 26, "ENVELOPE")
+section(3, 76, 42, 26, "ENVELOPE")
 for i, n in enumerate(["ATK", "DEC", "SUS", "REL"]):
-    knob(n, 9.5 + i * 11, 89.5, "ADSR"[i], "small")
-section(51, 76, 36, 26, "VIBRATO")
+    knob(n, 8.6 + i * 10.25, 89.5, "ADSR"[i], "small")
+section(47, 76, 33, 26, "VIBRATO")
 for i, (n, l) in enumerate([("VDEPTH", "DEPTH"), ("VRATE", "RATE"), ("VDELAY", "DELAY")]):
-    knob(n, 57.5 + i * 11.5, 89.5, l, "small")
-section(89, 76, W - 92, 26, "FX")
-lamps("EDIV", 113, 7.2, 82.8, ["1/16", "1/8", "1/8D", "1/4"], "")
-text(103, 83.5, "ECHO", 1.6, DIM, 700, "end", 0.3)
+    knob(n, 53 + i * 10.5, 89.5, l, "small")
+section(82, 76, W - 85, 26, "FX")
+lamps("EDIV", 104.5, 7.0, 82.8, ["1/16", "1/8", "1/8D", "1/4"], "")
+text(95.5, 83.5, "ECHO", 1.6, DIM, 700, "end", 0.3)
 for i, (n, l) in enumerate([("CHORUS", "CHORUS"), ("ECHO", "ECHO"), ("FDBK", "FDBK"), ("LOFI", "LO-FI"),
                             ("VERB", "VERB")]):
-    knob(n, 95.5 + i * 11.5, 93.2, l, "small")
+    knob(n, 88 + i * 10.6, 93.2, l, "small")
 
 # ---------------------------------------------------------------- in / out: jacks grouped on dark strips
 e(f'<rect x="3" y="103.6" width="{W - 6:.2f}" height="24.2" rx="1.2" fill="{PLATE}"/>')
@@ -189,8 +189,8 @@ G2 = [[("IN_ECHO", "ECHO"), ("IN_LOFI", "LO-FI")], [("IN_ATK", "ATK"), ("IN_REL"
       [("OUT_ENV", "ENV"), ("OUT_L", "L"), ("OUT_R", "R")]]
 
 
-def row(groups, y, ytop, outs_last, x0=None):
-    sl, gap = 10.8, 2.2
+def row(groups, y, ytop, outs_last, x0=None, sl=10.8):
+    gap = 2.2
     n = sum(len(g) for g in groups)
     gx = (W - (n * sl + (len(groups) - 1) * gap)) / 2 if x0 is None else x0
     for gi, g in enumerate(groups):
@@ -204,7 +204,7 @@ def row(groups, y, ytop, outs_last, x0=None):
 # the GENRA strip (as on every instrument): VIB became MOD (GENRA's MOD, like a mod wheel), RESET is new
 x = genra_strip(jack, e, 6, 108.4, {"V/OCT": "VOCT", "GATE": "GATE", "VEL": "VEL", "ACC": "ACC", "SLIDE": "SLIDE",
                                      "MOD": "IN_VIB"}, ACC, {"CLOCK": "CLOCK", "RESET": "IN_RESET"})
-row(G1, 108.4, 103.5, False, x + 3.2)
+row(G1, 108.4, 103.5, False, x + 2.4, SLOT)
 row(G2, 120.3, 116.3, True)
 
 e("</svg>")
@@ -280,7 +280,7 @@ ptext(dx + 4, dy + 4.5, "MODEL 1 / 8", 1.5, DIM, 700, "start", 0.35)
 ptext(dx + 4, dy + 10.5, "RHODES", 4.4, "#ffffff", 800, "start", 0.3)
 ptext(dx + 4, dy + 13.8, "FM TINE", 1.5, ACC, 700, "start", 0.4)
 import math
-sx, sw, cy = 60, 46, dy + 7
+sx, sw, cy = 52, 42, dy + 7
 pts = " ".join(f"{sx + i * sw / 120:.2f},{cy - 4.2 * (math.sin(2 * math.pi * i / 40) * 0.8 + 0.25 * math.sin(4 * math.pi * i / 40 + 0.5)) * math.exp(-i / 240):.2f}" for i in range(121))
 out.insert(-1, f'<polyline points="{pts}" fill="none" stroke="{ACC}" stroke-width="0.45"/>')
 ptext(sx, dy + 13.8, "LADDER 24 · ECHO 1/8D · POLY", 1.5, DIM, 700, "start", 0.3)

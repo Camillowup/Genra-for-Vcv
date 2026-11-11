@@ -386,7 +386,7 @@ struct Display : Widget {
 		ui::text(vg, bold, mm2px(4.f), mm2px(13.8f), string::uppercase(MODEL_INFO[m]), 5.6f, ACCENT, NVG_ALIGN_LEFT, 1.2f);
 
 		// scope
-		float sx = mm2px(57.f), sw = mm2px(46.f), cy = mm2px(7.f), sh = mm2px(4.6f);
+		float sx = mm2px(49.f), sw = mm2px(42.f), cy = mm2px(7.f), sh = mm2px(4.6f); // 28 HP since 2.33
 		nvgBeginPath(vg);
 		nvgMoveTo(vg, sx, cy);
 		nvgLineTo(vg, sx + sw, cy);

@@ -92,9 +92,9 @@ def section(x, y, w, h, title):
     text(x + w / 2, y + 5.0, title, 2.03, ACC, 800, "middle", 0.75)
 
 
-def knob(name, x, y, label, kind="knob", hot=False):
+def knob(name, x, y, label, kind="knob", hot=False, ring=0.88):
     comps.append((kind, name, x, y))
-    r = R[kind] + 0.88
+    r = R[kind] + ring
     e(f'<circle cx="{x}" cy="{y}" r="{r:.2f}" fill="none" stroke="{ACC if hot else RING}" stroke-width="0.29" '
       f'stroke-dasharray="0.29 0.73" stroke-linecap="round"/>')
     text(x, y + R[kind] + 3.4, label, 1.7, TXT, 600, "middle", 0.3)
@@ -159,7 +159,7 @@ e(f'<rect x="{DISPLAY[0]}" y="{DISPLAY[1]}" width="{DISPLAY[2]:.2f}" height="{DI
   f'stroke="{LINE}" stroke-width="0.4"/>')
 
 NAMES = ["KICK", "SNARE", "CLAP", "RIM", "C.HAT", "O.HAT", "TOM", "PERC"]
-ROWS = [62, 70.4, 78.8, 87.2]
+ROWS = [62.6, 71.6, 80.6, 89.6]  # 2.33: 9 mm apart (was 8.4: the knobs touched when zoomed in)
 
 
 def small_field(name, x, y, w, h=4.4):
@@ -192,9 +192,9 @@ for i, nm in enumerate(NAMES):
     # four assignable knobs: dropdown chooses the function
     for r, y in enumerate(ROWS):
         small_field(f"FN{i}_{r}", x0 + 2.0, y - 2.2, 11.9)
-        knob(f"K{i}_{r}", x0 + SW - 5.6, y, "", "small")
-    jack(f"TRIG{i}", cx - 5.6, 98.4, "TRIG")
-    jack(f"OUT{i}", cx + 5.6, 98.4, "OUT", True)
+        knob(f"K{i}_{r}", x0 + SW - 5.6, y, "", "small", ring=0.4)
+    jack(f"TRIG{i}", cx - 5.6, 99.4, "TRIG")
+    jack(f"OUT{i}", cx + 5.6, 99.4, "OUT", True)
 
 # ---------------------------------------------------------------- master
 section(MX, 28, W - 3 - MX, 78.4, "MASTER")
@@ -208,8 +208,8 @@ button("UNDO", mc + 6.6, 66, "UNDO")
 button("BASIC", mc - 6.6, 79, "BASIC")
 button("PRINT", mc + 6.6, 79, "PRINT")
 text(mc + 6.6, 79 + 3.6 + 5.0, "› ABLAUF", 1.35, DIM, 600, "middle", 0.25)
-jack("OUT_L", mc - 6.6, 98.4, "L", True)
-jack("OUT_R", mc + 6.6, 98.4, "R", True)
+jack("OUT_L", mc - 6.6, 99.4, "L", True)
+jack("OUT_R", mc + 6.6, 99.4, "R", True)
 
 # ---------------------------------------------------------------- jacks: GENRA strip, CV
 e(f'<rect x="3" y="107.8" width="{W - 6:.2f}" height="17.6" rx="1.2" fill="{PLATE}"/>')
