@@ -75,6 +75,22 @@ Gestrichen: STRING und ADD.
 Panel-Entwürfe aller geplanten Module wurden am 10. Nov. 2026 im Chat gezeigt (MATH, SWARM, VOICE mit SPELL + VOICE BEND,
 FUMI, MIAOU, SAURUS, KURBEL). Noch nicht freigegeben.
 
+## KANA: japanische Sing-Engine aus MIKU-FM (Entwurf, 11. Nov. 2026)
+- Quelle: github.com/MichaelAPerry/MIKU-FM1 (Code GPL-3.0-only). Nur die Gesangsstimme; die Band (FM-Akkorde, Bass,
+  Drums) fällt weg, das übernimmt GENRA.
+- **Keine Grafiken aus MIKU-FM:** die Sängerin dort ist Hatsune Miku (Crypton, Piapro Character License, nicht GPL,
+  keine Spenden erlaubt). Stattdessen **vier eigene Pixel-Sängerinnen im Chibi-/Manga-Stil**, je eine pro Sprachmodus:
+  **MOMO** (Bärchen-Hoodie, rosa), **SORA** (violett, Seitenknoten, Sternclip, Matrosenkragen), **KIKO** (Fuchsohren,
+  Yukata, orange Haare), **NANA** (Brille, braune Zöpfe, Pullover, Mikrofon). Vorschlag Zuordnung: JAPANESE = KIKO,
+  ANIMAL = MOMO, SCAT = NANA, VOWELS = SORA. Animationen wie in MIKU-FM nachgebaut: Mundformen pro Vokal, Blinzeln,
+  DANCE-Modus (ein Schritt pro Schlag, Arme hoch im Refrain, Verbeugung am Ende).
+- Panel-Entwurf (Farbe Vorschlag Koralle `#ff7a59`): Display mit Sängerin und Silben-Rad, Chips Sprache
+  (JAPAN, ANIMAL, SCAT, VOWELS) + DANCE, Charakter (DEEP, LOW, MID, YOUNG, TINY); Kopf PRE, CALL, SYLLABLE-Dropdown,
+  LYRICS FOLLOW/FIXED (Text per Rechtsklick), LEVEL; VOICE: BREATH, BRIGHT, GLIDE, TENSE, FRY, WHISPR, FORMNT, HARM
+  (je CV); SHAPE: ATK, REL, SCOOP, VIB; FX: CHORUS, DELAY, REVERB, DRIVE; Buchsen GENRA-Leiste, CLOCK/RESET, SYL (CV),
+  NEXT (Trigger), L/R.
+- Offen: Abgrenzung zu VOICE (eigenes Modul oder als Stimme in VOICE), Farbe.
+
 ## Offene Änderungen an bestehenden Modulen (gesammelt, noch nicht gebaut)
 
 ### SCHLAG (GENRA-Plugin)
