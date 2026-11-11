@@ -1,5 +1,6 @@
 // GENRA MONO engine: pitch, stability of every filter at full resonance and drive, self-oscillation, envelopes.
 // g++ -O2 -std=c++17 test/test_mono.cpp -o /tmp/test_mono && /tmp/test_mono
+#include <algorithm>
 #include "../src/mono/MonoPresets.hpp"
 #include <cstdio>
 #include <vector>
@@ -34,6 +35,23 @@ static float rms(const std::vector<float>& x, size_t from) {
 		s += x[i] * x[i];
 	return (float) std::sqrt(s / (x.size() - from));
 }
+
+
+// 2.34: the loudest moments, measured before the safety limiter: all but the loudest 0.01 % of samples
+static float peakQ(std::vector<float> a, const std::vector<float>* b = nullptr) {
+	if (b)
+		a.insert(a.end(), b->begin(), b->end());
+	for (auto& x : a)
+		x = std::fabs(x);
+	if (a.empty())
+		return 0.f;
+	size_t q = a.size() - a.size() / 10000;
+	if (q >= a.size())
+		q = a.size() - 1;
+	std::nth_element(a.begin(), a.begin() + q, a.end());
+	return a[q];
+}
+static const float RAW = 0.05f; // presets measured with the output level scaled down: the limiter stays out
 
 int main() {
 	const float fs = 48000.f;
@@ -171,6 +189,7 @@ int main() {
 		for (int k = 0; k < NUM_PRESETS; k++) {
 			const Preset& pr = PRESETS[k];
 			Params p = pr.params();
+			p.outGain *= RAW;
 			Voice v;
 			v.setSampleRate(fs);
 			Inputs in;
@@ -184,21 +203,23 @@ int main() {
 					in.gate = i < len;
 					float s;
 					v.process(p, in, s, l);
+					s /= RAW;
 					finite &= std::isfinite(s);
-					peak = std::max(peak, std::fabs(s));
 					o.push_back(s);
 				}
 			}
 			float r = rms(o, 0);
+			peak = peakQ(o);
 			in.gate = false;
 			std::vector<float> tail(fs * 3);
 			for (auto& s : tail)
-				v.process(p, in, s, l);
+				v.process(p, in, s, l), s /= RAW;
 			float end = rms(tail, fs * 2.5f);
 			printf("preset %2d %-14s rms %.2f V  peak %.2f V\n", k + 1, pr.name, r, peak);
 			CHECK(finite, "preset %s not finite", pr.name);
-			CHECK(r > 1.3f && peak > 4.f, "preset %s too quiet (rms %.2f V, peak %.2f V)", pr.name, r, peak);  // loud: ~2.3 V
-			CHECK(peak <= 8.01f, "preset %s too loud (%.2f V, above the limiter's ceiling)", pr.name, peak);
+			CHECK(r > 0.5f, "preset %s too quiet (rms %.2f V, peak %.2f V)", pr.name, r, peak);
+			// 2.34: clear of the limiter (knee 6 V), so nothing is squashed
+			CHECK(peak <= 6.06f, "preset %s: peaks %.2f V reach the limiter", pr.name, peak);
 			CHECK(end < 0.01f, "preset %s does not end (%.3f V)", pr.name, end);
 			CHECK(pr.ftype >= 0 && pr.ftype < NUM_FILTERS, "preset %s filter", pr.name);
 		}

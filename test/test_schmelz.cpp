@@ -2,6 +2,7 @@
 // the whole chain at all sample rates and extreme settings.
 // g++ -O2 -std=c++17 test/test_schmelz.cpp -o /tmp/test_schmelz && /tmp/test_schmelz
 #include "../src/schmelz/SchmelzPresets.hpp"
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
 #include <memory>
@@ -154,10 +155,15 @@ int main() {
 					CHECK(rms > 0.8f && peak < 9.f, "level sr %.0f ens %d: rms %.2f V, peak %.2f V", sr, ens, rms, peak);
 			}
 
-	// 6. every preset: a four-note chord for 2 s (with the solo where its BALANCE lets it in), then 10 s of tail,
-	//    mapped as Schmelz::process does. Finite, audible, a sane peak, even loudness, silent at the end.
+	// 6. every preset, played as GENRA's pad track does: six four-note chords one after another, each starting where
+	//    the one before is let go (its release rings into the next), then a long tail; mapped as Schmelz::process
+	//    does. Measured before the safety limiter (outGain scaled down, then back up): the typical level while it plays (median of 50 ms windows),
+	//    and how high the loudest moments go. Since 2.34 a preset must stay clear of the limiter (knee 6 V): its
+	//    peaks (all but the loudest 0.01 % of samples) at most 6 V, so nothing is squashed or distorted, also not
+	//    while chords overlap. Level about 1 V rms, even between presets, silent at the end.
 	{
 		const float sr = 48000.f;
+		const float KNEE = 6.f;
 		float lvl[NUM_PRESETS];
 		for (int i = 0; i < NUM_PRESETS; i++) {
 			const Preset& pr = PRESETS[i];
@@ -165,54 +171,75 @@ int main() {
 			SoloParams op;
 			BusParams bp;
 			pr.apply(sp, op, bp);
-			std::unique_ptr<StringsVoice[]> sv(new StringsVoice[4]);
-			std::unique_ptr<SoloVoice[]> so(new SoloVoice[4]);
+			const float scale = 0.05f; // keep the limiter out of the measurement
+			bp.outGain = pr.gain * scale;
+			const int NV = 8;
+			std::unique_ptr<StringsVoice[]> sv(new StringsVoice[NV]);
+			std::unique_ptr<SoloVoice[]> so(new SoloVoice[NV]);
 			auto bus = std::make_unique<Bus>();
 			bus->setSampleRate(sr);
-			for (int c = 0; c < 4; c++)
+			for (int c = 0; c < NV; c++)
 				sv[c].setSampleRate(sr), so[c].setSampleRate(sr), sv[c].seed(0x1234u * (c + 1)), so[c].seed(0x777u * (c + 3));
-			const float chord[4] = {-0.75f, -0.4167f, -0.1667f, 0.f};
-			int on = (int) (2.f * sr), n = (int) (12.f * sr), w = (int) (0.05f * sr);
+			static const float CH[6][4] = {{-0.75f, -0.4167f, -0.1667f, 0.f},  {-0.5833f, -0.25f, 0.f, 0.25f},
+			                               {-0.8333f, -0.5f, -0.25f, 0.0833f}, {-0.6667f, -0.3333f, -0.0833f, 0.1667f},
+			                               {-0.9167f, -0.5833f, -0.3333f, 0.f}, {-0.75f, -0.4167f, -0.0833f, 0.25f}};
+			const int len = (int) (1.5f * sr), played = 6 * len, n = played + (int) (10.f * sr), w = (int) (0.05f * sr);
 			bool fin = true;
-			float peak = 0.f, lv = 0.f, tail = 0.f, acc = 0.f;
+			float tail = 0.f, acc = 0.f;
 			int cnt = 0;
+			std::vector<float> mags, wins;
+			mags.reserve(2 * played + 2 * sr);
 			for (int k = 0; k < n; k++) {
 				float an = bus->animate(bp);
-				bool g = k < on;
+				int cur = k / len; // the chord playing (6+ = none)
 				float s = 0.f, o = 0.f;
-				for (int c = 0; c < 4; c++) {
+				for (int c = 0; c < NV; c++) {
+					int set = c / 4, me = cur < 6 && cur % 2 == set ? cur : (cur >= 1 && cur - 1 < 6 && (cur - 1) % 2 == set ? cur - 1 : -1);
+					int chord = me >= 0 ? me : (set == 0 ? 4 : 5);
+					bool g = me >= 0 && me == cur;
+					bool trig = g && k == cur * len;
 					StringsParams p = sp;
 					p.reg = clampf(pr.reg + an, 0.f, 1.f);
-					float f = C4 * std::pow(2.f, chord[c]);
-					s += sv[c].process(p, f, g, k == 0, 0.8f);
-					if (stringsTakes(pr.split, chord[c]) || soloTakes(pr.split, chord[c]))
-						o += so[c].process(op, f, g || pr.hold, k == 0, 0.8f);
+					float pc = CH[chord][c % 4];
+					float f = C4 * std::pow(2.f, pc);
+					s += sv[c].process(p, f, g, trig, 0.8f);
+					if (stringsTakes(pr.split, pc) || soloTakes(pr.split, pc))
+						o += so[c].process(op, f, g || (pr.hold && k < played), trig, 0.8f);
 				}
 				float L, R, so_, st;
 				bus->process(bp, s, o, L, R, st, so_);
+				L /= scale, R /= scale;
 				fin &= std::isfinite(L) && std::isfinite(R);
-				peak = std::max(peak, std::max(std::fabs(L), std::fabs(R)));
+				if (k < played + (int) sr)
+					mags.push_back(std::fabs(L)), mags.push_back(std::fabs(R));
 				acc += 0.5f * (L * L + R * R);
 				if (++cnt == w) {
 					float r = std::sqrt(acc / w);
-					if (k < on)
-						lv = std::max(lv, r);
+					if (k < played && k >= len / 2)
+						wins.push_back(r);
 					if (k >= n - 6 * w)
 						tail = std::max(tail, r);
 					acc = 0.f, cnt = 0;
 				}
 			}
+			std::nth_element(wins.begin(), wins.begin() + wins.size() / 2, wins.end());
+			float lv = wins[wins.size() / 2]; // the typical level while the chords play
+			size_t q = mags.size() - mags.size() / 10000; // all but the loudest 0.01 %
+			std::nth_element(mags.begin(), mags.begin() + q, mags.end());
+			float peak = mags[q];
+			float top = *std::max_element(mags.begin() + q, mags.end());
 			lvl[i] = lv;
-			printf("  %02d %-18s rms %.2f V  peak %.2f V  tail %.4f V\n", i + 1, pr.name, lv, peak, tail);
+			printf("  %02d %-18s rms %.2f V  peak %.2f V  top %.2f V  tail %.4f V\n", i + 1, pr.name, lv, peak, top, tail);
 			CHECK(fin, "preset %s: not finite", pr.name);
-			CHECK(lv > 1.8f, "preset %s: too quiet (%.2f V rms)", pr.name, lv);  // loud and even: about 2 V
-			CHECK(peak <= 8.01f, "preset %s: peak %.2f V", pr.name, peak);
+			CHECK(lv > 0.6f, "preset %s: too quiet (%.2f V rms)", pr.name, lv);
+			CHECK(lv < 1.15f, "preset %s: too loud (%.2f V rms)", pr.name, lv);
+			CHECK(peak <= KNEE * 1.01f, "preset %s: peaks %.2f V reach the limiter (knee %.0f V)", pr.name, peak, KNEE);
 			CHECK(tail < 0.01f * lv + 1e-4f, "preset %s: still sounding after the release (%.4f V)", pr.name, tail);
 		}
 		float lo = 1e9f, hi = 0.f;
 		for (float v : lvl)
 			lo = std::min(lo, v), hi = std::max(hi, v);
-		CHECK(hi / lo < 1.5f, "preset levels too far apart (%.2f .. %.2f V rms)", lo, hi);
+		CHECK(hi / lo < 1.8f, "preset levels too far apart (%.2f .. %.2f V rms)", lo, hi);
 		for (int i = 0; i < NUM_PRESETS; i++)
 			for (int j = 0; j < i; j++)
 				CHECK(std::strcmp(PRESETS[i].name, PRESETS[j].name) != 0, "preset name twice: %s", PRESETS[i].name);

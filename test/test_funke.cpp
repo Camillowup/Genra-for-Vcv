@@ -1,6 +1,7 @@
 // FUNKE engine: pitch of every model, level match between the models, glide on SLIDE, the voice modes, the echo
 // time from the clock, and stability of every model × filter at all sample rates and extreme settings.
 // g++ -O2 -std=c++17 test/test_funke.cpp -o /tmp/test_funke && /tmp/test_funke [wav-dir]
+#include <algorithm>
 #include "../src/funke/FunkePresets.hpp"
 #include <cstdio>
 #include <cstring>
@@ -91,6 +92,23 @@ static void note(Params p, float fs, float voct, float on, float len, std::vecto
 		e->process(p, &c, 1, false, 0.25f, L[i], R[i], env);
 	}
 }
+
+
+// 2.34: the loudest moments, measured before the safety limiter: all but the loudest 0.01 % of samples
+static float peakQ(std::vector<float> a, const std::vector<float>* b = nullptr) {
+	if (b)
+		a.insert(a.end(), b->begin(), b->end());
+	for (auto& x : a)
+		x = std::fabs(x);
+	if (a.empty())
+		return 0.f;
+	size_t q = a.size() - a.size() / 10000;
+	if (q >= a.size())
+		q = a.size() - 1;
+	std::nth_element(a.begin(), a.begin() + q, a.end());
+	return a[q];
+}
+static const float RAW = 0.05f; // presets measured with the output level scaled down: the limiter stays out
 
 int main(int argc, char** argv) {
 	const char* dir = argc > 1 ? argv[1] : nullptr;
@@ -315,6 +333,7 @@ int main(int argc, char** argv) {
 		for (int i = 0; i < NUM_PRESETS; i++) {
 			const Preset& pr = PRESETS[i];
 			Params p = pr.params();
+			p.outGain *= RAW;
 			auto e = std::make_unique<Engine>();
 			e->setSampleRate(fs);
 			int n = pr.mode == MODE_POLY ? 3 : 1;
@@ -332,9 +351,10 @@ int main(int argc, char** argv) {
 				}
 				float env;
 				e->process(p, c, n, false, 0.375f, L[k], R[k], env);
+				L[k] /= RAW, R[k] /= RAW;
 				fin &= std::isfinite(L[k]) && std::isfinite(R[k]);
-				peak = std::max(peak, std::max(std::fabs(L[k]), std::fabs(R[k])));
 			}
+			peak = peakQ(L, &R);
 			// loudness: the loudest 50 ms while the keys are held (plucks and pads alike)
 			float lv = 0.f;
 			for (size_t a = 0, w = (size_t) (0.05f * fs); a + w <= on; a += w / 2)
@@ -343,8 +363,9 @@ int main(int argc, char** argv) {
 			lvl[i] = lv;
 			printf("  %02d %-18s rms %.2f V  peak %.2f V  tail %.4f V\n", i + 1, pr.name, lv, peak, tail);
 			CHECK(fin, "preset %s: not finite", pr.name);
-			CHECK(lv > 2.1f, "preset %s: too quiet (%.2f V rms)", pr.name, lv);  // loud and even: about 2.4 V
-			CHECK(peak <= 8.01f, "preset %s: peak %.2f V (above the limiter's ceiling)", pr.name, peak);
+			CHECK(lv > 0.6f, "preset %s: too quiet (%.2f V rms)", pr.name, lv);
+			// 2.34: clear of the limiter (knee 6 V), so nothing is squashed
+			CHECK(peak <= 6.06f, "preset %s: peaks %.2f V reach the limiter", pr.name, peak);
 			CHECK(tail < 0.01f * lv + 1e-4f, "preset %s: still sounding after the release (%.4f V)", pr.name, tail);
 			if (dir) {
 				char fn[256];
@@ -355,7 +376,7 @@ int main(int argc, char** argv) {
 		float lo = 1e9f, hi = 0.f;
 		for (float v : lvl)
 			lo = std::min(lo, v), hi = std::max(hi, v);
-		CHECK(hi / lo < 1.2f, "preset levels too far apart (%.2f .. %.2f V rms)", lo, hi);
+		CHECK(hi / lo < 1.8f, "preset levels too far apart (%.2f .. %.2f V rms)", lo, hi);
 		for (int i = 0; i < NUM_PRESETS; i++)
 			for (int j = 0; j < i; j++)
 				CHECK(std::strcmp(PRESETS[i].name, PRESETS[j].name) != 0, "preset name twice: %s", PRESETS[i].name);

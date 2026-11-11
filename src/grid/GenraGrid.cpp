@@ -55,6 +55,8 @@ struct GenraGrid : Module {
 	int snapMode = 1; // 0 off, 1 scale, 2 chord
 	int drumRow = KICK;
 	int laneMode = 0; // lower lane: 0 velocity, 1 chance
+	int pitchView = 0; // 2.34 piano rows: 0 ALL (every semitone), 1 SCALE (the key's notes), 2 USED (pitches with notes)
+	int viewMode = 0;  // 2.34: 0 ONE track, 1 GHOST (the other pitched tracks faint behind), 2 ALL 4 (all tracks as lanes)
 	int64_t linkedId = -1; // -1: automatic (docked GENRA)
 	bool recOn = false;    // REC MIDI armed (not saved)
 	bool midiAuto = true;  // the MIDI input follows SCHLAG's MIDI IN (2.26)
@@ -135,6 +137,8 @@ struct GenraGrid : Module {
 		json_object_set_new(root, "drumRow", json_integer(drumRow));
 		json_object_set_new(root, "linkedId", json_integer(linkedId));
 		json_object_set_new(root, "laneMode", json_integer(laneMode));
+		json_object_set_new(root, "pitchView", json_integer(pitchView));
+		json_object_set_new(root, "viewMode", json_integer(viewMode));
 		json_object_set_new(root, "midi", midiIn.toJson());
 		json_object_set_new(root, "midiAuto", json_boolean(midiAuto));
 		return root;
@@ -151,6 +155,10 @@ struct GenraGrid : Module {
 			linkedId = json_integer_value(j);
 		if ((j = json_object_get(root, "laneMode")))
 			laneMode = clamp((int)json_integer_value(j), 0, 1);
+		if ((j = json_object_get(root, "pitchView")))
+			pitchView = clamp((int)json_integer_value(j), 0, 2);
+		if ((j = json_object_get(root, "viewMode")))
+			viewMode = clamp((int)json_integer_value(j), 0, 2);
 		if ((j = json_object_get(root, "midi")))
 			midiIn.fromJson(j);
 		if ((j = json_object_get(root, "midiAuto")))
@@ -270,13 +278,98 @@ struct GridDisplay : Widget {
 	float gx1() { return glayout::GRID[2]; }
 	float gy1() { return glayout::GRID[3]; }
 	float sw() { return (gx1() - gx0()) / vis; }
-	int rows() { return module && module->track == T_DRUMS ? NUM_DRUMS : PIANO_ROWS; }
+	// piano rows, top to bottom (2.34: ALL every semitone of the window, SCALE only the key's notes, USED only the
+	// pitches that have notes); rebuilt every frame in step()
+	std::vector<int> rowP;
+	// 2.34: the view chips in the header (drawn on the right, clicked in onButton)
+	struct Chip {
+		float xa, xb;
+		int kind, val; // kind 0: pitchView, 1: viewMode
+	};
+	std::vector<Chip> chips;
+	const float CHIP_Y0 = 2.2f, CHIP_Y1 = 6.2f;
+	// ALL 4: the lanes (grid area plus the lower lane), drums a little taller
+	void laneSpan(int u, float& ya, float& yb) {
+		static const float F[5] = {0.f, 0.28f, 0.52f, 0.76f, 1.f};
+		float top = gy0(), bot = glayout::VELLANE[1];
+		ya = top + F[u] * (bot - top) + (u ? 0.5f : 0.f);
+		yb = top + F[u + 1] * (bot - top) - (u < 3 ? 0.5f : 0.f);
+	}
+	int laneAtY(float y) {
+		for (int u = 0; u < 4; u++) {
+			float ya, yb;
+			laneSpan(u, ya, yb);
+			if (y >= ya - 0.5f && y < yb + 0.5f)
+				return u;
+		}
+		return -1;
+	}
+	int rows() { return module && module->track == T_DRUMS ? NUM_DRUMS : std::max(1, (int)rowP.size()); }
 	float rh() { return (gy1() - gy0()) / rows(); }
 	Vec mm(Vec px) { return px.div(mm2px(Vec(1.f, 1.f))); }
 	int stepAt(float xmm) { return vs + (int)std::floor((xmm - gx0()) / sw()); }
 	int rowAt(float ymm) { return (int)std::floor((ymm - gy0()) / rh()); }
-	int pitchOfRow(int r) { return low + PIANO_ROWS - 1 - r; }
-	int rowOfPitch(int p) { return low + PIANO_ROWS - 1 - p; }
+	int pitchOfRow(int r) {
+		if (rowP.empty())
+			return low;
+		return rowP[clamp(r, 0, (int)rowP.size() - 1)];
+	}
+	/** The row of a pitch: above the window -1, below it rows(); a pitch between two rows (SCALE: off the key)
+	 * goes to the nearest row. */
+	int rowOfPitch(int p) {
+		if (rowP.empty())
+			return -1;
+		if (p > rowP.front())
+			return -1;
+		if (p < rowP.back())
+			return (int)rowP.size();
+		int best = 0;
+		for (int r = 0; r < (int)rowP.size(); r++)
+			if (std::abs(rowP[r] - p) < std::abs(rowP[best] - p))
+				best = r;
+		return best;
+	}
+	/** The row showing exactly this pitch, -1 none. */
+	int rowExact(int p) {
+		for (int r = 0; r < (int)rowP.size(); r++)
+			if (rowP[r] == p)
+				return r;
+		return -1;
+	}
+	bool inScale(int p) {
+		int pc = ((p - (P.key + P.transp)) % 12 + 12) % 12;
+		for (int i = 0; i < 7; i++)
+			if (SCALES[clamp(P.scale, 0, NUM_SCALES - 1)].iv[i] == pc)
+				return true;
+		return false;
+	}
+	int windowRows() { return module && module->viewMode == 1 ? 37 : PIANO_ROWS; } // GHOST: three octaves
+	void buildRows() {
+		rowP.clear();
+		int t = module->track;
+		if (t == T_DRUMS)
+			return;
+		int N = windowRows();
+		if (module->pitchView == 2) { // USED: the track's pitches (with GHOST also the others')
+			bool have[128] = {false};
+			std::vector<GridNote> own = editing ? notes : trackNotes(g->pat, P, t, L);
+			for (const GridNote& n : own)
+				have[clamp(n.pitch, 0, 127)] = true;
+			if (module->viewMode == 1)
+				for (int u = T_BASS; u <= T_PADS; u++)
+					if (u != t)
+						for (const GridNote& n : trackNotes(g->pat, P, u, L))
+							have[clamp(n.pitch, 0, 127)] = true;
+			for (int p = 127; p >= 0; p--)
+				if (have[p])
+					rowP.push_back(p);
+			if (!rowP.empty())
+				return; // an empty track: as SCALE, so there is somewhere to start
+		}
+		for (int p = low + N - 1; p >= low; p--)
+			if (module->pitchView == 0 || inScale(p))
+				rowP.push_back(p);
+	}
 	bool inGrid(Vec m) { return m.x >= gx0() && m.x < gx1() && m.y >= gy0() && m.y < gy1(); }
 	bool inLane(Vec m) { return m.x >= gx0() && m.x < gx1() && m.y >= glayout::VELLANE[0] && m.y < glayout::VELLANE[1]; }
 	bool inLaneLabel(Vec m) { return m.x < gx0() && m.y >= glayout::VELLANE[0] && m.y < glayout::VELLANE[1]; }
@@ -363,7 +456,9 @@ struct GridDisplay : Widget {
 			centerSet[t] = true;
 		}
 		lastTrack = t;
-		low = clamp((int)std::round(center[t] + module->params[GenraGrid::PITCH_PARAM].getValue()) - PIANO_ROWS / 2, 0, 127 - PIANO_ROWS + 1);
+		int N = windowRows();
+		low = clamp((int)std::round(center[t] + module->params[GenraGrid::PITCH_PARAM].getValue()) - N / 2, 0, 127 - N + 1);
+		buildRows();
 		recStep();
 		// hand edited tracks to GENRA
 		if (dirty && g->submitTrack(work, t)) {
@@ -729,6 +824,12 @@ struct GridDisplay : Widget {
 
 	void onHover(const HoverEvent& e) override {
 		Vec m = mm(e.pos);
+		if (module && module->viewMode == 2) {
+			hoverStep = hoverRow = -1;
+			hoverSwing = -2;
+			e.consume(this);
+			return;
+		}
 		hoverStep = inGrid(m) || inLane(m) ? stepAt(m.x) : -1;
 		hoverRow = inGrid(m) ? rowAt(m.y) : -1;
 		hoverSwing = swingBadgeAt(m);
@@ -747,7 +848,7 @@ struct GridDisplay : Widget {
 		int t = module->track;
 		int mods = e.mods & RACK_MOD_MASK;
 		if (e.button == GLFW_MOUSE_BUTTON_RIGHT) {
-			if (inGrid(m))
+			if (inGrid(m) && module->viewMode != 2)
 				openMenu(stepAt(m.x), rowAt(m.y));
 			e.consume(this);
 			return;
@@ -755,6 +856,29 @@ struct GridDisplay : Widget {
 		if (e.button != GLFW_MOUSE_BUTTON_LEFT)
 			return;
 		e.consume(this);
+		// 2.34: the view chips in the header
+		if (m.y >= CHIP_Y0 - 0.4f && m.y < CHIP_Y1 + 0.4f) {
+			for (const Chip& c : chips)
+				if (m.x >= c.xa && m.x < c.xb) {
+					if (c.kind == 0)
+						module->pitchView = c.val;
+					else
+						module->viewMode = c.val;
+					static const char* const PV[3] = {"Rows: every semitone", "Rows: the key's notes only", "Rows: the pitches with notes only"};
+					static const char* const VM[3] = {"View: one track", "View: ghost (the other tracks faint behind)", "View: all four tracks"};
+					say(c.kind == 0 ? PV[c.val] : VM[c.val]);
+				}
+			return;
+		}
+		// ALL 4: a click picks the lane's track (double-click opens it alone)
+		if (module->viewMode == 2) {
+			if (m.x >= gx0() - 14.f && m.x < gx1()) {
+				int u = laneAtY(m.y);
+				if (u >= 0 && !editing)
+					module->track = u;
+			}
+			return;
+		}
 		// lane label: switch between velocity and chance
 		if (inLaneLabel(m)) {
 			module->laneMode = 1 - module->laneMode;
@@ -990,7 +1114,7 @@ struct GridDisplay : Widget {
 				touched();
 			}
 			else {
-				int dp = pitchOfRow(clamp(rowAt(m.y), 0, PIANO_ROWS - 1)) - anchorPitch;
+				int dp = pitchOfRow(clamp(rowAt(m.y), 0, rows() - 1)) - anchorPitch;
 				std::vector<GridNote> keep, moved;
 				for (const GridNote& n : moveOrig)
 					(isSel(n.start, n.pitch) ? moved : keep).push_back(n);
@@ -1037,7 +1161,7 @@ struct GridDisplay : Widget {
 		}
 		else if (drag == D_MOVE) {
 			int ns = clamp(s - anchor, 0, C - 1);
-			int np = snapPitch(work, P, ns, pitchOfRow(clamp(rowAt(m.y), 0, PIANO_ROWS - 1)), module->snapMode);
+			int np = snapPitch(work, P, ns, pitchOfRow(clamp(rowAt(m.y), 0, rows() - 1)), module->snapMode);
 			if (ns != n.start || np != n.pitch) {
 				n.start = ns;
 				n.pitch = np;
@@ -1071,6 +1195,17 @@ struct GridDisplay : Widget {
 		if (!module || !g)
 			return;
 		Vec m = mm(pressPos);
+		if (m.y < CHIP_Y1 + 0.4f) // the header chips
+			return;
+		if (module->viewMode == 2) { // ALL 4: the lane alone, in ONE
+			int u = laneAtY(m.y);
+			if (u >= 0 && m.x >= gx0() - 14.f && m.x < gx1() && !editing) {
+				module->track = u;
+				module->viewMode = 0;
+				e.consume(this);
+			}
+			return;
+		}
 		// double-click on a swing badge: the voice / track takes the global swing again
 		int sb = swingBadgeAt(m);
 		if (sb != -2) {
@@ -1122,7 +1257,7 @@ struct GridDisplay : Widget {
 		if (!module || !g)
 			return;
 		Vec m = mm(e.pos);
-		if (!inGrid(m))
+		if (!inGrid(m) || module->viewMode == 2)
 			return;
 		int s = stepAt(m.x), r = rowAt(m.y), t = module->track;
 		int d = e.scrollDelta.y > 0 ? 6 : -6;
@@ -1953,6 +2088,38 @@ struct GridDisplay : Widget {
 		int b0 = vs / 16 + 1, b1 = (vs + vis) / 16;
 		segs.push_back({b0 == b1 ? string::f("BAR %d / %d", b0, L / 16) : string::f("BAR %d-%d / %d", b0, b1, L / 16), dim, false});
 		segs.push_back({std::string(noteName(P.key + P.transp, P.key + P.transp, P.scale)) + " " + upper(SCALES[P.scale].name), dim, false});
+		// 2.34: the view chips on the right: rows ALL / SCALE / USED (pitched tracks, not in ALL 4), view ONE / GHOST / ALL 4
+		float segRight = wmm - 3.5f;
+		{
+			chips.clear();
+			static const char* const PV[3] = {"ALL", "SCALE", "USED"};
+			static const char* const VM[3] = {"ONE", "GHOST", "ALL 4"};
+			nvgFontFaceId(vg, bold->handle);
+			nvgFontSize(vg, mm2px(1.75f));
+			nvgTextLetterSpacing(vg, mm2px(0.15f));
+			auto cw_ = [&](const char* x) {
+				float bb[4];
+				nvgTextBounds(vg, 0, 0, x, NULL, bb);
+				return (bb[2] - bb[0]) / mm2px(1.f) + 2.4f;
+			};
+			float x = wmm - 3.5f;
+			auto group = [&](int kind, const char* const* lab, int cur) {
+				for (int i = 2; i >= 0; i--) {
+					float w = cw_(lab[i]);
+					x -= w;
+					chips.push_back({x, x + w, kind, i});
+					bool on = i == cur;
+					rect(x + 0.15f, CHIP_Y0, w - 0.3f, CHIP_Y1 - CHIP_Y0, on ? nvgRGB(0xff, 0xd2, 0x3d) : nvgRGB(0x1a, 0x1b, 0x21), 0.7f);
+					txt(bold, x + w / 2.f, CHIP_Y0 + 2.75f, 1.75f, on ? nvgRGB(0x0a, 0x0a, 0x0d) : dim, lab[i], NVG_ALIGN_CENTER | NVG_ALIGN_BASELINE, 0.15f);
+				}
+			};
+			group(1, VM, module->viewMode);
+			if (t != T_DRUMS && module->viewMode != 2) {
+				x -= 1.6f;
+				group(0, PV, module->pitchView);
+			}
+			segRight = x - 2.f;
+		}
 		{
 			nvgFontFaceId(vg, mono->handle);
 			nvgFontSize(vg, mm2px(2.3f));
@@ -1983,11 +2150,13 @@ struct GridDisplay : Widget {
 			nvgFontSize(vg, mm2px(2.3f));
 			nvgTextLetterSpacing(vg, mm2px(0.2f));
 			// too long: the key goes first, then the bar range
-			if (leftEnd + total() > wmm - 3.5f && segs.size() > 2)
+			if (leftEnd + total() > segRight && segs.size() > 2)
 				segs.pop_back();
-			if (leftEnd + total() > wmm - 3.5f && segs.size() > 2)
+			if (leftEnd + total() > segRight && segs.size() > 2)
 				segs.pop_back();
-			float x = wmm - 3.5f;
+			if (leftEnd + total() > segRight && segs.size() > 1)
+				segs.pop_back();
+			float x = segRight;
 			for (int i = (int)segs.size() - 1; i >= 0; i--) {
 				txt(mono, x, 5.2f, 2.3f, segs[i].c, segs[i].s, NVG_ALIGN_RIGHT | NVG_ALIGN_BASELINE, 0.2f);
 				x -= width(segs[i].s);
@@ -2021,6 +2190,88 @@ struct GridDisplay : Widget {
 			nvgScissor(vg, mm2px(xa), mm2px(7.6f), mm2px(std::max(0.f, xb - xa - 0.6f)), mm2px(4.2f));
 			txt(bold, xa + 1.4f, 10.5f, 2.2f, act ? nvgRGB(0x0a, 0x0a, 0x0d) : dim, chordName(ch, P.key + P.transp, P.scale), NVG_ALIGN_LEFT | NVG_ALIGN_BASELINE);
 			nvgResetScissor(vg);
+		}
+
+		// ---- 2.34 ALL 4: every track as a lane, the edited one framed (click: edit it, double-click: alone in ONE)
+		if (module->viewMode == 2) {
+			static const char* TNL[4] = {"DRUMS", "BASS", "MELODY", "PADS"};
+			float lastY = y1;
+			for (int u = 0; u < 4; u++) {
+				float ya, yb;
+				laneSpan(u, ya, yb);
+				lastY = yb;
+				NVGcolor uc = TRACK_COLORS[u];
+				rect(x0 - 13.6f, ya, 12.8f, yb - ya, nvgRGB(0x10, 0x11, 0x16), 0.5f);
+				rect(x0 - 13.6f, ya, 0.8f, yb - ya, uc, 0.3f);
+				txt(bold, x0 - 12.2f, ya + 3.f, 1.8f, uc, TNL[u], NVG_ALIGN_LEFT | NVG_ALIGN_BASELINE, 0.2f);
+				if (u == t)
+					txt(bold, x0 - 12.2f, ya + 5.6f, 1.4f, dim, "EDIT", NVG_ALIGN_LEFT | NVG_ALIGN_BASELINE, 0.2f);
+				nvgScissor(vg, mm2px(x0), mm2px(ya), mm2px(x1 - x0), mm2px(yb - ya));
+				if (u == T_DRUMS) {
+					float rr = (yb - ya) / NUM_DRUMS;
+					for (int v = 0; v < NUM_DRUMS; v++) {
+						rect(x0, ya + v * rr, x1 - x0, rr, v % 2 ? nvgRGB(0x0c, 0x0d, 0x11) : nvgRGB(0x10, 0x11, 0x16));
+						for (int st = vs; st < vs + vis && st < L; st++) {
+							Hit h = drumHit(pat, Q, v, st, L, false);
+							if (!h.on)
+								continue;
+							NVGcolor c = uc;
+							c.a = 0.35f + 0.65f * h.vel;
+							float in = std::min(0.35f, cw * 0.08f);
+							rect(x0 + (st - vs) * cw + in, ya + v * rr + 0.2f, cw - 2.f * in, rr - 0.4f, c, 0.3f);
+						}
+					}
+				}
+				else {
+					std::vector<GridNote> ns = trackNotes(pat, P, u, L);
+					int lo = 127, hi = 0;
+					for (const GridNote& n : ns)
+						lo = std::min(lo, n.pitch), hi = std::max(hi, n.pitch);
+					if (ns.empty())
+						lo = 48, hi = 60;
+					if (hi - lo < 11) { // at least an octave
+						int mid = (lo + hi) / 2;
+						lo = mid - 6, hi = mid + 5;
+					}
+					lo--, hi++;
+					float rr = (yb - ya) / (hi - lo + 1);
+					for (int pch = hi; pch >= lo; pch--)
+						rect(x0, ya + (hi - pch) * rr, x1 - x0, rr, inScale(pch) ? nvgRGB(0x13, 0x14, 0x1a) : nvgRGB(0x0a, 0x0a, 0x0d));
+					for (const GridNote& n : ns) {
+						if (n.start + n.len <= vs || n.start >= vs + vis)
+							continue;
+						NVGcolor c = uc;
+						c.a = 0.45f + 0.55f * n.vel / 127.f;
+						rect(x0 + (n.start - vs) * cw + 0.2f, ya + (hi - n.pitch) * rr + 0.1f, n.len * cw - 0.4f, std::max(0.4f, rr - 0.2f), c,
+						     std::min(0.5f, rr * 0.4f));
+					}
+				}
+				for (int k = 0; k <= vis; k += 4) { // beats and bars
+					int gs = vs + k;
+					bool bar = gs % 16 == 0;
+					if (!bar && vis > 64)
+						continue;
+					rect(x0 + k * cw - (bar ? 0.2f : 0.08f), ya, bar ? 0.4f : 0.16f, yb - ya, bar ? nvgRGB(0x7a, 0x7e, 0x8c) : nvgRGB(0x3a, 0x3c, 0x46));
+				}
+				if (vs + vis > L) {
+					float xa = x0 + std::max(0, L - vs) * cw;
+					rect(xa, ya, x1 - xa, yb - ya, nvgRGBA(0, 0, 0, 0x90));
+				}
+				nvgResetScissor(vg);
+				if (u == t)
+					outline(x0 - 0.3f, ya - 0.3f, x1 - x0 + 0.6f, yb - ya + 0.6f, white, 0.35f, 0.5f, false);
+			}
+			if (playStep >= vs && playStep < vs + vis) {
+				float px = x0 + (playStep - vs) * cw;
+				nvgBeginPath(vg);
+				nvgMoveTo(vg, mm2px(px), mm2px(y0 - 1.f));
+				nvgLineTo(vg, mm2px(px), mm2px(lastY));
+				nvgStrokeColor(vg, white);
+				nvgStrokeWidth(vg, mm2px(0.3f));
+				nvgStroke(vg);
+			}
+			Widget::drawLayer(args, layer);
+			return;
 		}
 
 		// ---- rows
@@ -2172,6 +2423,27 @@ struct GridDisplay : Widget {
 		else {
 			std::vector<GridNote> ns = editing ? notes : trackNotes(pat, P, t, L);
 			nvgScissor(vg, mm2px(x0), mm2px(y0), mm2px(x1 - x0), mm2px(y1 - y0));
+			// 2.34 GHOST: the other pitched tracks as faint outlines behind (not editable, only to see)
+			if (module->viewMode == 1)
+				for (int u = T_BASS; u <= T_PADS; u++) {
+					if (u == t)
+						continue;
+					NVGcolor uc = TRACK_COLORS[u];
+					for (const GridNote& n : trackNotes(pat, P, u, L)) {
+						if (n.start + n.len <= vs || n.start >= vs + vis)
+							continue;
+						int r = rowExact(n.pitch);
+						if (r < 0)
+							continue;
+						float x = x0 + (n.start - vs) * cw + 0.3f, y = y0 + r * rhh + 0.3f, w = n.len * cw - 0.6f, hh = rhh - 0.6f;
+						NVGcolor f = uc;
+						f.a = 0.16f;
+						rect(x, y, w, hh, f, 0.5f);
+						NVGcolor o = uc;
+						o.a = 0.55f;
+						outline(x, y, w, hh, o, 0.2f, 0.5f, false);
+					}
+				}
 			// repetitions of the track's own cycle (dimmed, not editable)
 			const int C = cycOf(pat, t, -1);
 			for (int k = 1; C < L && k * C < std::min(L, vs + vis); k++)
@@ -2180,7 +2452,7 @@ struct GridDisplay : Widget {
 					if (st >= L || st + n0.len <= vs || st >= vs + vis)
 						continue;
 					int r = rowOfPitch(n0.pitch);
-					if (r < 0 || r >= PIANO_ROWS)
+					if (r < 0 || r >= rows())
 						continue;
 					NVGcolor c = col;
 					c.a = (0.4f + 0.6f * n0.vel / 127.f) * 0.35f;
@@ -2195,7 +2467,7 @@ struct GridDisplay : Widget {
 				bool partial = n.chance < 100 || n.cond != 0;
 				NVGcolor c = col;
 				c.a = (0.4f + 0.6f * n.vel / 127.f) * (partial ? 0.5f : 1.f);
-				if (r < 0 || r >= PIANO_ROWS) {
+				if (r < 0 || r >= rows()) {
 					// outside the window: small marker at the edge
 					float y = r < 0 ? y0 : y1 - 0.8f;
 					rect(x, y, w, 0.8f, c);

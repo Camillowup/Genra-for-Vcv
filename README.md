@@ -1,6 +1,6 @@
 # GENRA – Plugin für VCV Rack 2
 
-Ein generativer, genreabhängiger 4-Spur-Sequencer mit MIDI-Grid, Performance-Effekten und passenden Instrumenten, alle im selben Look. Plugin-Version **2.33.0**, 15 Module, für Windows und (neu, noch ungetestet) macOS. Die Instrumente K-WASUB, GOLANA, UMLAUF, MONK, VOICE und ANIMAL sind seit 2.29.0 ein eigenes Plugin, **[GENRA Instruments](instruments/README.md)** (gleiche Marke im Browser, Ordner `instruments/`). Projektstand und Entscheidungen: `PROJEKT.md`, wo welches Modul liegt: `docs/UEBERSICHT.md`, Versionsgeschichte: `CHANGELOG.md`.
+Ein generativer, genreabhängiger 4-Spur-Sequencer mit MIDI-Grid, Performance-Effekten und passenden Instrumenten, alle im selben Look. Plugin-Version **2.34.0**, 15 Module, für Windows und (neu, noch ungetestet) macOS. Die Instrumente K-WASUB, GOLANA, UMLAUF, MONK, VOICE und ANIMAL sind seit 2.29.0 ein eigenes Plugin, **[GENRA Instruments](instruments/README.md)** (gleiche Marke im Browser, Ordner `instruments/`). Projektstand und Entscheidungen: `PROJEKT.md`, wo welches Modul liegt: `docs/UEBERSICHT.md`, Versionsgeschichte: `CHANGELOG.md`.
 
 | Modul | Breite | Farbe | Was es ist |
 |---|---|---|---|
@@ -111,6 +111,8 @@ Das MIDI-Grid zu GENRA (50 HP): Hier bearbeitest du den erzeugten Loop Note für
 - **TRACK:** Spur wählen. **VIEW:** BAR (erster sichtbarer Takt), ZOOM (1/2/4/8 Takte), PITCH (Tonbereich), AUTO SCROLL (Ansicht läuft mit).
 - **Drums:** Klick setzt/löscht einen Schlag, Ziehen malt bzw. radiert, Mausrad = Velocity, Rechtsklick = Roll 2–4×, Velocity, Löschen. Klick auf den Stimmennamen wählt die Stimme der Velocity-Spur.
 - **Piano-Roll:** Klick setzt eine Note (Länge LEN, Velocity VEL), Ziehen am rechten Rand ändert die Länge, Ziehen der Note verschiebt sie, Doppelklick löscht. Rechtsklick: Akzent, Slide, Velocity. Tonleitertöne sind heller, Akkordtöne blaugrün hinterlegt, die Akkordfolge steht darüber.
+- **Zeilen (ab 2.34.0, Chips rechts in der Kopfzeile, nur Piano-Roll):** **ALL** zeigt jeden Halbton (wie bisher), **SCALE** nur die Töne der Tonart (die Zeilen dazwischen fallen weg, die übrigen werden grösser), **USED** nur die Tonhöhen, auf denen die Spur Noten hat (eine leere Spur zeigt SCALE). Akkordtöne bleiben hinterlegt.
+- **Ansicht (ab 2.34.0, Chips ganz rechts in der Kopfzeile):** **ONE** – eine Spur wie bisher. **GHOST** – die bearbeitete Spur voll, die anderen Tonspuren (Bass, Melodie, Pads) als blasse Umrisse in ihren Farben dahinter, zum Abstimmen (nicht anklickbar; der Tonbereich ist drei Oktaven gross, PITCH verschiebt ihn). **ALL 4** – alle vier Spuren als Streifen untereinander, jede in ihrem eigenen Tonbereich; Klick auf einen Streifen = diese Spur bearbeiten (weiss umrandet), Doppelklick = sie gross in ONE öffnen. In ALL 4 wird nichts gezeichnet oder gelöscht. Beide Einstellungen werden im Patch gespeichert.
 - **SNAP:** AUS / SCALE / CHORD für neue und verschobene Noten; mit Shift gedrückt: alle Noten der Spur einrasten.
 - **CHORD FOLLOW:** bearbeitete Noten folgen neuen Akkorden (HARMONY NEW): Grundtöne werden zum neuen Grundton, alle anderen Töne wandern in der Tonleiter mit.
 - **CHANCE:** Wahrscheinlichkeit neuer Noten (Regler). Jede Note/jeder Schlag kann eine eigene Wahrscheinlichkeit haben und „nur jeden 2. Durchlauf“ spielen (Rechtsklick). Solche Noten sind gestrichelt und zeigen ihren Wert. Die untere Spur schaltet per Klick auf „VEL“/„CHANCE“ um – dort zieht man Velocity bzw. Chance mit der Maus.
@@ -296,7 +298,7 @@ GENRA, GRID und ABLAUF speichern MIDI-Dateien direkt, ohne Speichern-Dialog (der
 
 ## Lautstärke der Presets (ab 2.21.0)
 
-Alle Werks-Presets von GRUND, GENRA MONO, K-WASUB, FUNKE, GOLANA und SCHMELZ (auch die Pads) sind auf ähnliche, hohe Lautheit eingemessen: Spitzen um 5–6 V, jedes Preset trägt seinen eigenen, unsichtbaren Ausgangspegel (in Patches und eigenen Presets gespeichert). Am Ausgang jedes dieser Instrumente sitzt ein Sicherheitslimiter: bis 6 V unverändert, darüber weich begrenzt auf höchstens 8 V. Ausgleichen der Spuren gegeneinander: am MIX.
+Alle Werks-Presets von GRUND, GENRA MONO, K-WASUB, FUNKE, GOLANA und SCHMELZ (auch die Pads) sind auf ähnliche Lautheit eingemessen, jedes Preset trägt seinen eigenen, unsichtbaren Ausgangspegel (in Patches und eigenen Presets gespeichert). Am Ausgang jedes dieser Instrumente sitzt ein Sicherheitslimiter: bis 6 V unverändert, darüber weich begrenzt auf höchstens 8 V. **Ab 2.34.0** sind die Presets von SCHMELZ, FUNKE, GRUND und GENRA MONO so eingemessen, dass ihre Spitzen unter 6 V bleiben, auch wenn sich Akkorde beim Wechsel überlappen: der Limiter greift im normalen Spiel nicht mehr ein, nichts verzerrt im Ausklang. Dafür sind sie etwas leiser als vorher (SCHMELZ etwa 1 V RMS, rund 4 dB leiser; FUNKE rund 2,5 dB, GRUND rund 2 dB, MONO kaum; Presets mit spitzen Anschlägen etwas mehr). Lauter machen: VOL am Instrument oder am MIX. Ausgleichen der Spuren gegeneinander: am MIX.
 
 ## Instrumente
 

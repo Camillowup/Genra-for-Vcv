@@ -4,6 +4,22 @@ Was in welcher Version dazukam (GENRA und GENRA Instruments). Der aktuelle Stand
 
 ## 2.21 bis heute (neueste zuerst)
 
+### 2.34.0 – Presets ohne Verzerrung, GRID mit Skalen-Ansicht, GHOST und ALL 4
+- **Preset-Pegel:** SCHMELZ-Presets verzerrten im Ausklang: die Spitzen eines Akkords lagen bei 7–10 V, beim
+  Akkordwechsel (der alte klingt noch, der neue setzt ein) bis 17 V, weit über dem Knie des Ausgangslimiters (6 V).
+  Neu gemessen wird vor dem Limiter (outGain verkleinert) mit sechs überlappenden Akkorden; jedes Preset bekommt
+  `gain × min(Ziel/rms, 5,8 V/Spitze)` (Spitze = alle bis auf die lautesten 0,01 % der Samples). SCHMELZ Ziel 1,0 V
+  rms (vorher 1,6), FUNKE, GRUND und GENRA MONO genauso geprüft und angepasst (Ziel = Median der begrenzten Pegel;
+  vorher lagen auch dort die Spitzen bei 8–18 V). Tests: Spitze ≤ 6 V für jedes Preset (`peakQ`, `RAW`).
+  `tools/genre_presets.py calibrate` hält die Grenze ebenfalls (`PEAK_MAX`). Die Klangfahrt der Sweep-Presets ist
+  nicht die Ursache (die Spitzen kommen vom Zusammentreffen der Stimmen), sie bleibt unverändert; diese Presets sind
+  dafür etwas leiser.
+- **GRID:** Chips rechts in der Kopfzeile. Zeilen **ALL / SCALE / USED** (`pitchView`; `rowP` statt fester
+  `low + PIANO_ROWS`, `rowOfPitch` nimmt bei SCALE die nächste Zeile, `rowExact`). Ansicht **ONE / GHOST / ALL 4**
+  (`viewMode`): GHOST zeichnet die anderen Tonspuren als Umrisse dahinter (Fenster 37 Halbtöne), ALL 4 alle Spuren
+  als Streifen (`laneSpan`), Klick wählt die Spur, Doppelklick öffnet sie in ONE. JSON `pitchView`, `viewMode`.
+- GENRA Instruments ebenfalls 2.34.0 (unverändert, gleicher Stand).
+
 ### 2.33.0 – FUNKE und SCHMELZ schmaler, Pad-Sprung am Pattern-Ende, SCHLAG-Regler mit Abstand
 - **FUNKE** 30 → **28 HP**, **SCHMELZ** 32 → **28 HP**: alle Regler, Taster und Buchsen bleiben, Abstände enger
   (`tools/panels/funke_panel.py`, `schmelz_panel.py`). SCHMELZ-Preset-Feld 36 mm, nach dem Untertitel. Display-Inhalte

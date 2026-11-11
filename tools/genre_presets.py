@@ -340,17 +340,23 @@ def levels(inst):
     exe = f"/tmp/gp_{inst.lower()}"
     subprocess.run(["g++", "-O2", "-std=c++17", os.path.join(ROOT, cfg["test"]), "-o", exe], check=True, cwd=ROOT)
     out = subprocess.run([exe], capture_output=True, text=True, cwd=ROOT).stdout
-    lv = {}
+    lv, pk = {}, {}
     for ln in out.splitlines():
-        m = re.match(r"\s*(?:preset\s+)?\d+\s+(.+?)\s+rms ([0-9.]+) V", ln)
+        m = re.match(r"\s*(?:preset\s+)?\d+\s+(.+?)\s+rms ([0-9.]+) V(?:\s+peak ([0-9.]+) V)?", ln)
         if m:
             lv[m.group(1).strip()] = float(m.group(2))
+            if m.group(3):
+                pk[m.group(1).strip()] = float(m.group(3))
+    levels.peaks = pk
     return lv, out
 
 
 def current_gains(inst):
     text = open(os.path.join(ROOT, INST[inst]["file"]), encoding="utf-8").read()
     return {f[1].strip('"'): float(f[-1].replace("/*gain*/", "").strip().rstrip("f")) for _, _, f in rows(text)}
+
+
+PEAK_MAX = 5.8  # V: below the output limiter's knee (6 V), so nothing is squashed
 
 
 def calibrate(inst, rounds=4):
@@ -365,6 +371,9 @@ def calibrate(inst, rounds=4):
             if n not in lv:
                 raise SystemExit(f"{inst}: no level for {n}\n{out[-2000:]}")
             g = gains[n] * target / max(lv[n], 1e-3)
+            pk = levels.peaks.get(n)  # SCHMELZ (2.34): the peaks stay below the limiter's knee
+            if pk:
+                g = min(g, gains[n] * PEAK_MAX / pk)
             upd[n] = max(0.2, min(6.0, g))
         build(inst, upd)
         wn = max(new, key=lambda n: abs(lv[n] / target - 1))

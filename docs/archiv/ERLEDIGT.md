@@ -2,6 +2,25 @@
 
 Wünsche aus `docs/MERKLISTE.md`, die gebaut sind – zum Nachschauen.
 
+## Gebaut in GENRA 2.34.0 (11. Nov. 2026)
+
+### GENRA GRID (GENRA-Plugin)
+- **Skalen-Ansicht** im Piano-Roll (Entwurf 10. Nov. 2026): drei Ansichten **ALL** (alle 12 Töne, wie heute) /
+  **SCALE** (nur Töne der Tonart, Zeilen dazwischen fallen weg) / **USED** (nur Tonhöhen, auf denen in der Spur Noten
+  liegen), Umschalter als Taster in der Kopfleiste. Akkordtöne des jeweiligen Akkords hervorheben.
+- **VIEW: ONE · GHOST · ALL 4** (gewählt 11. Nov. 2026, beide Modi; Entwürfe `docs/panels/grid_entwurf_ghost.png`,
+  `grid_entwurf_all4.png`):
+  - **ONE:** wie heute, eine Spur.
+  - **GHOST:** die bearbeitete Spur voll, Melodie/Bass/Pads der anderen Spuren als blasse Umrisse in ihren Spurfarben
+    dahinter (nicht anklickbar, nur zur Orientierung; Drums nicht, keine Tonhöhen). Tonbereich passt sich an.
+  - **ALL 4:** alle vier Spuren als Streifen untereinander (Drums, Bass, Melodie, Pads), jede in ihrem eigenen
+    Tonbereich; Klick = diese Spur bearbeiten (weiss umrandet), Doppelklick = gross in ONE.
+- Nicht gewünscht (bleibt so): Teil neu generieren, Euklid/Drum-Zeilen, Akkord-Stempel, weitere Ableton-Ideen.
+
+### SCHMELZ, FUNKE, GRUND, GENRA MONO
+- **Preset-Pegel ohne Verzerrung** (11. Nov. 2026): Spitzen unter dem Limiter-Knie (6 V), auch bei überlappenden
+  Akkorden; SCHMELZ rund 4 dB leiser.
+
 ## Gebaut in GENRA 2.33.0 (11. Nov. 2026)
 
 ### FUNKE und SCHMELZ (GENRA-Plugin)

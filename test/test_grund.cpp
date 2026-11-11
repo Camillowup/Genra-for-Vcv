@@ -1,6 +1,7 @@
 // GRUND engine: every model and every preset plays a finite, audible note at the right pitch, stays in a sane
 // level, is silent after the release; stability at all sample rates and extreme knobs; the octaver and the sidechain.
 // g++ -O2 -std=c++17 test/test_grund.cpp -o /tmp/test_grund && /tmp/test_grund [wav-dir]
+#include <algorithm>
 #include "../src/grund/GrundPresets.hpp"
 #include <cstdio>
 #include <memory>
@@ -114,6 +115,23 @@ static void line(const Params& p, float fs, std::vector<float>& L, std::vector<f
 	}
 }
 
+
+// 2.34: the loudest moments, measured before the safety limiter: all but the loudest 0.01 % of samples
+static float peakQ(std::vector<float> a, const std::vector<float>* b = nullptr) {
+	if (b)
+		a.insert(a.end(), b->begin(), b->end());
+	for (auto& x : a)
+		x = std::fabs(x);
+	if (a.empty())
+		return 0.f;
+	size_t q = a.size() - a.size() / 10000;
+	if (q >= a.size())
+		q = a.size() - 1;
+	std::nth_element(a.begin(), a.begin() + q, a.end());
+	return a[q];
+}
+static const float RAW = 0.05f; // presets measured with the output level scaled down: the limiter stays out
+
 int main(int argc, char** argv) {
 	const char* dir = argc > 1 ? argv[1] : nullptr;
 	const float fs = 48000.f;
@@ -146,12 +164,18 @@ int main(int argc, char** argv) {
 	// every preset: a bass line, finite, audible, sane
 	for (int i = 0; i < NUM_PRESETS; i++) {
 		Params p = PRESETS[i].params();
+		p.outGain *= RAW;
 		line(p, fs, L, R);
-		float lvl = rms(L, 0, L.size());
+		for (auto& x : L)
+			x /= RAW;
+		for (auto& x : R)
+			x /= RAW;
+		float lvl = rms(L, 0, L.size()), pk = peakQ(L, &R);
 		CHECK(finite(L) && finite(R), "preset %s: not finite", PRESETS[i].name);
-		CHECK(lvl > 1.4f, "preset %s: too quiet (%.3f)", PRESETS[i].name, lvl);  // loud and even: about 1.6 V over the line
-		CHECK(peakAbs(L) <= 8.01f && peakAbs(R) <= 8.01f, "preset %s: too loud (%.2f)", PRESETS[i].name, peakAbs(L));
-		printf("%02d %-16s rms %.2f V  peak %.2f V\n", i + 1, PRESETS[i].name, lvl, peakAbs(L));
+		CHECK(lvl > 0.5f, "preset %s: too quiet (%.3f)", PRESETS[i].name, lvl);
+		// 2.34: clear of the limiter (knee 6 V), so nothing is squashed
+		CHECK(pk <= 6.06f, "preset %s: peaks %.2f V reach the limiter", PRESETS[i].name, pk);
+		printf("%02d %-16s rms %.2f V  peak %.2f V\n", i + 1, PRESETS[i].name, lvl, pk);
 		if (dir) {
 			char fn[256];
 			std::snprintf(fn, sizeof(fn), "%s/grund_%02d.wav", dir, i + 1);
