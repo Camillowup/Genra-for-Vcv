@@ -1,5 +1,5 @@
 // own cycle lengths per track / drum voice, nudge (1/24 step), storage of both, old data
-#include "../src/Engine.hpp"
+#include "../src/genra/Engine.hpp"
 #include <cstdio>
 #include <algorithm>
 #include <map>

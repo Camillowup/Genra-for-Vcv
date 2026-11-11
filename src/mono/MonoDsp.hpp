@@ -21,7 +21,7 @@ inline float sat(float x) {
 	return x * (27.f + x * x) / (27.f + 9.f * x * x);
 }
 
-/** The filter types, in the order of the FTYPE parameter (keep in step with tools/mono_panel.py). */
+/** The filter types, in the order of the FTYPE parameter (keep in step with tools/panels/mono_panel.py). */
 enum FilterType { LADDER24, LADDER12, DIODE, MS20, SVF_LP, SVF_BP, SVF_HP, OTA, NUM_FILTERS };
 static const char* const FILTER_NAMES[NUM_FILTERS] = {"LADDER 24", "LADDER 12", "DIODE", "MS-20",
                                                       "SVF LP",    "SVF BP",    "SVF HP", "OTA"};

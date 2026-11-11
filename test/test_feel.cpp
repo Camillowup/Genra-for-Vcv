@@ -1,6 +1,6 @@
 // 2.30: genre habits (chord moves, accents, song parts), melody phrases, VARY, the new genres and scales.
-// g++ -std=c++17 -O2 -Isrc test/test_feel.cpp src/Arranger.cpp src/Engine.cpp src/Genres.cpp src/Edit.cpp src/Store.cpp src/Midi.cpp -o /tmp/tf && /tmp/tf
-#include "../src/Arranger.hpp"
+// g++ -std=c++17 -O2 -Isrc test/test_feel.cpp src/genra/Arranger.cpp src/genra/Engine.cpp src/genra/Genres.cpp src/genra/Edit.cpp src/genra/Store.cpp src/genra/Midi.cpp -o /tmp/tf && /tmp/tf
+#include "../src/genra/Arranger.hpp"
 #include <cmath>
 #include <cstdio>
 #include <cstring>

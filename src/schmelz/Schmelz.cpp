@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // SCHMELZ – string machine with a strings and a solo section, in the GENRA look (accent: rose).
-// Sound engine: SchmelzDsp.hpp. Panel: tools/schmelz_panel.py (res/Schmelz.svg + SchmelzLayout.hpp).
+// Sound engine: SchmelzDsp.hpp. Panel: tools/panels/schmelz_panel.py (res/Schmelz.svg + SchmelzLayout.hpp).
 #include "../plugin.hpp"
 #include "../Follow.hpp"
 #include "../ui/GenraUI.hpp"
@@ -16,7 +16,7 @@ namespace L = zlayout;
 namespace ui = genra_ui;
 using namespace gschmelz;
 
-// keep in step with tools/schmelz_panel.py (ACC)
+// keep in step with tools/panels/schmelz_panel.py (ACC)
 #define SCHMELZ_RGB 0xe0, 0x77, 0x9e
 static const NVGcolor ACCENT = nvgRGB(SCHMELZ_RGB);
 static const int MAXV = 16;

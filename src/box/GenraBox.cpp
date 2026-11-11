@@ -4,7 +4,7 @@
 // its panel shows a part of GENRA's controls and adds the voices, NOTES / GATES, DUCK and the mix.
 // 2.31: back on 2.30 (it was lost with the old account): GENRA MONO instead of GRUND, NEW / HOLD by the pattern, presets
 // of the track's genre by default, MUTATE, CLOCK out, DUCK, the mono sum on L.
-#include "../GenraModule.hpp"
+#include "../genra/GenraModule.hpp"
 #include "BoxLayout.hpp"
 #include "BoxVoices.hpp"
 #include "../jiant/DrumCore.hpp"
@@ -447,7 +447,7 @@ static float txtW(NVGcontext* vg, std::shared_ptr<window::Font> f, float sizeMm,
 static const NVGcolor DIM = nvgRGB(0x8a, 0x8d, 0x99);
 static const NVGcolor WHITE = nvgRGB(0xf2, 0xf3, 0xf7);
 
-// a field on the panel (dark box with chevron from tools/genrabox_panel.py): text left, small text right
+// a field on the panel (dark box with chevron from tools/panels/genrabox_panel.py): text left, small text right
 struct Field : OpaqueWidget {
 	GenraBox* module = nullptr;
 	bool hover = false;

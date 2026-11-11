@@ -315,7 +315,7 @@ void knownHost(Module* m) {
 }
 
 // ---------------------------------------------------------------- the lit strip
-static const float SEG_W = 7.6f, SEG_H = 0.55f, SEG_DY = -4.6f + 0.275f; // mm (tools/panellib.py: SLOT 9.4, tray top -4.6)
+static const float SEG_W = 7.6f, SEG_H = 0.55f, SEG_DY = -4.6f + 0.275f; // mm (tools/panels/panellib.py: SLOT 9.4, tray top -4.6)
 
 void StripLight::step() {
 	Widget::step();

@@ -5,10 +5,10 @@
 // functions each (dropdowns: level, pan, tune, start/end, attack/decay, sends, filter, drive, bits, repeat, chance,
 // action). The hits come from GENRA (Follow GENRA: DRUMS, CLOCK, RESET without cables), the TRIG jacks, V/OCT + GATE
 // (General MIDI) or the MIDI input. PRINT keeps the rolled samples with the ABLAUF pad GENRA plays.
-// The sound parts: SchlagDsp.hpp. Panel: tools/schlag_panel.py.
+// The sound parts: SchlagDsp.hpp. Panel: tools/panels/schlag_panel.py.
 #include "../plugin.hpp"
 #include "../Follow.hpp"
-#include "../GenraModule.hpp"
+#include "../genra/GenraModule.hpp"
 #include "../OutLimit.hpp"
 #include "../ui/GenraUI.hpp"
 #include "SchlagDsp.hpp"

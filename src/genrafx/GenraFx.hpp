@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // GENRA FX – the send effects for MIX: REVERB on IN A → OUT A (MIX's send A), DELAY on IN B → OUT B (send B).
 // Without cables: the tempo comes from GENRA, IN A/B take MIX's SEND A/B (and SCHLAG's) and MIX takes OUT A/B into RETURN A/B
-// (Follow.hpp's virtual cables; a real cable always wins). DSP: GenraFxDsp.hpp. Panel: tools/genrafx_panel.py.
+// (Follow.hpp's virtual cables; a real cable always wins). DSP: GenraFxDsp.hpp. Panel: tools/panels/genrafx_panel.py.
 #pragma once
 #include "../plugin.hpp"
 #include "../Follow.hpp"

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// GENRA MONO – the factory presets, by style (keep the list in step with PRESETS in tools/mono_panel.py).
+// GENRA MONO – the factory presets, by style (keep the list in step with PRESETS in tools/panels/mono_panel.py).
 // Plain C++ without Rack: the values are the knob positions, in the order of GenraMono's ParamId, so
 // test/test_mono.cpp can play every preset through the engine.
 #pragma once

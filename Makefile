@@ -2,6 +2,8 @@
 RACK_DIR ?= ../..
 
 SOURCES += $(wildcard src/*.cpp)
+SOURCES += $(wildcard src/genra/*.cpp)
+SOURCES += $(wildcard src/grid/*.cpp)
 SOURCES += $(wildcard src/link/*.cpp)
 SOURCES += $(wildcard src/jiant/*.cpp)
 SOURCES += $(wildcard src/mono/*.cpp)

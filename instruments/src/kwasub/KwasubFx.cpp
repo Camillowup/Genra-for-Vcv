@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // K-WASUB FX – the effects expander of K-WASUB, in the GENRA look: every setting of the firmware's effects rack.
 // It holds knobs only: K-WASUB (to its left) reads them and writes the firmware; LINK lights when it does.
-// Panel: tools/kwasub_panel.py (res/KwasubFx.svg + KwFxLayout.hpp).
+// Panel: tools/panels/kwasub_panel.py (res/KwasubFx.svg + KwFxLayout.hpp).
 #include "../plugin.hpp"
 #include "../ui/GenraUI.hpp"
 #include "KwFxLayout.hpp"

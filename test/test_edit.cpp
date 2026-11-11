@@ -1,5 +1,5 @@
 // grid editing: freeze sounds identical, note round trip, chord follow, snap, drums, storage, copy/paste
-#include "../src/Engine.hpp"
+#include "../src/genra/Engine.hpp"
 #include <cstdio>
 #include <algorithm>
 using namespace genra;

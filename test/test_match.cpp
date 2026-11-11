@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // The "same genre" match (src/GenreMatch.hpp) against GENRA's genres: every genre finds at least one preset in
 // GRUND, FUNKE, SCHMELZ and GENRA MONO, by its whole name where a preset carries it.
-// g++ -std=gnu++17 -O2 -Isrc test/test_match.cpp src/Engine.cpp src/Genres.cpp src/Edit.cpp src/Store.cpp src/Midi.cpp
-#include "Engine.hpp"
+// g++ -std=gnu++17 -O2 -Isrc test/test_match.cpp src/genra/Engine.cpp src/genra/Genres.cpp src/genra/Edit.cpp src/genra/Store.cpp src/genra/Midi.cpp
+#include "genra/Engine.hpp"
 #include "GenreMatch.hpp"
 #include "grund/GrundPresets.hpp"
 #include "funke/FunkePresets.hpp"

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // FUNKE – the melody voice for GENRA's melody track, in the GENRA look (accent: cyan, GENRA's melody colour).
-// Sound engine: FunkeDsp.hpp. Panel: tools/funke_panel.py (res/Funke.svg + FunkeLayout.hpp).
+// Sound engine: FunkeDsp.hpp. Panel: tools/panels/funke_panel.py (res/Funke.svg + FunkeLayout.hpp).
 #include "../plugin.hpp"
 #include "../Follow.hpp"
 #include "../ui/GenraUI.hpp"
@@ -16,7 +16,7 @@ namespace L = flayout;
 namespace ui = genra_ui;
 using namespace gfunke;
 
-// keep in step with tools/funke_panel.py (ACC)
+// keep in step with tools/panels/funke_panel.py (ACC)
 #define FUNKE_RGB 0x3d, 0xc9, 0xff
 static const NVGcolor ACCENT = nvgRGB(FUNKE_RGB);
 static const int SCOPE = 128;

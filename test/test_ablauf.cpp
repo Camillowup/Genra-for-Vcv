@@ -1,7 +1,7 @@
 // ABLAUF song parts: kept tracks stay exact, each part does what it promises (sparse intro, rolling build with a gap,
 // break without kick, thinning outro, fuller drop), over every genre and loop length.
-// g++ -std=c++17 -O2 -Isrc test/test_ablauf.cpp src/Arranger.cpp src/Engine.cpp src/Genres.cpp src/Edit.cpp src/Store.cpp src/Midi.cpp -o /tmp/ta && /tmp/ta
-#include "../src/Arranger.hpp"
+// g++ -std=c++17 -O2 -Isrc test/test_ablauf.cpp src/genra/Arranger.cpp src/genra/Engine.cpp src/genra/Genres.cpp src/genra/Edit.cpp src/genra/Store.cpp src/genra/Midi.cpp -o /tmp/ta && /tmp/ta
+#include "../src/genra/Arranger.hpp"
 #include <cmath>
 #include <cstdio>
 #include <cstring>

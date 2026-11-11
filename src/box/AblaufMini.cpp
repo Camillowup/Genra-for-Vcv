@@ -8,7 +8,7 @@
 // free pad at once, from the pattern that plays (while one of this session's variants plays unchanged: from the same
 // source); an empty pad stores what plays; SONG takes the family's variants first; break / intro bass; GENRA's
 // MAKE SONG pad; MIDI into the export folder without a dialog.
-#include "../GenraModule.hpp"
+#include "../genra/GenraModule.hpp"
 #include "AblaufMiniLayout.hpp"
 
 namespace amini {

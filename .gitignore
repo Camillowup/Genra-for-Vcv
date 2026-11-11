@@ -10,3 +10,4 @@ plugin.dylib
 *.vcvplugin
 
 schlag_*.wav
+__pycache__/

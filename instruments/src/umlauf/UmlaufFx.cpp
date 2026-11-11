@@ -2,7 +2,7 @@
 // UMLAUF FX – the expander of UMLAUF, in the GENRA look: envelope, voice (unison, glide, vibrato, tremolo),
 // the arpeggiator with its 16-step pattern, the effects and the master. It holds knobs only: UMLAUF (to its left)
 // reads them and writes VADER's engine; when it docks, its knobs take the sound's values.
-// Panel: tools/umlauf_fx_panel.py (res/UmlaufFx.svg + UmlaufFxLayout.hpp).
+// Panel: tools/panels/umlauf_fx_panel.py (res/UmlaufFx.svg + UmlaufFxLayout.hpp).
 #include "../plugin.hpp"
 #include "../ui/GenraUI.hpp"
 #include "UmlaufFx.hpp"

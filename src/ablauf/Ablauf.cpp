@@ -8,7 +8,7 @@
 // like the grid editor. GENRA takes patterns over through its cue mailbox and applies them on its audio thread at a bar
 // line, so the timing is exact. The audio thread of ABLAUF only counts button presses and trigger inputs and drives
 // the outputs from values the UI thread publishes.
-#include "../GenraModule.hpp"
+#include "../genra/GenraModule.hpp"
 #include "../ui/GenraUI.hpp"
 #include "../ui/BigPad.hpp"
 #include "AblaufLayout.hpp"
@@ -23,7 +23,7 @@ static const int NUM_SLOTS = 128, MAX_ROWS = 64, PADS_PER_BANK = 32, PAD_COLS = 
 static const int SAVE_VERSION = 2; // 1 (no field): 4 banks of 16 pads; 2: 4 banks of 32
 static const int ROW_BARS[6] = {1, 2, 4, 8, 16, 32};
 static const NVGcolor ACC = nvgRGB(0xff, 0xd2, 0x3d);
-// song parts (keep in step with SECS in tools/ablauf_panel.py)
+// song parts (keep in step with SECS in tools/panels/ablauf_panel.py)
 static const NVGcolor SEC_COL[NUM_SECTIONS] = {nvgRGB(0x6f, 0x86, 0xb8), nvgRGB(0x9b, 0x7b, 0xd4), nvgRGB(0xe0, 0xa5, 0x26),
                                                nvgRGB(0xff, 0x5a, 0x4f), nvgRGB(0x3f, 0xae, 0x9a), nvgRGB(0x8a, 0x8d, 0x99)};
 static const char* const TRACK_LETTER[4] = {"D", "B", "M", "P"};

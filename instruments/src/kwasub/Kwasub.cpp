@@ -3,7 +3,7 @@
 // (accent: acid green). The firmware runs unchanged in a private copy of the core library (KwCore); the module turns
 // knobs and CV into its parameters, gates into notes, the clock into its tempo, and resamples its 44.1 kHz output.
 // The effects expander K-WASUB FX docks to the right: this module reads its knobs too.
-// Panels: tools/kwasub_panel.py (res/Kwasub.svg, res/KwasubFx.svg + KwLayout.hpp, KwFxLayout.hpp).
+// Panels: tools/panels/kwasub_panel.py (res/Kwasub.svg, res/KwasubFx.svg + KwLayout.hpp, KwFxLayout.hpp).
 #include "../plugin.hpp"
 #include "../Follow.hpp"
 #include "../ui/GenraUI.hpp"
@@ -25,7 +25,7 @@ namespace L = kwlayout;
 namespace ui = genra_ui;
 using namespace kwid;
 
-// keep in step with tools/kwasub_panel.py (ACC)
+// keep in step with tools/panels/kwasub_panel.py (ACC)
 #define KWASUB_RGB 0xb8, 0xf2, 0x3a
 static const NVGcolor ACCENT = nvgRGB(KWASUB_RGB);
 static const int MAXCH = 4;  // the firmware's voices

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // The GENRA look for the JIANT voices (VOICE, DRUM-X, ANIMAL): the colours, the fonts, the display's helpers and the
-// few widgets the three share. The panels themselves come from tools/jiant_panel.py (res/Jiant*.svg + JiantLayout.hpp).
+// few widgets the three share. The panels themselves come from tools/panels/jiant_panel.py (res/Jiant*.svg + JiantLayout.hpp).
 #pragma once
 #include "../plugin.hpp"
 #include "JiantLayout.hpp"
@@ -91,7 +91,7 @@ struct ScreenClock {
 	bool seen() const { return system::getTime() - drawn.load(std::memory_order_relaxed) < 0.2; }
 };
 
-// one colour per module (keep in step with tools/jiant_panel.py)
+// one colour per module (keep in step with tools/panels/jiant_panel.py)
 #define JIANT_VOICE_RGB 0xff, 0x4f, 0x5a
 #define JIANT_DRUMX_RGB 0x7b, 0x6c, 0xff
 #define JIANT_ANIMAL_RGB 0x4f, 0xe0, 0x8a

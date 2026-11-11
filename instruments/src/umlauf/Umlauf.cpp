@@ -6,7 +6,7 @@
 // The engine runs unchanged but for a few marked patches (tools/vader_patch.py) at 44.1 kHz; the module turns knobs
 // and CV into its parameters, gates into notes, the clock into its tempo and beat, resamples its output, and puts out
 // the orbiter, the corners' weights, the envelope and each corner on its own. UMLAUF FX docks to the right.
-// Panels: tools/umlauf_panel.py, tools/umlauf_fx_panel.py.
+// Panels: tools/panels/umlauf_panel.py, tools/panels/umlauf_fx_panel.py.
 #include "../plugin.hpp"
 #include "../Follow.hpp"
 #include "../ui/GenraUI.hpp"
@@ -28,7 +28,7 @@ namespace L = ulayout;
 namespace ui = genra_ui;
 using namespace vader;
 
-// keep in step with tools/umlauf_panel.py (ACC)
+// keep in step with tools/panels/umlauf_panel.py (ACC)
 #define UMLAUF_RGB 0xff, 0x2e, 0x43
 static const NVGcolor ACCENT = nvgRGB(UMLAUF_RGB);
 static const int MAXCH = 16;   // the engine's voices

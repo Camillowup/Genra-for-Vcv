@@ -1,7 +1,7 @@
 # GENRA BOX + ABLAUF MINI – Spezifikation
 
-Stand: 11. November 2026 · Plugin 2.31.1 · Panels: `docs/entwuerfe/genra_box.png`, `docs/entwuerfe/ablauf_mini.png`
-(erzeugt mit `tools/genrabox_panel.py` und `tools/ablaufmini_panel.py`, die auch `src/box/*Layout.hpp` schreiben).
+Stand: 11. November 2026 · Plugin 2.31.1 · Panels: `docs/panels/genra_box.png`, `docs/panels/ablauf_mini.png`
+(erzeugt mit `tools/panels/genrabox_panel.py` und `tools/panels/ablaufmini_panel.py`, die auch `src/box/*Layout.hpp` schreiben).
 
 Erstmals gebaut in 2.20.0–2.23.0 (auf dem alten Stand), in 2.31.0 auf 2.30 neu aufgesetzt und erweitert.
 

@@ -3,7 +3,7 @@
 // in LOOP, ONE SHOT or HOLD mode and launched on a grid, a DJ-isolator EQ with kills, a DJ filter, drive and mix.
 // The pads take the mouse, the PADS input (polyphonic gates), MIDI notes (C1–D#2, MIDI learn) and MIDI-Map.
 // P1–P3 set the pad that plays (or, with EDIT on, the pad picked); < > change its effect.
-// Engine: StotterDsp.hpp. Panel: tools/stotter_panel.py (res/Stotter.svg + StotterLayout.hpp).
+// Engine: StotterDsp.hpp. Panel: tools/panels/stotter_panel.py (res/Stotter.svg + StotterLayout.hpp).
 #include "../plugin.hpp"
 #include "../Follow.hpp"
 #include "../ui/GenraUI.hpp"
@@ -18,7 +18,7 @@ namespace L = stlayout;
 namespace ui = genra_ui;
 using namespace gstot;
 
-// the pad rows in the GENRA track colours, the global green (keep in step with tools/stotter_panel.py)
+// the pad rows in the GENRA track colours, the global green (keep in step with tools/panels/stotter_panel.py)
 static const NVGcolor ROW_COL[4] = {nvgRGB(0x7b, 0x6c, 0xff), nvgRGB(0xb8, 0xf2, 0x3a), nvgRGB(0x3d, 0xc9, 0xff),
                                     nvgRGB(0xe0, 0x77, 0x9e)};
 static const NVGcolor DARK = nvgRGB(0x07, 0x08, 0x0a), PLATE = nvgRGB(0x21, 0x23, 0x29);

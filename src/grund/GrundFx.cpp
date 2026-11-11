@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // GRUND FX – the expander of GRUND, in the GENRA look: the details behind GRUND's amp and FX knobs (compressor,
 // drive, EQ, chorus, reverb). It holds knobs only: GRUND (to its left) reads them; LINK lights when it does.
-// Panel: tools/grundfx_panel.py (res/GrundFx.svg + GrundFxLayout.hpp).
+// Panel: tools/panels/grundfx_panel.py (res/GrundFx.svg + GrundFxLayout.hpp).
 #include "../plugin.hpp"
 #include "../ui/GenraUI.hpp"
 #include "GrundFx.hpp"

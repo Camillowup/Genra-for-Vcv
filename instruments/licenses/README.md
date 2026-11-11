@@ -16,7 +16,7 @@ in this folder. All of them are compatible with distributing the plugin under GP
 | Golana (FM-1 firmware: the GOLANA engine, voices, arp, effects), a fork of Felucca | Gadlele; Leo Kuroshita, Hügelton Instruments (Felucca) | GPL-3.0-only | GOLANA, GOLANA FX (`golana/`, `glcore/`) | `../LICENSE`, `Golana-Felucca-LICENSING.md` |
 | DaisySP, Rings (ported to fixed point in Felucca's PHYS engine, built into the GOLANA core) | Electrosmith, Corp and Emilie Gillet | MIT | GOLANA core | `MIT-DaisySP.txt`, `MIT-Rings.txt` |
 | Instrument samples (Versilian Studios VSCO-2 CE, VCSL; in Felucca's SAMPLE engine, built into the GOLANA core) | Versilian Studios | CC0 1.0 | GOLANA core | `CC0-Golana-samples-ATTRIBUTION.txt` |
-| MONK-1 (FM-1 firmware: the port of the voice engine) | Charles Vestal | GPL-3.0-only | MONK (`src/monk/`) | `../LICENSE` |
+| MONK-1 (FM-1 firmware: the port of the voice engine) | Charles Vestal | GPL-3.0-only | MONK (`instruments/src/monk/`) | `../LICENSE` |
 | MonkSynth (FOF voice DSP) | Jonathan Taylor | MIT | MONK | `MIT-MonkSynth.txt` |
 | VADER (orbit vector synth) | L'Cronx (sunskiefer) | MIT | UMLAUF, UMLAUF FX (`vader/`) | `MIT-VADER.txt` |
 | mpc-vst-plugins (wrapper used by VADER) | sd88me | MIT | UMLAUF | `MIT-mpc-vst-plugins.txt` |

@@ -27,7 +27,7 @@ Unter [Releases](https://github.com/Camillowup/Genra-for-Vcv/releases) liegen be
 
 ### K-WASUB: Modern-Bass-Synth (Firmware von Omnipotard)
 
-![K-WASUB](../docs/entwuerfe/kwasub.png)
+![K-WASUB](../docs/panels/kwasub.png)
 
 Die Firmware [K-WASUB](https://github.com/Guizmoh/K-WASUB_Firmware_for_FM1) für den M-VAVE FM-1 von Omnipotard (GPL-3.0)
 als Modul, 40 HP, Farbe **säuregrün**. Der Klang ist die Original-Firmware, unverändert (`kwasub/`): Sie läuft als
@@ -53,7 +53,7 @@ eigene kleine Bibliothek (`res/kwcore.*`, eine Kopie pro Modul) mit 44,1 kHz, da
 
 ### K-WASUB FX: Effekt-Expander
 
-![K-WASUB FX](../docs/entwuerfe/kwasub_fx.png)
+![K-WASUB FX](../docs/panels/kwasub_fx.png)
 
 Rechts neben K-WASUB setzen (LINK leuchtet): alle Einstellungen des Effekt-Racks der Firmware. SATURATE (Typ, Amount,
 Mix), CRUSH, CHORUS, PHASER, DELAY (Typ, Zeit im Tempo, Feedback, Ton, Mix), REVERB (Typ, Grösse, Dämpfung, Mix),
@@ -63,7 +63,7 @@ folgen einander. Ohne Expander gelten die Effekte des Presets.
 
 ### GOLANA: analoger Poly-Synth (Firmware von Gadlele)
 
-![GOLANA](../docs/entwuerfe/golana.png)
+![GOLANA](../docs/panels/golana.png)
 
 Die Firmware [Golana](https://github.com/Gadlele/Golana) für den M-VAVE FM-1 von Gadlele (GPL-3.0, ein Fork von
 Felucca) als Modul, 42 HP, Farbe **cyan** (GENRAs Melodiefarbe). Ein analoger Synth im Aufbau des microKORG. Der Klang
@@ -108,7 +108,7 @@ ist die Original-Firmware, unverändert (`golana/`): Sie läuft wie K-WASUB als 
 
 ### GOLANA FX: Effekt-Expander
 
-![GOLANA FX](../docs/entwuerfe/golana_fx.png)
+![GOLANA FX](../docs/panels/golana_fx.png)
 
 Rechts neben GOLANA setzen (LINK leuchtet), 14 HP: **MOD FX** (Typ: Chorus, Flanger, Ensemble, Phaser, Metal; RATE,
 DEPTH), **DELAY** (Typ: Stereo, Cross, L/R; Zeit in Notenwerten im Tempo; FDBK, COLOR, MIX), **REVERB** (Typ: Room,
@@ -117,7 +117,7 @@ in ihrer Sektion. Ohne Expander gelten die Effekte des Presets.
 
 ### MONK: die zwölf Sänger
 
-![MONK](../docs/entwuerfe/monk.png)
+![MONK](../docs/panels/monk.png)
 
 Der Vokal-Synthesizer (26 HP) aus der FM-1-Firmware [MONK-1](https://github.com/charlesvestal/fm1-monk) (Charles Vestal, GPL-3.0), dessen Klang [MonkSynth](https://github.com/JonET/monksynth) ist (Jonathan Taylor, MIT; eine Hommage an Delay Lama). FOF-Formantsynthese: pro Periode ein Korn aus drei abklingenden Formant-Sinus plus Atem, fünf Vokale OO–OH–AH–EH–EE. Farbe: **safran**.
 
@@ -131,7 +131,7 @@ Der Vokal-Synthesizer (26 HP) aus der FM-1-Firmware [MONK-1](https://github.com/
 
 ### UMLAUF: Orbit-Vektor-Synth (Engine von VADER)
 
-![UMLAUF](../docs/entwuerfe/umlauf.png)
+![UMLAUF](../docs/panels/umlauf.png)
 
 Die Engine von [VADER](https://github.com/sunskiefer/VADER) (L'Cronx, MIT) als Modul, 54 HP, Farbe **Sith-Rot**. Ein
 Punkt, der **Orbiter**, läuft auf einer Bahn in einem Quadrat; in den vier Ecken spielt je ein Klang, und wo der
@@ -181,7 +181,7 @@ Orbiter gerade ist, entscheidet, wie viel man von jeder Ecke hört. Die Engine l
 
 ### UMLAUF FX: Expander
 
-![UMLAUF FX](../docs/entwuerfe/umlauf_fx.png)
+![UMLAUF FX](../docs/panels/umlauf_fx.png)
 
 Rechts neben UMLAUF setzen, 36 HP. ENVELOPE (ADSR) · VOICE (UNISON 1/2/4/8, VOICES 8/16, DETUNE, GLIDE, OCTAVE,
 VELOCITY, Vibrato und Tremolo mit Rate) · ARPEGGIATOR (ON, LATCH, Richtung UP/DOWN/U·D/RND/ORDER/CHORD, RATE im
@@ -194,7 +194,7 @@ CV-Eingänge. Beim Andocken übernehmen die Regler den aktuellen Klang; ohne Exp
 
 | VOICE | DRUM-X | ANIMAL |
 |---|---|---|
-| ![VOICE](../docs/entwuerfe/jiant_voice.png) | ![DRUM-X](../docs/entwuerfe/jiant_drumx.png) | ![ANIMAL](../docs/entwuerfe/jiant_animal.png) |
+| ![VOICE](../docs/panels/jiant_voice.png) | ![DRUM-X](../docs/panels/jiant_drumx.png) | ![ANIMAL](../docs/panels/jiant_animal.png) |
 
 Drei Klangerzeuger aus der Firmware von [JIANT FM](https://github.com/juanjiant-bit/JIANT) (Juan Jiant, ein Fork von [Felucca](https://github.com/hugelton/Felucca), GPL-3.0), im GENRA-Look und jeweils in einer eigenen Farbe: **VOICE rot**, **DRUM-X blau-violett** (GENRAs Drum-Farbe), **ANIMAL grün**. Das Display zeigt links die Zeichnung der Firmware (Vokaltrakt, Kit-Kolonie, Kreatur), rechts Preset bzw. Kit und die Einstellungen.
 

@@ -39,10 +39,10 @@ jobs:
           (cd instruments && gcc -std=gnu11 -O2 -w -ffreestanding -fno-builtin -fno-tree-loop-distribute-patterns -Ikwasub/firmware/src -Ikwasub/firmware/gen -Ikwasub/firmware/hal test/kwcore_test.c -o kt.exe -lm && ./kt.exe) || exit 1
           (cd instruments && gcc -std=gnu11 -O2 -w -Iglcore -Igolana/gen test/glcore_test.c -o gt.exe -lm && ./gt.exe) || exit 1
           for t in test/test_tracks.cpp test/test_edit.cpp test/test_store.cpp test/test_midi.cpp test/test_cycle.cpp test/test_match.cpp; do
-            g++ -std=gnu++17 -O2 -Isrc "$t" src/Engine.cpp src/Genres.cpp src/Edit.cpp src/Store.cpp src/Midi.cpp -o t.exe && ./t.exe || exit 1
+            g++ -std=gnu++17 -O2 -Isrc "$t" src/genra/Engine.cpp src/genra/Genres.cpp src/genra/Edit.cpp src/genra/Store.cpp src/genra/Midi.cpp -o t.exe && ./t.exe || exit 1
           done
-          g++ -std=gnu++17 -O2 -Isrc test/test_ablauf.cpp src/Arranger.cpp src/Engine.cpp src/Genres.cpp src/Edit.cpp src/Store.cpp src/Midi.cpp -o ta.exe && ./ta.exe
-          g++ -std=gnu++17 -O2 -Isrc test/test_feel.cpp src/Arranger.cpp src/Engine.cpp src/Genres.cpp src/Edit.cpp src/Store.cpp src/Midi.cpp -o tf.exe && ./tf.exe
+          g++ -std=gnu++17 -O2 -Isrc test/test_ablauf.cpp src/genra/Arranger.cpp src/genra/Engine.cpp src/genra/Genres.cpp src/genra/Edit.cpp src/genra/Store.cpp src/genra/Midi.cpp -o ta.exe && ./ta.exe
+          g++ -std=gnu++17 -O2 -Isrc test/test_feel.cpp src/genra/Arranger.cpp src/genra/Engine.cpp src/genra/Genres.cpp src/genra/Edit.cpp src/genra/Store.cpp src/genra/Midi.cpp -o tf.exe && ./tf.exe
 
       - name: Build plugin GENRA
         run: |

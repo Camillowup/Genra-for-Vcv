@@ -1,6 +1,6 @@
 # GENRA – Plugin für VCV Rack 2
 
-Ein generativer, genreabhängiger 4-Spur-Sequencer mit MIDI-Grid, Performance-Effekten und passenden Instrumenten, alle im selben Look. Plugin-Version **2.32.0**, 15 Module, für Windows und (neu, noch ungetestet) macOS. Die Instrumente K-WASUB, GOLANA, UMLAUF, MONK, VOICE und ANIMAL sind seit 2.29.0 ein eigenes Plugin, **[GENRA Instruments](instruments/README.md)** (gleiche Marke im Browser, Ordner `instruments/`). Projektstand und Entscheidungen: `PROJEKT.md`.
+Ein generativer, genreabhängiger 4-Spur-Sequencer mit MIDI-Grid, Performance-Effekten und passenden Instrumenten, alle im selben Look. Plugin-Version **2.32.0**, 15 Module, für Windows und (neu, noch ungetestet) macOS. Die Instrumente K-WASUB, GOLANA, UMLAUF, MONK, VOICE und ANIMAL sind seit 2.29.0 ein eigenes Plugin, **[GENRA Instruments](instruments/README.md)** (gleiche Marke im Browser, Ordner `instruments/`). Projektstand und Entscheidungen: `PROJEKT.md`, wo welches Modul liegt: `docs/UEBERSICHT.md`, Versionsgeschichte: `CHANGELOG.md`.
 
 | Modul | Breite | Farbe | Was es ist |
 |---|---|---|---|
@@ -24,7 +24,7 @@ Die Farben folgen GENRAs Spuren: **Drums blau-violett**, **Bass säuregrün**, *
 
 ## GENRA: der Generator
 
-![GENRA](docs/entwuerfe/genra_v3_entwurf.png)
+![GENRA](docs/panels/genra.png)
 
 GENRA erfindet genretypische Loops (1/2/4/8 Takte) für **8 Drumspuren, Bass, Melodie und polyphone Pads (4 Stimmen)**, die sich eine gemeinsame Tonart und Akkordfolge teilen. **64 Genres mit 138 Varianten**, jede Spur kann ihr eigenes Genre spielen, und alle Regler wirken live.
 
@@ -103,7 +103,7 @@ Die 8 Szenen-Plätze sind seit 2.11.0 entfernt, das Panel ist dadurch 58 statt 6
 
 ## GENRA Grid Editor: das MIDI-Grid
 
-![Grid Editor](docs/entwuerfe/genra_grid_piano.png)
+![Grid Editor](docs/panels/genra_grid_piano.png)
 
 Das MIDI-Grid zu GENRA (50 HP): Hier bearbeitest du den erzeugten Loop Note für Note – Drum-Raster, Piano-Roll für Bass, Melodie und Pads, Velocity- und Chance-Spur.
 
@@ -129,7 +129,7 @@ Das MIDI-Grid zu GENRA (50 HP): Hier bearbeitest du den erzeugten Loop Note für
 
 ## ABLAUF: Patterns speichern, Songs bauen
 
-![ABLAUF](docs/entwuerfe/ablauf.png)
+![ABLAUF](docs/panels/ablauf.png)
 
 Song-Arranger für GENRA, 30 HP. Verbindung wie beim Grid Editor: links oder rechts neben GENRA setzen (LINK-LED leuchtet) oder im Rechtsklick-Menü *Verbinden mit…* ein beliebiges GENRA im Patch wählen.
 
@@ -176,7 +176,7 @@ GENRA zeigt im Display den laufenden Song-Teil, seine MUTE-Lampen leuchten gedim
 
 ## GENRA BOX: die Groovebox (ab 2.31.0)
 
-![GENRA BOX](docs/entwuerfe/genra_box.png)
+![GENRA BOX](docs/panels/genra_box.png)
 
 GENRAs Generator und vier Stimmen in einem Modul (40 HP). Die Box ist intern ein GENRA: GRID, ABLAUF, ABLAUF MINI,
 MIDI-Export und Follow GENRA funktionieren mit ihr wie mit GENRA. Spezifikation: `docs/GENRA_BOX.md`.
@@ -206,7 +206,7 @@ MIDI-Export und Follow GENRA funktionieren mit ihr wie mit GENRA. Spezifikation:
 
 ## ABLAUF MINI: Songteile auf 16 Pads (ab 2.31.0)
 
-![ABLAUF MINI](docs/entwuerfe/ablauf_mini.png)
+![ABLAUF MINI](docs/panels/ablauf_mini.png)
 
 16 HP, verbindet sich mit GENRA oder GENRA BOX (angedockt oder Rechtsklick › Connect to…, LINK leuchtet). Pro GENRA
 treibt immer nur ein ABLAUF (gross oder MINI). Die Pads speichern nur die Noten (Pattern, Spur-Genres, Länge), keine Klänge.
@@ -240,7 +240,7 @@ ABLAUF MINI folgt den Regeln des grossen ABLAUF (ab 2.31.1):
 
 ## STOTTER: Performance-Effekte
 
-![STOTTER](docs/entwuerfe/stotter.png)
+![STOTTER](docs/panels/stotter.png)
 
 DJ-Effektpad nach dem Perform-Modus des Polyend Play und Akai Flex Beat, 30 HP, im Farbsystem des GENRA-Hauptmoduls.
 Stereo-Effekt: z. B. GENRAs Drums oder MIX-Ausgang hinein, CLOCK von GENRA.
@@ -280,7 +280,7 @@ anderen Genres („Witch House“ ist kein House).
 
 ## GENRA FX: Hall und Delay für die Sends (ab 2.22.0)
 
-![GENRA FX](docs/entwuerfe/genra_fx.png)
+![GENRA FX](docs/panels/genra_fx.png)
 
 Die Send-Effekte für MIX, 24 HP, eisblau: **REVERB** bearbeitet IN A (MIX SEND A) und gibt OUT A aus, **DELAY** bearbeitet IN B (MIX SEND B) und gibt OUT B aus. Beide geben nur das Effektsignal aus (Send/Return), stereo; ein Signal nur an IN L geht auf beide Seiten.
 
@@ -310,7 +310,7 @@ Das passende Set zu GENRA: **GENRA MONO** oder **GRUND** für den Bass, **FUNKE*
 
 | | |
 |---|---|
-| ![GENRA MONO](docs/entwuerfe/genra_mono.png) | ![Preset-Liste](docs/entwuerfe/genra_mono_presets.png) |
+| ![GENRA MONO](docs/panels/genra_mono.png) | ![Preset-Liste](docs/panels/genra_mono_presets.png) |
 
 Monophoner Synth (28 HP, Stand 2.10.0) im Look von MONK und den JIANT-Stimmen, Farbe **säuregrün** (GENRAs Bass-Farbe, wie K-WASUB).
 
@@ -326,7 +326,7 @@ Monophoner Synth (28 HP, Stand 2.10.0) im Look von MONK und den JIANT-Stimmen, F
 
 ### FUNKE: Melodiestimme
 
-![FUNKE](docs/entwuerfe/funke.png)
+![FUNKE](docs/panels/funke.png)
 
 Die Stimme für GENRAs Melodiespur, 30 HP, Farbe **cyan** (GENRAs Melodiefarbe). Die Eingänge passen zu GENRAs
 Melodie-Ausgängen: V/OCT, GATE, VEL, ACC, SLIDE und CLOCK.
@@ -363,7 +363,7 @@ Melodie-Ausgängen: V/OCT, GATE, VEL, ACC, SLIDE und CLOCK.
 
 ### GRUND: Bassstimme
 
-![GRUND](docs/entwuerfe/grund.png)
+![GRUND](docs/panels/grund.png)
 
 Die Stimme für GENRAs Bassspur, 30 HP, Farbe **grün** (GENRAs Bassfarbe). Eingänge wie bei FUNKE: V/OCT, GATE, VEL,
 ACC, SLIDE, MOD; ohne Kabel über Rechtsklick → Follow GENRA → Bass.
@@ -393,7 +393,7 @@ ACC, SLIDE, MOD; ohne Kabel über Rechtsklick → Follow GENRA → Bass.
 
 ### GRUND FX: Effekt-Expander
 
-![GRUND FX](docs/entwuerfe/grund_fx.png)
+![GRUND FX](docs/panels/grund_fx.png)
 
 14 HP, rechts an GRUND andocken (LINK leuchtet). Fünf Sektionen, jede mit Ein/Aus-Taster und ihrem CV-Eingang direkt
 in der Sektion: **COMP** (THRESH, RATIO, ATK, REL, Sidechain-Eingang SC: eine Kick duckt den Bass, GR-Anzeige) ·
@@ -404,7 +404,7 @@ Expander GRUNDs Werte.
 
 ### SCHMELZ: String Machine
 
-![SCHMELZ](docs/entwuerfe/schmelz.png)
+![SCHMELZ](docs/panels/schmelz.png)
 
 String Machine im Geist der 70er/80er (Vorbild: Waldorf Streichfett), 32 HP, Farbe **rosa** (GENRAs Pad-Farbe). Zwei Klangteile, je bis
 16 Stimmen, dazu Effekte.
@@ -439,7 +439,7 @@ String Machine im Geist der 70er/80er (Vorbild: Waldorf Streichfett), 32 HP, Far
 
 ### SCHLAG: Sample-Drums nach dem Polyend Play (ab 2.26.0)
 
-![SCHLAG](docs/entwuerfe/schlag.png)
+![SCHLAG](docs/panels/schlag.png)
 
 Eine Sample-Drum-Maschine für GENRAs Drumspur, 46 HP, blau-violett. Keine Pad-Matrix: die Schläge kommen von GENRA (bearbeitet im GRID), von den TRIG-Buchsen, über V/OCT + GATE oder MIDI IN. Acht Spuren in GENRAs Reihenfolge (KICK, SNARE, CLAP, RIM, C.HAT, O.HAT, TOM, PERC), jede spielt WAV-Dateien aus einem eigenen Ordner.
 
@@ -456,7 +456,7 @@ Eine Sample-Drum-Maschine für GENRAs Drumspur, 46 HP, blau-violett. Keine Pad-M
 
 | VOICE | DRUM-X | ANIMAL |
 |---|---|---|
-| ![VOICE](docs/entwuerfe/jiant_voice.png) | ![DRUM-X](docs/entwuerfe/jiant_drumx.png) | ![ANIMAL](docs/entwuerfe/jiant_animal.png) |
+| ![VOICE](docs/panels/jiant_voice.png) | ![DRUM-X](docs/panels/jiant_drumx.png) | ![ANIMAL](docs/panels/jiant_animal.png) |
 
 DRUM-X ist einer von drei Klangerzeugern aus der Firmware von [JIANT FM](https://github.com/juanjiant-bit/JIANT) (Juan Jiant, ein Fork von [Felucca](https://github.com/hugelton/Felucca), GPL-3.0), im GENRA-Look und jeweils in einer eigenen Farbe: **VOICE rot**, **DRUM-X blau-violett** (GENRAs Drum-Farbe), **ANIMAL grün**. Das Display zeigt links die Zeichnung der Firmware (Vokaltrakt, Kit-Kolonie, Kreatur), rechts Preset bzw. Kit und die Einstellungen.
 
@@ -465,7 +465,7 @@ DRUM-X ist einer von drei Klangerzeugern aus der Firmware von [JIANT FM](https:/
 
 ### MIX: 4-Kanal-Stereomixer
 
-![MIX](docs/entwuerfe/mix.png)
+![MIX](docs/panels/mix.png)
 
 Mixer für die vier GENRA-Spuren, 28 HP. Jeder Kanal in der Farbe seiner Spur (DRUMS blau-violett, BASS säuregrün, MELODY
 cyan, PADS rosa), der Master dunkel.
@@ -527,26 +527,26 @@ Systemen.
 ## Projektstruktur
 
 ```
-src/Engine.hpp/.cpp   Theorie, Akkorde, Generierung, Auswertung pro Step
-src/Genres.cpp        64 Genres / 138 Varianten (Wahrscheinlichkeitsraster), Tonleitern, Genre-Gewohnheiten
-src/Midi.cpp          MIDI-Export/-Import
-src/Store.cpp         Speicherformat (pattern3) + Übernahme von v2-Patches
-src/Edit.cpp          Bearbeiten: Einfrieren, Noten schreiben, Chord Follow, Snap, Copy/Paste
-src/GenraModule.hpp   GENRA-Moduldefinition (auch vom Editor genutzt)
-src/GenraGrid.cpp     Grid-Editor-Modul
-src/Arranger.hpp/.cpp Song-Teile für ABLAUF (Intro, Build, … aus einem Pattern), ohne Rack testbar (test/test_ablauf.cpp)
-src/ablauf/           ABLAUF: Modul (Ablauf.cpp), Frontplatte aus tools/ablauf_panel.py (real | preview <datei.png>)
-res/GenraGrid.svg     Frontplatte des Editors (tools/grid_panel.py real)
-src/Genra.cpp         Rack-Modul, Display, Menüs
-res/Genra.svg         Frontplatte (tools/panel.py real), Vorschau: tools/panel.py preview <datei.svg>
-tools/panellib.py     gemeinsame Panel-Bausteine (GENRA-Leiste)
+src/genra/Engine.hpp/.cpp   Theorie, Akkorde, Generierung, Auswertung pro Step
+src/genra/Genres.cpp        64 Genres / 138 Varianten (Wahrscheinlichkeitsraster), Tonleitern, Genre-Gewohnheiten
+src/genra/Midi.cpp          MIDI-Export/-Import
+src/genra/Store.cpp         Speicherformat (pattern3) + Übernahme von v2-Patches
+src/genra/Edit.cpp          Bearbeiten: Einfrieren, Noten schreiben, Chord Follow, Snap, Copy/Paste
+src/genra/GenraModule.hpp   GENRA-Moduldefinition (auch vom Editor genutzt)
+src/grid/GenraGrid.cpp     Grid-Editor-Modul
+src/genra/Arranger.hpp/.cpp Song-Teile für ABLAUF (Intro, Build, … aus einem Pattern), ohne Rack testbar (test/test_ablauf.cpp)
+src/ablauf/           ABLAUF: Modul (Ablauf.cpp), Frontplatte aus tools/panels/ablauf_panel.py (real | preview <datei.png>)
+res/GenraGrid.svg     Frontplatte des Editors (tools/panels/grid_panel.py real)
+src/genra/Genra.cpp         Rack-Modul, Display, Menüs
+res/Genra.svg         Frontplatte (tools/panels/genra_panel.py real), Vorschau: tools/panels/genra_panel.py preview <datei.svg>
+tools/panels/panellib.py     gemeinsame Panel-Bausteine (GENRA-Leiste)
 src/jiant/            JIANT DRUM-X (Modul, Kern-Lader, gemeinsamer Look JiantUI.hpp – auch für VOICE/ANIMAL in instruments/)
 jiantcore/            die drei Firmware-Kerne als eigene kleine Bibliotheken (res/*core.dll beim Build; voice/animal für instruments/)
 jiant.tar.gz          Firmware-Quellen von JIANT FM (beim ersten Build nach jiant/ entpackt)
-res/JiantDrumX.svg    Frontplatte (tools/jiant_panel.py real, schreibt auch VOICE/ANIMAL nach instruments/res)
+res/JiantDrumX.svg    Frontplatte (tools/panels/jiant_panel.py real, schreibt auch VOICE/ANIMAL nach instruments/res)
 src/mono/             GENRA MONO: Modul (GenraMono.cpp), Klang-Engine (MonoDsp.hpp, ohne Rack testbar), Presets (MonoPresets.hpp)
-res/GenraMono.svg     Frontplatte (tools/mono_panel.py real), Vorschau: tools/mono_panel.py preview <datei.png> <Rack> [menu|presets]
-src/funke/            FUNKE: Modul (Funke.cpp), Klang-Engine (FunkeDsp.hpp, ohne Rack testbar), Presets (FunkePresets.hpp), Frontplatte: tools/funke_panel.py
+res/GenraMono.svg     Frontplatte (tools/panels/mono_panel.py real), Vorschau: tools/panels/mono_panel.py preview <datei.png> <Rack> [menu|presets]
+src/funke/            FUNKE: Modul (Funke.cpp), Klang-Engine (FunkeDsp.hpp, ohne Rack testbar), Presets (FunkePresets.hpp), Frontplatte: tools/panels/funke_panel.py
 src/ui/GenraUI.hpp    GENRA-Look (Farben, Schriften, Lampenreihe), auch für die Instrumente in instruments/
 src/Follow.*, src/link/ kabellose Verbindungen (Follow GENRA, MIX, GENRA FX), über beide Plugins (Link-Hub: link/Hub.hpp)
 instruments/          das zweite Plugin GENRA Instruments: K-WASUB, GOLANA, UMLAUF, MONK, VOICE, ANIMAL samt Kernen,
@@ -554,9 +554,9 @@ instruments/          das zweite Plugin GENRA Instruments: K-WASUB, GOLANA, UMLA
 src/ui/PresetBank.hpp Presets für FUNKE und SCHMELZ (Liste, Header-Feld, User-Presets, Kontextmenü)
 src/schmelz/          SCHMELZ: Modul, Klang-Engine (SchmelzDsp.hpp, ohne Rack testbar), Presets (SchmelzPresets.hpp)
 src/mix/              MIX: Modul und Engine (MixDsp.hpp, ohne Rack testbar)
-src/stotter/          STOTTER (Modul, Engine StotterDsp.hpp, Layout aus tools/stotter_panel.py)
-src/schlag/           SCHLAG (Modul Schlag.cpp, Klang/WAV ohne Rack testbar: SchlagDsp.hpp, test/test_schlag.cpp; Frontplatte tools/schlag_panel.py)
-res/Schmelz.svg …     Frontplatten: tools/schmelz_panel.py, mix_panel.py … (jeweils real | preview <datei.png> <Rack-Quellen>);
+src/stotter/          STOTTER (Modul, Engine StotterDsp.hpp, Layout aus tools/panels/stotter_panel.py)
+src/schlag/           SCHLAG (Modul Schlag.cpp, Klang/WAV ohne Rack testbar: SchlagDsp.hpp, test/test_schlag.cpp; Frontplatte tools/panels/schlag_panel.py)
+res/Schmelz.svg …     Frontplatten: tools/panels/schmelz_panel.py, mix_panel.py … (jeweils real | preview <datei.png> <Rack-Quellen>);
                       die Werkzeuge der Instrumente (kwasub_panel.py, umlauf_panel.py, golana_panel.py …) schreiben nach instruments/
 test/                 Engine- und MIDI-Tests (g++, ohne Rack); instruments/test: kwcore_test.c, glcore_test.c, vader_test.c (gcc), siehe Workflow
 ```

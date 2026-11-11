@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // GRUND – the bass voice for GENRA's bass track, in the GENRA look (accent: GENRA's bass green).
 // Sound engine: GrundDsp.hpp, presets: GrundPresets.hpp, expander: GrundFx.*.
-// Panel: tools/grund_panel.py (res/Grund.svg + GrundLayout.hpp).
+// Panel: tools/panels/grund_panel.py (res/Grund.svg + GrundLayout.hpp).
 #include "../plugin.hpp"
 #include "../Follow.hpp"
 #include "../ui/GenraUI.hpp"
@@ -20,7 +20,7 @@ namespace L = glayout;
 namespace ui = genra_ui;
 using namespace ggrund;
 
-// keep in step with tools/grund_panel.py (ACC)
+// keep in step with tools/panels/grund_panel.py (ACC)
 #define GRUND_RGB 0xb8, 0xf2, 0x3a
 static const NVGcolor ACCENT = nvgRGB(GRUND_RGB);
 static const int SCOPE = 128;

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // MIX – 4-track stereo mixer in the GENRA look: one strip per GENRA track (DRUMS, BASS, MELODY, PADS) in its colour,
 // a dark master with two send/return loops (A, B), ducking (GENRA's KICK into DUCK), width and drive.
-// Engine: MixDsp.hpp. Panel: tools/mix_panel.py (res/Mix.svg + MixLayout.hpp).
+// Engine: MixDsp.hpp. Panel: tools/panels/mix_panel.py (res/Mix.svg + MixLayout.hpp).
 #include "../plugin.hpp"
 #include "../ui/GenraUI.hpp"
 #include "../Follow.hpp"
@@ -16,7 +16,7 @@ namespace L = mxlayout;
 namespace ui = genra_ui;
 using namespace gmix;
 
-// the GENRA track colours (keep in step with tools/mix_panel.py)
+// the GENRA track colours (keep in step with tools/panels/mix_panel.py)
 static const NVGcolor TRACK[NCH] = {nvgRGB(0x7b, 0x6c, 0xff), nvgRGB(0xb8, 0xf2, 0x3a), nvgRGB(0x3d, 0xc9, 0xff),
                                     nvgRGB(0xe0, 0x77, 0x9e)};
 static const NVGcolor METER_GREEN = nvgRGB(0x5d, 0xff, 0x8a), METER_YELLOW = nvgRGB(0xff, 0xc2, 0x4d),
@@ -406,7 +406,7 @@ struct SourceTags : widget::TransparentWidget {
 		found = true;
 	}
 	static Rect field(int c) {
-		float cx = mm2px(3.f + c * 24.f + 11.5f), cy = mm2px(19.7f); // (tools/mix_panel.py: strips at 3 + i·24, 23 wide)
+		float cx = mm2px(3.f + c * 24.f + 11.5f), cy = mm2px(19.7f); // (tools/panels/mix_panel.py: strips at 3 + i·24, 23 wide)
 		float w = mm2px(20.f), hh = mm2px(3.6f);
 		return Rect(Vec(cx - w / 2, cy - hh / 2), Vec(w, hh));
 	}
@@ -437,7 +437,7 @@ struct SourceTags : widget::TransparentWidget {
 			if (!h)
 				continue;
 			bool cable = !s.dl.owned;
-			float cx = mm2px(3.f + c * 24.f + 11.5f), cy = mm2px(19.7f); // (tools/mix_panel.py: strips at 3 + i·24, 23 wide)
+			float cx = mm2px(3.f + c * 24.f + 11.5f), cy = mm2px(19.7f); // (tools/panels/mix_panel.py: strips at 3 + i·24, 23 wide)
 			float w = mm2px(20.f), hh = mm2px(3.6f);
 			NVGcolor col = cable ? nvgLerpRGBA(TRACK[c], nvgRGB(0x20, 0x21, 0x26), 0.6f) : TRACK[c];
 			if (!cable) {

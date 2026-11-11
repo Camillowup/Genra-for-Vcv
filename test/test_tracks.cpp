@@ -1,5 +1,5 @@
 // genre per track: generation, MIDI round trip with per-track swing, storage
-#include "../src/Engine.hpp"
+#include "../src/genra/Engine.hpp"
 #include <cstdio>
 #include <map>
 #include <tuple>

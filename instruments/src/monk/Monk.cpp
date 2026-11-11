@@ -15,7 +15,7 @@
 
 namespace monk_mod {
 
-#define MONK_RGB 0xff, 0xb4, 0x3d   // keep in step with tools/monk_panel.py
+#define MONK_RGB 0xff, 0xb4, 0x3d   // keep in step with tools/panels/monk_panel.py
 static const int NK = 8;
 static const char* K_NAMES[NK] = {"VOWEL", "HEAD", "BREATH", "GLIDE", "VOICES", "DETUNE", "SPREAD", "TUNE"};
 static const char* VOWEL_NAMES[5] = {"OO", "OH", "AH", "EH", "EE"};

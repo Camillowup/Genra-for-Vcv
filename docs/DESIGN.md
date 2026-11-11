@@ -33,7 +33,7 @@ bedient wie die anderen. Stand: GENRA und GENRA Instruments 2.29.1.
 1. **Zuerst das Panel zeigen** (Entwurf als Bild, mit den echten Rack-Bauteilen), erst nach der Freigabe rechnen und
    Code schreiben.
 2. Panel-Skript `tools/<modul>_panel.py` schreibt `res/<Modul>.svg` (Text als Pfade) und den Layout-Header
-   `src/<modul>/<Modul>Layout.hpp` (Instrumente: unter `instruments/`); Vorschau nach `docs/entwuerfe/`.
+   `src/<modul>/<Modul>Layout.hpp` (Instrumente: unter `instruments/`); Vorschau nach `docs/panels/`.
 3. Bauen und Testen nur über GitHub Actions (Windows); Tests unter `test/` in `.github/workflows/main.yml` eintragen.
 4. Version in `plugin.json` erhöhen, in `instruments/plugin.json` dieselbe (Rack 2 lädt nur Versionen 2.x: eine 1.x wird
    mit „does not match Rack ABI version 2“ abgelehnt), `README.md` (Bedienung, deutsch) und `PROJEKT.md` (Technik, deutsch) nachführen.

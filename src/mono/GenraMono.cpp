@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // GENRA MONO – monophonic bass synth after the Moog Minitaur, in the look of MONK and the JIANT voices (accent: turquoise).
-// Sound engine: MonoDsp.hpp. Panel: tools/mono_panel.py (res/GenraMono.svg + MonoLayout.hpp).
+// Sound engine: MonoDsp.hpp. Panel: tools/panels/mono_panel.py (res/GenraMono.svg + MonoLayout.hpp).
 #include "../plugin.hpp"
 #include "../Follow.hpp"
 #include <cctype>
@@ -12,7 +12,7 @@ namespace genra_mono {
 
 namespace L = mlayout;
 
-// keep in step with tools/mono_panel.py (ACC)
+// keep in step with tools/panels/mono_panel.py (ACC)
 static const NVGcolor ACCENT = nvgRGB(0xb8, 0xf2, 0x3a);
 static const NVGcolor TXT = nvgRGB(0xd9, 0xdb, 0xe2), DIM = nvgRGB(0x8a, 0x8d, 0x99);
 

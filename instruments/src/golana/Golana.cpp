@@ -3,7 +3,7 @@
 // the GENRA look (accent: the melody track's cyan). The firmware runs unchanged in a private copy of the core library
 // (GlCore, glcore/glcore.c); the module turns knobs and CV into its parameters, gates into notes, the clock into its
 // tempo, and resamples its 44.1 kHz output. The effects expander GOLANA FX docks to the right: this module reads its
-// knobs too. Panels: tools/golana_panel.py, tools/golana_fx_panel.py (res/Golana.svg, res/GolanaFx.svg + layouts).
+// knobs too. Panels: tools/panels/golana_panel.py, tools/panels/golana_fx_panel.py (res/Golana.svg, res/GolanaFx.svg + layouts).
 #include "../plugin.hpp"
 #include "../Follow.hpp"
 #include "../ui/GenraUI.hpp"
@@ -25,7 +25,7 @@ namespace L = glayout;
 namespace ui = genra_ui;
 namespace gu = golana_ui;
 
-// keep in step with tools/golana_panel.py (ACC): the melody track's cyan (= FUNKE)
+// keep in step with tools/panels/golana_panel.py (ACC): the melody track's cyan (= FUNKE)
 #define GOLANA_RGB 0x3d, 0xc9, 0xff
 static const NVGcolor ACCENT = nvgRGB(GOLANA_RGB);
 static const int MAXCH = 4;  // the voices GENRA's melody / pad track sends (Golana plays at most 4 notes)

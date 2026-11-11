@@ -2,8 +2,8 @@
 // Pattern: the real GENRA engine (generate + renderSong, so swing, ratchets and the bar-8 fill are GENRA's own).
 // Bass: GRUND, melody: FUNKE, pads: SCHMELZ (sustained pads) or FUNKE poly (stabs / skanks). Drums: a small
 // synthesized kit. Mastered to about -14 LUFS (BS.1770 K-weighting, gated), peak -1 dBFS, 48 kHz 16-bit stereo.
-// Build: g++ -std=gnu++17 -O2 -Isrc tools/genre_demo.cpp src/Engine.cpp src/Genres.cpp src/Edit.cpp src/Store.cpp src/Midi.cpp -o gd && ./gd <dir> [n]
-#include "Engine.hpp"
+// Build: g++ -std=gnu++17 -O2 -Isrc tools/genre_demo.cpp src/genra/Engine.cpp src/genra/Genres.cpp src/genra/Edit.cpp src/genra/Store.cpp src/genra/Midi.cpp -o gd && ./gd <dir> [n]
+#include "genra/Engine.hpp"
 #include "grund/GrundPresets.hpp"
 #include "funke/FunkePresets.hpp"
 #include "schmelz/SchmelzPresets.hpp"

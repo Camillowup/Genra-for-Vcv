@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // GOLANA FX – the effects expander of GOLANA, in the GENRA look: the details of Golana's three effects (MOD FX, delay,
 // reverb) and their order. It holds knobs only: GOLANA (to its left) reads them and writes the firmware; LINK lights
-// when it does. Panel: tools/golana_fx_panel.py (res/GolanaFx.svg + GolanaFxLayout.hpp).
+// when it does. Panel: tools/panels/golana_fx_panel.py (res/GolanaFx.svg + GolanaFxLayout.hpp).
 #include "../plugin.hpp"
 #include "../ui/GenraUI.hpp"
 #include "GolanaFx.hpp"
@@ -15,7 +15,7 @@ namespace ui = genra_ui;
 namespace gu = golana_ui;
 using namespace glfx;
 
-// keep in step with tools/golana_panel.py (ACC): the melody track's cyan
+// keep in step with tools/panels/golana_panel.py (ACC): the melody track's cyan
 #define GOLANA_RGB 0x3d, 0xc9, 0xff
 static const NVGcolor ACCENT = nvgRGB(GOLANA_RGB);
 
