@@ -2,6 +2,22 @@
 
 Wünsche aus `docs/MERKLISTE.md`, die gebaut sind – zum Nachschauen.
 
+## Gebaut in GENRA Instruments 2.35.0 (11. Nov. 2026)
+
+### VOICE SPELL + VOICE BEND (aus SPELLBOX)
+- **SPELLBOX** (github.com/pjac1810/spellbox): LPC-Sprachstimme im Stil von Speak & Spell (8 kHz), SING, LETTER SYNTH,
+  SPEAK, Circuit-Bending-Regler. **Entschieden: kein eigenes Modul, sondern in VOICE eingebaut.**
+  **Status: gebaut in 2.35.0** (VOICE LANG SPELL mit SING / LETTER / SPEAK, Expander VOICE BEND mit BEND, CLOCK,
+  CORRUPT, STUTTER, CRUSH; ENGINE bei SPELL: POS WORD ARTIC SHIFT SPEED TONE MONO LOOP; drei SPELL-Presets).
+  Dabei auch die PRESET-Beschriftung in VOICE, ANIMAL und DRUM-X vereinheitlicht („◀ PRESET ▶“, „◀ LYRIC ▶“, „◀ KIT ▶“).
+  - VOICE bekommt neben OFF/ES/EN/JA einen vierten Taster **SPELL** (LPC-Engine, nur Englisch).
+  - Gemeinsam: Lyrics-Feld, Wortanzeige, V/OCT, GATE, Presets, GENRA-Leiste; die Regler, die beide haben
+    (POS, ARTIC, SHIFT, LOOP), wirken in beiden Engines.
+  - Die Bending-Regler **CLOCK, CORRUPT, STUTTER** (evtl. auch SPEAKR, BITS) kommen in einen kleinen Expander
+    **VOICE BEND** und wirken nur bei SPELL.
+  - VOICE-Akzent dunkler machen: `#c42f3d` statt bisher hellem Rot (gilt fürs ganze VOICE-Panel).
+  - Alte VOICE-Patches müssen weiter laden: Params/Buchsen nur hinten anhängen.
+
 ## Gebaut in GENRA 2.34.0 (11. Nov. 2026)
 
 ### GENRA GRID (GENRA-Plugin)

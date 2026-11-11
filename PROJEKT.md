@@ -20,7 +20,8 @@ erreichbar) · Plattform: VCV Rack Pro 2.6.6 unter Windows
 - **GENRA Instruments** (Slug `GenraInstruments`, Ordner `instruments/`): K-WASUB, K-WASUB FX, GOLANA, GOLANA FX, UMLAUF,
   UMLAUF FX, MONK, VOICE, ANIMAL. Benutzt die gemeinsamen Teile aus `src/` (Knöpfe, Follow GENRA, Link-Hub, UI) über
   kleine Weiterleitungs-Header, nicht als Kopie.
-- **GENRA Test** (eigenes Repo `Camillowup/testmodulesvcv`): neue Instrumente zum Ausprobieren (MATH, KURBEL, SWARM, LIED).
+- **GENRA Test** (eigenes Repo `Camillowup/testmodulesvcv`): neue Instrumente zum Ausprobieren (Stand 2.5.0: MATH, KURBEL, SWARM, LIED,
+  CANTA, MIAOU, SAURUS, FUMI).
   Holt die gemeinsamen Teile vor jedem Build frisch aus diesem Repo (Branch `main`).
 - Später evtl. alles zu einem grossen GENRA-Plugin zusammenführen (offen).
 
@@ -28,7 +29,8 @@ erreichbar) · Plattform: VCV Rack Pro 2.6.6 unter Windows
 
 - **Branches:** `dev` = Arbeitsstand, `main` = getestet, `release` = ein Push dorthin veröffentlicht den GitHub-Release
   (nur, wenn ausdrücklich „Release“ gesagt wurde).
-- **Builds:** GitHub Actions bei jedem Push (Windows + Mac), Download über Actions › Artifacts. Wenige Pushes, Änderungen
+- **Builds:** GitHub Actions bei jedem Push (Windows), Mac nur beim Release oder von Hand (Actions › Run workflow),
+  weil GitHub wenige Mac-Rechner hat; Download über Actions › Artifacts. Wenige Pushes, Änderungen
   gesammelt (der frühere Account wurde wegen zu vieler Builds gesperrt). Commits nur mit Doku: `[skip ci]`.
 - **Neue Version:** `version` in `plugin.json` (und `instruments/plugin.json`) erhöhen, Hauptversion bleibt 2.
 - **Alte Patches:** Slugs, Modulnamen und Parameter-IDs bleiben; neue Params/Buchsen nur hinten anhängen

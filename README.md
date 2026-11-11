@@ -508,8 +508,9 @@ Ein ganz besonderer Dank an **[Juan Jiant](https://github.com/juanjiant-bit)**! 
 
 Für den Mac gibt es zwei Dateien pro Plugin: **`…-mac-arm64.vcvplugin`** für Macs mit Apple-Chip (M1 und neuer) und
 **`…-mac-x64.vcvplugin`** für ältere Intel-Macs. Die Datei in den Plugin-Ordner des Rack-Benutzerordners kopieren (in
-Rack: *Help › Open user folder*, dort `plugins-mac-arm64` bzw. `plugins-mac-x64`), Rack neu starten. Testversionen: in
-**Actions** bei **Artifacts** `genra-mac-arm64` / `genra-instruments-mac-arm64` (bzw. `-x64`).
+Rack: *Help › Open user folder*, dort `plugins-mac-arm64` bzw. `plugins-mac-x64`), Rack neu starten. Testversionen: Mac-Builds
+laufen nur beim Release oder von Hand (**Actions** › *Run workflow*), dann bei **Artifacts** `genra-mac-arm64` /
+`genra-instruments-mac-arm64` (bzw. `-x64`).
 
 Es ist dasselbe Plugin wie unter Windows, aus demselben Code: gleiche Module, gleiche Version, Patches laufen auf beiden
 Systemen.
