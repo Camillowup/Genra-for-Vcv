@@ -56,8 +56,12 @@ res/%core.$(CORE_EXT): ../jiantcore/%core.c ../jiantcore/%core.h $(JIANT_STAMP)
 # The K-WASUB firmware (kwasub/, unchanged) with kwcore/kwcore.c on top, likewise one private copy per instance.
 # Built as the firmware itself is (-ffreestanding -fno-builtin …): its own memset / memcpy must not become calls to
 # themselves.
-KW_FLAGS := -std=gnu11 -O2 -w -fno-strict-aliasing -ffreestanding -fno-builtin -fno-tree-loop-distribute-patterns \
+KW_FLAGS := -std=gnu11 -O2 -w -fno-strict-aliasing -ffreestanding -fno-builtin \
 	-Ikwasub/firmware/src -Ikwasub/firmware/gen -Ikwasub/firmware/hal
+# gcc only (clang: -fno-builtin already keeps the loop-to-memset idiom away)
+ifndef ARCH_MAC
+	KW_FLAGS += -fno-tree-loop-distribute-patterns
+endif
 ifdef ARCH_LIN
 	KW_FLAGS += -fPIC -fvisibility=hidden -shared
 endif
