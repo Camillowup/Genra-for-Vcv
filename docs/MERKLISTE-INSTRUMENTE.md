@@ -87,6 +87,17 @@ FUMI, MIAOU, SAURUS, KURBEL). Noch nicht freigegeben.
   Hauptgenre (Global) zurück und würfelt dann neu. Gesperrte Spuren (LOCK) bleiben, wie sie sind; eine Spur mit Kabel
   am Genre-CV-Eingang folgt weiter dem CV. **Gebaut in 2.32.0.**
 
+### FUNKE und SCHMELZ (GENRA-Plugin)
+- **Schmaler** (Stand 11. Nov. 2026, Entwurf freigegeben): beide **28 HP** (FUNKE war 30, SCHMELZ 32). Alle Regler und
+  Buchsen bleiben, Abstände enger; SCHMELZ-Preset-Feld kürzer (36 mm, nach dem Untertitel). Display-Inhalte im Code
+  mitrücken (FUNKE: Scope ab 52 mm, 42 mm breit; SCHMELZ: Registerleiste ab 38 mm, 46 mm breit, SOLO bei 90 mm,
+  VOICES bei 114 mm mit 1,2 mm Abstand). Panel-Skripte `tools/funke_panel.py`, `tools/schmelz_panel.py`.
+- **Cutoff der Presets** etwas höher (+10–15 %), Lautstärke danach neu einmessen: nur die Presets, die der Nutzer noch
+  auflistet (Liste folgt).
+
+### ABLAUF MINI (GENRA-Plugin)
+- Offene Frage: Sprung auf ein belegtes Pad am Ende des Patterns (heute) oder wie beim grossen ABLAUF am nächsten Takt?
+
 ### KURBEL (GENRA Test, Repo testmodulesvcv)
 Rückmeldung zu 2.1.0: ohne Gate kein Ton (erwartet beim Kurbeln), mit Follow GENRA nur sehr leise (nicht nachgestellt;
 der Kern liefert in Tests vollen Pegel; Verdacht COUP CRANK mit zu wenig Kurbel).
