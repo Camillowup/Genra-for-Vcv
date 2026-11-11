@@ -85,7 +85,7 @@ Gestrichen: STRING und ADD.
 Panel-Entwürfe aller geplanten Module wurden am 10. Nov. 2026 im Chat gezeigt (MATH, SWARM, VOICE mit SPELL + VOICE BEND,
 FUMI, MIAOU, SAURUS, KURBEL). Noch nicht freigegeben.
 
-## KANA: japanische Sing-Engine aus MIKU-FM (Entwurf, 11. Nov. 2026)
+## CANTA (Arbeitsname KANA): japanische Sing-Engine aus MIKU-FM (11. Nov. 2026)
 - Quelle: github.com/MichaelAPerry/MIKU-FM1 (Code GPL-3.0-only). Nur die Gesangsstimme; die Band (FM-Akkorde, Bass,
   Drums) fällt weg, das übernimmt GENRA.
 - **Keine Grafiken aus MIKU-FM:** die Sängerin dort ist Hatsune Miku (Crypton, Piapro Character License, nicht GPL,
@@ -99,7 +99,14 @@ FUMI, MIAOU, SAURUS, KURBEL). Noch nicht freigegeben.
   LYRICS FOLLOW/FIXED (Text per Rechtsklick), LEVEL; VOICE: BREATH, BRIGHT, GLIDE, TENSE, FRY, WHISPR, FORMNT, HARM
   (je CV); SHAPE: ATK, REL, SCOOP, VIB; FX: CHORUS, DELAY, REVERB, DRIVE; Buchsen GENRA-Leiste, CLOCK/RESET, SYL (CV),
   NEXT (Trigger), L/R.
-- Offen: Abgrenzung zu VOICE und LIED (eigenes Modul oder als Stimme in VOICE), Farbe.
+- Entschieden: eigenes Modul **CANTA**, Koralle `#ff7a59`, 26 HP. Panel nach Entwurf v2: Kopf ◀ PRE, PRE ▶, CALL,
+  LYRICS FOLLOW/FIXED, SYLLABLE, HARMONY (OFF −12 +3 +4 +5 +7 +12) + MIX, LEVEL; VOICE: BREATH BRIGHT GLIDE TENSE FRY
+  WHISPR FORMNT HUMAN (je CV); SHAPE, FX wie oben; Buchsen GENRA-Leiste, CLOCK/RESET, SYL, NEXT, L/R. Liedtext per
+  Klick auf die Textzeile im Display.
+- **Status:** gebaut als GENRA Test 2.4.0 (Repo testmodulesvcv, Modul-Slug Canta), 11. Nov. 2026, wird getestet.
+  Quelle: MIKU-FM Commit 781760c (nur Stimmen-Code). 12 eigene Presets. Die vier Sängerinnen sind beim Bau neu
+  gezeichnet (16 × 21 Pixel, Paletten wie im Entwurf); DANCE = ein Schritt pro Schlag. Noch nicht: „Arme hoch im
+  Refrain“, „Verbeugung am Ende“.
 
 ## Offene Änderungen an bestehenden Modulen (gesammelt, noch nicht gebaut)
 
