@@ -61,9 +61,19 @@ struct Field : app::ParamWidget {
 			auto f = ui::boldFont();
 			bool big = box.size.y > mm2px(5.f);
 			float y = box.size.y / 2 + (big ? 2.6f : 2.2f);
-			ui::text(args.vg, f, mm2px(1.8f), y, names[v], big ? 7.4f : 6.3f, ui::TXT, NVG_ALIGN_LEFT, 0.9f);
+			// the value ends before the ▾: in a narrow field a long one is drawn smaller
+			float size = big ? 7.4f : 6.3f, room = box.size.x - mm2px(1.8f + 5.2f);
+			if (f && f->handle >= 0) {
+				nvgFontFaceId(args.vg, f->handle);
+				nvgFontSize(args.vg, size);
+				nvgTextLetterSpacing(args.vg, 0.9f);
+				float tw = nvgTextBounds(args.vg, 0, 0, names[v].c_str(), nullptr, nullptr);
+				if (tw > room && tw > 0.f)
+					size = std::max(4.2f, size * room / tw);
+			}
+			ui::text(args.vg, f, mm2px(1.8f), y, names[v], size, ui::TXT, NVG_ALIGN_LEFT, size < 6.f ? 0.5f : 0.9f);
 			const std::string& h = v < (int) hints.size() ? hints[v] : hint;
-			if (!h.empty())
+			if (!h.empty() && box.size.x > mm2px(20.f))  // (narrow fields: the value alone)
 				ui::text(args.vg, f, box.size.x - mm2px(4.8f), y, h, 5.4f, ui::DIM, NVG_ALIGN_RIGHT, 0.8f);
 		}
 		ParamWidget::drawLayer(args, layer);

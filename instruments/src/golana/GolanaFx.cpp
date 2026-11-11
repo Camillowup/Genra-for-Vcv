@@ -73,12 +73,12 @@ struct GolanaFxWidget : ModuleWidget {
 		addChild(createWidget<ScrewBlack>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 		addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
-		auto small = [&](const float* p, int id) { addParam(createParamCentered<GSmallKnob>(ui::mm(p), module, id)); };
+		auto small = [&](const float* p, int id) { addParam(createParamCentered<GTrimpot>(ui::mm(p), module, id)); };
 		const float* on[3] = {L::MFX_ON, L::DLY_ON, L::REV_ON};
 		for (int i = 0; i < 3; i++)
-			addParam(createLightParamCentered<VCVLightBezelLatch<ui::AccentLight<GOLANA_RGB>>>(ui::mm(on[i]), module,
+			addParam(createLightParamCentered<VCVLightLatch<ui::AccentLight<GOLANA_RGB>>>(ui::mm(on[i]), module,
 			                                                                                  ON_PARAMS[i], ON_LIGHT + i));
-		addChild(createLightCentered<MediumLight<ui::AccentLight<GOLANA_RGB>>>(ui::mm(L::LINK), module, LINK_LIGHT));
+		addChild(createLightCentered<MediumLight<ui::AccentLight<GOLANA_RGB>>>(mm2px(Vec(L::LINK[0] + L::LINK[2] / 2, L::LINK[1] + L::LINK[3] / 2)), module, LINK_LIGHT));
 
 		gu::addField(this, module, L::F_MFX, MFX_TYPE, gu::list(MFX_NAMES, 6));
 		gu::addField(this, module, L::F_DTYPE, DTYPE, gu::list(DTYPE_NAMES, 3));

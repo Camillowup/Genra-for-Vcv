@@ -23,7 +23,10 @@ Jedes Panel wird zuerst als Entwurf gezeigt; gebaut wird erst nach Freigabe und 
 - **Umgestellt in 2.36.0** (in Rack prüfen): VOICE 24 HP, VOICE BEND 10 HP, ANIMAL 22 HP, MONK 26 HP, DRUM-X 28 HP
   (LVL und TRIG unter jedem Pad). GENRA Test: MATH, SWARM, SAURUS, KURBEL, MIAOU, FUMI, CANTA umgestellt, LIED hat
   das Mausrad. Panels aus `tools/panels/gpanel.py` (gleiches Werkzeug wie `tools/gpanel.py` in GENRA Test).
-- Noch offen (Entwürfe zuerst): GOLANA, GOLANA FX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX.
+- Ebenfalls umgestellt in 2.36.0: K-WASUB 38 HP, K-WASUB FX 41 HP, GOLANA 45 HP, GOLANA FX 14 HP, UMLAUF 54 HP,
+  UMLAUF FX 39 HP (Expander ohne Display). Alle Panels bündig: Sektionen 2 mm über den Buchsen, Display füllt den Rest.
+- In Rack prüfen: Schriften in den Displays (dynamisch), GOLANAs schmale Felder, UMLAUFs flacher Orbit-Display,
+  UMLAUF-Sample-Ordner, ABLAUF PATT ↔ SONG und RUN/STOP an GENRA.
 
 ## Aus JIANT FM (github.com/juanjiant-bit/JIANT, Branch `codex/swarm`)
 

@@ -918,6 +918,9 @@ struct Display : Widget {
 				pnum = string::f("PRESET %d / %d", b.preset + 1, b.f.count);
 			}
 		}
+		// the content is laid out for 18 mm: centred in the display, however tall it is
+		nvgSave(vg);
+		nvgTranslate(vg, 0.f, std::max(0.f, (box.size.y - mm(18.f)) / 2.f));
 		ui::text(vg, bold, mm(4), mm(4.7f), pnum, 5.4f, ui::DIM, NVG_ALIGN_LEFT, 1.f);
 		ui::text(vg, bold, mm(4), mm(11.1f), pname, 15.f, ui::WHITE, NVG_ALIGN_LEFT, 0.8f);
 		ui::text(vg, bold, mm(4), mm(14.5f), pstyle, 5.4f, ACCENT, NVG_ALIGN_LEFT, 1.2f);
@@ -931,7 +934,7 @@ struct Display : Widget {
 		ui::text(vg, bold, mm(59), mm(15.9f), string::f("%s   %s   %s", d.pb[0], d.pb[1], d.pb[2]), 4.9f, ui::DIM,
 		         NVG_ALIGN_LEFT, 0.6f);
 		// the wobble: three cycles of its shape, a dot where it is
-		float x0 = mm(125), w = mm(46), cy = mm(8), amp = mm(4.5f);
+		float x0 = mm(122), w = mm(42), cy = mm(8), amp = mm(4.5f);
 		auto shape = [&](float ph) -> float {
 			switch (d.lshape) {
 				case 0: return std::sin(6.2831853f * ph);
@@ -976,6 +979,7 @@ struct Display : Widget {
 		ui::text(vg, bold, xr, mm(11.1f), d.mode, 9.f, ui::WHITE, NVG_ALIGN_RIGHT, 0.8f);
 		ui::text(vg, bold, xr, mm(14.5f), string::f("%d VOICE%s", d.voices, d.voices == 1 ? "" : "S"), 5.f, ui::DIM,
 		         NVG_ALIGN_RIGHT, 1.f);
+		nvgRestore(vg);
 		Widget::drawLayer(args, layer);
 	}
 };
@@ -1032,21 +1036,23 @@ struct KwasubWidget : ModuleWidget {
 		small(L::F_KEY, M::KEY_PARAM);
 		small(L::FE_A, M::FEA_PARAM);
 		small(L::FE_D, M::FED_PARAM);
-		small(L::S_LVL, M::SUB_PARAM);
-		small(L::N_LVL, M::NOISE_PARAM);
-		small(L::X_AMT, M::XMOD_PARAM);
-		knob(L::L_RATE, M::LRATE_PARAM);
-		small(L::L_DEP, M::LDEP_PARAM);
-		small(L::L_SHP, M::LSHP_PARAM);
-		small(L::L_DST, M::LDST_PARAM);
-		small(L::AE_A, M::AEA_PARAM);
-		small(L::AE_D, M::AED_PARAM);
-		small(L::AE_S, M::AES_PARAM);
-		small(L::AE_R, M::AER_PARAM);
-		small(L::FX_SAT, M::SAT_PARAM);
-		small(L::FX_DLY, M::DLY_PARAM);
-		small(L::FX_VERB, M::VERB_PARAM);
-		small(L::FX_GLUE, M::GLUE_PARAM);
+		// the second row: mini knobs (the panel stays at 38 HP), WOBBLE's RATE a size up
+		auto mini = [&](const float* p, int id) { addParam(createParamCentered<GTrimpot>(ui::mm(p), module, id)); };
+		mini(L::S_LVL, M::SUB_PARAM);
+		mini(L::N_LVL, M::NOISE_PARAM);
+		mini(L::X_AMT, M::XMOD_PARAM);
+		small(L::L_RATE, M::LRATE_PARAM);
+		mini(L::L_DEP, M::LDEP_PARAM);
+		mini(L::L_SHP, M::LSHP_PARAM);
+		mini(L::L_DST, M::LDST_PARAM);
+		mini(L::AE_A, M::AEA_PARAM);
+		mini(L::AE_D, M::AED_PARAM);
+		mini(L::AE_S, M::AES_PARAM);
+		mini(L::AE_R, M::AER_PARAM);
+		mini(L::FX_SAT, M::SAT_PARAM);
+		mini(L::FX_DLY, M::DLY_PARAM);
+		mini(L::FX_VERB, M::VERB_PARAM);
+		mini(L::FX_GLUE, M::GLUE_PARAM);
 		genra_states::PresetField* pf = createWidget<genra_states::PresetField>(mm2px(Vec(L::PRESETF[0], L::PRESETF[1])));
 		pf->box.size = mm2px(Vec(L::PRESETF[2], L::PRESETF[3]));
 		pf->bank = module && module->core.api ? &module->bank : nullptr;

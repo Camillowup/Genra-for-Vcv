@@ -135,6 +135,9 @@ struct UmlaufFxWidget : ModuleWidget {
 
 		auto knob = [&](const float* p, int id) { addParam(createParamCentered<GKnob>(ui::mm(p), module, id)); };
 		auto small = [&](const float* p, int id) { addParam(createParamCentered<GSmallKnob>(ui::mm(p), module, id)); };
+		auto mini = [&](const float* p, int id) { addParam(createParamCentered<GTrimpot>(ui::mm(p), module, id)); };
+		addChild(createLightCentered<MediumLight<ui::AccentLight<UMLAUF_RGB>>>(
+		    mm2px(Vec(L::LINK[0] + L::LINK[2] / 2, L::LINK[1] + L::LINK[3] / 2)), module, LINK_LIGHT));
 		auto lamps = [&](const float* p, int id, int n) {
 			ui::LampRow* w = createParam<ui::LampRow>(Vec(0, 0), module, id);
 			w->place(p, n);
@@ -155,16 +158,16 @@ struct UmlaufFxWidget : ModuleWidget {
 		small(L::VDEP, VDEP);
 		small(L::TSPD, TSPD);
 		small(L::TDEP, TDEP);
-		addParam(createLightParamCentered<VCVLightBezelLatch<ui::AccentLight<UMLAUF_RGB>>>(ui::mm(L::ARPON), module,
+		addParam(createLightParamCentered<VCVLightLatch<ui::AccentLight<UMLAUF_RGB>>>(ui::mm(L::ARPON), module,
 		                                                                                   ARPON, ARPON_LIGHT));
-		addParam(createLightParamCentered<VCVLightBezelLatch<ui::AccentLight<UMLAUF_RGB>>>(ui::mm(L::LATCH), module,
+		addParam(createLightParamCentered<VCVLightLatch<ui::AccentLight<UMLAUF_RGB>>>(ui::mm(L::LATCH), module,
 		                                                                                   LATCH, LATCH_LIGHT));
 		lamps(L::AMODE, AMODE, 6);
-		small(L::ARATE, ARATE);
-		small(L::AOCT, AOCT);
-		small(L::ALEN, ALEN);
-		small(L::ASTEPS, ASTEPS);
-		small(L::AHUM, AHUM);
+		mini(L::ARATE, ARATE);
+		mini(L::AOCT, AOCT);
+		mini(L::ALEN, ALEN);
+		mini(L::ASTEPS, ASTEPS);
+		mini(L::AHUM, AHUM);
 		const float* st[16] = {L::STEP1,  L::STEP2,  L::STEP3,  L::STEP4,  L::STEP5,  L::STEP6,  L::STEP7,  L::STEP8,
 		                       L::STEP9,  L::STEP10, L::STEP11, L::STEP12, L::STEP13, L::STEP14, L::STEP15, L::STEP16};
 		for (int i = 0; i < 16; i++)

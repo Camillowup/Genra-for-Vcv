@@ -41,6 +41,62 @@ static std::string fwd(std::string s) {
 			c = '/';
 	return s;
 }
+// ---- the samples folder: one per computer (like SCHLAG), kept in Rack2/Genra/umlauf.json; "" = only UMLAUF's own
+static std::mutex& rootMutex() {
+	static std::mutex m;
+	return m;
+}
+static std::string& rootRef() {
+	static std::string r;
+	return r;
+}
+static std::atomic<int>& rootVersion() {  // a module scans again when this changes
+	static std::atomic<int> v{0};
+	return v;
+}
+static void loadRootLocked() {
+	static bool done = false;
+	if (done)
+		return;
+	done = true;
+	json_t* j = json_load_file(asset::user("Genra/umlauf.json").c_str(), 0, nullptr);
+	if (!j)
+		return;
+	if (json_t* r = json_object_get(j, "sampleRoot"))
+		if (const char* v = json_string_value(r))
+			rootRef() = fwd(v);
+	json_decref(j);
+}
+static std::string sampleRoot() {
+	std::lock_guard<std::mutex> lock(rootMutex());
+	loadRootLocked();
+	return rootRef();
+}
+static void setSampleRoot(std::string r) {
+	r = fwd(r);
+	while (r.size() > 1 && r.back() == '/')
+		r.pop_back();
+	{
+		std::lock_guard<std::mutex> lock(rootMutex());
+		loadRootLocked();
+		rootRef() = r;
+	}
+	system::createDirectories(asset::user("Genra"));
+	json_t* j = json_object();
+	json_object_set_new(j, "sampleRoot", json_string(r.c_str()));
+	json_dump_file(j, asset::user("Genra/umlauf.json").c_str(), JSON_INDENT(2));
+	json_decref(j);
+	rootVersion()++;
+}
+/** A sample's path inside the samples folder ("" when it is not in there): what a patch keeps, so it plays on another
+ * computer too once that one's folder is set. */
+static std::string relToRoot(const std::string& path) {
+	std::string root = sampleRoot();
+	if (root.empty() || path.size() <= root.size() + 1 || path.compare(0, root.size() + 1, root + "/") != 0)
+		return "";
+	return path.substr(root.size() + 1);
+}
+
 static std::string baseName(const std::string& p) {
 	size_t i = p.find_last_of('/');
 	std::string b = i == std::string::npos ? p : p.substr(i + 1);
@@ -159,6 +215,7 @@ struct Umlauf : Module, follow::Host {
 	std::vector<std::string> shapeFiles, wavFiles;
 	std::string userShape;  // the shape file in use (SHAPE: USER)
 	bool rescanWanted = true;
+	int rootSeen = -1;  // rootVersion() at the last scan
 
 	// work for the audio thread (menus, a loaded patch)
 	std::mutex cmdMutex;
@@ -625,7 +682,7 @@ struct Umlauf : Module, follow::Host {
 				for (size_t i = 0; i < wavFiles.size(); i++)
 					if (wavFiles[i] == smpPath[c])
 						smp = (int) i + 1;
-				if (!smp && !wavFiles.empty()) {
+				if (!smp && smpPath[c].empty() && !wavFiles.empty()) {  // (a sample not found stays: NO SAMPLE)
 					smpPath[c] = wavFiles[0];
 					smp = 1;
 				}
@@ -747,7 +804,7 @@ struct Umlauf : Module, follow::Host {
 				else
 					d.names[c][s] = s == 4 ? "LIMIT" : engText(string::f("%c_v%d_name", 'a' + c, s + 1));
 			}
-			d.sample[c] = e == NENGINE - 1 ? (smpPath[c].empty() ? "NO SAMPLE" : baseName(smpPath[c])) : "";
+			d.sample[c] = e == NENGINE - 1 ? (smpPath[c].empty() || smpWritten[c] == 0 ? "NO SAMPLE" : baseName(smpPath[c])) : "";
 		}
 		d.voices = vader_voices_on(inst);
 		d.tempo = tempo;
@@ -796,8 +853,13 @@ struct Umlauf : Module, follow::Host {
 				stateChanged(4);  // (a file may still be loading: looked at again a few times)
 			}
 		}
+		if (rootSeen != rootVersion().load())
+			rescanWanted = true;
 		if (rescanWanted) {
 			rescanWanted = false;
+			rootSeen = rootVersion().load();
+			if (inst)
+				E->set_param(inst, "samples_dir", sampleRoot().c_str());
 			engSet("rescan", 1.f);
 			readLists();
 		}
@@ -944,6 +1006,10 @@ struct Umlauf : Module, follow::Host {
 		for (int c = 0; c < 4; c++)
 			json_array_append_new(s, json_string(smpPath[c].c_str()));
 		json_object_set_new(r, "samples", s);
+		json_t* rel = json_array();  // the same, inside the samples folder (the folder is per computer)
+		for (int c = 0; c < 4; c++)
+			json_array_append_new(rel, json_string(relToRoot(smpPath[c]).c_str()));
+		json_object_set_new(r, "samplesRel", rel);
 		{
 			std::lock_guard<std::mutex> lock(stateMutex);
 			if (!stateCache.empty())
@@ -973,6 +1039,14 @@ struct Umlauf : Module, follow::Host {
 			for (int c = 0; c < 4 && c < (int) json_array_size(s); c++)
 				if (const char* v = json_string_value(json_array_get(s, c)))
 					smpPath[c] = v;
+		if (json_t* rel = json_object_get(r, "samplesRel")) {
+			std::string root = sampleRoot();
+			for (int c = 0; c < 4 && c < (int) json_array_size(rel); c++) {
+				const char* v = json_string_value(json_array_get(rel, c));
+				if (v && v[0] && !root.empty())
+					smpPath[c] = root + "/" + v;
+			}
+		}
 		std::string state;
 		if (json_t* j = json_object_get(r, "state"))
 			if (const char* v = json_string_value(j))
@@ -1112,7 +1186,8 @@ struct OrbitDisplay : Widget {
 				d.eng[c] = "SYNTH";
 		}
 		// the square
-		float S = mm(30.f), X0 = mm(3.5f), Y0 = mm(3.f);
+		// the square fills the display's height; the texts run to its right in three blocks
+		float H = box.size.y, S = H - mm(3.f), X0 = mm(3.f), Y0 = mm(1.5f);
 		auto sx = [&](float x) { return X0 + (x + 1.f) * 0.5f * S; };
 		auto sy = [&](float y) { return Y0 + (y + 1.f) * 0.5f * S; };
 		nvgBeginPath(vg);
@@ -1190,7 +1265,7 @@ struct OrbitDisplay : Widget {
 			ui::text(vg, bold, cx[c], cyy[c] + mm(0.6f), std::string(1, LT[c]), 5.f, ui::WHITE, NVG_ALIGN_CENTER, 0.f);
 		}
 		// the texts
-		float tx = X0 + S + mm(5.5f);
+		float tx = X0 + S + mm(5.f), tx2 = tx + mm(68.f);
 		ui::text(vg, bold, tx, mm(6.3f), d.shape, 10.f, ui::WHITE, NVG_ALIGN_LEFT, 0.8f);
 		std::string sub = "MODE " + d.mode + (d.clocked ? string::f(" · CLOCK %.0f BPM", d.tempo) : "");
 		ui::text(vg, bold, tx, mm(10.2f), sub, 5.f, ACCENT, NVG_ALIGN_LEFT, 0.8f);
@@ -1199,20 +1274,20 @@ struct OrbitDisplay : Widget {
 			anyMk |= !d.mk[i].empty();
 		if (anyMk) {
 			for (int i = 0; i < 8; i++) {
-				float x = tx + (i / 4) * mm(30.f), y = mm(15.3f) + (i % 4) * mm(3.5f);
+				float x = tx2 + (i / 4) * mm(32.f), y = mm(4.6f) + (i % 4) * mm(3.6f);
 				ui::text(vg, bold, x, y, string::f("M%d", i + 1), 4.4f, ui::DIM, NVG_ALIGN_LEFT, 0.5f);
 				ui::text(vg, bold, x + mm(5.f), y, d.mk[i].empty() ? "—" : d.mk[i], 4.4f, ui::TXT, NVG_ALIGN_LEFT, 0.5f);
 			}
 		} else {
 			for (int c = 0; c < 4; c++) {
-				float y = mm(15.3f) + c * mm(3.5f);
-				ui::text(vg, bold, tx, y, std::string(1, LT[c]), 4.6f, ui::WHITE, NVG_ALIGN_LEFT, 0.f);
-				ui::text(vg, bold, tx + mm(3.f), y, d.eng[c] + (d.sample[c].empty() ? "" : " · " + d.sample[c]), 4.4f,
+				float y = mm(4.6f) + c * mm(3.6f);
+				ui::text(vg, bold, tx2, y, std::string(1, LT[c]), 4.6f, ui::WHITE, NVG_ALIGN_LEFT, 0.f);
+				ui::text(vg, bold, tx2 + mm(3.f), y, d.eng[c] + (d.sample[c].empty() ? "" : " · " + d.sample[c]), 4.4f,
 				         ui::TXT, NVG_ALIGN_LEFT, 0.5f);
 			}
 		}
 		for (int c = 0; c < 4; c++) {
-			float x = tx + c * mm(15.5f), y = mm(31.6f);
+			float x = tx + c * mm(15.5f), y = H - mm(2.2f);
 			ui::text(vg, bold, x, y, std::string(1, LT[c]), 4.6f, ui::WHITE, NVG_ALIGN_LEFT, 0.f);
 			nvgBeginPath(vg);
 			nvgRoundedRect(vg, x + mm(2.5f), y - mm(1.4f), mm(10.f), mm(1.5f), 1.f);
@@ -1279,12 +1354,12 @@ static void cornerMenu(Umlauf* m, Menu* menu, int c) {
 	}
 	menu->addChild(createSubmenuItem("Sample", m->smpPath[c].empty() ? "none" : baseName(m->smpPath[c]), [=](Menu* sub) {
 		if (wavs.empty())
-			sub->addChild(createMenuLabel("No WAV files in the Samples folder yet"));
+			sub->addChild(createMenuLabel("No WAV files yet: pick a samples folder (right-click on UMLAUF)"));
 		for (const std::string& w : wavs) {
-			std::string rel = w;
-			std::string root = m->userDir() + "/Samples/";
-			if (rel.compare(0, root.size(), root) == 0)
-				rel = rel.substr(root.size());
+			std::string rel = relToRoot(w);
+			std::string own = m->userDir() + "/Samples/";
+			if (rel.empty())
+				rel = w.compare(0, own.size(), own) == 0 ? w.substr(own.size()) : baseName(w);
 			sub->addChild(createCheckMenuItem(rel, "", [=]() { return m->smpPath[c] == w; }, [=]() {
 				m->post([=]() { m->smpPath[c] = w; });
 				m->params[Umlauf::cp(c, Umlauf::C_ENG)].setValue((float) (NENGINE - 1));
@@ -1352,18 +1427,18 @@ struct UmlaufWidget : ModuleWidget {
 		}
 
 		using M = Umlauf;
-		auto knob = [&](const float* p, int id) { addParam(createParamCentered<GKnob>(ui::mm(p), module, id)); };
 		auto small = [&](const float* p, int id) { addParam(createParamCentered<GSmallKnob>(ui::mm(p), module, id)); };
-		knob(L::SHAPE, M::SHAPE_PARAM);
-		knob(L::MODE, M::MODE_PARAM);
-		knob(L::SPEED, M::SPEED_PARAM);
-		knob(L::SIZE, M::SIZE_PARAM);
-		knob(L::ROT, M::ROT_PARAM);
-		knob(L::SPIN, M::SPIN_PARAM);
-		knob(L::TILT, M::TILT_PARAM);
-		knob(L::SUBSIZE, M::SUBSIZE_PARAM);
-		knob(L::SUBSPD, M::SUBSPD_PARAM);
-		knob(L::OENV, M::OENV_PARAM);
+		auto mini = [&](const float* p, int id) { addParam(createParamCentered<GTrimpot>(ui::mm(p), module, id)); };
+		addParam(createParamCentered<GLargeKnob>(ui::mm(L::SHAPE), module, M::SHAPE_PARAM));
+		small(L::MODE, M::MODE_PARAM);
+		small(L::SPEED, M::SPEED_PARAM);
+		small(L::SIZE, M::SIZE_PARAM);
+		small(L::ROT, M::ROT_PARAM);
+		small(L::SPIN, M::SPIN_PARAM);
+		small(L::TILT, M::TILT_PARAM);
+		small(L::SUBSIZE, M::SUBSIZE_PARAM);
+		small(L::SUBSPD, M::SUBSPD_PARAM);
+		small(L::OENV, M::OENV_PARAM);
 		const float* mk[8] = {L::M1, L::M2, L::M3, L::M4, L::M5, L::M6, L::M7, L::M8};
 		for (int i = 0; i < 8; i++)
 			small(mk[i], M::M1_PARAM + i);
@@ -1374,10 +1449,7 @@ struct UmlaufWidget : ModuleWidget {
 		    {L::ENG_D, L::C1_D, L::C2_D, L::C3_D, L::C4_D, L::C5_D, L::FTYPE_D, L::FON_D, L::CUT_D, L::RES_D, L::OCT_D, L::LVL_D}};
 		for (int c = 0; c < 4; c++)
 			for (int k = 0; k < 12; k++) {
-				if (k == 0)
-					knob(cpos[c][k], M::cp(c, k));
-				else
-					small(cpos[c][k], M::cp(c, k));
+				mini(cpos[c][k], M::cp(c, k));  // the corners: mini knobs (the panel stays at 54 HP)
 			}
 
 		const float* ins[M::NUM_INPUTS] = {
@@ -1429,6 +1501,19 @@ struct UmlaufWidget : ModuleWidget {
 		for (int c = 0; c < 4; c++)
 			menu->addChild(createSubmenuItem(string::f("Corner %c", 'A' + c), ENGINES[m->cornerEngine(c)],
 			                                 [=](Menu* sub) { cornerMenu(m, sub, c); }));
+		std::string root = sampleRoot();
+		menu->addChild(createMenuLabel("Samples folder (for every patch on this computer): " +
+		                               (root.empty() ? std::string("none, UMLAUF's own") : root)));
+		menu->addChild(createMenuItem("Choose the samples folder…", "", [=]() {
+			std::string start = sampleRoot();
+			char* p = osdialog_file(OSDIALOG_OPEN_DIR, start.empty() ? nullptr : start.c_str(), nullptr, nullptr);
+			if (p) {
+				setSampleRoot(p);
+				std::free(p);
+			}
+		}));
+		if (!root.empty())
+			menu->addChild(createMenuItem("No samples folder (UMLAUF's own only)", "", [=]() { setSampleRoot(""); }));
 		menu->addChild(createMenuItem("Open the UMLAUF folder (Shapes, Samples)", "",
 		                              [=]() { system::openDirectory(m->userDir()); }));
 		menu->addChild(createMenuItem("Scan the folders again", "", [=]() { m->rescanWanted = true; }));

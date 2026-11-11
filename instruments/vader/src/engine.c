@@ -196,6 +196,7 @@ typedef struct {
     int preset;
     /* your own presets: <plugin folder>/User Presets/USER 001.vader ... */
     char pdir[600];
+    char sdir[600];   /* UMLAUF: the samples folder the user picked (one per computer), scanned after the others */
     unsigned char uknown[1000];   /* 0 not looked at yet, 1 empty, 2 saved */
     char ustatus[48];
     int page_ctr;   /* 0.8: net MIDI page presses */
@@ -516,6 +517,7 @@ static void rescan(vader_t *s) {
         char *sl_ = strrchr(root, '/');
         if (sl_) { snprintf(sl_, sizeof root - (size_t)(sl_ - root), "/Samples"); scan_dir(s, root, "", "", 0); }
     }
+    if (s->sdir[0]) scan_dir(s, s->sdir, "", "", 0);   /* UMLAUF */
     {   /* the desktop plugin: samples shipped inside the plugin (VADER_SAMPLES_EXTRA, folders separated by '|') */
         const char *xs = getenv("VADER_SAMPLES_EXTRA");
         while (xs && *xs) {
@@ -2050,6 +2052,10 @@ static void set_param(void *p, const char *key, const char *val) {
     }
     if (!strcmp(key, "state")) {   /* restore (the wrapper passes the chunk text) */
         restore_state(s, val);
+        return;
+    }
+    if (!strcmp(key, "samples_dir")) {   /* UMLAUF: the user's samples folder ("" none); "rescan" reads it */
+        snprintf(s->sdir, sizeof s->sdir, "%s", val ? val : "");
         return;
     }
     int i = find(key);

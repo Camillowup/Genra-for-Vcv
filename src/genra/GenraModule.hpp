@@ -195,6 +195,10 @@ struct Genra : Module {
 	bool genreTempo = false;
 	// MAKE SONG pad: ABLAUF builds a song from the running loop (ABLAUF reads makeSongReq, the widget noAblauf)
 	std::atomic<bool> makeSongReq{false};
+	// ABLAUF on SONG leads (it sets songLeads every frame it is linked): RUN and STOP here then act on the song, as
+	// PLAY and STOP on ABLAUF do (RUN pad: play; RUN input: toggle; STOP: stop, a second STOP back to the start)
+	std::atomic<bool> songLeads{false};
+	std::atomic<uint32_t> songPlayReq{0}, songToggleReq{0}, songStopReq{0};
 	std::atomic<bool> noAblauf{false};
 	bool pendingGenre = false;
 	int adoptGenre = 0;      // samples left in which the genres are taken as they are (after load / cue)
@@ -1281,12 +1285,24 @@ struct Genra : Module {
 
 		if (newBtn.process(params[NEW_PARAM].getValue() > 0.5f) | newTrig.process(inputs[NEW_INPUT].getVoltage(), 0.1f, 1.f))
 			regenRequested = true;
-		if (runBtn.process(params[RUN_PARAM].getValue() > 0.5f))
-			restart(); // the RUN pad: always from the start of the loop
-		if (runTrig.process(inputs[RUN_INPUT].getVoltage(), 0.1f, 1.f))
-			running = !running; // the RUN input still toggles
+		bool songLed = songLeads.load(std::memory_order_relaxed) && arrAlive.load(std::memory_order_relaxed) > 0.f;
+		if (runBtn.process(params[RUN_PARAM].getValue() > 0.5f)) {
+			if (songLed)
+				songPlayReq++; // ABLAUF on SONG: the song starts (from the row selected there)
+			else
+				restart(); // the RUN pad: always from the start of the loop
+		}
+		if (runTrig.process(inputs[RUN_INPUT].getVoltage(), 0.1f, 1.f)) {
+			if (songLed)
+				songToggleReq++;
+			else
+				running = !running; // the RUN input still toggles
+		}
 		if (stopBtn.process(params[STOP_PARAM].getValue() > 0.5f)) {
-			running = false;
+			if (songLed)
+				songStopReq++; // ABLAUF stops the song (and GENRA); pressed again: back to the song's start
+			else
+				running = false;
 			fillPadReq = fillPadOn = false;
 			stopFlash = 1.f;
 		}

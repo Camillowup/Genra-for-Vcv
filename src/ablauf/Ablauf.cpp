@@ -227,6 +227,11 @@ struct Ablauf : Module {
 	} song;
 	uint32_t cueCounter = 1;
 	int pendingStart = -1; // PLAY while GENRA was taking a cue: try again next frame
+	// PATT -> SONG while GENRA plays: back into the song at the end of the pattern, at the row that played before PATT
+	int resumeRow = -1;     // the row the song was on when PATT took over (-1: none)
+	int pendingResume = -1; // the resume waits for GENRA's mailbox
+	bool lastSongMode = false, modeSeen = false;
+	uint32_t gPlaySeen = 0, gToggleSeen = 0, gStopSeen = 0;  // RUN / STOP pressed on GENRA (song mode)
 
 	Ablauf() {
 		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
@@ -1157,7 +1162,31 @@ struct Ablauf : Module {
 		pendingStart = -1;
 		g->arrRunReq = 1;
 	}
+	/** Into the song at the end of the pattern GENRA plays now (no restart), with row `from`. */
+	void resumeSong(Genra* g, int from) {
+		int r = nextPlayable(from);
+		if (r < 0)
+			r = nextPlayable(0);
+		if (r < 0) {
+			pendingResume = -1;
+			return;
+		}
+		int L = std::max((int) STEPS_PER_BAR, g->lengthSteps());
+		int st = clamp(g->step, 0, L - 1);
+		int64_t at = g->barPub.load() + (L - 1 - st) / STEPS_PER_BAR + 1; // the bar line where this pass ends
+		Song keep = song;
+		song = Song();
+		song.playing = true;
+		if (!cueRow(g, r, at, false, false)) {
+			song = keep; // the mailbox is busy: next frame
+			return;
+		}
+		pendingResume = -1;
+		resumeRow = -1;
+		setRow(r);
+	}
 	void stopSong(Genra* g) {
+		resumeRow = pendingResume = -1;
 		if (g) {
 			if (song.waitId)
 				g->cueCancel();
@@ -1247,6 +1276,7 @@ struct Ablauf : Module {
 		if (!g->arrOwner.compare_exchange_strong(own, -1) && own >= 0)
 			return; // another ABLAUF's GENRA: leave it alone
 		g->cueCancel(); // a cue left waiting would still mute tracks or stop GENRA at its bar line
+		g->songLeads.store(false); // RUN and STOP on GENRA are its own again
 		g->arrAlive.store(1e-6f);
 	}
 
@@ -1301,7 +1331,12 @@ struct Ablauf : Module {
 				song = Song();
 			pendingPadCue = -1;
 			pendingStore = pendingPart = -1; // a snapshot asked of the old GENRA
+			resumeRow = pendingResume = -1;
+			if (g)
+				gPlaySeen = g->songPlayReq.load(), gToggleSeen = g->songToggleReq.load(), gStopSeen = g->songStopReq.load();
 		}
+		if (g)
+			g->songLeads.store(songMode());
 		genraLinked = g != nullptr;
 		genraRunning = g && g->running;
 		bpmNow = bpmFor(g);
@@ -1451,6 +1486,17 @@ struct Ablauf : Module {
 			bool on = songMode() ? song.playing : (g && g->running);
 			(on ? stop : play) = true;
 		}
+		if (g && songMode()) { // RUN and STOP on GENRA, while the song leads
+			uint32_t gp = g->songPlayReq.load(), gt = g->songToggleReq.load(), gs = g->songStopReq.load();
+			if (gp != gPlaySeen)
+				gPlaySeen = gp, play = true;
+			if (gt != gToggleSeen)
+				gToggleSeen = gt, (song.playing ? stop : play) = true;
+			if (gs != gStopSeen)
+				gStopSeen = gs, stop = true;
+		}
+		else if (g)
+			gPlaySeen = g->songPlayReq.load(), gToggleSeen = g->songToggleReq.load(), gStopSeen = g->songStopReq.load();
 		if (stop)
 			stopFlash = 1.f;
 		if (stop) {
@@ -1539,6 +1585,26 @@ struct Ablauf : Module {
 				song.lastPattCv = -1;
 			if (song.playing && !songMode())
 				stopSongScheduling(g);
+			bool sm = songMode();
+			if (!modeSeen)
+				lastSongMode = sm, modeSeen = true;
+			if (sm != lastSongMode) {
+				lastSongMode = sm;
+				if (sm && g->running && !song.playing) {
+					// back to SONG while GENRA plays: a pad tapped in PATT that still waits is dropped, and the song
+					// goes on at the end of the pattern playing now, without a restart
+					pendingPadCue = -1;
+					if (g->cueState.load() == 1)
+						g->cueCancel();
+					pendingResume = resumeRow >= 0 ? resumeRow : curRow;
+				}
+				else if (!sm)
+					pendingResume = -1;
+			}
+			if (pendingResume >= 0 && songMode() && g->running && !song.playing)
+				resumeSong(g, pendingResume);
+			else if (pendingResume >= 0 && (!g->running || song.playing))
+				pendingResume = -1;
 			songStep(g);
 		}
 		else if (song.playing)
@@ -1549,6 +1615,7 @@ struct Ablauf : Module {
 	}
 	// switched to pattern mode while the song ran: GENRA keeps playing, the list stops leading
 	void stopSongScheduling(Genra* g) {
+		resumeRow = song.row >= 0 ? song.row : (song.waitId ? song.cuedRow : -1); // SONG again: on from here
 		if (song.waitId)
 			g->cueCancel();
 		song.playing = false;

@@ -4,12 +4,12 @@ Die Instrumente der GENRA-Familie als eigenes Plugin: K-WASUB, GOLANA, UMLAUF, M
 
 | Modul | Breite | Farbe | Was es ist |
 |---|---|---|---|
-| **K-WASUB** + **FX** | je 40 HP | säuregrün | Modern-Bass-Synth aus der FM-1-Firmware K-WASUB, mit Effekt-Expander |
-| **GOLANA** + **FX** | 42 / 14 HP | cyan | Analoger Poly-Synth aus der FM-1-Firmware Golana, mit Effekt-Expander |
+| **K-WASUB** + **FX** | 38 / 41 HP | säuregrün | Modern-Bass-Synth aus der FM-1-Firmware K-WASUB, mit Effekt-Expander |
+| **GOLANA** + **FX** | 45 / 14 HP | cyan | Analoger Poly-Synth aus der FM-1-Firmware Golana, mit Effekt-Expander |
 | **JIANT VOICE** + **BEND** | 24 / 10 HP | rot | Formant-Sänger aus der JIANT-FM-Firmware, dazu SPELL (LPC-Sprechstimme aus SPELLBOX) mit Bending-Expander |
 | **JIANT ANIMAL** | 22 HP | grün | Tierrufe aus physikalischen Modellen (JIANT FM) |
 | **MONK** | 26 HP | safran | Vokal-Synth aus der FM-1-Firmware MONK-1 |
-| **UMLAUF** + **FX** | 54 / 36 HP | Sith-Rot | Orbit-Vektor-Synth mit der Engine von VADER, mit Expander |
+| **UMLAUF** + **FX** | 54 / 39 HP | Sith-Rot | Orbit-Vektor-Synth mit der Engine von VADER, mit Expander |
 
 **Mit GENRA zusammen:** Ist auch das GENRA-Plugin installiert, folgen die Instrumente GENRA ohne Kabel (**Rechtsklick › Follow GENRA**), und MIX nimmt ihren Ausgang ohne Kabel (**CH n input from**) – genau wie bei den Instrumenten im GENRA-Plugin. Beide Plugins sollten aus demselben Release stammen: Passen sie nicht zueinander, bilden sich die kabellosen Verbindungen zwischen ihnen nicht (Kabel gehen immer).
 
@@ -30,7 +30,7 @@ Unter [Releases](https://github.com/Camillowup/Genra-for-Vcv/releases) liegen be
 ![K-WASUB](../docs/panels/kwasub.png)
 
 Die Firmware [K-WASUB](https://github.com/Guizmoh/K-WASUB_Firmware_for_FM1) für den M-VAVE FM-1 von Omnipotard (GPL-3.0)
-als Modul, 40 HP, Farbe **säuregrün**. Der Klang ist die Original-Firmware, unverändert (`kwasub/`): Sie läuft als
+als Modul, 38 HP, Farbe **säuregrün**. Der Klang ist die Original-Firmware, unverändert (`kwasub/`): Sie läuft als
 eigene kleine Bibliothek (`res/kwcore.*`, eine Kopie pro Modul) mit 44,1 kHz, das Modul rechnet auf die Rack-Rate um.
 
 - **OSC A / OSC B:** ENGINE-Feld (Klick = Liste, Mausrad): ANALOG, 808, CS, WAVETABLE, FM, GROWL, ADDITIVE, PHASE DIST,
@@ -55,10 +55,10 @@ eigene kleine Bibliothek (`res/kwcore.*`, eine Kopie pro Modul) mit 44,1 kHz, da
 
 ![K-WASUB FX](../docs/panels/kwasub_fx.png)
 
-Rechts neben K-WASUB setzen (LINK leuchtet): alle Einstellungen des Effekt-Racks der Firmware. SATURATE (Typ, Amount,
+Rechts neben K-WASUB setzen (LINK leuchtet), 41 HP: alle Einstellungen des Effekt-Racks der Firmware. SATURATE (Typ, Amount,
 Mix), CRUSH, CHORUS, PHASER, DELAY (Typ, Zeit im Tempo, Feedback, Ton, Mix), REVERB (Typ, Grösse, Dämpfung, Mix),
 COMPRESSOR (mit PUMP und PUMP RATE), MULTIBAND, EQ (4 Bänder), MASTER (Glue, Sub-Boost, Mono-Bass). Jeder Block mit
-EIN-Taster; 16 CV-Eingänge, nach Effekt gruppiert. Regler, die es auf beiden Panels gibt (SAT, DELAY, VERB, GLUE),
+EIN-Taster; 16 CV-Eingänge unten in einer Reihe, nach Effekt gruppiert. Regler, die es auf beiden Panels gibt (SAT, DELAY, VERB, GLUE),
 folgen einander. Ohne Expander gelten die Effekte des Presets.
 
 ### GOLANA: analoger Poly-Synth (Firmware von Gadlele)
@@ -66,7 +66,7 @@ folgen einander. Ohne Expander gelten die Effekte des Presets.
 ![GOLANA](../docs/panels/golana.png)
 
 Die Firmware [Golana](https://github.com/Gadlele/Golana) für den M-VAVE FM-1 von Gadlele (GPL-3.0, ein Fork von
-Felucca) als Modul, 42 HP, Farbe **cyan** (GENRAs Melodiefarbe). Ein analoger Synth im Aufbau des microKORG. Der Klang
+Felucca) als Modul, 45 HP, Farbe **cyan** (GENRAs Melodiefarbe). Ein analoger Synth im Aufbau des microKORG. Der Klang
 ist die Original-Firmware, unverändert (`golana/`): Sie läuft wie K-WASUB als eigene kleine Bibliothek
 (`res/glcore.*`, eine Kopie pro Modul) mit 44,1 kHz, das Modul rechnet auf die Rack-Rate um.
 
@@ -74,17 +74,19 @@ ist die Original-Firmware, unverändert (`golana/`): Sie läuft wie K-WASUB als 
   Oktave höher, Pulsbreite, Falten, Kreuzmodulation, Säge → Rechteck), CTRL 2 (LFO 1 auf CTRL 1, z. B. PWM), DRIFT
   (analoges Altern). OSC 2: Welle (SAW, SQR, TRI, MIX), SEMI, TUNE, MOD (OFF, RING, SYNC, R+S).
 - **MIXER:** OSC 1, OSC 2, NOISE, SUB (Feld: −1/−2 Oktaven, Rechteck, Sinus, Säge, Mix) und FOLD (Wavefolder vor dem Filter).
-- **FILTER:** Typ-Feld (LPF24, LPF12, BPF, HPF, MS20), CUTOFF, RESO, EG INT (±), KEY TRK, DIST (weicher Drive). Der
-  **Screen** daneben zeigt den Klang als Spur mit Nachleuchten (TRAIL), die Filterkurve und die Noten, die gerade klingen.
-- **ENVELOPES:** Filter-EG und Amp-EG (ADSR). **LFO 1 / LFO 2:** Welle (SAW, SQR, TRI, SIN, S&H), KEY SYNC (OFF, TIMBRE,
+- **FILTER:** Typ-Feld (LPF24, LPF12, BPF, HPF, MS20), CUTOFF, RESO, EG INT (±), KEY TRK, DIST (weicher Drive).
+- **Display:** links der Klang als Spur mit Nachleuchten (TRAIL), die Filterkurve und die Noten, die gerade klingen;
+  rechts Preset, Stil, Tempo, Stimmen-Modus und Arpeggio.
+- **ENVELOPES:** Filter-EG und Amp-EG (ADSR). **LFO 1 · 2** (eine Sektion, oben LFO 1, darunter LFO 2): Welle (SAW, SQR, TRI, SIN, S&H), KEY SYNC (OFF, TIMBRE,
   VOICE), SYNC im Tempo (OFF, 4 BAR … 1/32, über CLOCK), FREQ und ein **RETRIG**-Eingang: Jeder Trigger startet den LFO
   von vorn, für alle Stimmen. **VOICE:** POLY 4, MONO, LEGATO, UNISON, DETUNE, PORTA.
 - **PATCH:** die vier Modulationswege der Firmware, je Quelle (FEG, AEG, LFO1, LFO2, VELO, KBD, MODW, MW*LFO1, MW*LFO2,
   AFTER) → Ziel (PITCH, OSC2, CTRL1, NOISE, CUTOFF, AMP, LFO2F) mit INT. Die LFOs haben keinen eigenen Tiefe-Regler:
   die Tiefe ist das INT ihres Patch-Wegs.
-- **ARP:** Typ (UP, DOWN, ALT1, ALT2, RANDOM, TRIGGER, ORDER, CONVERGE, PEDAL, DOUBLE), Rate (1/32 … 1/4, im Tempo von
+- **VOICE · ARP:** Felder für den Stimmen-Modus, den Arp-Typ und die Rate. In den schmalen Feldern (OSCILLATORS, LFO,
+  PATCH, VOICE · ARP) steht nur der Wert; welches Feld es ist, zeigt der Tooltip. ARP: Typ (UP, DOWN, ALT1, ALT2, RANDOM, TRIGGER, ORDER, CONVERGE, PEDAL, DOUBLE), Rate (1/32 … 1/4, im Tempo von
   CLOCK), RANGE (1–4 Oktaven), SWING, ON. Im Rechtsklick-Menü: Latch, Key Sync, Gate.
-- **FX:** MOD FX, DELAY, REVERB als Summenregler (wie bei K-WASUB); die Einzelheiten stehen im Expander.
+- **FX · OUT:** MOD FX, DELAY, REVERB als Summenregler (wie bei K-WASUB); die Einzelheiten stehen im Expander.
   Drehst du einen davon auf, schaltet er seinen Effekt im Expander ein.
 - **Presets:** 55 im Feld oben rechts: 30 eigene nach Stil (wie bei FUNKE) und Golanas 25 Werksklänge als Gruppe
   GOLANA ORIGINALS. Eigene Presets per Rechtsklick (`Rack2/Genra/GolanaPresets`), samt den Werten von GOLANA FX.
@@ -112,8 +114,8 @@ ist die Original-Firmware, unverändert (`golana/`): Sie läuft wie K-WASUB als 
 
 Rechts neben GOLANA setzen (LINK leuchtet), 14 HP: **MOD FX** (Typ: Chorus, Flanger, Ensemble, Phaser, Metal; RATE,
 DEPTH), **DELAY** (Typ: Stereo, Cross, L/R; Zeit in Notenwerten im Tempo; FDBK, COLOR, MIX), **REVERB** (Typ: Room,
-Spring, Hall; SIZE, DAMP) und **CHAIN** (die Reihenfolge der drei). Jeder Block mit EIN-Taster, die CV-Eingänge sitzen
-in ihrer Sektion. Ohne Expander gelten die Effekte des Presets.
+Spring, Hall; SIZE, DAMP) und **CHAIN** (die Reihenfolge der drei, neben dem REVERB-Typ). Jeder Block mit EIN-Taster,
+die CV-Eingänge unten. Ohne Expander gelten die Effekte des Presets.
 
 ### MONK: die zwölf Sänger
 
@@ -139,7 +141,7 @@ Orbiter gerade ist, entscheidet, wie viel man von jeder Ecke hört. Die Engine l
 (`vader/`, bis auf wenige markierte Änderungen, siehe `vader/README-UMLAUF.md`), das Modul rechnet auf die Rack-Rate um.
 
 - **Display:** das Quadrat mit Bahn, Orbiter, Sub-Orbit-Punkt und den Bällen der Modi; daneben Form, Modus, Clock und
-  die Live-Namen von M1–M8 (sonst die Engines der Ecken), unten der Anteil jeder Ecke.
+  der Anteil jeder Ecke, rechts die Live-Namen von M1–M8 (sonst die Engines der Ecken).
 - **ORBIT · MODE:** SHAPE (15 eingebaute Formen, USER = eigene Datei, 35 Mathe-Formen), SPEED, SIZE, ROTATE, 3D SPIN,
   3D TILT (für Würfel, Ikosaeder, OBJ), SUB SIZE, SUB SPEED, ENV>SIZE (die Hüllkurve öffnet oder schliesst die Bahn).
   MODE: PATH (die Form) oder eine von 26 Simulationen (CHASE, KEPLER, LORENZ, PENDULUM, BOIDS, MEDUSA, THUNDER …);
@@ -155,9 +157,14 @@ Orbiter gerade ist, entscheidet, wie viel man von jeder Ecke hört. Die Engine l
   ROT, SUB, M1–M4, Pegel A–D, VOL, Cutoff A–D und Regler 1 jeder Ecke.
 - **Ausgänge:** X, Y (wo der Orbiter ist, ±5 V), WT A–D (Anteil jeder Ecke, 0–10 V), ENV, A–D (jede Ecke einzeln,
   trocken), L, R.
-- **Ordner:** Beim ersten Start legt UMLAUF `Rack2/GenraSynthis/Umlauf/` an: `Samples` (eigene WAVs, auch in
+- **Ordner:** Beim ersten Start legt UMLAUF `Rack2/Genra/Umlauf/` an: `Samples` (eigene WAVs, auch in
   Unterordnern) und `Shapes` (die 7 Beispiel-Formen von VADER; eigene SVG, OBJ, PNG, JPG dazulegen). Die
   Beispiel-Samples von VADER sind nicht dabei (sie stammen aus kommerziellen Sample-Packs).
+- **Sample-Ordner (neu in 2.36.0):** Rechtsklick › *Choose the samples folder…* wählt einen eigenen Ordner, zum Beispiel
+  deine Sample-Bibliothek, wie bei SCHLAG. Er gilt für alle Patches auf diesem Computer (gespeichert in
+  `Rack2/Genra/umlauf.json`), es wird nichts kopiert; Unterordner werden mitgelesen. Der Patch speichert pro Ecke den
+  Weg innerhalb dieses Ordners: Auf einem anderen Computer spielt er wieder, sobald dort der Ordner gesetzt ist. Fehlt
+  ein Sample, zeigt das Mini-Display NO SAMPLE.
 - **Presets:** das Feld im Kopf wie bei GRUND, FUNKE und SCHMELZ (Nummer, Name, Stil, Punkt bei verstellten Reglern;
   Klick = Liste nach Stil, Mausrad blättert, Laden lässt sich rückgängig machen). 28 eigene Werksklänge, dahinter als
   Gruppe *VADER* die 22 Presets von VADER (die sechs Sample-Presets brauchen eigene WAVs). Eigene Presets per
@@ -183,9 +190,9 @@ Orbiter gerade ist, entscheidet, wie viel man von jeder Ecke hört. Die Engine l
 
 ![UMLAUF FX](../docs/panels/umlauf_fx.png)
 
-Rechts neben UMLAUF setzen, 36 HP. ENVELOPE (ADSR) · VOICE (UNISON 1/2/4/8, VOICES 8/16, DETUNE, GLIDE, OCTAVE,
+Rechts neben UMLAUF setzen (LINK leuchtet), 39 HP. ENVELOPE (ADSR) · VOICE (UNISON 1/2/4/8, VOICES 8/16, DETUNE, GLIDE, OCTAVE,
 VELOCITY, Vibrato und Tremolo mit Rate) · ARPEGGIATOR (ON, LATCH, Richtung UP/DOWN/U·D/RND/ORDER/CHORD, RATE im
-Takt, OCT, LENGTH, STEPS, HUMAN und 16 Schritt-Taster: Klick schaltet OFF → ON → ACCENT → TIE) · FX · MASTER (DRIVE,
+Takt, OCT, LENGTH, STEPS, HUMAN und 16 Schritt-Taster in einer Reihe: Klick schaltet OFF → ON → ACCENT → TIE) · FX · MASTER (DRIVE,
 CHORUS mit Rate, DELAY mit TIME und FEEDBACK, REVERB mit SIZE, M.RES = Resonanz aller Eckfilter, VOLUME) · 20
 CV-Eingänge. Beim Andocken übernehmen die Regler den aktuellen Klang; ohne Expander gelten die Werte des Presets.
 

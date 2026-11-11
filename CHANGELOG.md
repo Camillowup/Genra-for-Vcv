@@ -17,6 +17,20 @@ Was in welcher Version dazukam (GENRA und GENRA Instruments). Der aktuelle Stand
     A | B im Titel, MASTER mit MORPH, sieben Kit-Makros, Einzelausgänge unten.
 - Werkzeug: `tools/panels/gpanel.py` legt ein Panel aus seiner Beschreibung aus (so schmal wie der Inhalt erlaubt,
   bricht ab, wenn sich Schriften überlappen); `src/ui/Look.hpp` bringt Preset-Feld, Auswahlfeld und Panel-Text.
+- **Auch K-WASUB, GOLANA, UMLAUF und ihre Expander im selben Aufbau** (`tools/panels/instruments_panel.py`):
+  K-WASUB 38 HP (vorher 40, Mini-Regler in der zweiten Reihe), K-WASUB FX 41 HP (drei Reihen, alle CV unten in einer
+  Reihe), GOLANA 45 HP (vorher 42, dafür ein Display über die ganze Breite mit Preset und Spur; LFO 1 und LFO 2 in
+  einer Sektion; schmale Felder zeigen nur den Wert, lange Werte werden kleiner geschrieben), GOLANA FX 14 HP,
+  UMLAUF 54 HP (Mini-Regler in den Ecken, Display flach über die ganze Breite), UMLAUF FX 39 HP (vorher 36, die 16
+  Arp-Schritte in einer Reihe). Die Expander bleiben ohne Display und zeigen LINK im Kopf.
+- **Überall gleich bündig:** Die Sektionen sitzen auf jedem Panel 2 mm über den Buchsen; das Display bekommt die
+  übrige Höhe (vorher war die Lücke je nach Modul 1 bis 10 mm). Die unterste Buchsenreihe hält Abstand zu den Schrauben.
+- **UMLAUF: Sample-Ordner wählbar** (Rechtsklick › *Choose the samples folder…*), wie bei SCHLAG pro Computer
+  (`Rack2/Genra/umlauf.json`); der Patch speichert den Weg im Ordner (`samplesRel`), fehlt ein Sample: NO SAMPLE. In der
+  VADER-Engine dazu ein Parameter `samples_dir` (markiert, `tools/vader_patch.py` Punkt 4).
+- **ABLAUF, Wechsel PATT ↔ SONG:** zurück auf SONG, während GENRA läuft, geht der Song am Ende des laufenden Patterns
+  ohne Neustart weiter (mit der Zeile von vor PATT); ein wartendes Pad aus PATT fällt weg. **RUN und STOP an GENRA**
+  wirken bei ABLAUF auf SONG wie PLAY und STOP an ABLAUF (STOP zweimal: an den Song-Anfang).
 
 ### 2.35.0 – VOICE SPELL + VOICE BEND, einheitliche PRESET-Beschriftung
 - **VOICE: fünfte Sprache SPELL** (GENRA Instruments): die LPC-Sprechstimme aus [SPELLBOX](https://github.com/pjac1810/spellbox)

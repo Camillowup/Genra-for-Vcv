@@ -6,6 +6,7 @@
 2. The corner outputs: each voice also adds what each corner contributes (after its filter, its weight and the
    envelope, before the effects) into a bus the module hands over (vader_set_corner_bus); NULL: nothing extra.
 3. A few doors for the module: the corner bus, the shape and sample lists, the voices playing.
+4. The samples folder the user picks (one per computer): set_param "samples_dir", scanned after VADER's own places.
 
 Every change is marked "UMLAUF" in the source. Each patch must apply exactly once, else the script stops."""
 import re
@@ -75,4 +76,22 @@ int vader_voices_on(void *inst) {
 }
 '''
 edit("src/engine.c", lambda s: s.rstrip("\n") + API)
+
+
+# 4. the user's samples folder
+def samples_dir(s):
+    s = once(s, "    char pdir[600];\n",
+             "    char pdir[600];\n    char sdir[600];   /* UMLAUF: the samples folder the user picked (one per computer), "
+             "scanned after the others */\n")
+    s = once(s, "    {   /* the desktop plugin: samples shipped inside the plugin",
+             "    if (s->sdir[0]) scan_dir(s, s->sdir, \"\", \"\", 0);   /* UMLAUF */\n"
+             "    {   /* the desktop plugin: samples shipped inside the plugin")
+    s = once(s, "        restore_state(s, val);\n        return;\n    }\n    int i = find(key);",
+             "        restore_state(s, val);\n        return;\n    }\n"
+             "    if (!strcmp(key, \"samples_dir\")) {   /* UMLAUF: the user's samples folder (\"\" none); \"rescan\" reads it */\n"
+             "        snprintf(s->sdir, sizeof s->sdir, \"%s\", val ? val : \"\");\n        return;\n    }\n    int i = find(key);")
+    return s
+
+
+edit("src/engine.c", samples_dir)
 print("vader_patch: applied")

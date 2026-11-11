@@ -826,6 +826,42 @@ struct Screen : Widget {
 	}
 };
 
+/** Right of the trace: the preset, its style, how it plays (voice, arpeggio), the tempo and the notes. */
+struct Info : Widget {
+	Golana* module = nullptr;
+	void drawLayer(const DrawArgs& args, int layer) override {
+		if (layer != 1) {
+			Widget::drawLayer(args, layer);
+			return;
+		}
+		NVGcontext* vg = args.vg;
+		auto bold = ui::boldFont();
+		float w = box.size.x, h = box.size.y;
+		std::string num = "PRESET 1 / 64", name = "WARM POLY KEYS", style = "SOUL · JAZZ · LO-FI";
+		int bpm = 120;
+		if (module) {
+			const genra_states::Bank& b = module->bank;
+			if (b.f.count > 0 && b.preset >= 0) {
+				name = b.nameOf(b.preset);
+				style = b.styleOf(b.preset);
+				num = b.preset >= b.f.count ? "PRESET U" : string::f("PRESET %d / %d", b.preset + 1, b.f.count);
+			}
+			std::lock_guard<std::mutex> lock(module->dispMutex);
+			bpm = module->disp.bpm;
+		}
+		int vm = module ? clamp((int) std::round(module->params[Golana::VMODE_PARAM].getValue()), 0, 3) : 0;
+		bool arp = module && module->params[Golana::ARPON_PARAM].getValue() > 0.5f;
+		int at = module ? clamp((int) std::round(module->params[Golana::ARPTYPE_PARAM].getValue()), 0, 9) : 0;
+		ui::text(vg, bold, 0, mm2px(2.6f), num, 5.2f, ui::DIM, NVG_ALIGN_LEFT, 1.f);
+		ui::text(vg, bold, w, mm2px(2.6f), string::f("%d BPM", bpm), 5.2f, ui::DIM, NVG_ALIGN_RIGHT, 1.f);
+		ui::text(vg, bold, 0, h * 0.6f, name, 13.f, ui::WHITE, NVG_ALIGN_LEFT, 0.7f);
+		ui::text(vg, bold, 0, h - mm2px(0.6f), style, 5.2f, ACCENT, NVG_ALIGN_LEFT, 1.f);
+		ui::text(vg, bold, w, h - mm2px(0.6f), arp ? string::f("%s \xc2\xb7 ARP %s", VMODE[vm], ARPT[at]) : std::string(VMODE[vm]),
+		         5.2f, ui::DIM, NVG_ALIGN_RIGHT, 0.8f);
+		Widget::drawLayer(args, layer);
+	}
+};
+
 static void presetMenu(Golana* m) {
 	if (!m || !m->core.api)
 		return;
@@ -852,6 +888,11 @@ struct GolanaWidget : ModuleWidget {
 		s->box.pos = mm2px(Vec(L::SCREEN[0], L::SCREEN[1]));
 		s->box.size = mm2px(Vec(L::SCREEN[2], L::SCREEN[3]));
 		addChild(s);
+		Info* info = new Info;
+		info->module = module;
+		info->box.pos = mm2px(Vec(L::INFO[0], L::INFO[1]));
+		info->box.size = mm2px(Vec(L::INFO[2], L::INFO[3]));
+		addChild(info);
 
 		using M = Golana;
 		std::vector<std::string> fhints(FINFO, FINFO + 5), o1hints(O1INFO, O1INFO + 5);
@@ -877,44 +918,44 @@ struct GolanaWidget : ModuleWidget {
 		gu::addField(this, module, L::F_ARPTYPE, M::ARPTYPE_PARAM, gu::list(ARPT, 10));
 		gu::addField(this, module, L::F_ARPRES, M::ARPRES_PARAM, gu::list(ARPRES, 6));
 
-		auto knob = [&](const float* p, int id) { addParam(createParamCentered<GKnob>(ui::mm(p), module, id)); };
 		auto small = [&](const float* p, int id) { addParam(createParamCentered<GSmallKnob>(ui::mm(p), module, id)); };
-		knob(L::O1CTRL1, M::O1C1_PARAM);
-		knob(L::O1CTRL2, M::O1C2_PARAM);
+		auto mini = [&](const float* p, int id) { addParam(createParamCentered<GTrimpot>(ui::mm(p), module, id)); };
+		small(L::O1CTRL1, M::O1C1_PARAM);
+		small(L::O1CTRL2, M::O1C2_PARAM);
 		small(L::DRIFT, M::DRIFT_PARAM);
-		knob(L::O2SEMI, M::O2SEMI_PARAM);
-		knob(L::O2TUNE, M::O2TUNE_PARAM);
-		knob(L::MIX1, M::MIX1_PARAM);
-		knob(L::MIX2, M::MIX2_PARAM);
-		knob(L::NOISE, M::NOISE_PARAM);
-		small(L::SUB, M::SUB_PARAM);
-		small(L::FOLD, M::FOLD_PARAM);
+		mini(L::O2SEMI, M::O2SEMI_PARAM);
+		mini(L::O2TUNE, M::O2TUNE_PARAM);
+		small(L::MIX1, M::MIX1_PARAM);
+		small(L::MIX2, M::MIX2_PARAM);
+		small(L::NOISE, M::NOISE_PARAM);
+		mini(L::SUB, M::SUB_PARAM);
+		mini(L::FOLD, M::FOLD_PARAM);
 		addParam(createParamCentered<GLargeKnob>(ui::mm(L::CUTOFF), module, M::CUTOFF_PARAM));
-		knob(L::RESO, M::RESO_PARAM);
-		knob(L::EGINT, M::EGINT_PARAM);
-		small(L::KEYTRK, M::KEYTRK_PARAM);
+		small(L::RESO, M::RESO_PARAM);
+		small(L::EGINT, M::EGINT_PARAM);
+		mini(L::KEYTRK, M::KEYTRK_PARAM);
 		addParam(createParamCentered<CKSS>(ui::mm(L::DIST), module, M::DIST_PARAM));
 		const float* env[8] = {L::FA, L::FD, L::FS, L::FR, L::AA, L::AD, L::AS, L::AR};
 		for (int k = 0; k < 8; k++)
-			small(env[k], M::FA_PARAM + k);
-		small(L::L1FREQ, M::L1FREQ_PARAM);
-		small(L::L2FREQ, M::L2FREQ_PARAM);
-		small(L::DETUNE, M::DETUNE_PARAM);
-		small(L::PORTA, M::PORTA_PARAM);
+			mini(env[k], M::FA_PARAM + k);
+		mini(L::L1FREQ, M::L1FREQ_PARAM);
+		mini(L::L2FREQ, M::L2FREQ_PARAM);
+		mini(L::DETUNE, M::DETUNE_PARAM);
+		mini(L::PORTA, M::PORTA_PARAM);
 		for (int k = 0; k < 4; k++)
-			small(pint[k], M::P1INT_PARAM + 3 * k);
-		small(L::ARPRANGE, M::ARPRANGE_PARAM);
-		small(L::ARPSWING, M::ARPSWING_PARAM);
-		addParam(createLightParamCentered<VCVLightBezelLatch<ui::AccentLight<GOLANA_RGB>>>(ui::mm(L::ARPON), module,
-		                                                                                  M::ARPON_PARAM, M::ARPON_LIGHT));
-		small(L::MFXAMT, M::MFXAMT_PARAM);
-		small(L::DLYAMT, M::DLYAMT_PARAM);
-		small(L::REVAMT, M::REVAMT_PARAM);
-		small(L::SPREAD, M::SPREAD_PARAM);
+			mini(pint[k], M::P1INT_PARAM + 3 * k);
+		mini(L::ARPRANGE, M::ARPRANGE_PARAM);
+		mini(L::ARPSWING, M::ARPSWING_PARAM);
+		addParam(createLightParamCentered<VCVLightLatch<ui::AccentLight<GOLANA_RGB>>>(ui::mm(L::ARPON), module,
+		                                                                            M::ARPON_PARAM, M::ARPON_LIGHT));
+		mini(L::MFXAMT, M::MFXAMT_PARAM);
+		mini(L::DLYAMT, M::DLYAMT_PARAM);
+		mini(L::REVAMT, M::REVAMT_PARAM);
+		mini(L::SPREAD, M::SPREAD_PARAM);
 		small(L::LEVEL, M::LEVEL_PARAM);
 
-		genra_states::PresetField* pf = createWidget<genra_states::PresetField>(mm2px(Vec(L::PFIELD[0], L::PFIELD[1])));
-		pf->box.size = mm2px(Vec(L::PFIELD[2], L::PFIELD[3]));
+		genra_states::PresetField* pf = createWidget<genra_states::PresetField>(mm2px(Vec(L::PRESETF[0], L::PRESETF[1])));
+		pf->box.size = mm2px(Vec(L::PRESETF[2], L::PRESETF[3]));
 		pf->bank = module && module->core.api ? &module->bank : nullptr;
 		pf->accent = ACCENT;
 		pf->sample = "WARM POLY KEYS";

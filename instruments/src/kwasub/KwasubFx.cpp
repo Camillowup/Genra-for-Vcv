@@ -109,7 +109,7 @@ struct KwasubFxWidget : ModuleWidget {
 		addChild(createWidget<ScrewBlack>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 		addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
-		auto knob = [&](const float* p, int id) { addParam(createParamCentered<GKnob>(ui::mm(p), module, id)); };
+		auto knob = [&](const float* p, int id) { addParam(createParamCentered<GSmallKnob>(ui::mm(p), module, id)); };
 		auto small = [&](const float* p, int id) { addParam(createParamCentered<GSmallKnob>(ui::mm(p), module, id)); };
 		auto lamps = [&](const float* p, int id) {
 			ui::LampRow* w = createParam<ui::LampRow>(Vec(0, 0), module, id);
@@ -119,7 +119,7 @@ struct KwasubFxWidget : ModuleWidget {
 		};
 		const float* on[9] = {L::DR_ON, L::CR_ON, L::CH_ON, L::PH_ON, L::DL_ON, L::RV_ON, L::CP_ON, L::OT_ON, L::EQ_ON};
 		for (int i = 0; i < 9; i++)
-			addParam(createLightParamCentered<VCVLightBezelLatch<ui::AccentLight<KWASUB_RGB>>>(ui::mm(on[i]), module,
+			addParam(createLightParamCentered<VCVLightLatch<ui::AccentLight<KWASUB_RGB>>>(ui::mm(on[i]), module,
 			                                                                                  ON_PARAMS[i], ON_LIGHT + i));
 		Vec link = mm2px(Vec(L::LINK[0] + L::LINK[2] / 2, L::LINK[1] + L::LINK[3] / 2));
 		addChild(createLightCentered<MediumLight<ui::AccentLight<0x5d, 0xff, 0x8a>>>(link, module, LINK_LIGHT));

@@ -61,6 +61,12 @@ bedient wie die anderen. Stand: GENRA und GENRA Instruments 2.29.1.
 - **So schmal wie möglich**, ohne dass es eng wird (MATH-Muster: 22 HP statt 26).
 - **Alle Dropdown-Felder** (Presets, Modelle, Filtertypen, Effekte …) wechseln auch per **Mausrad**: Maus drüber,
   drehen.
+- **Überall bündig:** Die Sektionen sitzen auf jedem Instrument 2 mm über den Buchsen, das Display oben bekommt die
+  übrige Höhe (`tools/panels/gpanel.py` rechnet das aus; unter 13 mm Display bricht es ab). Alle Instrumente haben
+  denselben Aufbau.
+- **Mini-Regler** (Grösse der LVL-Trimmer von DRUM-X) sind erlaubt, wo sie HP sparen (K-WASUB, GOLANA, UMLAUF).
+- **Instrument-Expander** (K-WASUB FX, GOLANA FX, UMLAUF FX) bleiben **ohne Display**; die Sektionen füllen die Höhe
+  bis zu den Buchsen, LINK steht im Kopf.
 - **Expander** (z. B. GRUND FX): eine Sektion pro Reihe, kleine Regler; die CV-Buchsen sitzen **in ihrer Sektion** rechts
   auf einem dunklen Feld (keine Buchsenleiste unten). Ein/Aus-Taster links oben in jeder Sektion, LINK-Anzeige im Kopf.
   Instrumente selbst behalten die GENRA-Leiste unten.
