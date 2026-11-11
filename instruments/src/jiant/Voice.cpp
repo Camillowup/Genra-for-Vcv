@@ -15,6 +15,7 @@
 #include <cstring>
 #include <mutex>
 #include "JiantUI.hpp"
+#include "../ui/Look.hpp"
 
 namespace jiant_voice {
 
@@ -757,30 +758,49 @@ struct InfoWidget : Widget {
 		int spm = module ? clamp((int) std::round(module->params[Voice::SPELL_MODE_PARAM].getValue()), 0, SPM_N - 1) : 0;
 		int lyr = module ? (int) std::round(module->params[Voice::LYRIC_PARAM].getValue()) : 1;
 		int vo = module ? clamp((int) std::round(module->params[Voice::VOICE_PARAM].getValue()), 0, 2) : 0;
-		jiant::text(vg, bold, 0, 20, a ? module->presetName(p) : "CHOIR AAH", 15.f, jiant::WHITE, NVG_ALIGN_LEFT, 0.6f);
-		jiant::text(vg, bold, w, 20, string::f("\xc2\xb7 %d/%d", p + 1, a ? module->npresets() : 18), 6.5f, jiant::DIM,
-		            NVG_ALIGN_RIGHT, 0.8f);
-		if (spl)
-			jiant::text(vg, mono, 0, 33, string::f("LANG SPELL \xc2\xb7 %s \xc2\xb7 %s", SPM_NAMES[spm], VOICE_NAMES[vo]), 7.f,
-			            jiant::DIM, NVG_ALIGN_LEFT, 0.f);
-		else
-			jiant::text(vg, mono, 0, 33, string::f("LANG %s \xc2\xb7 LYRIC %s \xc2\xb7 %s", LANG_NAMES[lang], lyricName(lyr).c_str(),
-			                                       VOICE_NAMES[vo]), 7.f, jiant::DIM, NVG_ALIGN_LEFT, 0.f);
-		// LANG chips at x 0..112; right of them the lyric chosen, or (SPELL) its SING / LETTER / SPEAK chips
-		float lx = 116;
-		if (!spl) {
-			nvgBeginPath(vg);
-			nvgRoundedRect(vg, lx, 41, w - lx, 14, 2.2f);
-			nvgFillColor(vg, jiant::FIELD);
-			nvgFill(vg);
-			nvgStrokeColor(vg, jiant::EDGE);
-			nvgStrokeWidth(vg, 0.8f);
-			nvgStroke(vg);
-			jiant::text(vg, mono, lx + (w - lx) / 2, 51, lyricName(lyr), 8.f, ACCENT, NVG_ALIGN_CENTER, 0.f);
+		float h = box.size.y, fy = h - 14.f;   // the lyric's field (its own widget) at the bottom
+		jiant::text(vg, bold, 0, 7.f, string::f("PRESET %d / %d", p + 1, a ? module->npresets() : 18), 5.2f, jiant::DIM,
+		            NVG_ALIGN_LEFT, 1.f);
+		std::string mode = spl ? string::f("SPELL \xc2\xb7 %s \xc2\xb7 %s", SPM_NAMES[spm], VOICE_NAMES[vo])
+		                       : string::f("LANG %s \xc2\xb7 LYRIC %s \xc2\xb7 %s", LANG_NAMES[lang], lyricName(lyr).c_str(), VOICE_NAMES[vo]);
+		jiant::text(vg, bold, w, 7.f, mode, 5.2f, ACCENT, NVG_ALIGN_RIGHT, 1.f);
+		jiant::text(vg, bold, 0, 19.f, a ? module->presetName(p) : "TALKING TOY", 11.f, jiant::WHITE, NVG_ALIGN_LEFT, 0.6f);
+		float ly = fy - 3.f;   // the word sung
+		if (module && spl) {
+			// SPELL: the word in the chip's display colour, letter by letter as it is said
+			std::string wd = module->spWord.data();
+			int lit = module->spLit;
+			float x = 0;
+			for (size_t i = 0; i < wd.size() && i < 14; i++) {
+				std::string ch(1, wd[i]);
+				jiant::text(vg, bold, x, ly, ch, 10.f, (int) i < lit ? VFD : VFD_OFF, NVG_ALIGN_LEFT, 0.f);
+				x += nvgTextBounds(vg, 0, 0, ch.c_str(), nullptr, nullptr) + 2.f;
+			}
+			int cnt = module->spell.api ? (int) module->spell.api->count() : 162;
+			int idx = (int) std::round(clamp(module->params[Voice::E_PARAM + 1].getValue(), 0.f, 1.f) * (cnt - 1)) + 1;
+			std::string right = spm == SPM_LETTER  ? std::string(module->spNote.data())
+			                    : spm == SPM_SPEAK ? string::f("WORD %d/%d", (int) module->spWordI, (int) module->spWords)
+			                                       : string::f("WORD %d/%d", idx, cnt);
+			jiant::text(vg, bold, w, ly, right, 5.2f, jiant::DIM, NVG_ALIGN_RIGHT, 0.6f);
+		} else if (module && module->word[0]) {
+			// the word sung, its syllables as dots (lit: sung)
+			std::string wd = module->word.data();
+			jiant::text(vg, bold, 0, ly, wd, 9.f, jiant::WHITE, NVG_ALIGN_LEFT, 0.4f);
+			float tw = nvgTextBounds(vg, 0, 0, wd.c_str(), nullptr, nullptr);
+			int ns = std::min((int) module->nsyl, 8), sy = module->syl;
+			for (int i = 0; i < ns; i++) {
+				nvgBeginPath(vg);
+				nvgCircle(vg, tw + 7 + i * 7, ly - 3.f, 2.f);
+				nvgFillColor(vg, i < sy ? ACCENT : nvgRGB(0x33, 0x34, 0x3c));
+				nvgFill(vg);
+			}
+			jiant::text(vg, bold, w, ly, string::f("SYL %d/%d", sy, (int) module->nsyl), 5.2f, jiant::DIM, NVG_ALIGN_RIGHT, 0.6f);
+		} else if (module) {
+			int nv = module->voices;
+			jiant::text(vg, bold, 0, ly, string::f("%d VOICE%s", nv, nv == 1 ? "" : "S"), 5.2f, jiant::DIM, NVG_ALIGN_LEFT, 0.6f);
 		}
-		// the lyric's field
 		nvgBeginPath(vg);
-		nvgRoundedRect(vg, 0, 60, w, 14, 2.2f);
+		nvgRoundedRect(vg, 0, fy, w, 14, 2.2f);
 		nvgFillColor(vg, jiant::FIELD);
 		nvgFill(vg);
 		NVGcolor edge = ACCENT;
@@ -788,48 +808,7 @@ struct InfoWidget : Widget {
 		nvgStrokeColor(vg, edge);
 		nvgStrokeWidth(vg, 0.8f);
 		nvgStroke(vg);
-		// SPELL: the word in the chip's display colour, letter by letter as it is said
-		if (module && spl) {
-			std::string wd = module->spWord.data();
-			int lit = module->spLit;
-			float x = 0;
-			for (size_t i = 0; i < wd.size() && i < 12; i++) {
-				std::string ch(1, wd[i]);
-				jiant::text(vg, bold, x, 93, ch, 12.f, (int) i < lit ? VFD : VFD_OFF, NVG_ALIGN_LEFT, 0.f);
-				x += nvgTextBounds(vg, 0, 0, ch.c_str(), nullptr, nullptr) + 2.5f;
-			}
-			int cnt = module->spell.api ? (int) module->spell.api->count() : 162;
-			int idx = (int) std::round(clamp(module->params[Voice::E_PARAM + 1].getValue(), 0.f, 1.f) * (cnt - 1)) + 1;
-			std::string right = spm == SPM_LETTER  ? std::string(module->spNote.data())
-			                    : spm == SPM_SPEAK ? string::f("WORD %d/%d", (int) module->spWordI, (int) module->spWords)
-			                                       : string::f("WORD %d/%d", idx, cnt);
-			jiant::text(vg, mono, w, 92, right, 6.6f, jiant::DIM, NVG_ALIGN_RIGHT, 0.f);
-		} else if (module && module->word[0]) {
-			// the word sung, its syllables as dots (lit: sung)
-			std::string wd = module->word.data();
-			jiant::text(vg, bold, 0, 92, wd, 11.f, jiant::WHITE, NVG_ALIGN_LEFT, 0.4f);
-			float tw = nvgTextBounds(vg, 0, 0, wd.c_str(), nullptr, nullptr);
-			int ns = std::min((int) module->nsyl, 8), sy = module->syl;
-			for (int i = 0; i < ns; i++) {
-				nvgBeginPath(vg);
-				nvgCircle(vg, tw + 8 + i * 8, 88.5f, 2.3f);
-				nvgFillColor(vg, i < sy ? ACCENT : nvgRGB(0x33, 0x34, 0x3c));
-				nvgFill(vg);
-			}
-			jiant::text(vg, mono, w, 92, string::f("SYL %d/%d", sy, (int) module->nsyl), 6.6f, jiant::DIM, NVG_ALIGN_RIGHT, 0.f);
-		} else if (module) {
-			int nv = module->voices;
-			jiant::text(vg, mono, 0, 92, string::f("%d VOICE%s", nv, nv == 1 ? "" : "S"), 7.f, jiant::DIM, NVG_ALIGN_LEFT, 0.f);
-		}
-	}
-};
-
-/** SPELL's SING / LETTER / SPEAK, right of the LANG chips (only while LANG is SPELL). */
-struct SpellModeChips : jiant::ChipRow {
-	Voice* voice = nullptr;
-	void step() override {
-		visible = voice && voice->spellOn;
-		jiant::ChipRow::step();
+		(void) mono;
 	}
 };
 
@@ -886,57 +865,91 @@ struct VoiceWidget : ModuleWidget {
 		info->module = module;
 		info->box = jiant::area(L::INFO);
 		addChild(info);
-		jiant::ChipRow* lang = createParam<jiant::ChipRow>(Vec(L::INFO[0], L::INFO[1] + 41), module, Voice::LANG_PARAM);
-		lang->box.size = Vec(112, 14);
-		lang->names = {"OFF", "ES", "EN", "JA", "SPELL"};
-		lang->size = 4.6f;
-		lang->accent = ACCENT;
-		addParam(lang);
-		SpellModeChips* spm = createParam<SpellModeChips>(Vec(L::INFO[0] + 116, L::INFO[1] + 41), module, Voice::SPELL_MODE_PARAM);
-		spm->box.size = Vec(L::INFO[2] - 116, 14);
-		spm->names = {"SING", "LETTER", "SPEAK"};
-		spm->size = 4.2f;
-		spm->gap = 2.f;
-		spm->accent = ACCENT;
-		spm->voice = module;
-		addParam(spm);
-		LyricField* lf = createWidget<LyricField>(Vec(L::INFO[0], L::INFO[1] + 60));
+		LyricField* lf = createWidget<LyricField>(Vec(L::INFO[0], L::INFO[1] + L::INFO[3] - 14));
 		lf->box.size = Vec(L::INFO[2], 14);
 		lf->module = module;
 		addChild(lf);
 
-		addParam(createParamCentered<VCVBezel>(jiant::at(L::PREV), module, Voice::PREV_PARAM));
-		addParam(createParamCentered<VCVBezel>(jiant::at(L::NEXT), module, Voice::NEXT_PARAM));
-		addParam(createParamCentered<VCVBezel>(jiant::at(L::LPREV), module, Voice::LPREV_PARAM));
-		addParam(createParamCentered<VCVBezel>(jiant::at(L::LNEXT), module, Voice::LNEXT_PARAM));
+		genra_look::PickField* pf = createWidget<genra_look::PickField>(Vec(L::PRESETF[0], L::PRESETF[1]));
+		pf->box.size = Vec(L::PRESETF[2], L::PRESETF[3]);
+		pf->accent = ACCENT;
+		pf->count = [=]() { return module && module->core.loaded() ? module->npresets() : 1; };
+		pf->name = [=](int i) -> std::string { return module && module->core.loaded() ? module->presetName(i) : "TALKING TOY"; };
+		pf->current = [=]() { return module ? (int) module->shownPreset : 0; };
+		pf->choose = [=](int i) {
+			if (module)
+				module->presetReq = i;
+		};
+		addChild(pf);
+
+		genra_look::ParamField* lang = createParam<genra_look::ParamField>(Vec(L::LANGF[0], L::LANGF[1]), module, Voice::LANG_PARAM);
+		lang->box.size = Vec(L::LANGF[2], L::LANGF[3]);
+		lang->count = 5;
+		lang->nameOf = [](int i) -> std::string { return LANG_NAMES[clamp(i, 0, 4)]; };
+		lang->infoOf = [](int i) -> std::string {
+			static const char* I[5] = {"vowels", "Spanish", "English", "Japanese", "LPC speech"};
+			return I[clamp(i, 0, 4)];
+		};
+		lang->title = "Language";
+		lang->undo = "change language";
+		addParam(lang);
+		genra_look::ParamField* spm = createParam<genra_look::ParamField>(Vec(L::SPMF[0], L::SPMF[1]), module, Voice::SPELL_MODE_PARAM);
+		spm->box.size = Vec(L::SPMF[2], L::SPMF[3]);
+		spm->count = SPM_N;
+		spm->nameOf = [](int i) -> std::string { return SPM_NAMES[clamp(i, 0, SPM_N - 1)]; };
+		spm->infoOf = [](int) -> std::string { return "LANG SPELL"; };
+		spm->title = "SPELL plays";
+		spm->undo = "change SPELL mode";
+		addParam(spm);
+		genra_look::ParamField* lyr = createParam<genra_look::ParamField>(Vec(L::LYRF[0], L::LYRF[1]), module, Voice::LYRIC_PARAM);
+		lyr->box.size = Vec(L::LYRF[2], L::LYRF[3]);
+		lyr->count = 25;
+		lyr->nameOf = [](int i) -> std::string { return lyricName(i); };
+		lyr->infoOf = [](int i) -> std::string { return i == 0 ? "the field in the display" : i <= 16 ? "word list" : "song"; };
+		lyr->title = "Lyric";
+		lyr->undo = "change lyric";
+		addParam(lyr);
+
 		addParam(createLightParamCentered<VCVLightBezel<jiant::AccentLight<JIANT_VOICE_RGB>>>(
 		    jiant::at(L::CALL), module, Voice::CALL_PARAM, Voice::CALL_LIGHT));
 		jiant::LampRow* vs = createParam<jiant::LampRow>(Vec(0, 0), module, Voice::VOICE_PARAM);
 		vs->place(L::VOICE, 3);
 		vs->accent = ACCENT;
 		addParam(vs);
-		addParam(createParamCentered<GSmallKnob>(jiant::at(L::LEVEL), module, Voice::LEVEL_PARAM));
+		addParam(createParamCentered<GKnob>(jiant::at(L::LEVEL), module, Voice::LEVEL_PARAM));
 
 		static const char* defLab[NE] = {"VOWEL", "VOWEL2", "TALK", "SHIFT", "BUZZ", "BREATH", "Q", "RAND"};
 		for (int k = 0; k < NE; k++) {
-			addParam(createParamCentered<GSmallKnob>(jiant::at(L::E[k]), module, Voice::E_PARAM + k));
+			Vec c = jiant::at(L::E[k]);
+			if (k == 0)
+				addParam(createParamCentered<GLargeKnob>(c, module, Voice::E_PARAM + k));
+			else if (k < 5)
+				addParam(createParamCentered<GKnob>(c, module, Voice::E_PARAM + k));
+			else
+				addParam(createParamCentered<GSmallKnob>(c, module, Voice::E_PARAM + k));
 			addInput(createInputCentered<PJ301MPort>(jiant::at(L::E_IN[k]), module, Voice::E_INPUT + k));
-			jiant::KnobText* t = new jiant::KnobText;
-			t->box = jiant::area(L::E_TEXT[k]);
-			t->accent = ACCENT;
-			t->label = [=]() -> std::string {
+			auto label = [=]() -> std::string {
 				if (module && module->labels[k][0])
 					return module->labels[k].data();
 				return defLab[k];
 			};
-			t->value = [=]() -> std::string { return module && module->core.loaded() ? module->values[k].data() : ""; };
+			genra_look::PanelText* t = new genra_look::PanelText;
+			t->box = jiant::area(L::E_TEXT[k]);
+			t->text = label;
 			addChild(t);
+			genra_look::PanelText* j = new genra_look::PanelText;
+			j->box = jiant::area(L::E_INL[k]);
+			j->text = label;
+			j->color = jiant::DIM;
+			j->size = 4.4f;
+			j->spacing = 0.7f;
+			addChild(j);
 		}
 		const float* env[4] = {L::ATK, L::DEC, L::SUS, L::REL};
 		const float* fx[4] = {L::DIST, L::CHOR, L::DLY, L::REV};
 		for (int i = 0; i < 4; i++) {
-			addParam(createParamCentered<GTrimpot>(jiant::at(env[i]), module, Voice::ATK_PARAM + i));
-			addParam(createParamCentered<GTrimpot>(jiant::at(fx[i]), module, Voice::DIST_PARAM + i));
+			addParam(createParamCentered<GSmallKnob>(jiant::at(env[i]), module, Voice::ATK_PARAM + i));
+			addParam(createParamCentered<GSmallKnob>(jiant::at(fx[i]), module, Voice::DIST_PARAM + i));
 		}
 		addInput(createInputCentered<PJ301MPort>(jiant::at(L::VOCT), module, Voice::VOCT_INPUT));
 		addInput(createInputCentered<PJ301MPort>(jiant::at(L::GATE), module, Voice::GATE_INPUT));

@@ -10,6 +10,7 @@
 #include <array>
 #include <cstring>
 #include "JiantUI.hpp"
+#include "../ui/Look.hpp"
 
 namespace jiant_animal {
 
@@ -386,22 +387,23 @@ struct InfoWidget : Widget {
 		int vo = module ? (int) std::round(module->params[Animal::VOICE_PARAM].getValue()) : 0;
 		mode = clamp(mode, 0, 4);
 		vo = clamp(vo, 0, 2);
-		jiant::text(vg, bold, 0, 20, a ? a->preset_name((uint32_t) p) : "CMOS BIRD", 15.f, jiant::WHITE, NVG_ALIGN_LEFT, 0.6f);
-		jiant::text(vg, bold, w, 20, string::f("\xc2\xb7 %d/%u", p + 1, a ? a->npresets() : 24u), 6.5f, jiant::DIM,
-		            NVG_ALIGN_RIGHT, 0.8f);
-		jiant::text(vg, mono, 0, 33, string::f("%s \xc2\xb7 %s \xc2\xb7 CALL C5", MODE_NAMES[mode], VOICE_NAMES[vo]), 7.f,
-		            jiant::DIM, NVG_ALIGN_LEFT, 0.f);
-		// (the MODE chips at y 41 are their own widget)
+		float h = box.size.y;
+		jiant::text(vg, bold, 0, 7.f, string::f("CALL %d / %u", p + 1, a ? a->npresets() : 24u), 5.2f, jiant::DIM,
+		            NVG_ALIGN_LEFT, 1.f);
 		int nv = module ? (int) module->voices : 0;
-		jiant::text(vg, mono, 0, 71, string::f("VOICES %d/8", nv), 7.f, jiant::DIM, NVG_ALIGN_LEFT, 0.f);
 		for (int i = 0; i < 8; i++)
-			jiant::roundRect(vg, 66 + i * 13.5f, 64, 10, 9, 1.5f, i < nv ? ACCENT : jiant::OFF);
+			jiant::roundRect(vg, w - (8 - i) * 9.f, 1.5f, 7, 6, 1.2f, i < nv ? ACCENT : jiant::OFF);
+		jiant::text(vg, bold, w - 75.f, 7.f, string::f("VOICES %d/8", nv), 5.2f, jiant::DIM, NVG_ALIGN_RIGHT, 1.f);
+		jiant::text(vg, bold, 0, h * 0.6f, a ? a->preset_name((uint32_t) p) : "CMOS BIRD", 13.f, jiant::WHITE, NVG_ALIGN_LEFT, 0.6f);
+		jiant::text(vg, bold, 0, h - 1.f, string::f("%s \xc2\xb7 %s \xc2\xb7 CALL C5", MODE_NAMES[mode], VOICE_NAMES[vo]), 5.2f,
+		            ACCENT, NVG_ALIGN_LEFT, 1.f);
 		if (module && module->core.loaded()) {
 			std::string s;
 			for (int k = 1; k <= 3; k++)
-				s += string::f("%s %s  ", module->labels[k].data(), module->values[k - 1].data());
-			jiant::text(vg, mono, 0, 92, s, 6.6f, ACCENT, NVG_ALIGN_LEFT, 0.f);
+				s += string::f("%s%s %s", k > 1 ? "  " : "", module->labels[k].data(), module->values[k - 1].data());
+			jiant::text(vg, bold, w, h - 1.f, s, 5.2f, jiant::DIM, NVG_ALIGN_RIGHT, 0.6f);
 		}
+		(void) mono;
 	}
 };
 
@@ -420,43 +422,71 @@ struct AnimalWidget : ModuleWidget {
 		info->module = module;
 		info->box = jiant::area(L::INFO);
 		addChild(info);
-		jiant::ChipRow* modes = createParam<jiant::ChipRow>(Vec(L::INFO[0], L::INFO[1] + 41), module, Animal::MODE_PARAM);
-		modes->box.size = Vec(L::INFO[2], 14);
-		modes->names = {"CMOS", "PULSE", "WHSTL", "WING", "GLOTT"};
-		modes->accent = ACCENT;
-		addParam(modes);
+		genra_look::PickField* pf = createWidget<genra_look::PickField>(Vec(L::PRESETF[0], L::PRESETF[1]));
+		pf->box.size = Vec(L::PRESETF[2], L::PRESETF[3]);
+		pf->accent = ACCENT;
+		pf->count = [=]() { return module && module->core.api ? (int) module->core.api->npresets() : 1; };
+		pf->name = [=](int i) -> std::string {
+			return module && module->core.api ? module->core.api->preset_name((uint32_t) i) : "CMOS BIRD";
+		};
+		pf->current = [=]() { return module ? (int) module->shownPreset : 0; };
+		pf->choose = [=](int i) {
+			if (module)
+				module->presetReq = i;
+		};
+		addChild(pf);
 
-		addParam(createParamCentered<GSmallKnob>(jiant::at(L::MODE), module, Animal::MODE_PARAM));
-		addParam(createParamCentered<VCVBezel>(jiant::at(L::PREV), module, Animal::PREV_PARAM));
-		addParam(createParamCentered<VCVBezel>(jiant::at(L::NEXT), module, Animal::NEXT_PARAM));
+		genra_look::ParamField* mf = createParam<genra_look::ParamField>(Vec(L::MODEF[0], L::MODEF[1]), module, Animal::MODE_PARAM);
+		mf->box.size = Vec(L::MODEF[2], L::MODEF[3]);
+		mf->count = 5;
+		mf->nameOf = [](int i) -> std::string { return MODE_NAMES[clamp(i, 0, 4)]; };
+		mf->infoOf = [](int i) -> std::string {
+			static const char* I[5] = {"bird machine", "cricket, cicada, frog", "whistle", "wing", "glottal"};
+			return I[clamp(i, 0, 4)];
+		};
+		mf->title = "Mode";
+		mf->undo = "change mode";
+		addParam(mf);
 		addParam(createLightParamCentered<VCVLightBezel<jiant::AccentLight<JIANT_ANIMAL_RGB>>>(
 		    jiant::at(L::CALL), module, Animal::CALL_PARAM, Animal::CALL_LIGHT));
 		jiant::LampRow* vs = createParam<jiant::LampRow>(Vec(0, 0), module, Animal::VOICE_PARAM);
 		vs->place(L::VOICE, 3);
 		vs->accent = ACCENT;
 		addParam(vs);
-		addParam(createParamCentered<GSmallKnob>(jiant::at(L::LEVEL), module, Animal::LEVEL_PARAM));
+		addParam(createParamCentered<GKnob>(jiant::at(L::LEVEL), module, Animal::LEVEL_PARAM));
 
 		static const char* defLab[NE] = {"TOUCH", "COUPLE", "CAP", "HYST", "RATE", "GROUP", "FM"};
 		for (int k = 0; k < NE; k++) {
-			addParam(createParamCentered<GSmallKnob>(jiant::at(L::E[k]), module, Animal::E_PARAM + k));
+			Vec c = jiant::at(L::E[k]);
+			if (k == 0)
+				addParam(createParamCentered<GLargeKnob>(c, module, Animal::E_PARAM + k));
+			else if (k < 4)
+				addParam(createParamCentered<GKnob>(c, module, Animal::E_PARAM + k));
+			else
+				addParam(createParamCentered<GSmallKnob>(c, module, Animal::E_PARAM + k));
 			addInput(createInputCentered<PJ301MPort>(jiant::at(L::E_IN[k]), module, Animal::E_INPUT + k));
-			jiant::KnobText* t = new jiant::KnobText;
-			t->box = jiant::area(L::E_TEXT[k]);
-			t->accent = ACCENT;
-			t->label = [=]() -> std::string {
+			auto label = [=]() -> std::string {
 				if (module && module->labels[k + 1][0])
 					return module->labels[k + 1].data();
 				return defLab[k];
 			};
-			t->value = [=]() -> std::string { return module && module->core.loaded() ? module->values[k].data() : ""; };
+			genra_look::PanelText* t = new genra_look::PanelText;
+			t->box = jiant::area(L::E_TEXT[k]);
+			t->text = label;
 			addChild(t);
+			genra_look::PanelText* j = new genra_look::PanelText;
+			j->box = jiant::area(L::E_INL[k]);
+			j->text = label;
+			j->color = jiant::DIM;
+			j->size = 4.4f;
+			j->spacing = 0.7f;
+			addChild(j);
 		}
 		const float* env[4] = {L::ATK, L::DEC, L::SUS, L::REL};
 		const float* fx[4] = {L::DIST, L::CHOR, L::DLY, L::REV};
 		for (int i = 0; i < 4; i++) {
-			addParam(createParamCentered<GTrimpot>(jiant::at(env[i]), module, Animal::ATK_PARAM + i));
-			addParam(createParamCentered<GTrimpot>(jiant::at(fx[i]), module, Animal::DIST_PARAM + i));
+			addParam(createParamCentered<GSmallKnob>(jiant::at(env[i]), module, Animal::ATK_PARAM + i));
+			addParam(createParamCentered<GSmallKnob>(jiant::at(fx[i]), module, Animal::DIST_PARAM + i));
 		}
 		addInput(createInputCentered<PJ301MPort>(jiant::at(L::VOCT), module, Animal::VOCT_INPUT));
 		addInput(createInputCentered<PJ301MPort>(jiant::at(L::GATE), module, Animal::GATE_INPUT));

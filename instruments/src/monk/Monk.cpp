@@ -10,6 +10,7 @@
 #include "MonkLayout.hpp"
 #include "MonkSingers.hpp"
 #include "../jiant/JiantUI.hpp"
+#include "../ui/Look.hpp"
 #include <atomic>
 #include <array>
 
@@ -430,7 +431,7 @@ struct ScreenWidget : Widget {
 /** Right of the singer: its name, what it sings, the vowel (chips: a click sets VOWEL), pressure and envelope. */
 struct InfoWidget : Widget {
 	Monk* module = nullptr;
-	static constexpr float CHIP_Y = 41.f, CHIP_H = 14.f, GAP = 3.f;
+	static constexpr float CHIP_Y = 24.f, CHIP_H = 11.f, GAP = 3.f;
 
 	float chipW() const { return (box.size.x - GAP * 4) / 5; }
 
@@ -447,10 +448,10 @@ struct InfoWidget : Widget {
 
 	void bar(NVGcontext* vg, float y, const char* name, float v, NVGcolor c) {
 		float w = box.size.x;
-		jiant::text(vg, jiant::monoFont(), 0, y + 5.5f, name, 7.f, jiant::DIM, NVG_ALIGN_LEFT, 0.f);
-		jiant::roundRect(vg, 30, y, w - 30, 6, 1.5f, jiant::OFF);
+		jiant::text(vg, jiant::boldFont(), 0, y + 5.f, name, 5.2f, jiant::DIM, NVG_ALIGN_LEFT, 0.8f);
+		jiant::roundRect(vg, 30, y, w - 30, 5, 1.5f, jiant::OFF);
 		if (v > 0.002f)
-			jiant::roundRect(vg, 30, y, std::max(3.f, (w - 30) * clamp(v, 0.f, 1.f)), 6, 1.5f, c);
+			jiant::roundRect(vg, 30, y, std::max(3.f, (w - 30) * clamp(v, 0.f, 1.f)), 5, 1.5f, c);
 	}
 
 	void drawLayer(const DrawArgs& args, int layer) override {
@@ -463,8 +464,8 @@ struct InfoWidget : Widget {
 		std::string name = monksingers::get(ch).name;
 		for (auto& c : name)
 			c = (char) std::toupper((unsigned char) c);
-		jiant::text(vg, bold, 0, 20, name, 15.f, jiant::WHITE, NVG_ALIGN_LEFT, 0.6f);
-		jiant::text(vg, bold, w, 20, string::f("\xc2\xb7 %d/%d", ch + 1, n), 6.5f, jiant::DIM, NVG_ALIGN_RIGHT, 0.8f);
+		jiant::text(vg, bold, 0, 7.f, string::f("SINGER %d / %d", ch + 1, n), 5.2f, jiant::DIM, NVG_ALIGN_LEFT, 1.f);
+		jiant::text(vg, bold, 0, 20.f, name, 11.f, jiant::WHITE, NVG_ALIGN_LEFT, 0.6f);
 		std::string line;
 		bool singing = module && module->uiSinging;
 		if (module) {
@@ -474,7 +475,8 @@ struct InfoWidget : Widget {
 		} else {
 			line = "A3 \xc2\xb7 1 VOICE \xc2\xb7 FACTORY VOICE";
 		}
-		jiant::text(vg, mono, 0, 33, line, 7.f, jiant::DIM, NVG_ALIGN_LEFT, 0.f);
+		jiant::text(vg, bold, w, 7.f, line, 5.2f, ACCENT, NVG_ALIGN_RIGHT, 0.8f);
+		(void) mono;
 		float vw = module ? (singing ? (float) module->uiVowel : (float) module->eff[0]) : 0.5f;
 		int lit = clamp((int) std::round(vw * 4.f), 0, 4);
 		float cw = chipW();
@@ -482,8 +484,9 @@ struct InfoWidget : Widget {
 			jiant::chip(vg, i * (cw + GAP), CHIP_Y, cw, CHIP_H, VOWEL_NAMES[i], i == lit, ACCENT);
 		NVGcolor envC = ACCENT;
 		envC.a = 0.7f;
-		bar(vg, 65.5f, "PRESS", module ? (float) module->uiPress : 0.35f, ACCENT);
-		bar(vg, 80.5f, "ENV", module ? (float) module->uiEnv : 0.8f, envC);
+		float h = box.size.y;
+		bar(vg, h - 15.f, "PRESS", module ? (float) module->uiPress : 0.35f, ACCENT);
+		bar(vg, h - 6.f, "ENV", module ? (float) module->uiEnv : 0.8f, envC);
 	}
 };
 
@@ -503,44 +506,44 @@ struct MonkWidget : ModuleWidget {
 		info->box = jiant::area(L::INFO);
 		addChild(info);
 
-		addParam(createParamCentered<VCVBezel>(jiant::at(L::PREV), module, Monk::PREV_PARAM));
-		addParam(createParamCentered<VCVBezel>(jiant::at(L::NEXT), module, Monk::NEXT_PARAM));
+		genra_look::PickField* pf = createWidget<genra_look::PickField>(Vec(L::PRESETF[0], L::PRESETF[1]));
+		pf->box.size = Vec(L::PRESETF[2], L::PRESETF[3]);
+		pf->accent = ACCENT;
+		pf->title = "Singer";
+		pf->count = []() { return (int) monksingers::COUNT; };
+		pf->name = [](int i) -> std::string {
+			std::string n = monksingers::get(i).name;
+			for (auto& c : n)
+				c = (char) std::toupper((unsigned char) c);
+			return n;
+		};
+		pf->current = [=]() { return module ? module->singer : 0; };
+		pf->choose = [=](int i) {
+			if (module)
+				module->singerReq = i;
+		};
+		addChild(pf);
+
 		jiant::LampRow* route = createParam<jiant::LampRow>(Vec(0, 0), module, Monk::ROUTE_PARAM);
 		route->place(L::ROUTE, 4);
 		route->accent = ACCENT;
 		addParam(route);
-		addParam(createParamCentered<GTrimpot>(jiant::at(L::PDEPTH), module, Monk::PDEPTH_PARAM));
-		addParam(createParamCentered<GTrimpot>(jiant::at(L::VELSENS), module, Monk::VELSENS_PARAM));
-		addParam(createParamCentered<GSmallKnob>(jiant::at(L::LEVEL), module, Monk::LEVEL_PARAM));
-
+		addParam(createParamCentered<GKnob>(jiant::at(L::PDEPTH), module, Monk::PDEPTH_PARAM));
+		addParam(createParamCentered<GKnob>(jiant::at(L::VELSENS), module, Monk::VELSENS_PARAM));
+		addParam(createParamCentered<GKnob>(jiant::at(L::LEVEL), module, Monk::LEVEL_PARAM));
 		for (int k = 0; k < NK; k++) {
-			addParam(createParamCentered<GSmallKnob>(jiant::at(L::K[k]), module, Monk::K_PARAM + k));
+			Vec c = jiant::at(L::K[k]);
+			if (k == 0)
+				addParam(createParamCentered<GLargeKnob>(c, module, Monk::K_PARAM + k));
+			else if (k < 4 || k == 7)
+				addParam(createParamCentered<GKnob>(c, module, Monk::K_PARAM + k));
+			else
+				addParam(createParamCentered<GSmallKnob>(c, module, Monk::K_PARAM + k));
 			addInput(createInputCentered<PJ301MPort>(jiant::at(L::K_IN[k]), module, Monk::K_INPUT + k));
-			jiant::KnobText* t = new jiant::KnobText;
-			t->box = jiant::area(L::K_TEXT[k]);
-			t->accent = ACCENT;
-			t->label = [=]() -> std::string { return K_NAMES[k]; };
-			t->value = [=]() -> std::string {
-				if (!module)
-					return "";
-				float x = module->eff[k];
-				switch (k) {
-					case 0: return VOWEL_NAMES[clamp((int) std::round(x * 4.f), 0, 4)];
-					case 1: return string::f("%dcm", (int) (x * 30.f + 0.5f));
-					case 4: return string::f("%d", (int) (x * 9.f + 1.5f));
-					case 5: return string::f("%dct", (int) (x * 50.f + 0.5f));
-					case 7: {
-						int st = (int) std::round(x * 24.f - 12.f);
-						return string::f("%s%dst", st > 0 ? "+" : "", st);
-					}
-					default: return string::f("%d%%", (int) std::round(x * 100.f));
-				}
-			};
-			addChild(t);
 		}
 		const float* small[9] = {L::ATK, L::DEC, L::SUS, L::REL, L::VIBD, L::VIBR, L::ECHO, L::TIME, L::FB};
 		for (int i = 0; i < 9; i++)
-			addParam(createParamCentered<GTrimpot>(jiant::at(small[i]), module, Monk::ATK_PARAM + i));
+			addParam(createParamCentered<GSmallKnob>(jiant::at(small[i]), module, Monk::ATK_PARAM + i));
 
 		addInput(createInputCentered<PJ301MPort>(jiant::at(L::VOCT), module, Monk::VOCT_INPUT));
 		addInput(createInputCentered<PJ301MPort>(jiant::at(L::GATE), module, Monk::GATE_INPUT));

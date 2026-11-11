@@ -20,9 +20,10 @@ im README von testmodulesvcv.
 
 Vorlagen: GENRA MONO, GRUND, FUNKE, SCHMELZ (Regeln in `docs/DESIGN.md` › Aussehen). Muster: MATH (22 HP), freigegeben.
 Jedes Panel wird zuerst als Entwurf gezeigt; gebaut wird erst nach Freigabe und „bauen“.
-- GENRA Test: CANTA, FUMI, KURBEL, LIED, MATH, MIAOU, SAURUS, SWARM.
-- GENRA Instruments: GOLANA, GOLANA FX, VOICE, VOICE BEND, ANIMAL, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX, MONK.
-- GENRA: DRUM-X.
+- **Umgestellt in 2.36.0** (in Rack prüfen): VOICE 24 HP, VOICE BEND 10 HP, ANIMAL 22 HP, MONK 26 HP, DRUM-X 28 HP
+  (LVL und TRIG unter jedem Pad). GENRA Test: MATH, SWARM, SAURUS, KURBEL, MIAOU, FUMI, CANTA umgestellt, LIED hat
+  das Mausrad. Panels aus `tools/panels/gpanel.py` (gleiches Werkzeug wie `tools/gpanel.py` in GENRA Test).
+- Noch offen (Entwürfe zuerst): GOLANA, GOLANA FX, K-WASUB, K-WASUB FX, UMLAUF, UMLAUF FX.
 
 ## Aus JIANT FM (github.com/juanjiant-bit/JIANT, Branch `codex/swarm`)
 

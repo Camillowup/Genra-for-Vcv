@@ -4,6 +4,20 @@ Was in welcher Version dazukam (GENRA und GENRA Instruments). Der aktuelle Stand
 
 ## 2.21 bis heute (neueste zuerst)
 
+### 2.36.0 – VOICE, BEND, ANIMAL, MONK und DRUM-X im Look der Vorlagen
+- **Neue Panels nach GENRA MONO, GRUND, FUNKE und SCHMELZ** (`docs/DESIGN.md` › Aussehen): Preset-Feld im Kopf
+  (anklicken = Liste, Mausrad = blättern), Display über die volle Breite, Sektionen mit Farblinie, der wichtigste
+  Regler gross mit Ring in der Akzentfarbe, alle Buchsen unten (GENRA-Leiste und CV oben, Ausgänge auf Platten).
+  Alle Parameter und Buchsen sind gleich geblieben (alte Patches laden unverändert); die alten ◀ ▶-Taster sind weg.
+  - **VOICE** 24 HP (vorher 26): LANG, SPELL und LYRIC als Felder, das Textfeld unten im Display.
+  - **VOICE BEND** 10 HP (vorher 8): grosses Display mit Verbindung und den vier Werten als Balken.
+  - **ANIMAL** 22 HP (vorher 26): MODE als Feld.
+  - **MONK** 26 HP: Sänger im Kopf-Feld, Vokal-Chips, PRESS und ENV im Display.
+  - **DRUM-X** 28 HP (vorher 32, GENRA): die acht Pads unter dem Display, unter jedem sein LVL und TRIG; SOUND mit
+    A | B im Titel, MASTER mit MORPH, sieben Kit-Makros, Einzelausgänge unten.
+- Werkzeug: `tools/panels/gpanel.py` legt ein Panel aus seiner Beschreibung aus (so schmal wie der Inhalt erlaubt,
+  bricht ab, wenn sich Schriften überlappen); `src/ui/Look.hpp` bringt Preset-Feld, Auswahlfeld und Panel-Text.
+
 ### 2.35.0 – VOICE SPELL + VOICE BEND, einheitliche PRESET-Beschriftung
 - **VOICE: fünfte Sprache SPELL** (GENRA Instruments): die LPC-Sprechstimme aus [SPELLBOX](https://github.com/pjac1810/spellbox)
   (pjac1810, GPL-3.0; 10-stufiges Gitterfilter, 8 kHz, 8-Bit-Wandler, kleiner Lautsprecher), nur Englisch, eine Stimme.

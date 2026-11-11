@@ -1,13 +1,13 @@
 # GENRA Instruments – Plugin für VCV Rack 2
 
-Die Instrumente der GENRA-Familie als eigenes Plugin: K-WASUB, GOLANA, UMLAUF, MONK, VOICE und ANIMAL (je mit ihren FX-Expandern, VOICE mit VOICE BEND). Im Rack-Browser stehen sie unter derselben Marke **Genra** wie das GENRA-Plugin (Sequencer, ABLAUF, GENRA BOX, ABLAUF MINI, MIX, GENRA FX, SCHLAG, DRUM-X, GRUND, MONO, FUNKE, SCHMELZ). Plugin-Version **2.35.0** (immer dieselbe wie GENRA; Windows und macOS); der Code liegt im Ordner `instruments/` des GENRA-Repos.
+Die Instrumente der GENRA-Familie als eigenes Plugin: K-WASUB, GOLANA, UMLAUF, MONK, VOICE und ANIMAL (je mit ihren FX-Expandern, VOICE mit VOICE BEND). Im Rack-Browser stehen sie unter derselben Marke **Genra** wie das GENRA-Plugin (Sequencer, ABLAUF, GENRA BOX, ABLAUF MINI, MIX, GENRA FX, SCHLAG, DRUM-X, GRUND, MONO, FUNKE, SCHMELZ). Plugin-Version **2.36.0** (immer dieselbe wie GENRA; Windows und macOS); der Code liegt im Ordner `instruments/` des GENRA-Repos.
 
 | Modul | Breite | Farbe | Was es ist |
 |---|---|---|---|
 | **K-WASUB** + **FX** | je 40 HP | säuregrün | Modern-Bass-Synth aus der FM-1-Firmware K-WASUB, mit Effekt-Expander |
 | **GOLANA** + **FX** | 42 / 14 HP | cyan | Analoger Poly-Synth aus der FM-1-Firmware Golana, mit Effekt-Expander |
-| **JIANT VOICE** + **BEND** | 26 / 8 HP | rot | Formant-Sänger aus der JIANT-FM-Firmware, dazu SPELL (LPC-Sprechstimme aus SPELLBOX) mit Bending-Expander |
-| **JIANT ANIMAL** | 26 HP | grün | Tierrufe aus physikalischen Modellen (JIANT FM) |
+| **JIANT VOICE** + **BEND** | 24 / 10 HP | rot | Formant-Sänger aus der JIANT-FM-Firmware, dazu SPELL (LPC-Sprechstimme aus SPELLBOX) mit Bending-Expander |
+| **JIANT ANIMAL** | 22 HP | grün | Tierrufe aus physikalischen Modellen (JIANT FM) |
 | **MONK** | 26 HP | safran | Vokal-Synth aus der FM-1-Firmware MONK-1 |
 | **UMLAUF** + **FX** | 54 / 36 HP | Sith-Rot | Orbit-Vektor-Synth mit der Engine von VADER, mit Expander |
 
@@ -121,10 +121,10 @@ in ihrer Sektion. Ohne Expander gelten die Effekte des Presets.
 
 Der Vokal-Synthesizer (26 HP) aus der FM-1-Firmware [MONK-1](https://github.com/charlesvestal/fm1-monk) (Charles Vestal, GPL-3.0), dessen Klang [MonkSynth](https://github.com/JonET/monksynth) ist (Jonathan Taylor, MIT; eine Hommage an Delay Lama). FOF-Formantsynthese: pro Periode ein Korn aus drei abklingenden Formant-Sinus plus Atem, fünf Vokale OO–OH–AH–EH–EE. Farbe: **safran**.
 
-- **Display:** links singt der Sänger (eigene Zeichnungen, ab 2.21.0): der Mund formt den Vokal (OO, OH, AH, EH, EE), die Brauen heben sich mit der Lautstärke, bei BOLT glüht dazu die Antenne; ohne Ton blinzelt er ab und zu und probt Vokale. Rechts Name, Note, Stimmen, ob die Stimme bearbeitet ist, Vokal-Chips (Klick setzt VOWEL), PRESS und ENV.
-- **◀ SING ▶:** die zwölf Sänger: **BOLT** (Blech-Tenor, ein Roboter), **CROAK** (Sumpf-Bass, ein Frosch), **DIVA** (Opernstar), **HOOT** (Nacht-Alt, eine Eule), **ZORP** (Weltraum-Sopran, ein Ausserirdischer), **BONES** (Grab-Crooner, ein Skelett), **SPIKE** (Wüsten-Ballade, ein Kaktus), **BLUB** (Tiefsee-Bariton, ein Wal), **LOOP** (Tape-Looper, eine Kassette), **LUNA** (Wiegenlied-Mond), **SPORE** (Waldchor, ein Pilz), **EMBER** (Feuer-Belterin, ein Drache). Die Stimmen sind dieselben wie bisher auf denselben Plätzen, alte Patches singen gleich. Ein Sänger lädt seine Stimme auf alle Regler. Auch per SINGER-CV (0–10 V) und Rechtsklick-Menü, dort auch *Stimme wie geliefert*.
+- **Display:** links singt der Sänger (eigene Zeichnungen, ab 2.21.0): der Mund formt den Vokal (OO, OH, AH, EH, EE), die Brauen heben sich mit der Lautstärke, bei BOLT glüht dazu die Antenne; ohne Ton blinzelt er ab und zu und probt Vokale. Rechts Name, Note, Stimmen, ob die Stimme bearbeitet ist, Vokal-Chips (Klick setzt VOWEL), PRESS und ENV. Die Werte der Regler zeigt Rack beim Darüberfahren.
+- **Sänger-Feld** im Kopf (anklicken = Liste, Mausrad = blättern): die zwölf Sänger: **BOLT** (Blech-Tenor, ein Roboter), **CROAK** (Sumpf-Bass, ein Frosch), **DIVA** (Opernstar), **HOOT** (Nacht-Alt, eine Eule), **ZORP** (Weltraum-Sopran, ein Ausserirdischer), **BONES** (Grab-Crooner, ein Skelett), **SPIKE** (Wüsten-Ballade, ein Kaktus), **BLUB** (Tiefsee-Bariton, ein Wal), **LOOP** (Tape-Looper, eine Kassette), **LUNA** (Wiegenlied-Mond), **SPORE** (Waldchor, ein Pilz), **EMBER** (Feuer-Belterin, ein Drache). Die Stimmen sind dieselben wie bisher auf denselben Plätzen, alte Patches singen gleich. Ein Sänger lädt seine Stimme auf alle Regler. Auch per SINGER-CV (0–10 V) und Rechtsklick-Menü, dort auch *Stimme wie geliefert*.
 - **SING · CHOIR** (je mit CV, ±5 V = ganzer Reglerweg): VOWEL, HEAD (Vokaltrakt in cm), BREATH, GLIDE, VOICES (Unisono 1–10), DETUNE (Cent), SPREAD (Kopfgrössen der Stimmen), TUNE (±12 Halbtöne).
-- **PRESS →** VOWEL · PITCH · BOTH · INV: wohin der PRESS-Eingang (Aftertouch, 0–10 V) wirkt; P.DEPTH wie weit, VEL wie stark VEL die Lautstärke setzt.
+- **PRESS** (Lämpchen VOWEL · PITCH · BOTH · INV): wohin der PRESS-Eingang (Aftertouch, 0–10 V) wirkt; DEPTH wie weit, VEL wie stark VEL die Lautstärke setzt, LEVEL.
 - **ENVELOPE** ATK DEC SUS REL (bis 5 s), **VIBRATO · ECHO** DEPTH, RATE, ECHO (Menge), TIME, FDBK (neu, im Original fest 50 %).
 - **Ein/Aus:** V/OCT (C4 = 0 V), GATE, VEL, PRESS, SINGER · ENV (0–10 V), DRY (mono ohne Echo), L, R. Einstimmig wie das Original: GATE startet die Note, V/OCT bei gehaltenem Gate gleitet ohne neuen Anschlag (GLIDE).
 - Mit MIDI: MIDI-CV-Modul → V/OCT, GATE, VEL und AFT → PRESS.
@@ -200,10 +200,10 @@ CV-Eingänge. Beim Andocken übernehmen die Regler den aktuellen Klang; ohne Exp
 
 Drei Klangerzeuger aus der Firmware von [JIANT FM](https://github.com/juanjiant-bit/JIANT) (Juan Jiant, ein Fork von [Felucca](https://github.com/hugelton/Felucca), GPL-3.0), im GENRA-Look und jeweils in einer eigenen Farbe: **VOICE rot**, **DRUM-X blau-violett** (GENRAs Drum-Farbe), **ANIMAL grün**. Das Display zeigt links die Zeichnung der Firmware (Vokaltrakt, Kit-Kolonie, Kreatur), rechts Preset bzw. Kit und die Einstellungen.
 
-- **VOICE** (26 HP): Formant-Sänger. ◀ PRESET ▶ (15 Presets aus JIANT + 3 für SPELL), LANG im Display (OFF singt Vokale, ES/EN/JA singen Wörter, **SPELL** ist die LPC-Sprechstimme aus SPELLBOX), ◀ LYRIC ▶ wählt TEXT, W1–W16 oder S1–S8, das Textfeld im Display nimmt einen eigenen Text (bis 63 Zeichen). Jede neue Note singt die nächste Silbe, WORD ↺ startet den Text neu. 8 Klangregler mit CV, ihre Namen wechseln mit LANG.
-- **SPELL** (in VOICE, nur Englisch, eine Stimme): rechts neben den LANG-Chips **SING** (ein Wort auf der Note, der Vokal hält mit dem Gate), **LETTER** (jede Taste ihr Buchstabe, A auf F3) oder **SPEAK** (liest den Text im Lyrics-Feld, pro Note die nächsten Wörter). Regler: POS, WORD/LETTER/WORDS, ARTIC, SHIFT, SPEED, TONE, MONO, LOOP. Das Wort leuchtet türkis Buchstabe für Buchstabe.
-- **VOICE BEND** (8 HP, rechts neben VOICE): Circuit Bending für SPELL. BEND (Taster oder Gate an ON) schaltet ein; CLOCK, CORRUPT, STUTTER, CRUSH je mit CV.
-- **ANIMAL** (26 HP): Tierrufe aus physikalischen Modellen. MODE als Regler oder per Klick im Display (CMOS, PULSE, WHSTL, WING, GLOTT), ◀ PRE ▶ (24 Presets), 7 Klangregler mit CV, ihre Namen wechseln mit MODE.
+- **VOICE** (24 HP): Formant-Sänger. Preset-Feld im Kopf (15 Presets aus JIANT + 3 für SPELL), in ENGINE die Felder **LANG** (OFF singt Vokale, ES/EN/JA singen Wörter, **SPELL** ist die LPC-Sprechstimme aus SPELLBOX) und **SPELL** (SING / LETTER / SPEAK), in PLAY das Feld **LYRIC** (TEXT, W1–W16 oder S1–S8); das Textfeld unten im Display nimmt einen eigenen Text (bis 63 Zeichen). Alle Felder: anklicken = Liste, Mausrad = blättern. Jede neue Note singt die nächste Silbe, WORD ↺ startet den Text neu. 8 Klangregler mit CV, ihre Namen wechseln mit LANG.
+- **SPELL** (in VOICE, nur Englisch, eine Stimme): im Feld SPELL **SING** (ein Wort auf der Note, der Vokal hält mit dem Gate), **LETTER** (jede Taste ihr Buchstabe, A auf F3) oder **SPEAK** (liest den Text im Lyrics-Feld, pro Note die nächsten Wörter). Regler: POS, WORD/LETTER/WORDS, ARTIC, SHIFT, SPEED, TONE, MONO, LOOP. Das Wort leuchtet türkis Buchstabe für Buchstabe.
+- **VOICE BEND** (10 HP, rechts neben VOICE): Circuit Bending für SPELL. BEND (Taster oder Gate an ON) schaltet ein; CLOCK, CORRUPT, STUTTER, CRUSH je mit CV. Das Display zeigt, ob ein VOICE links steht und auf SPELL ist, und die vier Werte als Balken.
+- **ANIMAL** (22 HP): Tierrufe aus physikalischen Modellen. Feld **MODE** in PLAY (CMOS, PULSE, WHSTL, WING, GLOTT), Preset-Feld im Kopf (24 Presets), 7 Klangregler mit CV, ihre Namen wechseln mit MODE.
 - **Gemeinsam (VOICE, ANIMAL):** CALL spielt einen Ton ohne Kabel (auch per Gate am CALL-Eingang), POLY · MONO · LEGATO per Klick auf die Lampen, Hüllkurve ATK–REL, FX DIST–REVERB, V/OCT, GATE, VEL polyphon, LEVEL und Stereo-Ausgang (nur L gesteckt = Mono).
 - Presets bzw. Kits gibt es auch im Rechtsklick-Menü. Alte Patches mit den einzelnen Plugins *JiantVoice*, *JiantDrumX*, *JiantAnimal* finden die Module hier nicht automatisch – dort einmal neu einsetzen.
 

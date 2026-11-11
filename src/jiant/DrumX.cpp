@@ -11,6 +11,7 @@
 #include <cstring>
 #include <memory>
 #include "JiantUI.hpp"
+#include "../ui/Look.hpp"
 
 namespace jiant_drumx {
 
@@ -552,53 +553,18 @@ struct InfoWidget : Widget {
 		const jdx_api* a = module ? module->mix.api() : nullptr;
 		int k = module ? (int) module->shownKit : 0;
 		int s = module ? (int) module->shownSel : 0, ab = module ? (int) module->shownAB : 0;
-		jiant::text(vg, bold, 0, 20, a ? a->kit_name((uint32_t) k) : "DRUM-X", 15.f, jiant::WHITE, NVG_ALIGN_LEFT, 0.6f);
-		jiant::text(vg, bold, w, 20, string::f("\xc2\xb7 KIT %d/%u", k + 1, a ? a->nkits() : 9u), 6.5f, jiant::DIM,
-		            NVG_ALIGN_RIGHT, 0.8f);
-		jiant::text(vg, mono, 0, 33, string::f("MORPH %s \xc2\xb7 SOUND %s %s", v(JDX_MORPH).c_str(), LANE_NAMES[s], ab ? "B" : "A"),
-		            7.f, jiant::DIM, NVG_ALIGN_LEFT, 0.f);
-		// (the lane chips at y 41 are their own widget)
-		jiant::text(vg, mono, 0, 72, string::f("TUNE %s   TONE %s   DECAY %s", v(JDX_TUNE).c_str(), v(JDX_TONE).c_str(),
-		                                       v(JDX_DECAY).c_str()), 6.6f, ACCENT, NVG_ALIGN_LEFT, 0.f);
-		jiant::text(vg, mono, 0, 86, string::f("DLY %s   REV %s   LVL %s", v(JDX_DLY).c_str(), v(JDX_REV).c_str(),
-		                                       v(JDX_LEVEL).c_str()), 6.6f, jiant::DIM, NVG_ALIGN_LEFT, 0.f);
-	}
-};
-
-/** The eight lanes as chips: lit by their hits, the one edited outlined; a click picks it for SOUND. */
-struct LaneChips : OpaqueWidget {
-	DrumX* module = nullptr;
-	float gap = 2.5f;
-	float chipW() const { return (box.size.x - gap * (NL - 1)) / NL; }
-	void onButton(const ButtonEvent& e) override {
-		if (e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_LEFT && module) {
-			module->selReq = clamp((int) (e.pos.x / (chipW() + gap)), 0, NL - 1);
-			e.consume(this);
-			return;
-		}
-		OpaqueWidget::onButton(e);
-	}
-	void drawLayer(const DrawArgs& args, int layer) override {
-		if (layer != 1)
-			return;
-		static const char* SHORT[NL] = {"KICK", "SNARE", "CLAP", "H.CL", "H.OP", "TOM", "RIM", "BELL"};
-		NVGcontext* vg = args.vg;
-		float w = chipW(), h = box.size.y;
-		int sel = module ? (int) module->shownSel : 0;
-		for (int l = 0; l < NL; l++) {
-			float x = l * (w + gap);
-			float lit = module ? std::sqrt(clamp((float) module->env[l], 0.f, 1.f)) : 0.f;
-			jiant::roundRect(vg, x, 0, w, h, 2.2f, nvgLerpRGBA(jiant::CHIP, ACCENT, lit));
-			if (l == sel) {
-				nvgBeginPath(vg);
-				nvgRoundedRect(vg, x + 0.5f, 0.5f, w - 1, h - 1, 2.f);
-				nvgStrokeColor(vg, ACCENT);
-				nvgStrokeWidth(vg, 1.f);
-				nvgStroke(vg);
-			}
-			jiant::text(vg, jiant::boldFont(), x + w / 2, h / 2 + 1.8f, SHORT[l], 5.f,
-			            lit > 0.5f ? jiant::INK : (l == sel ? jiant::TXT : jiant::DIM), NVG_ALIGN_CENTER, 0.3f);
-		}
+		float h = box.size.y;
+		jiant::text(vg, bold, 0, 7.f, string::f("KIT %d / %u", k + 1, a ? a->nkits() : 9u), 5.2f, jiant::DIM, NVG_ALIGN_LEFT, 1.f);
+		jiant::text(vg, bold, w, 7.f, string::f("MORPH %s \xc2\xb7 SOUND %s %s", v(JDX_MORPH).c_str(), LANE_NAMES[s], ab ? "B" : "A"),
+		            5.2f, jiant::DIM, NVG_ALIGN_RIGHT, 1.f);
+		jiant::text(vg, bold, 0, h * 0.64f, a ? a->kit_name((uint32_t) k) : "DRUM-X", 12.f, jiant::WHITE, NVG_ALIGN_LEFT, 0.6f);
+		jiant::text(vg, bold, 0, h - 1.f, string::f("TUNE %s \xc2\xb7 TONE %s \xc2\xb7 DECAY %s", v(JDX_TUNE).c_str(),
+		                                           v(JDX_TONE).c_str(), v(JDX_DECAY).c_str()),
+		            5.2f, ACCENT, NVG_ALIGN_LEFT, 0.8f);
+		jiant::text(vg, bold, w, h - 1.f, string::f("DLY %s \xc2\xb7 REV %s \xc2\xb7 LVL %s", v(JDX_DLY).c_str(), v(JDX_REV).c_str(),
+		                                           v(JDX_LEVEL).c_str()),
+		            5.2f, jiant::DIM, NVG_ALIGN_RIGHT, 0.8f);
+		(void) mono;
 	}
 };
 
@@ -606,9 +572,9 @@ struct LaneChips : OpaqueWidget {
 struct SoundHead : OpaqueWidget {
 	DrumX* module = nullptr;
 	void onButton(const ButtonEvent& e) override {
-		if (e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_LEFT && module && e.pos.x > box.size.x - 34) {
+		if (e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_LEFT && module && e.pos.x > box.size.x - 42 && e.pos.x < box.size.x - 8) {
 			engine::ParamQuantity* pq = module->paramQuantities[DrumX::AB_PARAM];
-			pq->setValue(e.pos.x > box.size.x - 16 ? 1.f : 0.f);
+			pq->setValue(e.pos.x > box.size.x - 25 ? 1.f : 0.f);
 			e.consume(this);
 			return;
 		}
@@ -617,29 +583,10 @@ struct SoundHead : OpaqueWidget {
 	void draw(const DrawArgs& args) override {
 		NVGcontext* vg = args.vg;
 		int s = module ? (int) module->shownSel : 0, ab = module ? (int) module->shownAB : 0;
-		jiant::text(vg, jiant::boldFont(), 0, 7.5f, string::f("SOUND \xc2\xb7 %s", LANE_NAMES[s]), 5.6f, ACCENT,
-		            NVG_ALIGN_LEFT, 1.4f);
-		jiant::chip(vg, box.size.x - 32, -0.5f, 14, 10, "A", ab == 0, ACCENT, 5.f);
-		jiant::chip(vg, box.size.x - 16, -0.5f, 14, 10, "B", ab == 1, ACCENT, 5.f);
-	}
-};
-
-/** A lane's name: picks it for SOUND (lit when picked). */
-struct LaneName : OpaqueWidget {
-	DrumX* module = nullptr;
-	int l = 0;
-	void onButton(const ButtonEvent& e) override {
-		if (e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_LEFT && module) {
-			module->selReq = l;
-			e.consume(this);
-			return;
-		}
-		OpaqueWidget::onButton(e);
-	}
-	void draw(const DrawArgs& args) override {
-		bool sel = module ? module->shownSel == l : l == 0;
-		jiant::text(args.vg, jiant::boldFont(), box.size.x / 2, 8.f, LANE_NAMES[l], 5.8f, sel ? ACCENT : jiant::TXT,
-		            NVG_ALIGN_CENTER, 0.4f);
+		jiant::text(vg, jiant::boldFont(), box.size.x / 2, box.size.y / 2 + 2.6f, string::f("SOUND \xc2\xb7 %s", LANE_NAMES[s]),
+		            6.f, ACCENT, NVG_ALIGN_CENTER, 2.2f);
+		jiant::chip(vg, box.size.x - 40, 0, 14, box.size.y, "A", ab == 0, ACCENT, 5.f);
+		jiant::chip(vg, box.size.x - 24, 0, 14, box.size.y, "B", ab == 1, ACCENT, 5.f);
 	}
 };
 
@@ -661,11 +608,13 @@ struct Pad : app::Switch {
 		nvgStrokeColor(vg, sel ? jiant::WHITE : nvgRGB(0x0d, 0x0e, 0x11));
 		nvgStrokeWidth(vg, 0.8f);
 		nvgStroke(vg);
+		jiant::text(vg, jiant::boldFont(), box.size.x / 2, box.size.y / 2 + 2.1f, LANE_NAMES[l], 5.6f,
+		            lit > 0.5f ? jiant::INK : (sel ? jiant::WHITE : jiant::TXT), NVG_ALIGN_CENTER, 0.4f);
 	}
-	void draw(const DrawArgs& args) override { face(args.vg, 0.f); }
+	void draw(const DrawArgs& args) override {}
 	void drawLayer(const DrawArgs& args, int layer) override {
-		if (layer == 1 && module)
-			face(args.vg, std::sqrt(clamp((float) module->env[l], 0.f, 1.f)));
+		if (layer == 1)
+			face(args.vg, module ? std::sqrt(clamp((float) module->env[l], 0.f, 1.f)) : 0.f);
 		Switch::drawLayer(args, layer);
 	}
 };
@@ -685,50 +634,55 @@ struct DrumXWidget : ModuleWidget {
 		info->module = module;
 		info->box = jiant::area(L::INFO);
 		addChild(info);
-		LaneChips* chips = new LaneChips;
-		chips->module = module;
-		chips->box = Rect(L::INFO[0], L::INFO[1] + 41, L::INFO[2], 13);
-		addChild(chips);
+		genra_look::PickField* pf = createWidget<genra_look::PickField>(Vec(L::PRESETF[0], L::PRESETF[1]));
+		pf->box.size = Vec(L::PRESETF[2], L::PRESETF[3]);
+		pf->accent = ACCENT;
+		pf->title = "Kit";
+		pf->count = [=]() { return module && module->mix.api() ? (int) module->mix.api()->nkits() : 1; };
+		pf->name = [=](int i) -> std::string {
+			return module && module->mix.api() ? module->mix.api()->kit_name((uint32_t) i) : "909 CLUB";
+		};
+		pf->current = [=]() { return module ? (int) module->shownKit : 1; };
+		pf->choose = [=](int i) {
+			if (module)
+				module->kitReq = i;
+		};
+		addChild(pf);
 
-		addParam(createParamCentered<VCVBezel>(jiant::at(L::PREV), module, DrumX::PREV_PARAM));
-		addParam(createParamCentered<VCVBezel>(jiant::at(L::NEXT), module, DrumX::NEXT_PARAM));
-		addParam(createParamCentered<GSmallKnob>(jiant::at(L::MORPH), module, DrumX::MORPH_PARAM));
-		addInput(createInputCentered<PJ301MPort>(jiant::at(L::MORPH_IN), module, DrumX::MORPH_INPUT));
-		addInput(createInputCentered<PJ301MPort>(jiant::at(L::VOCT), module, DrumX::VOCT_INPUT));
-		addInput(createInputCentered<PJ301MPort>(jiant::at(L::GATE), module, DrumX::GATE_INPUT));
 		SoundHead* sh = new SoundHead;
 		sh->module = module;
 		sh->box = jiant::area(L::SOUND_HEAD);
 		addChild(sh);
-		for (int k = 0; k < JDX_NSND; k++)
-			addParam(createParamCentered<GTrimpot>(jiant::at(L::SND[k]), module, DrumX::SND_PARAM + k));
-
+		for (int k = 0; k < JDX_NSND; k++) {
+			if (k == 0)
+				addParam(createParamCentered<GLargeKnob>(jiant::at(L::SND[k]), module, DrumX::SND_PARAM + k));
+			else
+				addParam(createParamCentered<GKnob>(jiant::at(L::SND[k]), module, DrumX::SND_PARAM + k));
+		}
+		addParam(createParamCentered<GLargeKnob>(jiant::at(L::MORPH), module, DrumX::MORPH_PARAM));
+		addParam(createParamCentered<GKnob>(jiant::at(L::DLY), module, DrumX::DLY_PARAM));
+		addParam(createParamCentered<GKnob>(jiant::at(L::REV), module, DrumX::REV_PARAM));
+		addParam(createParamCentered<GKnob>(jiant::at(L::MASTER), module, DrumX::MASTER_PARAM));
 		for (int i = 0; i < NM; i++) {
 			addParam(createParamCentered<GSmallKnob>(jiant::at(L::MACRO[i]), module, DrumX::MACRO_PARAM + i));
 			addInput(createInputCentered<PJ301MPort>(jiant::at(L::MACRO_IN[i]), module, DrumX::MACRO_INPUT + i));
 		}
-
+		// the lanes: a pad (strike, pick for SOUND), its level and its trigger; the outputs at the bottom
 		for (int l = 0; l < NL; l++) {
-			LaneName* ln = new LaneName;
-			ln->module = module;
-			ln->l = l;
-			ln->box = jiant::area(L::LANE_NAME[l]);
-			addChild(ln);
 			Pad* p = createParam<Pad>(Vec(L::PAD[l][0], L::PAD[l][1]), module, DrumX::PAD_PARAM + l);
 			p->box.size = Vec(L::PAD[l][2], L::PAD[l][3]);
 			p->module = module;
 			p->l = l;
 			addParam(p);
-			addInput(createInputCentered<PJ301MPort>(jiant::at(L::TRIG[l]), module, DrumX::TRIG_INPUT + l));
 			addParam(createParamCentered<GTrimpot>(jiant::at(L::LEVEL[l]), module, DrumX::LEVEL_PARAM + l));
+			addInput(createInputCentered<PJ301MPort>(jiant::at(L::TRIG[l]), module, DrumX::TRIG_INPUT + l));
 			addOutput(createOutputCentered<PJ301MPort>(jiant::at(L::LANE_OUT[l]), module, DrumX::LANE_OUTPUT + l));
 		}
-
-		addInput(createInputCentered<PJ301MPort>(jiant::at(L::ACC), module, DrumX::ACC_INPUT));
 		addInput(createInputCentered<PJ301MPort>(jiant::at(L::GENRA_IN), module, DrumX::GENRA_INPUT));
-		addParam(createParamCentered<GTrimpot>(jiant::at(L::DLY), module, DrumX::DLY_PARAM));
-		addParam(createParamCentered<GTrimpot>(jiant::at(L::REV), module, DrumX::REV_PARAM));
-		addParam(createParamCentered<GTrimpot>(jiant::at(L::MASTER), module, DrumX::MASTER_PARAM));
+		addInput(createInputCentered<PJ301MPort>(jiant::at(L::VOCT), module, DrumX::VOCT_INPUT));
+		addInput(createInputCentered<PJ301MPort>(jiant::at(L::GATE), module, DrumX::GATE_INPUT));
+		addInput(createInputCentered<PJ301MPort>(jiant::at(L::ACC), module, DrumX::ACC_INPUT));
+		addInput(createInputCentered<PJ301MPort>(jiant::at(L::MORPH_IN), module, DrumX::MORPH_INPUT));
 		addOutput(createOutputCentered<PJ301MPort>(jiant::at(L::OUT_L), module, DrumX::L_OUTPUT));
 		addOutput(createOutputCentered<PJ301MPort>(jiant::at(L::OUT_R), module, DrumX::R_OUTPUT));
 	}

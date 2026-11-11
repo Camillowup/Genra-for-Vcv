@@ -14,7 +14,7 @@ Ein generativer, genreabhängiger 4-Spur-Sequencer mit MIDI-Grid, Performance-Ef
 | **FUNKE** | 28 HP | cyan | Melodiestimme: 8 Modelle von Rhodes bis Saw Lead |
 | **SCHMELZ** | 28 HP | rosa | String Machine nach Waldorf Streichfett, für die Pads |
 | **SCHLAG** | 46 HP | blau-violett | Sample-Drums nach dem Polyend Play: 8 Spuren mit WAV-Ordnern, RANDOM pro Schritt |
-| **JIANT DRUM-X** | 32 HP | blau-violett | 8-spuriger Drum-Synth aus der JIANT-FM-Firmware |
+| **JIANT DRUM-X** | 28 HP | blau-violett | 8-spuriger Drum-Synth aus der JIANT-FM-Firmware |
 | **MIX** | 28 HP | Spurfarben | 4-Kanal-Stereomixer für die GENRA-Spuren |
 | **GENRA FX** | 24 HP | eisblau | Send-Effekte für MIX: Hall (Send A) und Delay im Tempo (Send B) |
 
@@ -462,7 +462,7 @@ Eine Sample-Drum-Maschine für GENRAs Drumspur, 46 HP, blau-violett. Keine Pad-M
 
 DRUM-X ist einer von drei Klangerzeugern aus der Firmware von [JIANT FM](https://github.com/juanjiant-bit/JIANT) (Juan Jiant, ein Fork von [Felucca](https://github.com/hugelton/Felucca), GPL-3.0), im GENRA-Look und jeweils in einer eigenen Farbe: **VOICE rot**, **DRUM-X blau-violett** (GENRAs Drum-Farbe), **ANIMAL grün**. Das Display zeigt links die Zeichnung der Firmware (Vokaltrakt, Kit-Kolonie, Kreatur), rechts Preset bzw. Kit und die Einstellungen.
 
-- **DRUM-X** (32 HP): 8 synthetische Drum-Spuren mit Varianten A/B und MORPH, 9 Kits (◀ KIT ▶). Klick auf Spurname, Pad oder Spur-Chip im Display wählt die Spur für SOUND (PITCH … COLOR, A | B). 7 Kit-Makros mit CV, pro Spur TRIG, LEVEL und Einzelausgang (OUT), V/OCT + GATE nach General MIDI, ACC, DLY, REV, LVL, Mix L/R.
+- **DRUM-X** (28 HP): 8 synthetische Drum-Spuren mit Varianten A/B und MORPH, 9 Kits (Kit-Feld im Kopf: anklicken = Liste, Mausrad = blättern). Unter dem Display die acht Pads: anschlagen und die Spur für SOUND wählen (PITCH … COLOR, A | B im Titel von SOUND); unter jedem Pad sein **LVL** und sein **TRIG**-Eingang. MASTER: MORPH, DLY, REV, LVL. 7 Kit-Makros mit CV. Unten DRUMS (GENRA), V/OCT + GATE nach General MIDI, ACC, die CVs und die Ausgänge (8 Einzelausgänge, Mix L/R).
 - Presets bzw. Kits gibt es auch im Rechtsklick-Menü. Alte Patches mit den einzelnen Plugins *JiantVoice*, *JiantDrumX*, *JiantAnimal* finden die Module hier nicht automatisch – dort einmal neu einsetzen.
 
 ### MIX: 4-Kanal-Stereomixer

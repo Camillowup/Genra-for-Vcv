@@ -106,13 +106,29 @@ struct BendStatus : Widget {
 	void drawLayer(const DrawArgs& args, int layer) override {
 		if (layer != 1)
 			return;
+		NVGcontext* vg = args.vg;
+		auto bold = jiant::boldFont();
+		float w = box.size.x;
 		bool lk = !module || module->linked, spl = !module || module->spellNow;
-		nvgBeginPath(args.vg);
-		nvgCircle(args.vg, 3, 6, 2.6f);
-		nvgFillColor(args.vg, lk && spl ? BEND_ACCENT : lk ? jiant::DIM : nvgRGB(0x3d, 0x3f, 0x48));
-		nvgFill(args.vg);
-		jiant::text(args.vg, jiant::monoFont(), 9, 8.2f, !lk ? "no VOICE left" : spl ? "linked \xc2\xb7 SPELL" : "linked \xc2\xb7 not SPELL",
-		            5.f, jiant::DIM, NVG_ALIGN_LEFT, 0.f);
+		jiant::text(vg, bold, 0, 7.f, "VOICE \xc2\xb7 SPELL", 5.2f, jiant::DIM, NVG_ALIGN_LEFT, 1.f);
+		nvgBeginPath(vg);
+		nvgCircle(vg, w - 3.f, 5.f, 2.6f);
+		nvgFillColor(vg, lk && spl ? BEND_ACCENT : lk ? jiant::DIM : nvgRGB(0x3d, 0x3f, 0x48));
+		nvgFill(vg);
+		jiant::text(vg, bold, 0, 24.f, lk ? "LINKED" : "NO VOICE", 11.f, jiant::WHITE, NVG_ALIGN_LEFT, 0.6f);
+		jiant::text(vg, bold, 0, 34.f, !lk ? "PLACE IT RIGHT OF VOICE" : spl ? "SPELL IS BENT" : "VOICE IS NOT ON SPELL", 4.6f,
+		            BEND_ACCENT, NVG_ALIGN_LEFT, 0.6f);
+		static const char* names[NB] = {"CLOCK", "CORRUPT", "STUTTER", "CRUSH"};
+		static const int hi[NB] = {127, 127, 127, 5};
+		bool on = module && module->lights[VoiceBend::BEND_LIGHT].getBrightness() > 0.5f;
+		for (int k = 0; k < NB; k++) {
+			float y = 50.f + k * 15.f;
+			int v = module ? module->vals[k].load() : (int) std::round((k == 0 ? 0.5f : 0.f) * hi[k]);
+			jiant::text(vg, bold, 0, y, names[k], 5.f, jiant::DIM, NVG_ALIGN_LEFT, 0.6f);
+			jiant::text(vg, bold, w, y, VoiceBend::valueText(k, v), 5.f, jiant::TXT, NVG_ALIGN_RIGHT, 0.4f);
+			jiant::roundRect(vg, 0, y + 3.f, w, 3.f, 1.f, nvgRGB(0x24, 0x25, 0x2c));
+			jiant::roundRect(vg, 0, y + 3.f, w * clamp((float) v / hi[k], 0.f, 1.f), 3.f, 1.f, on ? BEND_ACCENT : jiant::DIM);
+		}
 	}
 };
 
@@ -124,24 +140,13 @@ struct VoiceBendWidget : ModuleWidget {
 		addParam(createLightParamCentered<VCVLightBezel<jiant::AccentLight<JIANT_VOICE_RGB>>>(
 		    jiant::at(LB::BEND), module, VoiceBend::BEND_PARAM, VoiceBend::BEND_LIGHT));
 		addInput(createInputCentered<PJ301MPort>(jiant::at(LB::ON), module, VoiceBend::ON_INPUT));
-		static const char* names[NB] = {"CLOCK", "CORRUPT", "STUTTER", "CRUSH"};
 		for (int k = 0; k < NB; k++) {
-			addParam(createParamCentered<GSmallKnob>(jiant::at(LB::B[k]), module, VoiceBend::B_PARAM + k));
+			addParam(createParamCentered<GKnob>(jiant::at(LB::B[k]), module, VoiceBend::B_PARAM + k));
 			addInput(createInputCentered<PJ301MPort>(jiant::at(LB::B_IN[k]), module, VoiceBend::B_INPUT + k));
-			jiant::KnobText* t = new jiant::KnobText;
-			t->box = jiant::area(LB::B_TEXT[k]);
-			t->accent = BEND_ACCENT;
-			t->label = [=]() -> std::string { return names[k]; };
-			t->value = [=]() -> std::string {
-				static const int hi[NB] = {127, 127, 127, 5};
-				int v = module ? module->vals[k].load() : (int) std::round((k == 0 ? 0.5f : 0.f) * hi[k]);
-				return VoiceBend::valueText(k, v);
-			};
-			addChild(t);
 		}
 		BendStatus* st = new BendStatus;
 		st->module = module;
-		st->box = jiant::area(LB::STATUS);
+		st->box = jiant::area(LB::INFO);
 		addChild(st);
 	}
 
