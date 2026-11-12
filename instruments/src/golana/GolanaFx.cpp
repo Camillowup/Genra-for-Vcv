@@ -56,7 +56,11 @@ struct GolanaFx : Module {
 		for (int i = 0; i < NUM_INPUTS; i++)
 			configInput(i, std::string(in[i]) + " CV (0–10 V)");
 	}
+	int lightTick = 0;
 	void process(const ProcessArgs& args) override {
+		if (--lightTick > 0)  // the lights: every 64 samples (2.37)
+			return;
+		lightTick = 64;
 		for (int i = 0; i < 3; i++)
 			lights[ON_LIGHT + i].setBrightness(params[ON_PARAMS[i]].getValue() > 0.5f ? 1.f : 0.f);
 		Module* l = leftExpander.module;

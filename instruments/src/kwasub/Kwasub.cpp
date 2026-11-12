@@ -148,6 +148,7 @@ struct Kwasub : Module, follow::Host {
 	int ringN = 0;     // frames in the ring (from ring start)
 	double pos = 1.0;  // read position in frames
 	int ctlTick = 0;
+	float envOut = 0.f, lfoOut = 0.f;  // ENV and LFO as of the last block
 
 	// for the display (audio thread writes, UI reads)
 	struct Disp {
@@ -520,7 +521,7 @@ struct Kwasub : Module, follow::Host {
 			Module* m = b.panel == MAIN ? this : fx;
 			if (!m || !m->inputs[b.input].isConnected())
 				continue;
-			cv[b.key()] += m->inputs[b.input].getVoltage() * 0.1f * (float) (fwHi(b) - fwLo(b));
+			cv[b.key()] += finiteOr0(m->inputs[b.input].getVoltage()) * 0.1f * (float) (fwHi(b) - fwLo(b));
 		}
 		// SLIDE high: glide on top of the GLIDE knob (GENRA's slides)
 		if (inputs[SLIDE_INPUT].getVoltage() >= 1.f)
@@ -559,8 +560,10 @@ struct Kwasub : Module, follow::Host {
 				float v = inputs[GATE_INPUT].getPolyVoltage(c);
 				g = v >= 1.f ? true : (v <= 0.1f ? false : gate[c]);
 			}
-			int n = clamp((int) std::lround(60.f + 12.f * inputs[VOCT_INPUT].getPolyVoltage(c)), 0, 127);
-			int vel = velOn ? clamp((int) std::lround(inputs[VEL_INPUT].getPolyVoltage(c) * 12.7f), 1, 127) : 100;
+			if (!g && !gate[c])  // a voice at rest: nothing to work out (2.37)
+				continue;
+			int n = clamp((int) std::lround(60.f + 12.f * finiteOr0(inputs[VOCT_INPUT].getPolyVoltage(c))), 0, 127);
+			int vel = velOn ? clamp((int) std::lround(finiteOr0(inputs[VEL_INPUT].getPolyVoltage(c)) * 12.7f), 1, 127) : 100;
 			if (g && (!gate[c] || n != note[c]) && inputs[ACC_INPUT].getPolyVoltage(c) >= 1.f)
 				vel = std::min(127, vel + 30); // accent: velocity up (louder, the filter envelope opens further)
 			if (g && !gate[c]) {
@@ -601,7 +604,7 @@ struct Kwasub : Module, follow::Host {
 	void controllers() {
 		const kw_api* a = core.api;
 		if (inputs[BEND_INPUT].isConnected()) {
-			int b = clamp((int) std::lround(8192.f + inputs[BEND_INPUT].getVoltage() / 5.f * 8191.f), 0, 16383);
+			int b = clamp((int) std::lround(8192.f + finiteOr0(inputs[BEND_INPUT].getVoltage()) / 5.f * 8191.f), 0, 16383);
 			if (std::abs(b - lastBend) > 4) {
 				lastBend = b;
 				a->midi(0xE0, b & 127, b >> 7);
@@ -610,19 +613,19 @@ struct Kwasub : Module, follow::Host {
 			lastBend = 8192;
 			a->midi(0xE0, 0, 64);
 		}
-		int m = inputs[MOD_INPUT].isConnected() ? clamp((int) std::lround(inputs[MOD_INPUT].getVoltage() * 12.7f), 0, 127) : 0;
+		int m = inputs[MOD_INPUT].isConnected() ? clamp((int) std::lround(finiteOr0(inputs[MOD_INPUT].getVoltage()) * 12.7f), 0, 127) : 0;
 		if (m != lastMod) {
 			lastMod = m;
 			a->midi(0xB0, 1, m);
 		}
-		int p = inputs[PRESS_INPUT].isConnected() ? clamp((int) std::lround(inputs[PRESS_INPUT].getVoltage() * 12.7f), 0, 127) : 0;
+		int p = inputs[PRESS_INPUT].isConnected() ? clamp((int) std::lround(finiteOr0(inputs[PRESS_INPUT].getVoltage()) * 12.7f), 0, 127) : 0;
 		if (p != lastPress) {
 			lastPress = p;
 			a->midi(0xD0, p, 0);
 		}
 		if (inputs[PRESET_INPUT].isConnected()) {
 			int n = (int) a->npresets();
-			int k = clamp((int) std::lround(inputs[PRESET_INPUT].getVoltage() / 10.f * (n - 1)), 0, n - 1);
+			int k = clamp((int) std::lround(finiteOr0(inputs[PRESET_INPUT].getVoltage()) / 10.f * (n - 1)), 0, n - 1);
 			if (k != presetCvLast) {
 				presetCvLast = k;
 				loadPreset(k);
@@ -703,6 +706,8 @@ struct Kwasub : Module, follow::Host {
 				ring[1][ringN + i] = f[2 * i + 1];
 			}
 			ringN += KW_FRAMES;
+			envOut = 10.f * a->env();  // (they change with a block only: read once, not every sample, 2.37)
+			lfoOut = 5.f * a->lfo();
 			if (++ctlTick >= 6) {
 				ctlTick = 0;
 				updateDisplay();
@@ -719,8 +724,8 @@ struct Kwasub : Module, follow::Host {
 		if (!outputs[R_OUTPUT].isConnected() && !pulled(args.frame)) // L alone: the mono sum (as FUNKE, GRUND, MONO)
 			outputs[L_OUTPUT].setVoltage(0.5f * (outputs[L_OUTPUT].getVoltage() + outputs[R_OUTPUT].getVoltage()));
 		pos += step;
-		outputs[ENV_OUTPUT].setVoltage(10.f * a->env());
-		outputs[LFO_OUTPUT].setVoltage(5.f * a->lfo());
+		outputs[ENV_OUTPUT].setVoltage(envOut);
+		outputs[LFO_OUTPUT].setVoltage(lfoOut);
 	}
 
 	void onReset(const ResetEvent& e) override {
@@ -764,6 +769,7 @@ struct Kwasub : Module, follow::Host {
 			// the output level: as saved; a patch from before takes its preset's level
 			json_t* gJ = json_object_get(r, "presetGain");
 			presetGain = json_is_number(gJ) ? (float) json_number_value(gJ) : kwlevels::gainOf(presetIdx);
+			presetGain = std::isfinite(presetGain) ? clamp(presetGain, 0.1f, 4.f) : 1.f;  // (a broken patch file)
 		}
 		// a preset or an undo step (StateBank.hpp): the sound in the patch is the whole sound, the expander follows
 		bool engineWins = json_is_true(json_object_get(r, "engineWins"));

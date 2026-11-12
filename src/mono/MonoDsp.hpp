@@ -158,6 +158,13 @@ struct Env {
 	int stage = 0;  // 0 idle, 1 attack, 2 decay/sustain, 3 release
 	bool gate = false;
 	static float coef(float time, float dt) { return 1.f - std::exp(-dt / std::max(time, 1e-5f)); }
+	// 2.37: the three coefficients are kept until their time or the sample time changes (the exp was run every sample)
+	float ck[3] = {-1.f, -1.f, -1.f}, cdt[3] = {-1.f, -1.f, -1.f}, cv[3] = {};
+	float kept(int i, float time, float div, float dt) {
+		if (time != ck[i] || dt != cdt[i])
+			ck[i] = time, cdt[i] = dt, cv[i] = coef(time / div, dt);
+		return cv[i];
+	}
 	float process(bool g, float a, float d, float s, float r, float dt) {
 		if (g && !gate)
 			stage = 1;
@@ -166,15 +173,15 @@ struct Env {
 		gate = g;
 		switch (stage) {
 			case 1:
-				v += (1.3f - v) * coef(a / 1.466f, dt);
+				v += (1.3f - v) * kept(0, a, 1.466f, dt);
 				if (v >= 1.f) {
 					v = 1.f;
 					stage = 2;
 				}
 				break;
-			case 2: v += (s - v) * coef(d / 4.f, dt); break;
+			case 2: v += (s - v) * kept(1, d, 4.f, dt); break;
 			case 3:
-				v -= v * coef(r / 4.f, dt);
+				v -= v * kept(2, r, 4.f, dt);
 				if (v < 1e-5f) {
 					v = 0.f;
 					stage = 0;

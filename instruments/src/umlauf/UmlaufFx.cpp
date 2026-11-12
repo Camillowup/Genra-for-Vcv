@@ -70,9 +70,16 @@ struct UmlaufFx : Module {
 		for (int i = 0; i < NUM_INPUTS; i++)
 			configInput(i, in[i]);
 	}
+	int lightTick = 0;
 	void process(const ProcessArgs& args) override {
+		if (--lightTick > 0)  // the lights: every 64 samples
+			return;
+		lightTick = 64;
 		lights[ARPON_LIGHT].setBrightness(params[ARPON].getValue() > 0.5f ? 1.f : 0.f);
 		lights[LATCH_LIGHT].setBrightness(params[LATCH].getValue() > 0.5f ? 1.f : 0.f);
+		// LINK: UMLAUF to the left (2.37: it stayed lit when UMLAUF was moved away)
+		Module* l = leftExpander.module;
+		lights[LINK_LIGHT].setBrightness(l && l->model == modelUmlauf ? 1.f : 0.f);
 	}
 };
 

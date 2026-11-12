@@ -385,17 +385,26 @@ struct Voice {
 	float fade = 1.f, fadeStep = 0.f; // a fade-out to silence (retrigger, choke, mute)
 	HitParams hp;
 	Svf flt;
+	float drvK = -1.f, drvG = 1.f, drvN = 1.f; // DRIVE: gain and 1 / tanh(gain), kept until DRIVE moves
 
+	/** The voice ends: it lets go of its sample (2.37), so a folder that was replaced can leave the memory. Only the
+	 * reference is dropped here; the module keeps the samples alive elsewhere, nothing is freed in the audio thread. */
+	void stop() {
+		active = false;
+		smp.reset();
+	}
 	void start(const std::shared_ptr<Sample>& s, const HitParams& p, float sr) {
 		smp = s;
 		hp = p;
 		active = s && s->frames > 1;
-		if (!active)
+		if (!active) {
+			smp.reset();
 			return;
+		}
 		double n = (double) s->frames - 1;
 		double a = std::max(0.f, std::min(1.f, p.start)) * n, b = std::max(0.f, std::min(1.f, p.end)) * n;
 		if (std::fabs(b - a) < 8.0) {
-			active = false;
+			stop();
 			return;
 		}
 		dir = b >= a ? 1 : -1;
@@ -434,7 +443,7 @@ struct Voice {
 		if (!active)
 			return;
 		if ((dir > 0 && pos >= endPos) || (dir < 0 && pos <= endPos)) {
-			active = false;
+			stop();
 			return;
 		}
 		float env = 1.f;
@@ -442,7 +451,7 @@ struct Voice {
 			env = t / atk;
 		if (dec > 0.f) {
 			if (t >= dec) {
-				active = false;
+				stop();
 				return;
 			}
 			float d = 1.f - t / dec;
@@ -455,23 +464,27 @@ struct Voice {
 		if (fadeStep > 0.f) {
 			fade -= fadeStep;
 			if (fade <= 0.f) {
-				active = false;
+				stop();
 				return;
 			}
 			env *= fade;
 		}
-		float a = read(0), b = smp->channels > 1 ? read(1) : a;
+		// 2.37: a mono sample is shaped once (both sides are the same), and the drive's 1 / tanh only when DRIVE moves
+		bool st = smp->channels > 1;
+		float a = read(0), b = st ? read(1) : a;
 		a = flt.process(a, 0);
-		b = smp->channels > 1 ? flt.process(b, 1) : a;
+		b = st ? flt.process(b, 1) : a;
 		if (drive > 0.001f) {
-			float g = 1.f + drive * 12.f, n = 1.f / std::tanh(g);
+			if (drive != drvK)
+				drvK = drive, drvG = 1.f + drive * 12.f, drvN = 1.f / std::tanh(drvG);
+			float g = drvG, n = drvN;
 			a = std::tanh(a * g) * n;
-			b = std::tanh(b * g) * n;
+			b = st ? std::tanh(b * g) * n : a;
 		}
 		if (bits < 16) {
 			float q = (float) (1 << (bits - 1));
 			a = std::round(a * q) / q;
-			b = std::round(b * q) / q;
+			b = st ? std::round(b * q) / q : a;
 		}
 		float e = env * gain;
 		l = a * e;

@@ -487,7 +487,7 @@ static void scan_dir(vader_t *s, const char *root, const char *rel, const char *
 #endif
 
 static void smp_sync_all(vader_t *s);
-static void rescan(vader_t *s) {
+static void scan_lists(vader_t *s) {   /* UMLAUF: the scan alone (vader_scan runs it off the audio thread) */
     for (int i = 0; i < s->nfiles; i++) { free(s->files[i].path); free(s->files[i].label); }
     s->nfiles = 0;
     if (s->dir[0]) scan_dir(s, s->dir, "", "", 0);
@@ -546,8 +546,8 @@ static void rescan(vader_t *s) {
     s->status[0] = 0;
     mark(s, P_FILE);
     for (int c = 0; c < 4; c++) mark(s, P_SMP_A + c);
-    smp_sync_all(s);
 }
+static void rescan(vader_t *s) { scan_lists(s); smp_sync_all(s); }   /* UMLAUF */
 
 /* ---- 0.8: samples */
 static unsigned rd16(const unsigned char *p) { return p[0] | (p[1] << 8); }
@@ -2035,6 +2035,7 @@ static void load_user(vader_t *s) {
     snprintf(s->ustatus, sizeof s->ustatus, "LOADED");
 }
 
+static void set_value(vader_t *s, int i, float v);   /* UMLAUF */
 static void set_param(void *p, const char *key, const char *val) {
     vader_t *s = p;
     collect_load(s);
@@ -2060,8 +2061,11 @@ static void set_param(void *p, const char *key, const char *val) {
     }
     int i = find(key);
     if (i < 0) return;
+    set_value(s, i, strtof(val, NULL));
+}
+/* UMLAUF: parameter i takes v (set_param's second half: vader_set_index comes in here without the text) */
+static void set_value(vader_t *s, int i, float v) {
     const vp_t *q = &VP[i];
-    float v = strtof(val, NULL);
     if (q->nopts) {
         int k = (int)lroundf(v);
         v = (float)(k < 0 ? 0 : k >= q->nopts ? q->nopts - 1 : k);
@@ -2638,4 +2642,64 @@ int vader_voices_on(void *inst) {
     int n = 0;
     for (int i = 0; i < MAXV; i++) n += s->v[i].active;
     return n;
+}
+
+/* ---- UMLAUF 2.37: the folders are scanned off the audio thread, which only swaps the finished lists in */
+typedef struct { shapefile_t files[MAXFILES], wavs[MAXFILES]; int nfiles, nwavs; char sdir[600]; } vader_lists_t;
+/* any thread but the audio thread: the shape files and samples found now (sdir: the user's samples folder, "" none).
+ * Reads the instance's folders only (set at create). Free with vader_lists_free, or hand to vader_lists_swap. */
+void *vader_scan(void *inst, const char *sdir) {
+    vader_t *s = inst, *t = calloc(1, sizeof *t);
+    vader_lists_t *L = calloc(1, sizeof *L);
+    if (!t || !L) { free(t); free(L); return NULL; }
+    snprintf(t->dir, sizeof t->dir, "%s", s->dir);
+    snprintf(t->pdir, sizeof t->pdir, "%s", s->pdir);
+    snprintf(t->sdir, sizeof t->sdir, "%s", sdir ? sdir : "");
+    scan_lists(t);
+    memcpy(L->files, t->files, sizeof L->files);
+    memcpy(L->wavs, t->wavs, sizeof L->wavs);
+    L->nfiles = t->nfiles;
+    L->nwavs = t->nwavs;
+    snprintf(L->sdir, sizeof L->sdir, "%s", t->sdir);
+    free(t);
+    return L;
+}
+int vader_lists_count(void *lists, int wav) { vader_lists_t *L = lists; return wav ? L->nwavs : L->nfiles; }
+const char *vader_lists_path(void *lists, int wav, int i) {
+    vader_lists_t *L = lists;
+    int n = wav ? L->nwavs : L->nfiles;
+    return i >= 0 && i < n ? (wav ? L->wavs[i].path : L->files[i].path) : "";
+}
+/* the audio thread: the instance takes the lists, `lists` then holds the ones it had (to free off the audio thread);
+ * the rest of what a rescan did (no file is read, nothing is allocated here) */
+void vader_lists_swap(void *inst, void *lists) {
+    vader_t *s = inst;
+    vader_lists_t *L = lists;
+    static _Thread_local shapefile_t tmp[MAXFILES];
+    int n;
+    memcpy(tmp, s->files, sizeof tmp); memcpy(s->files, L->files, sizeof tmp); memcpy(L->files, tmp, sizeof tmp);
+    memcpy(tmp, s->wavs, sizeof tmp); memcpy(s->wavs, L->wavs, sizeof tmp); memcpy(L->wavs, tmp, sizeof tmp);
+    n = s->nfiles; s->nfiles = L->nfiles; L->nfiles = n;
+    n = s->nwavs; s->nwavs = L->nwavs; L->nwavs = n;
+    snprintf(s->sdir, sizeof s->sdir, "%s", L->sdir);
+    s->status[0] = 0;
+    mark(s, P_FILE);
+    for (int c = 0; c < 4; c++) mark(s, P_SMP_A + c);
+    memset(s->uknown, 0, sizeof s->uknown);
+    smp_sync_all(s);
+}
+void vader_lists_free(void *lists) {
+    vader_lists_t *L = lists;
+    if (!L) return;
+    for (int i = 0; i < L->nfiles; i++) { free(L->files[i].path); free(L->files[i].label); }
+    for (int i = 0; i < L->nwavs; i++) { free(L->wavs[i].path); free(L->wavs[i].label); }
+    free(L);
+}
+/* a parameter's index (-1: none), and its value set by that index: as set_param, without the text on the way */
+int vader_param_index(const char *key) { pthread_once(&g_hash_once, hash_build); return find(key); }
+void vader_set_index(void *inst, int i, float v) {
+    vader_t *s = inst;
+    if (i < 0 || i >= NP) return;
+    collect_load(s);
+    set_value(s, i, v);
 }

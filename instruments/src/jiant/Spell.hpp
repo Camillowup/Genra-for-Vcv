@@ -84,22 +84,36 @@ struct SpellEnv {
 	float env = 0.f;
 	static float secs(int v) { float x = v / 127.f; return 0.002f + x * x * 4.f; }
 	void gate(bool on) { stage = on ? 1 : (stage ? 3 : 0); }
-	float process(const int* adsr, float sr) {
+	// the rates, worked out once a block (prepare) instead of an exp a sample: the same values (2.37)
+	float aStep = 0.f, dCoef = 0.f, rCoef = 0.f, sus = 1.f;
+	int seen[4] = {-1, -1, -1, -1};
+	float seenSr = 0.f;
+	void prepare(const int* adsr, float sr) {
+		if (adsr[0] == seen[0] && adsr[1] == seen[1] && adsr[2] == seen[2] && adsr[3] == seen[3] && sr == seenSr)
+			return;
+		for (int i = 0; i < 4; i++)
+			seen[i] = adsr[i];
+		seenSr = sr;
+		aStep = 1.f / (secs(adsr[0]) * sr);
+		dCoef = std::exp(-4.f / (secs(adsr[1]) * sr));
+		sus = adsr[2] / 127.f;
+		rCoef = std::exp(-4.f / (secs(adsr[3]) * sr));
+	}
+	float process() {
 		switch (stage) {
 		case 1:
-			env += 1.f / (secs(adsr[0]) * sr);
+			env += aStep;
 			if (env >= 1.f) {
 				env = 1.f;
 				stage = 2;
 			}
 			break;
 		case 2: {
-			float sus = adsr[2] / 127.f;
-			env = sus + (env - sus) * std::exp(-4.f / (secs(adsr[1]) * sr));
+			env = sus + (env - sus) * dCoef;
 			break;
 		}
 		case 3:
-			env *= std::exp(-4.f / (secs(adsr[3]) * sr));
+			env *= rCoef;
 			if (env < 1e-4f) {
 				env = 0.f;
 				stage = 0;
@@ -118,6 +132,8 @@ struct SpellFx {
 	float cbuf[CB] = {}, dl[DB] = {}, dr[DB] = {};
 	int cw = 0, dw = 0;
 	float lfo = 0.f;
+	int distSeen = -1;
+	float distG = 1.f, distT = 1.f;
 	struct Comb {
 		std::vector<float> b;
 		int i = 0;
@@ -158,8 +174,12 @@ struct SpellFx {
 
 	void process(float x, const int* fx, float& l, float& r) {
 		if (fx[0] > 0) {
-			float g = 1.f + fx[0] / 127.f * 14.f;
-			x = std::tanh(g * x) / std::tanh(g);
+			if (fx[0] != distSeen) {  // tanh(g): when DIST moves, not every sample (2.37)
+				distSeen = fx[0];
+				distG = 1.f + fx[0] / 127.f * 14.f;
+				distT = std::tanh(distG);
+			}
+			x = std::tanh(distG * x) / distT;
 		}
 		l = r = x;
 		// chorus

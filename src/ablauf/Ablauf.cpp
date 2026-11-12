@@ -226,6 +226,17 @@ struct Ablauf : Module {
 		int lastRowCv = -1, lastPattCv = -1;
 	} song;
 	uint32_t cueCounter = 1;
+	// 2.37: what GENRA's follow-on plan holds (Genra::plan): the rows after the playing one, so the song goes on at
+	// the right bar while this (UI) thread is held up; kept here to recognise the rows GENRA started by itself
+	struct PlanRec {
+		bool on = false;
+		uint64_t sig = 0;
+		int n = 0;
+		uint32_t id[Genra::PLAN_N] = {};
+		int row[Genra::PLAN_N] = {};
+		int bars[Genra::PLAN_N] = {};
+		bool stop[Genra::PLAN_N] = {}, wrap[Genra::PLAN_N] = {};
+	} planRec;
 	int pendingStart = -1; // PLAY while GENRA was taking a cue: try again next frame
 	// PATT -> SONG while GENRA plays: back into the song at the end of the pattern, at the row that played before PATT
 	int resumeRow = -1;     // the row the song was on when PATT took over (-1: none)
@@ -1121,20 +1132,7 @@ struct Ablauf : Module {
 			return false;
 		}
 		Genra::ArrCue& c = g->cue;
-		c.stop = stop;
-		c.now = now;
-		c.atBar = at;
-		c.id = cueCounter++;
-		if (!stop) {
-			const Row& w = rows[r];
-			c.slot = slots[w.slot];
-			c.mute = (uint8_t)(~w.on & 0xF);
-			c.fill = w.fill;
-			c.rowBars = ROW_BARS[clamp((int)w.barsIdx, 0, 5)];
-			c.row = (int8_t)r;
-			c.tag = w.sec;
-			c.slotIdx = w.slot;
-		}
+		fillCue(c, r, at, now, stop);
 		g->cueCommit();
 		song.waitId = c.id;
 		song.cuedBars = stop ? 0 : c.rowBars;
@@ -1196,9 +1194,140 @@ struct Ablauf : Module {
 		song.waitId = 0;
 		song.row = -1;
 	}
+	/** The row after the playing one and the bar line where it begins (false: the first row has not started yet). */
+	bool songNext(int& nr, int64_t& at, bool& wrap) {
+		wrap = false;
+		if (song.jumpRow >= 0) { // NEXT, ZEILE CV, or the playing row was deleted
+			nr = nextPlayable(song.jumpRow);
+			if (nr < 0 && loopOn())
+				nr = nextPlayable(0), wrap = true;
+			at = song.jumpAt;
+		}
+		else if (song.row >= 0 && song.row < (int)rows.size()) {
+			nr = nextPlayable(song.row + 1);
+			if (nr < 0 && loopOn())
+				nr = nextPlayable(0), wrap = true;
+			at = song.rowStart + ROW_BARS[clamp((int)rows[song.row].barsIdx, 0, 5)];
+		}
+		else
+			return false;
+		return true;
+	}
+	void fillCue(Genra::ArrCue& c, int r, int64_t at, bool now, bool stop) {
+		c.stop = stop;
+		c.now = now;
+		c.atBar = at;
+		c.id = cueCounter++;
+		if (!stop) {
+			const Row& w = rows[r];
+			c.slot = slots[w.slot];
+			c.mute = (uint8_t)(~w.on & 0xF);
+			c.fill = w.fill;
+			c.rowBars = ROW_BARS[clamp((int)w.barsIdx, 0, 5)];
+			c.row = (int8_t)r;
+			c.tag = w.sec;
+			c.slotIdx = w.slot;
+		}
+	}
+	void dropPlan(Genra* g) {
+		if (g && (planRec.on || g->planState.load() != 0))
+			g->planCancel();
+		planRec = PlanRec();
+	}
+	/** 2.37: hands GENRA the rows that follow (the next one, which is also cued, and those after it), each with its bar
+	 * line. GENRA takes a row from there only when the playing row ends and no cue arrived (this thread held up by a
+	 * file window, say); before, it went on looping the old pattern until the UI was back, and the song came late.
+	 * Written again only when something in it changes. */
+	void updatePlan(Genra* g) {
+		int nr;
+		int64_t at;
+		bool wrap;
+		if (!song.playing || !songMode() || !songNext(nr, at, wrap)) {
+			dropPlan(g);
+			return;
+		}
+		PlanRec p;
+		uint64_t sig = 1469598103934665603ull;
+		while (p.n < Genra::PLAN_N) {
+			bool stop = nr < 0;
+			int k = p.n++;
+			p.row[k] = nr;
+			p.stop[k] = stop;
+			p.wrap[k] = wrap;
+			p.bars[k] = stop ? 0 : ROW_BARS[clamp((int)rows[nr].barsIdx, 0, 5)];
+			sig = (sig ^ rowSig(stop ? -1 : nr, at)) * 1099511628211ull;
+			if (stop)
+				break;
+			at += p.bars[k];
+			int nx = nextPlayable(nr + 1);
+			wrap = false;
+			if (nx < 0 && loopOn())
+				nx = nextPlayable(0), wrap = true;
+			nr = nx;
+		}
+		if (planRec.on && sig == planRec.sig)
+			return;
+		if (!g->planBegin())
+			return; // GENRA reads it right now: next frame
+		// (the bar lines again, as above)
+		int64_t a = 0;
+		bool w0;
+		int r0;
+		songNext(r0, a, w0);
+		g->plan.n = p.n;
+		for (int k = 0; k < p.n; k++) {
+			fillCue(g->plan.e[k], p.row[k], a, false, p.stop[k]);
+			p.id[k] = g->plan.e[k].id;
+			a += p.bars[k];
+		}
+		g->planCommit();
+		p.on = true;
+		p.sig = sig;
+		planRec = p;
+	}
+	/** GENRA started rows from its plan by itself (this thread was held up): the song is where GENRA is. True if so. */
+	bool adoptPlan(Genra* g) {
+		if (!planRec.on)
+			return false;
+		uint32_t done = g->cueDone.load();
+		int j = -1;
+		for (int k = 0; k < planRec.n; k++)
+			if (planRec.id[k] == done)
+				j = k;
+		if (j < 0)
+			return false;
+		if (song.waitId)
+			g->cueCancel(); // our cue for a row that has begun already must not play late
+		song.waitId = 0;
+		song.cuedSig = 0;
+		for (int k = 0; k <= j; k++)
+			if (planRec.wrap[k])
+				endTrig++;
+		PlanRec was = planRec;
+		planRec = PlanRec(); // (written anew from where the song is now)
+		if (was.stop[j]) {
+			song.playing = false;
+			song.row = -1;
+			endTrig++;
+			return true;
+		}
+		song.row = was.row[j];
+		song.rowStart = g->rowStartPub.load();
+		song.rowBars = was.bars[j];
+		song.jumpRow = -1;
+		if (song.row >= (int)rows.size()) { // rows deleted meanwhile: go on after it
+			song.row = -1;
+			song.jumpRow = (int)rows.size();
+			song.jumpAt = song.rowStart + song.rowBars;
+		}
+		rowTrig++;
+		return true;
+	}
 	void songStep(Genra* g) {
 		if (!song.playing)
 			return;
+		if (adoptPlan(g) && !song.playing)
+			return; // the plan's last entry was the song's end
 		if (!g->running && song.row >= 0 && !(song.waitId && g->cueDone.load() == song.waitId)) { // stopped on GENRA itself: the marker stays on the row that played
 			if (song.waitId)
 				g->cueCancel();
@@ -1241,19 +1370,7 @@ struct Ablauf : Module {
 		int nr;
 		int64_t at;
 		bool wrap = false;
-		if (song.jumpRow >= 0) { // NEXT, ZEILE CV, or the playing row was deleted
-			nr = nextPlayable(song.jumpRow);
-			if (nr < 0 && loopOn())
-				nr = nextPlayable(0), wrap = true;
-			at = song.jumpAt;
-		}
-		else if (song.row >= 0 && song.row < (int)rows.size()) {
-			nr = nextPlayable(song.row + 1);
-			if (nr < 0 && loopOn())
-				nr = nextPlayable(0), wrap = true;
-			at = song.rowStart + ROW_BARS[clamp((int)rows[song.row].barsIdx, 0, 5)];
-		}
-		else
+		if (!songNext(nr, at, wrap))
 			return; // the first row has not started yet
 		bool stop = nr < 0;
 		uint64_t sig = rowSig(stop ? -1 : nr, at);
@@ -1276,6 +1393,7 @@ struct Ablauf : Module {
 		if (!g->arrOwner.compare_exchange_strong(own, -1) && own >= 0)
 			return; // another ABLAUF's GENRA: leave it alone
 		g->cueCancel(); // a cue left waiting would still mute tracks or stop GENRA at its bar line
+		g->planCancel(); // (and the song's follow-on plan)
 		g->songLeads.store(false); // RUN and STOP on GENRA are its own again
 		g->arrAlive.store(1e-6f);
 	}
@@ -1329,6 +1447,8 @@ struct Ablauf : Module {
 			attached = g;
 			if (song.playing) // another GENRA: the song starts over there with PLAY
 				song = Song();
+			planRec = PlanRec(); // (letGo dropped the old GENRA's plan)
+			padLabelSlot = -2;   // (the pad's label is written to the new GENRA)
 			pendingPadCue = -1;
 			pendingStore = pendingPart = -1; // a snapshot asked of the old GENRA
 			resumeRow = pendingResume = -1;
@@ -1360,6 +1480,9 @@ struct Ablauf : Module {
 		uiStep(dt, g);
 	}
 
+	int padLabelSlot = -2;      // what Genra::arrPadLabel was made of
+	char padLabelName[9] = {};
+	Genra* padLabelGenra = nullptr;
 	// ---- one frame
 	void uiStep(float dt, Genra* g) {
 		lights[LINK_LIGHT].setBrightness(g ? 1.f : 0.f);
@@ -1375,7 +1498,18 @@ struct Ablauf : Module {
 			int pl = g->arrSlotPub.load();
 			bool known = pl >= 0 && pl < NUM_SLOTS && slots[pl].used;
 			g->arrPadSlot = known ? pl : -1;
-			g->arrPadLabel = known ? slotName(pl) + (slots[pl].name[0] ? std::string(" · ") + slots[pl].name : std::string()) : std::string();
+			// (2.37: the label is put together only when the pad or its name changes, not on every frame)
+			int lp = known ? pl : -1;
+			if (lp != padLabelSlot || (known && std::strncmp(padLabelName, slots[pl].name, sizeof padLabelName) != 0)
+			    || g != padLabelGenra) {
+				padLabelSlot = lp;
+				padLabelGenra = g;
+				if (known)
+					std::memcpy(padLabelName, slots[pl].name, sizeof padLabelName);
+				else
+					padLabelName[0] = 0;
+				g->arrPadLabel = known ? slotName(pl) + (slots[pl].name[0] ? std::string(" · ") + slots[pl].name : std::string()) : std::string();
+			}
 			if (g->padSaveReq >= 0) {
 				int rq = g->padSaveReq;
 				g->padSaveReq = -1;
@@ -1606,6 +1740,7 @@ struct Ablauf : Module {
 			else if (pendingResume >= 0 && (!g->running || song.playing))
 				pendingResume = -1;
 			songStep(g);
+			updatePlan(g);
 		}
 		else if (song.playing)
 			song.playing = false;

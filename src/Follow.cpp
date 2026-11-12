@@ -191,7 +191,9 @@ void Follower::uiStep(Module* self, float dt) {
 			point(genra, self, nullptr);
 		return;
 	}
-	if (now && uiTimer > 0.f)
+	// 2.37: the search always waits its half second (it only did while a GENRA was found: without a GENRA in the patch
+	// every module was looked through on every frame, by every instrument). Menus and loading set uiTimer to 0.
+	if (uiTimer > 0.f)
 		return;
 	uiTimer = 0.5f;
 	Module* want = nullptr;

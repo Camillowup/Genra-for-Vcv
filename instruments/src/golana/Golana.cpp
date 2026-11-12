@@ -120,7 +120,7 @@ struct Golana : Module, follow::Host {
 	float ring[2][2048] = {};
 	int ringN = 0;
 	double pos = 1.0;
-	int ctlTick = 0;
+	int ctlTick = 0, lightTick = 0;
 
 	// for the screen (audio thread writes, UI reads): the output at 44.1 kHz, the notes that sound
 	static const int SCOPE = 4096;
@@ -445,7 +445,7 @@ struct Golana : Module, follow::Host {
 			Module* m = b.panel == MAIN ? this : fx;
 			if (!m || !m->inputs[b.input].isConnected())
 				continue;
-			cv[b.key()] += m->inputs[b.input].getVoltage() * 0.1f * (float) (fwHi(b) - fwLo(b));
+			cv[b.key()] += finiteOr0(m->inputs[b.input].getVoltage()) * 0.1f * (float) (fwHi(b) - fwLo(b));
 		}
 		if (glide >= 0 && inputs[SLIDE_INPUT].getVoltage() >= 1.f)
 			cv[glide] += 0.35f * 127.f;  // SLIDE high: glide on top of PORTA (GENRA's slides)
@@ -484,8 +484,10 @@ struct Golana : Module, follow::Host {
 				float v = inputs[GATE_INPUT].getPolyVoltage(c);
 				g = v >= 1.f ? true : (v <= 0.1f ? false : gate[c]);
 			}
-			int n = clamp((int) std::lround(60.f + 12.f * inputs[VOCT_INPUT].getPolyVoltage(c)), 0, 127);
-			int vel = velOn ? clamp((int) std::lround(inputs[VEL_INPUT].getPolyVoltage(c) * 12.7f), 1, 127) : 100;
+			if (!g && !gate[c])  // a voice at rest: nothing to work out (2.37)
+				continue;
+			int n = clamp((int) std::lround(60.f + 12.f * finiteOr0(inputs[VOCT_INPUT].getPolyVoltage(c))), 0, 127);
+			int vel = velOn ? clamp((int) std::lround(finiteOr0(inputs[VEL_INPUT].getPolyVoltage(c)) * 12.7f), 1, 127) : 100;
 			if (g && (!gate[c] || n != note[c]) && inputs[ACC_INPUT].getPolyVoltage(c) >= 1.f)
 				vel = std::min(127, vel + 30);  // accent: velocity up
 			if (g && !gate[c]) {
@@ -528,12 +530,12 @@ struct Golana : Module, follow::Host {
 	}
 	void controllers() {
 		const gl_api* a = core.api;
-		int m = inputs[MOD_INPUT].isConnected() ? clamp((int) std::lround(inputs[MOD_INPUT].getVoltage() * 12.7f), 0, 127) : 0;
+		int m = inputs[MOD_INPUT].isConnected() ? clamp((int) std::lround(finiteOr0(inputs[MOD_INPUT].getVoltage()) * 12.7f), 0, 127) : 0;
 		if (m != lastMod) {
 			lastMod = m;
 			a->midi(0xB0, 1, m);
 		}
-		int p = inputs[AFTER_INPUT].isConnected() ? clamp((int) std::lround(inputs[AFTER_INPUT].getVoltage() * 12.7f), 0, 127) : 0;
+		int p = inputs[AFTER_INPUT].isConnected() ? clamp((int) std::lround(finiteOr0(inputs[AFTER_INPUT].getVoltage()) * 12.7f), 0, 127) : 0;
 		if (p != lastPress) {
 			lastPress = p;
 			a->midi(0xD0, p, 0);
@@ -564,7 +566,10 @@ struct Golana : Module, follow::Host {
 	void process(const ProcessArgs& args) override {
 		fol.process(this, args.frame);  // FOLLOW GENRA: the jacks without a cable (Follow.hpp)
 		const gl_api* a = core.api;
-		lights[ARPON_LIGHT].setBrightness(params[ARPON_PARAM].getValue() > 0.5f ? 1.f : 0.f);
+		if (--lightTick <= 0) {  // the light: every 64 samples (2.37)
+			lightTick = 64;
+			lights[ARPON_LIGHT].setBrightness(params[ARPON_PARAM].getValue() > 0.5f ? 1.f : 0.f);
+		}
 		if (!a)
 			return;
 		int req = presetReq.exchange(-1);
@@ -651,6 +656,7 @@ struct Golana : Module, follow::Host {
 			presetIdx = std::max(0, (int) json_integer_value(j));
 		json_t* gJ = json_object_get(r, "presetGain");
 		presetGain = json_is_number(gJ) ? (float) json_number_value(gJ) : gllevels::gainOf(presetIdx);
+		presetGain = std::isfinite(presetGain) ? clamp(presetGain, 0.1f, 4.f) : 1.f;  // (a broken patch file)
 		bool engineWins = json_is_true(json_object_get(r, "engineWins"));
 		if (json_t* j = json_object_get(r, "ppqn"))
 			ppqn = clamp((int) json_integer_value(j), 1, 24);

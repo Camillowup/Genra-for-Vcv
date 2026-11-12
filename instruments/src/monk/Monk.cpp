@@ -70,6 +70,7 @@ struct Monk : Module, follow::Host {
 	float outL[monkdsp::Monk::BLOCK] = {}, outR[monkdsp::Monk::BLOCK] = {}, outD[monkdsp::Monk::BLOCK] = {};
 	uint32_t pos = monkdsp::Monk::BLOCK;
 	float env = 0.f;
+	float envK = 0.02f;  // the ENV output's smoothing a sample: 0.02 at 44.1 kHz, the same time at any rate (2.37)
 
 	int singer = 0;
 	std::atomic<int> singerReq{-1};
@@ -147,6 +148,7 @@ struct Monk : Module, follow::Host {
 
 	void onSampleRateChange(const SampleRateChangeEvent& e) override {
 		dsp.init(e.sampleRate);
+		envK = e.sampleRate == 44100.f ? 0.02f : 1.f - std::pow(1.f - 0.02f, 44100.f / e.sampleRate);
 		gate = false;
 		pos = monkdsp::Monk::BLOCK;
 	}
@@ -184,7 +186,7 @@ struct Monk : Module, follow::Host {
 	float knob(int param) {
 		float x = toEngine(param, params[param].getValue());
 		if (param >= K_PARAM && param < K_PARAM + NK && inputs[K_INPUT + param - K_PARAM].isConnected())
-			x += inputs[K_INPUT + param - K_PARAM].getVoltage() * 0.1f;
+			x += finiteOr0(inputs[K_INPUT + param - K_PARAM].getVoltage()) * 0.1f;
 		return clamp(x, 0.f, 1.f);
 	}
 
@@ -204,7 +206,7 @@ struct Monk : Module, follow::Host {
 			loadSinger(singer + 1);
 		if (inputs[SINGER_INPUT].isConnected()) {
 			int n = monksingers::COUNT;
-			int s = clamp((int) (inputs[SINGER_INPUT].getVoltage() / 10.f * n), 0, n - 1);
+			int s = clamp((int) (finiteOr0(inputs[SINGER_INPUT].getVoltage()) / 10.f * n), 0, n - 1);
 			if (s != cvSinger) {
 				cvSinger = s;
 				if (s != singer)
@@ -216,9 +218,9 @@ struct Monk : Module, follow::Host {
 
 		// the note: GATE and V/OCT (channel 1 of a poly cable)
 		float g = inputs[GATE_INPUT].getVoltage();
-		note = 60.f + 12.f * inputs[VOCT_INPUT].getVoltage();
+		note = 60.f + 12.f * finiteOr0(inputs[VOCT_INPUT].getVoltage());  // (a NaN would go into the grain's floor)
 		if (gateTrig.process(g, 0.1f, 1.f)) {
-			float vel = inputs[VEL_INPUT].isConnected() ? inputs[VEL_INPUT].getVoltage() / 10.f : 100.f / 127.f;
+			float vel = inputs[VEL_INPUT].isConnected() ? finiteOr0(inputs[VEL_INPUT].getVoltage()) / 10.f : 100.f / 127.f;
 			setParams();
 			dsp.gateOn(note, vel);
 			gate = true;
@@ -239,7 +241,7 @@ struct Monk : Module, follow::Host {
 			uiPitch = dsp.uiPitch;
 			uiSinging = gate || dsp.uiEnv > 0.001f;
 		}
-		env += (dsp.uiEnv - env) * 0.02f;
+		env += (dsp.uiEnv - env) * envK;
 		outputs[L_OUTPUT].setVoltage(5.f * outL[pos]);
 		outputs[R_OUTPUT].setVoltage(5.f * outR[pos]);
 		if (!outputs[R_OUTPUT].isConnected() && !pulled(args.frame)) // L alone: the mono sum (as FUNKE, GRUND, MONO)
@@ -259,7 +261,7 @@ struct Monk : Module, follow::Host {
 			if (i >= K_PARAM && i < K_PARAM + NK)
 				eff[i - K_PARAM] = x;
 		}
-		float pr = inputs[PRESS_INPUT].isConnected() ? clamp(inputs[PRESS_INPUT].getVoltage() / 10.f, 0.f, 1.f) : 0.f;
+		float pr = inputs[PRESS_INPUT].isConnected() ? clamp(finiteOr0(inputs[PRESS_INPUT].getVoltage()) / 10.f, 0.f, 1.f) : 0.f;
 		uiPress = pr;
 		dsp.pressure(pr);
 		dsp.touch((int) std::round(params[ROUTE_PARAM].getValue()), params[PDEPTH_PARAM].getValue(),
@@ -565,7 +567,7 @@ struct MonkWidget : ModuleWidget {
 		menu->addChild(new MenuSeparator);
 		menu->addChild(createSubmenuItem("Singer", monksingers::get(m->singer).name, [=](Menu* sub) {
 			for (int i = 0; i < monksingers::COUNT; i++)
-				sub->addChild(createCheckMenuItem(string::f("%s Â· %s", monksingers::get(i).name, monksingers::get(i).role), "", [=]() { return m->singer == i; },
+				sub->addChild(createCheckMenuItem(string::f("%s \xc2\xb7 %s", monksingers::get(i).name, monksingers::get(i).role), "", [=]() { return m->singer == i; },
 				                                  [=]() { m->singerReq = i; }));
 		}));
 		menu->addChild(createMenuItem("Singer's voice as it came", "", [=]() { m->singerReq = m->singer; }));

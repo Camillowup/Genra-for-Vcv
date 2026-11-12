@@ -20,6 +20,14 @@ void *vader_view_bus(void *inst);
 void vader_set_corner_bus(void *inst, float (*bus)[128]);
 int vader_voices_on(void *inst);
 int vader_list_count(void *inst, int wav);
+const char *vader_list_path(void *inst, int wav, int i);
+void *vader_scan(void *inst, const char *sdir);
+int vader_lists_count(void *lists, int wav);
+const char *vader_lists_path(void *lists, int wav, int i);
+void vader_lists_swap(void *inst, void *lists);
+void vader_lists_free(void *lists);
+int vader_param_index(const char *key);
+void vader_set_index(void *inst, int i, float v);
 
 static const mpc_engine_t *E;
 static int fails = 0;
@@ -255,6 +263,56 @@ int main(int argc, char **argv) {
         double sec = (double)(clock() - t0) / CLOCKS_PER_SEC;
         printf("8 voices: %.1f %% of a core\n", 100.0 * sec / 2.0);
         for (int k = 0; k < 8; k++) note(s, 48 + k * 3, 0);
+    }
+
+    /* 2.37: the folders scanned off the audio thread (the same lists as a rescan finds), swapped in while it plays */
+    {
+        int n0 = vader_list_count(s, 0);
+        char first[1024];
+        snprintf(first, sizeof first, "%s", vader_list_path(s, 0, 0));
+        void *L = vader_scan(s, "");
+        CHECK(L != NULL, "vader_scan");
+        if (L) {
+            CHECK(vader_lists_count(L, 0) == n0, "vader_scan: %d shapes, rescan found %d", vader_lists_count(L, 0), n0);
+            CHECK(!strcmp(vader_lists_path(L, 0, 0), first), "vader_scan: first %s, not %s", vader_lists_path(L, 0, 0), first);
+            note(s, 60, 1);
+            run(s, 4410, &bad, NULL);
+            vader_lists_swap(s, L);
+            CHECK(vader_list_count(s, 0) == n0 && !strcmp(vader_list_path(s, 0, 0), first), "after the swap: %d shapes", vader_list_count(s, 0));
+            CHECK(vader_lists_count(L, 0) == n0, "the swap gives the old lists back: %d", vader_lists_count(L, 0));
+            pk = run(s, 4410, &bad, NULL);
+            CHECK(!bad && pk > 0.01f, "playing over the swap: peak %.3f", pk);
+            note(s, 60, 0);
+            vader_lists_free(L);
+        }
+        void *L2 = vader_scan(s, dir);   /* the samples folder: any folder (no WAV in the shapes: none found, no harm) */
+        CHECK(L2 != NULL && vader_lists_count(L2, 0) == n0, "vader_scan with a samples folder");
+        vader_lists_free(L2);
+    }
+
+    /* 2.37: a parameter by its index is the same as by its key and text */
+    {
+        static const char *K[] = {"a_cutoff", "orb_speed", "volume", "a_og1", "focus_x", "mk1", "attack", "shape", "a_ftype"};
+        static const float V[] = {0.3137f, 0.9f, 0.25f, 0.66f, 0.123456f, 0.75f, 0.2f, 7.f, 3.f};
+        for (unsigned k = 0; k < sizeof K / sizeof K[0]; k++) {
+            int i = vader_param_index(K[k]);
+            CHECK(i >= 0, "no index for %s", K[k]);
+            char a[64] = "", b[64] = "";
+            setf(s, K[k], 0);
+            setf(s, K[k], V[k]);
+            E->get_param(s, K[k], a, sizeof a);
+            setf(s, K[k], 0);
+            vader_set_index(s, i, V[k]);
+            E->get_param(s, K[k], b, sizeof b);
+            CHECK(!strcmp(a, b), "%s: by key %s, by index %s", K[k], a, b);
+        }
+        CHECK(vader_param_index("no_such_key") < 0, "an index for a key that is none");
+        vader_set_index(s, -1, 1);
+        vader_set_index(s, 1000000, 1);
+        setf(s, "preset", 1);
+        setf(s, "preset", 0);
+        run(s, 4410, &bad, NULL);
+        CHECK(!bad, "after the index writes");
     }
 
     /* two instances, two threads */

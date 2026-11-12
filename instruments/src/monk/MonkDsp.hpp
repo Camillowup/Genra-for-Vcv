@@ -203,11 +203,19 @@ struct Voice {
 		return (float) ((rng_state >> 16) & 0x7FFF) / 32768.0f;
 	}
 
+	// the envelope's rates: worked out once a block (process), not with a division every sample; the same values (2.37)
+	float rate_a = 0.f, rate_d = 1.f, rate_r = 0.f;
+	void envRates() {
+		float fs = T->fs;
+		rate_a = 1.0f / (std::max(env_attack, ENV_ANTICLICK) * fs);
+		rate_d = env_decay > 0.0f ? 1.0f / (env_decay * fs) : 1.0f;
+		rate_r = 1.0f / (std::max(env_release, ENV_ANTICLICK) * fs);
+	}
 	float envTick() {
-		float rate, fs = T->fs;
+		float rate;
 		switch (env_stage) {
 			case ENV_ATTACK:
-				rate = 1.0f / (std::max(env_attack, ENV_ANTICLICK) * fs);
+				rate = rate_a;
 				env_level += rate;
 				if (env_level >= 1.0f) {
 					env_level = 1.0f;
@@ -215,7 +223,7 @@ struct Voice {
 				}
 				break;
 			case ENV_DECAY:
-				rate = env_decay > 0.0f ? 1.0f / (env_decay * fs) : 1.0f;
+				rate = rate_d;
 				env_level -= rate * (1.0f - env_sustain);
 				if (env_level <= env_sustain) {
 					env_level = env_sustain;
@@ -223,7 +231,7 @@ struct Voice {
 				}
 				break;
 			case ENV_RELEASE:
-				rate = 1.0f / (std::max(env_release, ENV_ANTICLICK) * fs);
+				rate = rate_r;
 				env_level -= rate;
 				if (env_level <= 0.0f) {
 					env_level = 0.0f;
@@ -391,6 +399,8 @@ struct Voice {
 
 	void process(float* out, uint32_t n) {
 		bool env = hasEnv() || env_stage == ENV_RELEASE;
+		if (env)
+			envRates();
 		for (uint32_t i = 0; i < n; i++) {
 			if (active || env_stage == ENV_RELEASE) {
 				applyPortamento();

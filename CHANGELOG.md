@@ -4,6 +4,94 @@ Was in welcher Version dazukam (GENRA und GENRA Instruments). Der aktuelle Stand
 
 ## 2.21 bis heute (neueste zuerst)
 
+### 2.37.0 – Fehler und Rechenzeit (GENRA und GENRA Instruments)
+Klang und Patches bleiben gleich (alte Patches laden unverändert); wo etwas minimal anders ist, steht es dabei.
+
+**GENRA – Fehler**
+- **DRUM-X: kein Laden und Entladen des Kerns mehr im Audio-Thread.** Beim Stecken eines LANE-Ausgangs wurde in
+  `process()` die Kern-Bibliothek kopiert und geladen (Datei kopieren, `LoadLibrary`, Speicher), beim Ziehen entladen
+  und gelöscht: Aussetzer bei kleinem ASIO-Puffer. Das macht jetzt ein eigener Thread des Moduls; der Audio-Thread
+  fragt nur an (`laneAsk`), übernimmt den fertigen Kern (`laneReady`) und gibt nicht mehr gebrauchte zurück
+  (`laneTrash`). Ein frisch gesteckter LANE-Ausgang klingt dadurch ein paar Millisekunden später.
+- **SCHLAG: jede Sample-Datei nur noch einmal im Speicher** (`Store` in `Schlag.cpp`), für alle Spuren und alle
+  SCHLAG-Module zusammen; vorher las jede Spur ihren ganzen Ordner für sich (acht Spuren auf einem Ordner = achtmal).
+  Dazu eine **Grenze von 1 GB Sample-Daten** insgesamt: ist sie erreicht, werden die übrigen Dateien des Ordners
+  nicht geladen; die Spur zeigt im Display „MEMORY FULL -n“, die Meldung „MEMORY FULL“ erscheint rechts, der Tooltip
+  des SAMPLE-Reglers nennt die Zahl. Eine Stimme gibt ihr Sample am Ende frei (`Voice::stop`), ersetzte Ordner
+  verlassen den Speicher (im UI-Thread, nie im Audio-Thread). Eine unter gleichem Namen neu geschriebene Datei wird
+  an Grösse und Änderungszeit erkannt und neu gelesen.
+- **ABLAUF: der Song läuft weiter, auch wenn die Oberfläche steht** (z. B. ein Datei-Fenster offen ist). Die Folge-Zeile
+  wurde im UI-Thread entschieden; kam der nicht dran, spielte GENRA das alte Pattern weiter und der Song lief
+  hinterher. Jetzt bekommt GENRA zusätzlich die nächsten acht Zeilen mit ihren Taktstrichen (`Genra::plan`,
+  `updatePlan`) und nimmt am Ende einer Song-Zeile selbst die nächste, wenn kein Cue ankam (`takePlan`); ABLAUF holt
+  das nach, sobald es wieder läuft (`adoptPlan`). Sprünge (NEXT, ROW CV), PATT und STOP bleiben wie sie waren.
+  ABLAUF MINI ist davon noch nicht berührt.
+- **Follow GENRA, MIX: die Suche nach GENRA bzw. den Instrumenten wartet immer eine halbe Sekunde.** Ohne GENRA im
+  Patch (bzw. ohne passendes Instrument für einen MIX-Kanal) wurden bei jedem Bild alle Module durchsucht, von jedem
+  Instrument einzeln.
+- **GENRA: NEW fordert keinen Speicher mehr im Audio-Thread an** (`generateChords`, `parseChordToken` lesen die
+  Akkord-Vorlagen ohne `std::string`; Ergebnis über alle Genres und Vorlagen gleich geprüft).
+- **SCHMELZ:** ein Kanal, der wegfiel, behielt sein Gate; kam er mit gehaltenem Gate zurück, startete die Note nicht.
+- **GRUND:** die Notenanzeige folgte der Tonhöhe bei gehaltenem Gate nicht (toter Vergleich).
+
+**GENRA – Rechenzeit, Klang bit-gleich** (die Klang-Engines alt gegen neu Sample für Sample verglichen, 44,1 / 48 /
+96 kHz; in den Modul-Dateien – SCHLAG Pegel und Panorama, BOX DUCK, GENRA-FX-Anzeige – dieselbe Rechnung, nur gemerkt)
+- **Hüllkurve von MONO, GRUND, FUNKE** (`gmono::Env`): `exp` nur noch, wenn sich Zeit oder Abtastrate ändert, statt
+  bei jedem Sample.
+- **SCHLAG:** Pegel (`pow`, neunmal pro Sample) und Panorama (`cos`, `sin` je Stimme) nur bei Änderung; Mono-Samples
+  werden einmal geformt statt zweimal (`tanh`, Bits); `1 / tanh` des DRIVE nur bei Änderung.
+- **FUNKE:** SAW LEAD rechnet die Verstimmung nur bei TIMBRE-Änderung (vorher vier `pow` pro Sample und Stimme),
+  SQUARE kein `pow` mehr nach dem Tonhöhen-Blip, FLUTE das `tan` einmal pro Frequenz, Panorama-Wurzeln pro Note,
+  feste `exp` im Effektweg nur einmal.
+- **GRUND:** REESE-Verstimmung, FRETLESS-Gleiten, Tonblende, Kompressor-Zeiten und Aufholpegel, FET-Normierung nur
+  bei Änderung; `pow` und `tan` des Filters nur, wenn sich die Eckfrequenz bewegt (statt in jedem Oversampling-Schritt).
+- **GENRA FX:** Hall und Delay rechnen ihre Koeffizienten nur bei einer Änderung (vorher rund 34 `pow` / `exp` alle
+  32 Samples); bei TAPE 0 keine zwei `sin` pro Sample; feste `exp` der Anzeige einmal.
+- **GENRA BOX** (DUCK) und **STOTTER** (STUTTER: Tonhöhe und Pegel pro Wiederholung; BITCRUSH: Rate und Stufen):
+  `pow` / `exp` / `fmod` nur bei Änderung.
+
+**GENRA – Rechenzeit, minimal anders**
+- **GENRA FX ruht in der Stille:** kommt nichts an und sind alle Verzögerungen länger als ihre Gesamtlänge exakt
+  leer, werden Hall bzw. Delay nicht mehr gerechnet (Ausgang 0, wie vorher auch); Regler-Glättung und
+  Modulations-Phasen laufen weiter, das erste Signal trifft denselben Zustand an (im Test bit-gleich).
+  **SHIMMER 0:** der Oktav-Schieber ruht; sein Puffer wird beim Abschalten geleert.
+- **STOTTER, ECHO OUT:** bei HALL 0 ruhen die acht Allpässe; sie beginnen leer, wenn HALL wieder aufgedreht wird
+  (bzw. ein Pad mit HALL das Echo übernimmt): die ersten Millisekunden des Halls bauen sich neu auf.
+- **GENRA:** Genre-Regler / -CVs, CHORD, TRANSP und die Loop-Länge werden alle 16 Samples gelesen statt bei jedem,
+  und immer in dem Sample, das sie braucht (NEW, NEW einer Spur, Akkorde NEW, jeder Schritt der Clock, beim
+  Übernehmen eines geladenen oder gecueten Patterns). FILL OUT reagiert bis zu 16 Samples später auf LENGTH.
+- **ABLAUF:** die Pad-Beschriftung für das GRID wird nur bei Änderung neu zusammengesetzt.
+
+**GENRA Instruments**
+- **UMLAUF: Sound ging verloren, wenn das Modul beim Laden im Bypass war.** Der gespeicherte Engine-Zustand wurde erst
+  vom Audio-Thread übernommen; im Bypass läuft der nicht, und das nächste (Auto-)Speichern schrieb den Startklang in
+  den Patch. Jetzt gilt der geladene Zustand sofort als der zu speichernde. Behebt auch den falschen Redo-Schritt nach
+  dem Laden eines User-Presets.
+- **UMLAUF: kein Ordner-Scan und keine Datei-Arbeit mehr im Audio-Thread.** Shapes und Samples werden im UI-Thread
+  gesucht (beim Erzeugen des Moduls, bei *Scan the folders again*, beim Import, beim Wechsel des Sample-Ordners); der
+  Audio-Thread tauscht nur die fertige Liste ein. Preset laden, Undo, Redo und Mausrad auf dem Preset-Feld scannen
+  nicht mehr (vorher: Aussetzer bei kleinem ASIO-Puffer). In der VADER-Engine dazu `vader_scan`, `vader_lists_swap`
+  (markiert, `tools/vader_patch.py` Punkt 5).
+- **UMLAUF: Wettlauf zwischen Audio- und UI-Thread behoben** (Sample-Pfade und Shape-Datei gehören jetzt dem
+  UI-Thread; der Audio-Thread bekommt nur noch die Plätze in der Liste). Kein Mutex mehr in jedem Block bei
+  Sample-Ecken, dort auch keine Suche durch die ganze Sample-Liste mehr (bis ca. 1 % CPU je WAV-Ecke).
+- **UMLAUF: keine Speicher-Anforderungen mehr im laufenden Audio-Thread** für Display-Texte, Clock (`host_time`) und
+  den Zustand fürs Speichern (feste Puffer).
+- **UMLAUF: CV-Werte gehen ohne Umweg über Text in die Engine** (`vader_set_index`; ca. 0,2 % CPU je moduliertem CV),
+  und CV-Bewegung löst kein erneutes Sichern des Zustands mehr aus (vorher alle 2 s).
+- **UMLAUF FX: LINK-Licht** ging nicht aus, wenn UMLAUF weggeschoben wurde.
+- **VOICE, ANIMAL:** ruhende Kanäle werden nicht mehr pro Sample durchgerechnet (16 Kanäle, ca. 0,2–0,4 % CPU je
+  Modul); die Engine-Bibliothek wird beim Erzeugen des Moduls geladen statt unter der Engine-Sperre (kein kurzer
+  Audio-Stopp beim Einfügen). **VOICE SPEAK:** die Wörter des Textes werden nur noch bei Textänderung zerlegt, nicht
+  bei jeder Note (keine Sperre, kein Speicher im Audio-Thread). **SPELL:** Hüllkurve und Verzerrer rechnen ihre
+  Konstanten einmal pro Block statt pro Sample (gleicher Klang).
+- **MONK:** Hüllkurven-Raten einmal pro Block (bit-gleich geprüft); ENV-Ausgang glättet bei jeder Abtastrate gleich
+  lang (bei 44,1 kHz unverändert); im Sänger-Menü stand „Â·“ statt „·“.
+- **K-WASUB, GOLANA:** ruhende Stimmen übersprungen; ENV/LFO-Ausgang (K-WASUB) einmal pro Block gelesen; Lichter der
+  Expander nur alle 64 Samples; `presetGain` aus dem Patch wird auf 0,1–4 begrenzt.
+- **Alle Instrumente:** NaN oder Unendlich an V/OCT, VEL und CV zählt als 0 V (vorher undefiniertes Verhalten).
+- Klang und Patches bleiben gleich; einzig UMLAUFs CV-Werte werden nicht mehr auf 6 Nachkommastellen gerundet.
+
 ### 2.36.0 – VOICE, BEND, ANIMAL, MONK und DRUM-X im Look der Vorlagen
 - **Neue Panels nach GENRA MONO, GRUND, FUNKE und SCHMELZ** (`docs/DESIGN.md` › Aussehen): Preset-Feld im Kopf
   (anklicken = Liste, Mausrad = blättern), Display über die volle Breite, Sektionen mit Farblinie, der wichtigste

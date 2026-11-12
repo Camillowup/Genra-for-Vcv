@@ -342,8 +342,12 @@ struct Schmelz : Module, follow::Host {
 					solo += so[c].render(op, freq(strHz, c, voct));
 			}
 		}
-		for (int c = sch; c < MAXV; c++)
+		for (int c = sch; c < MAXV; c++) {
 			voiceOn[c] = false;
+			gate[c] = false; // (2.37: a channel that went away kept its gate: back again with the gate up, it did not start)
+		}
+		for (int c = soloOwn ? och : 0; c < MAXV; c++)
+			soloOwnGate[c] = false; // (the same for the solo's own gates)
 		outputs[ENV_OUTPUT].setChannels(std::max(sch, 1));
 		// the solo from its own inputs
 		if (soloOwn) {

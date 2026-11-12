@@ -323,6 +323,7 @@ struct Allpass {
 	int i = 0;
 	float g = 0.6f;
 	void init(int n) { d.assign(std::max(n, 1), 0.f); i = 0; }
+	void clear() { std::fill(d.begin(), d.end(), 0.f); }
 	float process(float x) {
 		float v = d[i];
 		float y = -g * x + v;
@@ -417,7 +418,12 @@ struct Engine {
 	int64_t dWk = 0;          // dW % the echo line's length
 	float dlp[2] = {0, 0};
 	Allpass hall[2][4];
+	bool hallOn = true;       // the echo's HALL allpasses run (2.37: they rest at HALL 0)
 	float echoIn = 1.f;
+	// 2.37: kept until what they are made of changes (STUTTER's ratio and level per repeat, CRUSH's rate and steps)
+	float stSemis = 1e30f, stBase = -1.f, stGain = 1.f, crRateK = -1.f, crRateV = 48000.f, crBitsK = -1.f, crQ = 1.f;
+	double stRatio = 1.0;
+	int stK = -1;
 
 	// capture loop (REC 1 BAR)
 	enum { CAP_OFF, CAP_ARMED, CAP_REC, CAP_PLAY };
@@ -662,9 +668,16 @@ struct Engine {
 				int k = (int) (pt / L);
 				double u = pt - k * L;
 				float semis = clampf(stutterPitch(v[2]) * k, -24.f, 24.f);
-				double r = k > 0 ? std::pow(2.0, semis / 12.0) : 1.0;
-				double ru = k > 0 ? std::fmod(u * r, L) : u;
-				float g = std::pow(clampf(1.f - (0.35f + hard * 0.3f) * (v[1] + hard * 0.5f), 0.f, 1.f), (float) k);
+				// 2.37: the repeat's pitch ratio and level only when they change (once per repeat), not every sample; at
+				// ratio 1 the position needs no fmod (u lies within the repeat)
+				if (semis != stSemis)
+					stSemis = semis, stRatio = std::pow(2.0, semis / 12.0);
+				double r = k > 0 ? stRatio : 1.0;
+				double ru = k > 0 && !(r == 1.0 && u < L) ? std::fmod(u * r, L) : u;
+				float gb = clampf(1.f - (0.35f + hard * 0.3f) * (v[1] + hard * 0.5f), 0.f, 1.f);
+				if (gb != stBase || k != stK)
+					stBase = gb, stK = k, stGain = std::pow(gb, (float) k);
+				float g = stGain;
 				float w = edge(ru, L, 2.f);
 				if (k == 0) w = (float) std::min(1.0, (L - u) / std::min(L * 0.25, fs * 0.002));
 				float a, b;
@@ -779,14 +792,18 @@ struct Engine {
 			}
 			case CRUSH: {
 				float bits = std::max(1.f, std::round(crushBits(v[0]) - hard * 6.f));
-				float rate = crushRate(v[1]) / (1.f + hard * 4.f);
+				if (v[1] != crRateK) // (2.37: pow only when the knob moves)
+					crRateK = v[1], crRateV = crushRate(v[1]);
+				float rate = crRateV / (1.f + hard * 4.f);
 				crushPh += rate / fs;
 				if (crushPh >= 1.f) {
 					crushPh -= std::floor(crushPh);
 					hold[0] = sl;
 					hold[1] = sr;
 				}
-				float q = std::pow(2.f, bits - 1.f);
+				if (bits != crBitsK)
+					crBitsK = bits, crQ = std::pow(2.f, bits - 1.f);
+				float q = crQ;
 				float a = std::round(clampf(hold[0] * 0.2f, -1.f, 1.f) * q) / q * 5.f;
 				float b = std::round(clampf(hold[1] * 0.2f, -1.f, 1.f) * q) / q * 5.f;
 				mixw(a, b, amt * v[2]);
@@ -827,6 +844,13 @@ struct Engine {
 		echoIn += (target - echoIn) * kEcho;
 		float in[2] = {sl, sr};
 		float hallAmt = v ? v[2] : 0.f;
+		// 2.37: at HALL 0 the eight allpasses rest (their output was multiplied by 0); they start empty when HALL
+		// comes up again
+		bool hallRun = hallAmt != 0.f;
+		if (hallRun && !hallOn)
+			for (int k = 0; k < 2; k++)
+				for (int a = 0; a < 4; a++) hall[k][a].clear();
+		hallOn = hallRun;
 		for (int k = 0; k < 2; k++) {
 			double pos = (double) dW - d;
 			int64_t i = (int64_t) std::floor(pos);
@@ -837,9 +861,13 @@ struct Engine {
 			float y = dl[k][(size_t) i0] * (1.f - f) + dl[k][(size_t) i1] * f;
 			dlp[k] += (y - dlp[k]) * 0.35f;  // dark repeats
 			if (std::fabs(dlp[k]) < 1e-12f) dlp[k] = 0.f;
-			float h = dlp[k];
-			for (int a = 0; a < 4; a++) h = hall[k][a].process(h);
-			echoOut[k] = dlp[k] + (h - dlp[k]) * hallAmt;
+			if (hallRun) {
+				float h = dlp[k];
+				for (int a = 0; a < 4; a++) h = hall[k][a].process(h);
+				echoOut[k] = dlp[k] + (h - dlp[k]) * hallAmt;
+			}
+			else
+				echoOut[k] = dlp[k];
 			float fbk = (k == 0 ? dlp[1] : dlp[0]) * 0.25f + dlp[k] * 0.75f;  // a little ping-pong
 			float wv = sat((in[k] * echoIn + fbk * fb) * 0.2f) * 5.f;
 			dl[k][(size_t) dWk] = std::fabs(wv) < 1e-12f ? 0.f : wv;  // no denormals in the dying tail

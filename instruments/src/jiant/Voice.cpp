@@ -81,13 +81,20 @@ struct Voice : Module, follow::Host, SpellSink {
 	dsp::BooleanTrigger prevTrig, nextTrig, lprevTrig, lnextTrig;
 	dsp::SchmittTrigger wordTrig;
 	// SPELL, engine thread
+	// SPEAK: the lyric's words in capitals, one after the other (each ends in 0), and where each starts. Made again
+	// when the text changed, not at every note; fixed buffers, the lock only tried (2.37).
+	enum { SP_TEXT = 2 * (JVO_TEXT_MAX + 1), SP_WORDS = JVO_TEXT_MAX / 2 + 2 };
+	char spWordsBuf[SP_TEXT] = {};
+	uint8_t spWordAt[SP_WORDS] = {};
+	int spNWords = 0;
+	std::atomic<bool> wordsDirty{true};
 	struct SpellState {
 		bool on = false;           // LANG was SPELL in the last sample
 		int ch = -2;               // the gate channel it sings (-1: CALL, -2: none)
 		float vel = 1.f;
 		int note = 60;
 		int pos = 0, notes = 0;    // SPEAK: the next word, notes since the lyric's start
-		std::string said;          // SPEAK: the words of the last note
+		char said[SP_TEXT] = "";   // SPEAK: the words of the last note
 		int mode = SPM_SING;
 		SpellKnobs k;
 	} sp;
@@ -168,20 +175,27 @@ struct Voice : Module, follow::Host, SpellSink {
 			k = 0;
 		for (int& s : sent)
 			s = INT32_MIN;
+		loadCores();
 	}
 
 	// ---------------------------------------------------------------------------------- power, presets
+	/** The cores (a library copied and loaded each: file work). From the constructor: Rack holds no engine lock
+	 * there, so the audio of a running patch goes on (2.37; before: in onAdd, under the lock). */
+	void loadCores() {
+		if (!core.loaded() && core.load())
+			core.api->init(random::u32() | 1u);
+		if (!spell.api && spell.load())
+			spell.api->init(random::u32() | 1u);
+	}
 	void powerOn() {
-		if (!core.load()) {
+		loadCores();  // (again only if the module was taken out and put back)
+		if (!core.loaded()) {
 			status = core.error;
 			WARN("JIANT VOICE: %s", status.c_str());
 			return;
 		}
 		status.clear();
-		core.api->init(random::u32() | 1u);
-		if (spell.load())
-			spell.api->init(random::u32() | 1u);
-		else
+		if (!spell.api)
 			WARN("JIANT VOICE: %s", spell.error.c_str());
 		sp = SpellState();
 		spEnv = SpellEnv();
@@ -291,6 +305,7 @@ struct Voice : Module, follow::Host, SpellSink {
 		std::lock_guard<std::mutex> lock(textMutex);
 		text = s.substr(0, JVO_TEXT_MAX);
 		textDirty = true;
+		wordsDirty = true;
 	}
 	std::string getText() {
 		std::lock_guard<std::mutex> lock(textMutex);
@@ -311,6 +326,7 @@ struct Voice : Module, follow::Host, SpellSink {
 		if (json_t* j = json_object_get(r, "text")) {
 			std::lock_guard<std::mutex> lock(textMutex);
 			text = json_string_value(j) ? json_string_value(j) : "";
+			wordsDirty = true;
 		}
 		textSeq++;
 		fromPatch = true;
@@ -346,7 +362,7 @@ struct Voice : Module, follow::Host, SpellSink {
 			uint32_t j = JVO_E1 + k;
 			float x = params[E_PARAM + k].getValue();
 			if (inputs[E_INPUT + k].isConnected())
-				x += inputs[E_INPUT + k].getVoltage() / 10.f;
+				x += finiteOr0(inputs[E_INPUT + k].getVoltage()) / 10.f;
 			x = clamp(x, 0.f, 1.f);
 			int lo = a->min(j), hi = a->max(j);
 			push(a, j, lo + (int) std::round(x * (hi - lo)));
@@ -370,7 +386,7 @@ struct Voice : Module, follow::Host, SpellSink {
 		for (int k = 0; k < NE; k++) {
 			x[k] = params[E_PARAM + k].getValue();
 			if (inputs[E_INPUT + k].isConnected())
-				x[k] += inputs[E_INPUT + k].getVoltage() / 10.f;
+				x[k] += finiteOr0(inputs[E_INPUT + k].getVoltage()) / 10.f;
 		}
 		sp.mode = clamp((int) std::round(params[SPELL_MODE_PARAM].getValue()), 0, SPM_N - 1);
 		sp.k.read(x, sp.mode, (int) s->count());
@@ -391,21 +407,35 @@ struct Voice : Module, follow::Host, SpellSink {
 		spClock = on ? b->clock.load() : 64;
 	}
 
-	/** The lyric's words in capitals (SPEAK). */
-	std::vector<std::string> lyricWords() {
-		std::vector<std::string> w;
-		std::string t = getText(), cur;
-		for (char c : t) {
-			if (std::isalpha((unsigned char) c) || (c == '\'' && !cur.empty()))
-				cur += (char) std::toupper((unsigned char) c);
-			else if (!cur.empty()) {
-				w.push_back(cur);
-				cur.clear();
+	/** The lyric's words in capitals (SPEAK) into spWordsBuf, when the text changed. Engine thread: no allocation,
+	 * and the panel writing the text just now is not waited for (the words as they were, once more). */
+	void lyricWords() {
+		if (!wordsDirty.load(std::memory_order_relaxed))
+			return;
+		std::unique_lock<std::mutex> lock(textMutex, std::try_to_lock);
+		if (!lock.owns_lock())
+			return;
+		wordsDirty = false;
+		int n = 0, nw = 0;
+		bool in = false;
+		for (char c : text) {
+			if (std::isalpha((unsigned char) c) || (c == '\'' && in)) {
+				if (!in) {
+					if (nw >= SP_WORDS || n >= SP_TEXT - 2)
+						break;
+					spWordAt[nw++] = (uint8_t) n;
+					in = true;
+				}
+				if (n < SP_TEXT - 2)
+					spWordsBuf[n++] = (char) std::toupper((unsigned char) c);
+			} else if (in) {
+				spWordsBuf[n++] = 0;
+				in = false;
 			}
 		}
-		if (!cur.empty())
-			w.push_back(cur);
-		return w;
+		if (in)
+			spWordsBuf[n++] = 0;
+		spNWords = nw;
 	}
 
 	/** A note in SPELL: SING its word, LETTER its letter (held while the gate is), SPEAK the lyric's next words. */
@@ -419,20 +449,25 @@ struct Voice : Module, follow::Host, SpellSink {
 			int L = sp.k.sel ? sp.k.sel - 1 : ((note - 53) % 26 + 26) % 26;  // (A on F3, as SPELLBOX's keys)
 			s->say(s->letter_base() + (uint32_t) L, (uint32_t) sung, 1);
 		} else {
-			std::vector<std::string> w = lyricWords();
-			if (w.empty())
+			lyricWords();
+			int nw = spNWords;
+			if (!nw)
 				return;
-			int nw = (int) w.size();
 			int loop = SPELL_LOOPS[sp.k.loop];
 			if (loop && sp.notes >= loop)
 				sp.pos = 0, sp.notes = 0;
 			int at = sp.k.pos ? (sp.k.pos - 1) % nw : sp.pos % nw;
 			int take = sp.k.sel >= SPELL_KWORDS ? nw : sp.k.sel + 1;
-			std::string say;
-			for (int i = 0; i < take && i < nw; i++)
-				say += (i ? " " : "") + w[(at + i) % nw];
-			s->speak(say.c_str());
-			sp.said = say;
+			char* say = sp.said;
+			int n = 0;
+			for (int i = 0; i < take && i < nw; i++) {
+				if (i && n < SP_TEXT - 1)
+					say[n++] = ' ';
+				for (const char* w = spWordsBuf + spWordAt[(at + i) % nw]; *w && n < SP_TEXT - 1; w++)
+					say[n++] = *w;
+			}
+			say[n] = 0;
+			s->speak(say);
 			sp.pos = (at + take) % nw;
 			sp.notes++;
 			spWordI = at + 1;
@@ -458,7 +493,9 @@ struct Voice : Module, follow::Host, SpellSink {
 				float g = inputs[GATE_INPUT].getPolyVoltage(c);
 				on = v.gate ? g > 0.5f : g >= 1.f;
 			}
-			int note = clamp((int) std::round(inputs[VOCT_INPUT].getPolyVoltage(c) * 12.f) + 60, 0, 127);
+			if (!on && !v.gate)  // a channel at rest: nothing to work out (2.37)
+				continue;
+			int note = clamp((int) std::round(finiteOr0(inputs[VOCT_INPUT].getPolyVoltage(c)) * 12.f) + 60, 0, 127);
 			if (on && !v.gate)
 				rose = c;
 			else if (on && c == sp.ch && note != v.note && sp.mode != SPM_SPEAK) {  // the note it sings moved
@@ -474,7 +511,7 @@ struct Voice : Module, follow::Host, SpellSink {
 		if (rose >= 0) {
 			int vel = 100;
 			if (inputs[VEL_INPUT].isConnected())
-				vel = clamp((int) std::round(inputs[VEL_INPUT].getPolyVoltage(rose) / 10.f * 127.f), 1, 127);
+				vel = clamp((int) std::round(finiteOr0(inputs[VEL_INPUT].getPolyVoltage(rose)) / 10.f * 127.f), 1, 127);
 			sp.vel = vel / 127.f;
 			spellNoteOn(s, cv[rose].note, rose);
 		}
@@ -520,11 +557,13 @@ struct Voice : Module, follow::Host, SpellSink {
 				float g = inputs[GATE_INPUT].getPolyVoltage(c);
 				on = v.gate ? g > 0.5f : g >= 1.f;
 			}
-			int note = clamp((int) std::round(inputs[VOCT_INPUT].getPolyVoltage(c) * 12.f) + 60, 0, 127);
+			if (!on && !v.gate)  // a channel at rest: nothing to work out (2.37)
+				continue;
+			int note = clamp((int) std::round(finiteOr0(inputs[VOCT_INPUT].getPolyVoltage(c)) * 12.f) + 60, 0, 127);
 			if (on && !v.gate) {
 				int vel = 100;
 				if (inputs[VEL_INPUT].isConnected())
-					vel = clamp((int) std::round(inputs[VEL_INPUT].getPolyVoltage(c) / 10.f * 127.f), 1, 127);
+					vel = clamp((int) std::round(finiteOr0(inputs[VEL_INPUT].getPolyVoltage(c)) / 10.f * 127.f), 1, 127);
 				a->note_on(note, vel);
 				v.note = note;
 			} else if (!on && v.gate) {
@@ -561,8 +600,9 @@ struct Voice : Module, follow::Host, SpellSink {
 			fx[i] = (int) std::round(params[DIST_PARAM + i].getValue());
 		}
 		float lvl = params[LEVEL_PARAM].getValue() / 127.f;
+		spEnv.prepare(adsr, 44100.f);  // (the rates: once a block, not every sample, 2.37)
 		for (int i = 0; i < BLOCK; i++) {
-			float e = spEnv.process(adsr, 44100.f);
+			float e = spEnv.process();
 			if (sp.mode == SPM_SPEAK)
 				e = 1.f;  // (it speaks to its end, whatever the gate)
 			float l, r;
@@ -590,8 +630,9 @@ struct Voice : Module, follow::Host, SpellSink {
 		} else { // SPEAK: the word it says now (its marks)
 			int m = (int) s->mark(), i = 0;
 			std::string cur;
-			for (size_t j = 0; j <= sp.said.size(); j++) {
-				if (j == sp.said.size() || sp.said[j] == ' ') {
+			size_t saidLen = std::strlen(sp.said);
+			for (size_t j = 0; j <= saidLen; j++) {
+				if (j == saidLen || sp.said[j] == ' ') {
 					if (++i == std::max(1, m)) {
 						w = cur;
 						break;

@@ -46,6 +46,8 @@ struct GenraFx : Module {
 	// meters (for the display)
 	std::atomic<float> meter[2] = {{0.f}, {0.f}};
 	float env[2] = {0.f, 0.f};
+	// kept until what they are made of changes (2.37)
+	float decayK = -1.f, decayV = 0.f, msK = -1.f, msV = 0.f, relSr = 0.f, relK = 0.f;
 
 	GenraFx();
 	void onAdd(const AddEvent& e) override;

@@ -101,6 +101,7 @@ struct Animal : Module, follow::Host {
 		paramQuantities[MODE_PARAM]->randomizeEnabled = false;
 		for (int& s : sent)
 			s = INT32_MIN;
+		loadCore();
 	}
 
 	/** E2..E8: the knob 0..1 over the range the current MODE gives it, shown as the FM-1 writes it. */
@@ -129,14 +130,20 @@ struct Animal : Module, follow::Host {
 	};
 
 	// ---------------------------------------------------------------------------------- power, presets
+	/** The core (a library copied and loaded: file work). From the constructor: Rack holds no engine lock there, so
+	 * the audio of a running patch goes on (2.37; before: in onAdd, under the lock). */
+	void loadCore() {
+		if (!core.loaded() && core.load())
+			core.api->init(random::u32() | 1u);
+	}
 	void powerOn() {
-		if (!core.load()) {
+		loadCore();  // (again only if the module was taken out and put back)
+		if (!core.loaded()) {
 			status = core.error;
 			WARN("JIANT ANIMAL: %s", status.c_str());
 			return;
 		}
 		status.clear();
-		core.api->init(random::u32() | 1u);
 		for (int& s : sent)
 			s = INT32_MIN;
 		outBuf.clear();
@@ -226,7 +233,7 @@ struct Animal : Module, follow::Host {
 			uint32_t j = JAN_E1 + k;
 			float x = params[E_PARAM + k].getValue();
 			if (inputs[E_INPUT + k].isConnected())
-				x += inputs[E_INPUT + k].getVoltage() / 10.f;
+				x += finiteOr0(inputs[E_INPUT + k].getVoltage()) / 10.f;
 			x = clamp(x, 0.f, 1.f);
 			int lo = a->min(j), hi = a->max(j);
 			push(a, j, lo + (int) std::round(x * (hi - lo)));
@@ -251,11 +258,13 @@ struct Animal : Module, follow::Host {
 				float g = inputs[GATE_INPUT].getPolyVoltage(c);
 				on = v.gate ? g > 0.5f : g >= 1.f;
 			}
-			int note = clamp((int) std::round(inputs[VOCT_INPUT].getPolyVoltage(c) * 12.f) + 60, 0, 127);
+			if (!on && !v.gate)  // a channel at rest: nothing to work out (2.37)
+				continue;
+			int note = clamp((int) std::round(finiteOr0(inputs[VOCT_INPUT].getPolyVoltage(c)) * 12.f) + 60, 0, 127);
 			if (on && !v.gate) {
 				int vel = 100;
 				if (inputs[VEL_INPUT].isConnected())
-					vel = clamp((int) std::round(inputs[VEL_INPUT].getPolyVoltage(c) / 10.f * 127.f), 1, 127);
+					vel = clamp((int) std::round(finiteOr0(inputs[VEL_INPUT].getPolyVoltage(c)) / 10.f * 127.f), 1, 127);
 				a->note_on(note, vel);
 				v.note = note;
 			} else if (!on && v.gate) {

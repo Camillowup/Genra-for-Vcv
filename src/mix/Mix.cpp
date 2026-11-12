@@ -149,7 +149,7 @@ struct Mix : Module {
 					follow::point(s.ref, this, nullptr);
 				continue;
 			}
-			if (now && s.timer > 0.f)
+			if (s.timer > 0.f) // (2.37: also while nothing is found: no search through every module on every frame)
 				continue;
 			s.timer = 0.5f;
 			Module* want = nullptr;

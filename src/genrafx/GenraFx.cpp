@@ -116,7 +116,9 @@ void GenraFx::applyParams() {
 	gfx::ReverbParams r;
 	r.type = clamp((int) std::round(params[V_TYPE_PARAM].getValue()), 0, gfx::NUM_REVERB_TYPES - 1);
 	float dv = clamp(params[V_DECAY_PARAM].getValue() + inputs[CV_DECAY].getVoltage() * 0.1f, 0.f, 1.f);
-	r.decay = 0.1f * std::pow(300.f, dv);
+	if (dv != decayK) // (2.37: pow only when DECAY or its CV moves; rv.set / dl.set compute only on a change too)
+		decayK = dv, decayV = 0.1f * std::pow(300.f, dv);
+	r.decay = decayV;
 	r.size = params[V_SIZE_PARAM].getValue();
 	r.predelayMs = params[V_PRE_PARAM].getValue();
 	r.damp = params[V_DAMP_PARAM].getValue();
@@ -134,7 +136,9 @@ void GenraFx::applyParams() {
 	d.div = divIndex(tk);
 	d.mode = tm == T_DOTTED ? gfx::DOTTED : (tm == T_TRIPLET ? gfx::TRIPLET : gfx::STRAIGHT);
 	d.bpm = bpm;
-	d.ms = freeMs(tk);
+	if (tk != msK)
+		msK = tk, msV = freeMs(tk);
+	d.ms = msV;
 	d.feedback = clamp(params[D_FB_PARAM].getValue() + inputs[CV_FB].getVoltage() * 0.11f, 0.f, 1.1f);
 	d.tone = params[D_TONE_PARAM].getValue();
 	d.tape = params[D_TAPE_PARAM].getValue();
@@ -188,7 +192,9 @@ void GenraFx::process(const ProcessArgs& args) {
 	outputs[OUT_BR].setVoltage(obr);
 	// meters: a peak follower, 300 ms release
 	float a = 0.5f * (std::fabs(oal) + std::fabs(oar)), b = 0.5f * (std::fabs(obl) + std::fabs(obr));
-	float rel = 1.f - std::exp(-1.f / (0.3f * args.sampleRate));
+	if (args.sampleRate != relSr) // (2.37: a constant of the sample rate, was computed every sample)
+		relSr = args.sampleRate, relK = 1.f - std::exp(-1.f / (0.3f * args.sampleRate));
+	float rel = relK;
 	env[0] = a > env[0] ? a : env[0] + (a - env[0]) * rel;
 	env[1] = b > env[1] ? b : env[1] + (b - env[1]) * rel;
 	if ((args.frame & 255) == 0) {

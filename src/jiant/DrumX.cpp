@@ -8,8 +8,11 @@
 #include "DrumCore.hpp"
 #include <atomic>
 #include <array>
+#include <condition_variable>
 #include <cstring>
 #include <memory>
+#include <mutex>
+#include <thread>
 #include "JiantUI.hpp"
 #include "../ui/Look.hpp"
 
@@ -71,6 +74,91 @@ struct DrumX : Module, follow::Host {
 	std::string status;
 	bool laneFailed[NL] = {};
 	uint32_t seed = 1;
+
+	// 2.37: a lane's core is made and thrown away on a thread of its own. Making one copies the core library to a file
+	// and loads it (a file copy, LoadLibrary, memory), throwing one away unloads the library and deletes the file:
+	// nothing for the audio thread (it did both in process() when a LANE output was patched or unpatched: dropouts
+	// with a small ASIO buffer). The audio thread only asks (laneAsk), takes the finished core (laneReady) and hands
+	// back the ones it no longer needs (laneTrash); a freshly patched lane starts a few milliseconds later.
+	enum { ASK_IDLE, ASK_WANTED, ASK_DONE };
+	std::atomic<int> laneAsk[NL];                // audio: IDLE -> WANTED; worker: WANTED -> DONE; audio: DONE -> IDLE
+	std::atomic<Voice*> laneReady[NL];           // worker -> audio (nullptr with DONE: the core could not be loaded)
+	std::atomic<Voice*> laneTrash[NL * 2];       // audio -> worker: cores to unload and delete
+	std::vector<uint8_t> kitScratch;             // the kit's sounds on their way from the mix to a new lane
+	std::thread worker;
+	std::mutex workMx;
+	std::condition_variable workCv;
+	bool workQuit = false;                       // (under workMx)
+	std::atomic<bool> workDue{false};
+
+	void workerRun() {
+		for (;;) {
+			{
+				std::unique_lock<std::mutex> lk(workMx);
+				// (the audio thread wakes it without taking the lock, so a wake-up can be missed: it looks again
+				// every 50 ms at the latest)
+				workCv.wait_for(lk, std::chrono::milliseconds(50), [&]() { return workQuit || workDue.load(); });
+				if (workQuit)
+					return;
+			}
+			workDue = false;
+			for (auto& t : laneTrash)
+				delete t.exchange(nullptr);          // (unloads the library, deletes its file)
+			for (int l = 0; l < NL; l++) {
+				if (laneAsk[l].load() != ASK_WANTED)
+					continue;
+				Voice* v = new Voice;
+				if (!v->core.load()) {
+					WARN("JIANT DRUM-X: lane core: %s", v->core.error.c_str());
+					delete v;
+					v = nullptr;
+				}
+				else
+					v->api()->init(seed);
+				delete laneReady[l].exchange(v);
+				laneAsk[l] = ASK_DONE;
+			}
+		}
+	}
+	void workerStart() {
+		if (worker.joinable())
+			return;
+		{
+			std::lock_guard<std::mutex> lk(workMx);
+			workQuit = false;
+		}
+		worker = std::thread([this]() { workerRun(); });
+	}
+	/** Ends the thread and frees every core on its way (UI thread; the module leaves the engine or is deleted). */
+	void workerStop() {
+		if (worker.joinable()) {
+			{
+				std::lock_guard<std::mutex> lk(workMx);
+				workQuit = true;
+			}
+			workCv.notify_all();
+			worker.join();
+		}
+		for (auto& t : laneTrash)
+			delete t.exchange(nullptr);
+		for (int l = 0; l < NL; l++) {
+			delete laneReady[l].exchange(nullptr);
+			laneAsk[l] = ASK_IDLE;
+		}
+	}
+	/** Audio thread: a core it no longer needs goes to the worker. False: no place free right now (try again). */
+	bool trash(Voice* v) {
+		for (auto& t : laneTrash) {
+			Voice* none = nullptr;
+			if (t.compare_exchange_strong(none, v)) {
+				workDue = true;
+				workCv.notify_one();
+				return true;
+			}
+		}
+		return false;
+	}
+	~DrumX() { workerStop(); }
 
 	// settings, kept with the patch
 	int kit = 0;
@@ -142,6 +230,12 @@ struct DrumX : Module, follow::Host {
 				paramQuantities[j]->randomizeEnabled = false;
 		for (int& s : sent)
 			s = INT32_MIN;
+		for (int l = 0; l < NL; l++) {
+			laneAsk[l] = ASK_IDLE;
+			laneReady[l] = nullptr;
+		}
+		for (auto& t : laneTrash)
+			t = nullptr;
 	}
 
 	/** The parameter's value as the FM-1 writes it (%, dB). */
@@ -193,6 +287,8 @@ struct DrumX : Module, follow::Host {
 		seed = random::u32() | 1u;
 		mix.api()->init(seed);
 		mix.reset();
+		kitScratch.assign(mix.api()->kit_size(), 0);
+		workerStart();
 		for (int& s : sent)
 			s = INT32_MIN;
 		{ // a patch from a version with more (or fewer) kits: stay in range
@@ -210,21 +306,17 @@ struct DrumX : Module, follow::Host {
 		shownKit = kit;
 	}
 
-	/** A lane's own core, a copy of the mix's state, that lane alone. */
-	void laneOn(int l, float sampleRate) {
-		std::unique_ptr<Voice> e(new Voice);
-		if (!e->core.load()) {
-			laneFailed[l] = true; // not again every sample; retried after unplugging (status stays the UI's: no string write here)
-			WARN("JIANT DRUM-X: lane core: %s", e->core.error.c_str());
-			return;
-		}
+	/** A lane's own core, loaded by the worker (laneReady): a copy of the mix's state, that lane alone. Audio thread;
+	 * no file, no library and no memory here. */
+	void laneOn(int l, Voice* v) {
+		std::unique_ptr<Voice> e(v);
 		const jdx_api* a = e->api();
 		const jdx_api* m = mix.api();
-		a->init(seed);
-		a->load_kit((uint32_t) kit);
-		std::vector<uint8_t> k(m->kit_size());
-		m->kit_export(k.data());
-		a->kit_import(k.data());
+		a->load_kit((uint32_t) kit);                  // (a->init(seed): the worker did it)
+		if (kitScratch.size() == m->kit_size()) {
+			m->kit_export(kitScratch.data());
+			a->kit_import(kitScratch.data());
+		}
 		for (int j = 0; j < JDX_NP; j++)
 			a->set(j, m->get(j));
 		a->isolate(l);
@@ -233,6 +325,38 @@ struct DrumX : Module, follow::Host {
 		while (e->outBuf.size() < have)
 			e->outBuf.push(dsp::Frame<2>{});
 		lane[l] = std::move(e);
+	}
+	/** The lane outputs' cores: on when patched, off when not (audio thread). */
+	void processLanes() {
+		for (int l = 0; l < NL; l++) {
+			bool on = outputs[LANE_OUTPUT + l].isConnected();
+			int ask = laneAsk[l].load(std::memory_order_acquire);
+			if (ask == ASK_DONE) {                    // the worker is through: take the core, or note that it failed
+				Voice* v = laneReady[l].exchange(nullptr);
+				if (v && on && !lane[l])
+					laneOn(l, v);
+				else if (v && !trash(v)) {            // unpatched meanwhile: back to the worker
+					laneReady[l] = v;                 // (no place free: again in the next sample)
+					continue;
+				}
+				else if (!v)
+					laneFailed[l] = true;             // not again every sample; retried after unplugging
+				laneAsk[l].store(ASK_IDLE, std::memory_order_release);
+				ask = ASK_IDLE;
+			}
+			if (on) {
+				if (!lane[l] && !laneFailed[l] && ask == ASK_IDLE) {
+					laneAsk[l].store(ASK_WANTED, std::memory_order_release);
+					workDue = true;
+					workCv.notify_one();
+				}
+			}
+			else {
+				laneFailed[l] = false;
+				if (lane[l] && trash(lane[l].get()))  // (no place free: it plays on unheard, again in the next sample)
+					lane[l].release();
+			}
+		}
 	}
 
 	/** The factory kit into the knobs (and every core). */
@@ -264,6 +388,7 @@ struct DrumX : Module, follow::Host {
 		powerOn();
 	}
 	void onRemove(const RemoveEvent& e) override { follow::gone(this);
+		workerStop();
 		for (auto& l : lane)
 			l.reset();
 		mix.core.unload();
@@ -457,17 +582,7 @@ struct DrumX : Module, follow::Host {
 			fromPatch = false;
 			applyKit(req);
 		}
-		// the lane outputs' cores: on when patched, off when not
-		for (int l = 0; l < NL; l++) {
-			bool on = outputs[LANE_OUTPUT + l].isConnected();
-			if (on && !lane[l] && !laneFailed[l])
-				laneOn(l, args.sampleRate);
-			else if (!on) {
-				laneFailed[l] = false;
-				if (lane[l])
-					lane[l].reset();
-			}
-		}
+		processLanes(); // the lane outputs' cores: on when patched, off when not (made and freed on the worker thread)
 		processHits();
 		if (mix.outBuf.empty()) {
 			processKnobs();

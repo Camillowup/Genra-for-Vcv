@@ -13,6 +13,14 @@ void vader_set_corner_bus(void* inst, float (*bus)[128]);         // each corner
 int vader_list_count(void* inst, int wav);                        // shape files (0) / samples (1) found
 const char* vader_list_path(void* inst, int wav, int i);
 int vader_voices_on(void* inst);
+// 2.37: the folders scanned off the audio thread, a parameter set by its index (tools/vader_patch.py, point 5)
+void* vader_scan(void* inst, const char* sdir);                   // any thread but the audio thread: new lists
+int vader_lists_count(void* lists, int wav);
+const char* vader_lists_path(void* lists, int wav, int i);
+void vader_lists_swap(void* inst, void* lists);                   // audio thread: `lists` then holds the old ones
+void vader_lists_free(void* lists);
+int vader_param_index(const char* key);                           // -1: none
+void vader_set_index(void* inst, int i, float v);                 // as set_param, without the text
 }
 
 namespace vader {

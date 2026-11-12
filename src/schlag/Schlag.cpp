@@ -17,8 +17,10 @@
 #include <atomic>
 #include <condition_variable>
 #include <deque>
+#include <map>
 #include <mutex>
 #include <thread>
+#include <sys/stat.h>
 
 namespace schlag {
 
@@ -114,14 +116,144 @@ static std::vector<std::string> wavFiles(const std::string& dir) {
 	return v;
 }
 
+// ------------------------------------------------------------------------------------------------ the sample store
+// 2.37: every sample file is in memory once, for all tracks of all SCHLAG modules (before, each track read its whole
+// folder for itself: eight tracks on one folder held it eight times). The store keeps a reference to every sample, so a
+// voice that lets go of the last one of a replaced folder frees nothing in the audio thread; collect() (UI thread)
+// drops the samples no folder and no voice uses any more. All sample data together stays under MEM_LIMIT: the files
+// that would go past it are not read (the track shows it).
+static const uint64_t MEM_LIMIT = 1024ull * 1024 * 1024; // 1 GB of sample data (32-bit float) in all
+
+/** The file's time of last change (0: unknown), to notice a file written again under the same name. */
+static int64_t fileTime(const std::string& p) {
+#if defined ARCH_WIN
+	struct _stat64 st;
+	if (_wstat64(string::UTF8toUTF16(p).c_str(), &st) != 0)
+		return 0;
+	return (int64_t) st.st_mtime;
+#else
+	struct stat st;
+	if (stat(p.c_str(), &st) != 0)
+		return 0;
+	return (int64_t) st.st_mtime;
+#endif
+}
+
+struct Store {
+	struct Entry {
+		uint64_t size = 0;      // of the file
+		int64_t time = 0;
+		uint64_t bytes = 0;     // of the sample data in memory
+		std::shared_ptr<Sample> s;
+	};
+	std::mutex mx;
+	std::multimap<std::string, Entry> files; // by path (a file written again: the old one stays until nobody plays it)
+	uint64_t total = 0;                      // bytes of sample data held
+
+	static std::string keyOf(const std::string& path) {
+		std::string k = path;
+		for (char& c : k)
+			if (c == '\\')
+				c = '/';
+#if defined ARCH_WIN
+		k = string::lowercase(k);
+#endif
+		return k;
+	}
+	/** The file's sample: the one in memory, or read now. nullptr: cannot be read, or (full = true) the memory limit
+	 * is reached. Called from the loader threads. */
+	std::shared_ptr<Sample> get(const std::string& path, bool& full) {
+		uint64_t size = 0;
+		try {
+			size = system::getFileSize(path);
+		}
+		catch (std::exception& e) {
+			return nullptr;
+		}
+		int64_t time = fileTime(path);
+		std::string key = keyOf(path);
+		{
+			std::lock_guard<std::mutex> lk(mx);
+			auto r = files.equal_range(key);
+			for (auto it = r.first; it != r.second; ++it)
+				if (it->second.size == size && it->second.time == time)
+					return it->second.s;
+			if (total >= MEM_LIMIT) {
+				full = true;
+				return nullptr;
+			}
+		}
+		// the size first: a multi-GB recording in the folder is skipped, not read into memory
+		if (size >= 512ull * 1024 * 1024)
+			return nullptr;
+		std::shared_ptr<Sample> s;
+		try {
+			std::string err;
+			std::vector<uint8_t> data = system::readFile(path);
+			s = readWavData(data, err);
+		}
+		catch (std::exception& e) {
+			s = nullptr;
+		}
+		if (!s)
+			return nullptr;
+		s->name = system::getFilename(path);
+		Entry e;
+		e.size = size;
+		e.time = time;
+		e.bytes = (uint64_t) s->data.size() * sizeof(float);
+		e.s = s;
+		std::shared_ptr<Sample> drop; // (freed after the lock)
+		std::lock_guard<std::mutex> lk(mx);
+		auto r = files.equal_range(key);
+		for (auto it = r.first; it != r.second; ++it)
+			if (it->second.size == size && it->second.time == time) { // another module read it meanwhile: one copy
+				drop = s;
+				return it->second.s;
+			}
+		if (total + e.bytes > MEM_LIMIT) {
+			full = true;
+			drop = s;
+			return nullptr;
+		}
+		total += e.bytes;
+		files.insert({key, e});
+		return s;
+	}
+	/** Drops the samples nobody uses any more (UI thread). Only the store holds them then, and a new reference can only
+	 * come from get(), under the same lock. */
+	void collect() {
+		std::vector<std::shared_ptr<Sample>> dead; // (freed after the lock)
+		std::lock_guard<std::mutex> lk(mx);
+		for (auto it = files.begin(); it != files.end();) {
+			if (it->second.s.use_count() == 1) {
+				total -= it->second.bytes;
+				dead.push_back(std::move(it->second.s));
+				it = files.erase(it);
+			}
+			else
+				++it;
+		}
+	}
+	uint64_t held() {
+		std::lock_guard<std::mutex> lk(mx);
+		return total;
+	}
+};
+static Store& store() {
+	static Store s;
+	return s;
+}
+
 // ------------------------------------------------------------------------------------------------ a track's folder
 struct Bank {
 	int track = 0;
 	uint32_t gen = 0;                              // the request it answers
 	std::string dir;                               // absolute
-	std::vector<std::shared_ptr<Sample>> files;    // nullptr: could not be read
+	std::vector<std::shared_ptr<Sample>> files;    // nullptr: could not be read (or not loaded: memory limit)
 	std::vector<std::string> names;                // file names (with extension)
 	std::string error;                             // "" = fine
+	int skipped = 0;                               // files not loaded because the sample memory is full (MEM_LIMIT)
 	int count() const { return (int) files.size(); }
 	int find(const std::string& name) const {
 		for (int i = 0; i < count(); i++)
@@ -193,20 +325,11 @@ struct Loader {
 						if (quit)
 							break;
 					}
-					std::string err;
-					std::shared_ptr<Sample> s;
-					try {
-						// the size first: a multi-GB recording in the folder is skipped, not read into memory
-						if (system::getFileSize(p) < 512ull * 1024 * 1024) {
-							std::vector<uint8_t> data = system::readFile(p);
-							s = readWavData(data, err);
-						}
-					}
-					catch (std::exception& e) {
-						s = nullptr;
-					}
-					if (s)
-						s->name = system::getFilename(p);
+					// from the store: a file another track (or another SCHLAG) has in memory is not read again
+					bool full = false;
+					std::shared_ptr<Sample> s = store().get(p, full);
+					if (full)
+						b->skipped++;
 					b->files.push_back(s);
 					b->names.push_back(system::getFilename(p));
 				}
@@ -223,7 +346,8 @@ struct Loader {
 		v.swap(done);
 		return v;
 	}
-	~Loader() {
+	/** Ends the thread and drops what it read (the module goes). */
+	void stop() {
 		{
 			std::lock_guard<std::mutex> lk(mx);
 			quit = true;
@@ -233,7 +357,9 @@ struct Loader {
 			th.join();
 		for (Bank* b : done)
 			delete b;
+		done.clear();
 	}
+	~Loader() { stop(); }
 };
 
 // ------------------------------------------------------------------------------------------------ the module
@@ -321,7 +447,11 @@ struct Schlag : Module, follow::Host {
 			int repType = 0, repGrid = 0;
 		} delayed;
 		int hitCount = 0;
+		// kept until their value changes (2.37): the track's level gain, the pan gains of the voice and its tail
+		float levK = -1.f, levG = 0.f;
+		float panK[2] = {-9.f, -9.f}, panL[2] = {1.f, 1.f}, panR[2] = {1.f, 1.f};
 	} tr[NT];
+	float levelK = -1.f, levelG = 0.f; // LEVEL (the master) and its gain
 	Rng rng;
 	dsp::SchmittTrigger trigIn[NT], drumIn[NT], clockTrig, resetTrig, rndTrig[NT], kitTrig;
 	bool gateWas[16] = {};
@@ -371,7 +501,10 @@ struct Schlag : Module, follow::Host {
 			if (!b || !b->count())
 				return b ? b->error : "no folder";
 			int i = m->baseIndex(t, b);
-			return string::f("%d / %d  %s", i + 1, b->count(), b->names[i].c_str());
+			std::string r = string::f("%d / %d  %s", i + 1, b->count(), b->names[i].c_str());
+			if (b->skipped > 0)
+				r += string::f("  (sample memory full, 1 GB: %d files not loaded)", b->skipped);
+			return r;
 		}
 		std::string getUnit() override { return ""; }
 	};
@@ -447,10 +580,15 @@ struct Schlag : Module, follow::Host {
 	}
 
 	~Schlag() {
-		for (int t = 0; t < NT; t++)
+		loader.stop();
+		for (int t = 0; t < NT; t++) {
 			delete bank[t].load();
+			tr[t].v.smp.reset(); // (the voices' samples too, so the store can let them go right away)
+			tr[t].tail.smp.reset();
+		}
 		for (Retired& r : retired)
 			delete r.b;
+		store().collect();
 	}
 
 	void onRemove(const RemoveEvent& e) override { follow::gone(this); }
@@ -829,14 +967,20 @@ struct Schlag : Module, follow::Host {
 		processHits();
 		processTimers();
 
-		float level = levelGain(params[LEVEL_PARAM].getValue());
+		// 2.37: the levels (a pow each) and the pan law (cos, sin) only when their value changes, not every sample
+		float lv = params[LEVEL_PARAM].getValue();
+		if (lv != levelK)
+			levelK = lv, levelG = levelGain(lv);
+		float level = levelG;
 		float L = 0.f, R = 0.f, aL = 0.f, aR = 0.f, bL = 0.f, bR = 0.f;
 		for (int t = 0; t < NT; t++) {
 			Track& k = tr[t];
 			float tl = 0.f, trr = 0.f, dry = 0.f;
 			const float* v = val[t];
 			int bitsK = bitsOf(v[F_BITS]);
+			int vi = 0;
 			for (Voice* vc : {&k.v, &k.tail}) {
+				int slot = vi++;
 				if (!vc->active)
 					continue;
 				float l, r;
@@ -844,12 +988,17 @@ struct Schlag : Module, follow::Host {
 				dry += 0.5f * (l + r);
 				// pan: equal power, on top of a stereo sample's own image
 				float p = clamp((v[F_PAN] - 0.5f) * 2.f + vc->hp.panOffset, -1.f, 1.f);
-				float pl = std::cos((p + 1.f) * 0.7853982f) * 1.4142136f;
-				float pr = std::sin((p + 1.f) * 0.7853982f) * 1.4142136f;
-				tl += l * std::min(1.f, pl);
-				trr += r * std::min(1.f, pr);
+				if (p != k.panK[slot]) {
+					k.panK[slot] = p;
+					k.panL[slot] = std::min(1.f, std::cos((p + 1.f) * 0.7853982f) * 1.4142136f);
+					k.panR[slot] = std::min(1.f, std::sin((p + 1.f) * 0.7853982f) * 1.4142136f);
+				}
+				tl += l * k.panL[slot];
+				trr += r * k.panR[slot];
 			}
-			float g = levelGain(v[F_LEVEL]) * 5.f; // ±1 -> ±5 V
+			if (v[F_LEVEL] != k.levK)
+				k.levK = v[F_LEVEL], k.levG = levelGain(v[F_LEVEL]) * 5.f;
+			float g = k.levG; // ±1 -> ±5 V
 			tl *= g;
 			trr *= g;
 			// the track's own out: mono, dry (no sends), with its level, before pan
@@ -891,26 +1040,29 @@ struct Schlag : Module, follow::Host {
 			Bank* old = bank[t].exchange(b);
 			if (old)
 				retired.push_back({old, now});
+			if (b->skipped > 0) {
+				WARN("SCHLAG: sample memory full (1 GB), %d files of %s not loaded", b->skipped, b->dir.c_str());
+				say("MEMORY FULL");
+			}
 			resolve(t);
 		}
 		for (auto it = retired.begin(); it != retired.end();) {
-			// after 3 s the audio thread takes nothing new from an old bank; it goes once no voice holds a sample of it
-			// any more, so the sample memory is never freed in the audio thread (a voice only drops its reference there)
-			bool held = false;
-			if (now - it->at > 3.0)
-				for (const auto& f : it->b->files)
-					if (f && f.use_count() > 1) {
-						held = true;
-						break;
-					}
-			if (now - it->at > 3.0 && !held) {
+			// after 3 s the audio thread takes nothing new from an old bank. Its samples stay in memory as long as a
+			// voice plays one: the store holds them (2.37), and a voice lets go of its sample when it ends, so the
+			// sample memory is never freed in the audio thread
+			if (now - it->at > 3.0) {
 				delete it->b;
 				it = retired.erase(it);
 			}
 			else
 				++it;
 		}
+		if (now - collectedAt > 1.0) { // samples no folder and no voice uses any more leave the memory
+			collectedAt = now;
+			store().collect();
+		}
 	}
+	double collectedAt = 0.0;
 	/** Names from the patch / kit / file window into indices of the folder now read. */
 	void resolve(int t) {
 		Pending& p = pending[t];
@@ -1506,6 +1658,10 @@ void Display::drawLayer(const DrawArgs& args, int layer) {
 		else {
 			name = string::uppercase(system::getStem(b->names[base]));
 			place = string::uppercase(system::getFilename(b->dir)) + string::f("  %d/%d", base + 1, b->count());
+			if (b->skipped > 0) { // the 1 GB of sample memory is full: the rest of the folder was not loaded
+				place = string::f("MEMORY FULL  -%d", b->skipped);
+				pc = nvgRGB(0xff, 0x6b, 0x6b);
+			}
 		}
 		nvgSave(vg);
 		nvgScissor(vg, x0 + 2, 0, w - 4, H);

@@ -141,28 +141,30 @@ bool parseChordToken(const char* tok, ChordSpec& cs) {
 	cs.root = (int8_t)mod12(SEMI[val] + acc);
 	cs.quality = upper ? Q_MAJ : Q_MIN;
 	cs.explicitQ = 1;
-	std::string rest(p);
-	if (!rest.empty() && rest[0] == 'o') {
+	// (2.37: read in place, without std::string: NEW calls this from the audio thread)
+	const char* rest = p;
+	if (rest[0] == 'o') {
 		cs.quality = Q_DIM;
-		rest = rest.substr(1);
+		rest++;
 	}
-	else if (!rest.empty() && rest[0] == '+') {
+	else if (rest[0] == '+') {
 		cs.quality = Q_AUG;
-		rest = rest.substr(1);
+		rest++;
 	}
-	if (rest == "maj7")
+	auto is = [rest](const char* w) { return std::strcmp(rest, w) == 0; };
+	if (is("maj7"))
 		cs.ext = EXT_7 | EXT_MAJ7;
-	else if (rest == "maj9")
+	else if (is("maj9"))
 		cs.ext = EXT_7 | EXT_MAJ7 | EXT_9;
-	else if (rest == "7")
+	else if (is("7"))
 		cs.ext = upper ? (EXT_7 | EXT_DOM7) : EXT_7;
-	else if (rest == "9")
+	else if (is("9"))
 		cs.ext = upper ? (EXT_7 | EXT_DOM7 | EXT_9) : (EXT_7 | EXT_9);
-	else if (rest == "sus2")
+	else if (is("sus2"))
 		cs.quality = Q_SUS2;
-	else if (rest == "sus4")
+	else if (is("sus4"))
 		cs.quality = Q_SUS4;
-	else if (rest == "add9")
+	else if (is("add9"))
 		cs.ext = EXT_9;
 	return true;
 }
@@ -581,16 +583,19 @@ void generateChords(Pattern& pat, int g, Rng& rng, const Params& P) {
 	int n = 0;
 	if (useTemplate) {
 		int t = (P.templateSel >= 0 && P.templateSel < G.nTemplates) ? P.templateSel : rng.range(G.nTemplates);
-		std::string s = G.templates[t];
-		size_t pos = 0;
-		while (pos < s.size() && n < MAX_PROG) {
-			size_t e = s.find(' ', pos);
-			if (e == std::string::npos)
-				e = s.size();
-			std::string tok = s.substr(pos, e - pos);
-			if (!tok.empty() && parseChordToken(tok.c_str(), pat.prog[n]))
+		// (2.37: the template's tokens are read without std::string: no memory is asked for in the audio thread)
+		const char* s = G.templates[t];
+		while (s && *s && n < MAX_PROG) {
+			const char* e = s;
+			while (*e && *e != ' ')
+				e++;
+			char tok[32];
+			size_t len = std::min((size_t) (e - s), sizeof(tok) - 1);
+			std::memcpy(tok, s, len);
+			tok[len] = 0;
+			if (len > 0 && parseChordToken(tok, pat.prog[n]))
 				n++;
-			pos = e + 1;
+			s = *e ? e + 1 : e;
 		}
 	}
 	if (n == 0) {

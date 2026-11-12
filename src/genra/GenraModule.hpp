@@ -202,6 +202,8 @@ struct Genra : Module {
 	std::atomic<bool> noAblauf{false};
 	bool pendingGenre = false;
 	int adoptGenre = 0;      // samples left in which the genres are taken as they are (after load / cue)
+	int readAge = 16;        // samples since the genre / chord inputs were read (2.37: every 16, and when used)
+	int lengthNow = 0;       // lengthSteps() as read then (for the FILL output)
 	int lastTarget[4] = {-1, -1, -1, -1};
 	int lastGenre = -1;
 	int clockMode = 0;
@@ -333,6 +335,39 @@ struct Genra : Module {
 		uint32_t id = 0;
 	} cue;
 	std::atomic<int> cueState{0};
+	// 2.37, the song's follow-on plan (ABLAUF -> audio thread): the rows that come after the playing one, each with
+	// the bar line where it begins. ABLAUF decides in the UI thread and hands the next row over as a cue; while the UI
+	// is held up (a file window is open), no cue arrives and GENRA used to loop the old pattern. Now, when a song row
+	// ends and no cue was applied at that bar line, GENRA takes the row planned for it from here by itself.
+	// planState: 0 none, 1 valid, 2 being written (ABLAUF), 3 being read (audio thread)
+	enum { PLAN_N = 8 };
+	struct ArrPlan {
+		int n = 0;
+		ArrCue e[PLAN_N];
+	} plan;
+	std::atomic<int> planState{0};
+	bool planBegin() {
+		int e = 0;
+		if (planState.compare_exchange_strong(e, 2))
+			return true;
+		e = 1;
+		return planState.compare_exchange_strong(e, 2);
+	}
+	void planCommit() { planState.store(1, std::memory_order_release); }
+	/** Drops the plan (UI thread); waits out the moment the audio thread reads it (as cueCancel). */
+	bool planCancel() {
+		for (int i = 0; i < 200000; i++) {
+			int e = 1;
+			if (planState.compare_exchange_strong(e, 0))
+				return true;
+			if (e == 0)
+				return true;
+			if (e == 2)
+				return false;
+			std::this_thread::yield();
+		}
+		return planState.load() == 0;
+	}
 	std::atomic<uint32_t> cueDone{0};       // id of the last cue applied
 	std::atomic<int64_t> barPub{0};         // bar index (counts the bar lines while running)
 	std::atomic<int64_t> rowStartPub{0};    // bar index where the last cue began
@@ -387,7 +422,7 @@ struct Genra : Module {
 		return cueState.load() == 0;
 	}
 
-	void applyCue(bool atBarLine) {
+	void applyCue(const ArrCue& cue, bool atBarLine) {
 		if (cue.stop) {
 			running = false;
 			step = -1;
@@ -446,8 +481,28 @@ struct Genra : Module {
 			return false;
 		bool due = cue.now || (atBarLine && cue.atBar <= barIndex);
 		if (due)
-			applyCue(atBarLine);
+			applyCue(cue, atBarLine);
 		cueState.store(due ? 0 : 1, std::memory_order_release);
+		return due;
+	}
+	/** 2.37, at a bar line where no cue was applied (audio thread): the song row that plays ends here, and the plan has
+	 * the row that begins at this bar: GENRA goes on with it by itself (see plan). Only then: a pad of pattern mode
+	 * (no row end), a jump (NEXT, ROW CV: not at the row's end) and a stopped song (no plan) are ABLAUF's alone. */
+	bool takePlan() {
+		if (arrRowEnd != barIndex || planState.load(std::memory_order_acquire) != 1)
+			return false;
+		if (cueState.load(std::memory_order_acquire) != 0)
+			return false; // ABLAUF is at work on a cue right now: it leads
+		int e = 1;
+		if (!planState.compare_exchange_strong(e, 3))
+			return false;
+		bool due = false;
+		for (int i = 0; i < plan.n && i < PLAN_N && !due; i++)
+			if (plan.e[i].atBar == barIndex) {
+				applyCue(plan.e[i], true);
+				due = true;
+			}
+		planState.store(1, std::memory_order_release);
 		return due;
 	}
 
@@ -1066,7 +1121,7 @@ struct Genra : Module {
 		if (step % STEPS_PER_BAR == 0) {
 			barIndex++;
 			barPub.store(barIndex);
-			if (takeCue(true)) {
+			if (takeCue(true) || takePlan()) {
 				if (!running)
 					return; // the song ended at this bar line
 				step = 0; // a new pattern starts at its beginning
@@ -1376,6 +1431,8 @@ struct Genra : Module {
 				if (alive <= 0.f) { // ABLAUF is gone: its offsets and mutes go too, and a cue it left waiting
 					int e = 1;
 					cueState.compare_exchange_strong(e, 0);
+					e = 1;
+					planState.compare_exchange_strong(e, 0);
 					arrMods = ArrMods();
 					arrMute = 0;
 					arrFill = false;
@@ -1413,9 +1470,24 @@ struct Genra : Module {
 		if (resetTracksRequested.load(std::memory_order_relaxed) && resetTracksRequested.exchange(false))
 			for (int t = 0; t < 4; t++)
 				setTrackSel(t, -1);
-		readGenre();
-		readChordInput();
+		// 2.37: the genre knobs / CVs, the CHORD and TRANSP inputs and the loop length are read every 16 samples (they
+		// were read every sample), and always in the sample that uses them: a NEW (all, a track, the chords), a step
+		// of the clock, and while a loaded or cued pattern is being adopted. So nothing that is generated or played
+		// sees an older value than before.
+		bool readDone = false;
+		auto reads = [&]() {
+			if (readDone)
+				return;
+			readDone = true;
+			readAge = 0;
+			readGenre();
+			readChordInput();
+			lengthNow = lengthSteps();
+		};
+		if (++readAge >= 16 || adoptGenre > 0)
+			reads();
 		if (regenRequested.load(std::memory_order_relaxed) && regenRequested.exchange(false)) {
+			reads();
 			pendingGenre = false;
 			resetTrackGenres();
 			doGenerate(true);
@@ -1429,6 +1501,7 @@ struct Genra : Module {
 			bool trig = tnewBtn[t].process(params[TNEW_PARAM + t].getValue() > 0.5f);
 			trig |= tnewTrig[t].process(inputs[TNEW_INPUT + t].getVoltage(), 0.1f, 1.f);
 			if (trig) {
+				reads();
 				newTrack(t); // an explicit per-track NEW works even when the track is locked
 				presetRoll[t]++;
 			}
@@ -1437,6 +1510,7 @@ struct Genra : Module {
 			bool trig = chordNewBtn.process(params[CHORDNEW_PARAM].getValue() > 0.5f);
 			trig |= chordNewTrig.process(inputs[CHORDNEW_INPUT].getVoltage(), 0.1f, 1.f);
 			if (trig) {
+				reads();
 				Params P = buildParams();
 				generateChords(pat, curGenre, rng, P);
 				layoutTimeline(pat, lengthSteps());
@@ -1452,6 +1526,7 @@ struct Genra : Module {
 			anchorStamp = patChanges.load();
 		}
 		if (chordRegenRequested.load(std::memory_order_relaxed) && chordRegenRequested.exchange(false) && !chordLocked()) {
+			reads();
 			Params P = buildParams();
 			generateChords(pat, curGenre, rng, P);
 			layoutTimeline(pat, lengthSteps());
@@ -1514,8 +1589,10 @@ struct Genra : Module {
 
 		if (running) {
 			processQueued(sr);
-			if (tick)
+			if (tick) {
+				reads();
 				doTick(sr);
+			}
 			else if (ppqnLeft > 0 && (ppqnCnt -= 1.f) <= 0.f) {
 				clockPulse.trigger(2e-3f);
 				ppqnLeft--;
@@ -1601,7 +1678,7 @@ struct Genra : Module {
 			outputs[BAR_OUTPUT].setVoltage(b ? 10.f : 0.f);
 			outputs[END_OUTPUT].setVoltage(en ? 10.f : 0.f);
 			outputs[RUN_OUTPUT].setVoltage(running ? 10.f : 0.f);
-			int L = lengthSteps();
+			int L = lengthNow; // (read with the genre, at most 16 samples old)
 			outputs[FILL_OUTPUT].setVoltage(running && fillActive && step >= L - 8 && L >= 16 ? 10.f : 0.f);
 			outputs[ROOT_OUTPUT].setVoltage(rootV);
 			outputs[CHORD_OUTPUT].setChannels(std::max(1, chordN));

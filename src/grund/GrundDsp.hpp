@@ -251,6 +251,10 @@ struct Voice {
 	// cached
 	float mk[12], mv[12];
 	float lastBody = -1.f, lastFs = -1.f;
+	// 2.37: kept until what they are made of changes
+	float fretDt = -1.f, fretK = 1.f;                  // FRETLESS: its own short slide
+	float reeseT = -1.f, reeseDet = 1.f;               // REESE: detune ratio for TIMBRE
+	float octC = -1e30f, octFs = 0.f, octG = 0.f;      // TONE: the filter coefficient for the cutoff (octaves)
 
 	Voice() {
 		for (float& k : mk)
@@ -390,8 +394,11 @@ struct Voice {
 		float dt = 1.f / fs;
 		// pitch: glide on GENRA's SLIDE (or always, with SLIDE unplugged and GLIDE up); FRETLESS slides a little anyway
 		float gk = glideK;
-		if (model == FRETLESS && glideK >= 1.f)
-			gk = 1.f - std::exp(-dt / 0.03f);
+		if (model == FRETLESS && glideK >= 1.f) {
+			if (dt != fretDt) // (2.37: a constant of the sample rate, was computed every sample)
+				fretDt = dt, fretK = 1.f - std::exp(-dt / 0.03f);
+			gk = fretK;
+		}
 		pitch += (target - pitch) * gk;
 		age += dt;
 		float tA = memo(0, p.atk, gmono::knobTime), tD = memo(1, p.dec, gmono::knobTime), tR = memo(2, p.rel, gmono::knobTime);
@@ -447,7 +454,9 @@ struct Voice {
 				x = 0.6f * ((1.f - mixSq) * saw + mixSq * sq * 0.8f);
 			}
 			else if (model == REESE) {
-				float det = std::pow(2.f, (0.03f + 0.9f * tim * tim) / 12.f);  // from a slow beat to a wide, nasty reese
+				if (tim != reeseT) // (2.37: only when TIMBRE moves; from a slow beat to a wide, nasty reese)
+					reeseT = tim, reeseDet = std::pow(2.f, (0.03f + 0.9f * tim * tim) / 12.f);
+				float det = reeseDet;
 				float d0 = f / fsOs, d2 = f * det / fsOs;
 				ph[0] = wrap(ph[0] + d0);
 				ph[1] = wrap(ph[1] + d2);
@@ -497,8 +506,14 @@ struct Voice {
 			            + (tim - 0.5f) * 2.4f                 // TIMBRE: darker .. brighter, on every model
 			            + biteAmt * 4.5f * biteEnv;           // BITE: the attack opens the tone
 			biteEnv *= biteK;
-			float fc = std::pow(2.f, clampf(oct, 3.f, 15.f));
-			float g = gmono::Filter::coef(fc, fsOs);
+			// 2.37: pow and tan only when the cutoff moves (the same for both oversampled steps unless BITE still decays,
+			// and from sample to sample once the envelope and the pitch rest)
+			if (oct != octC || fsOs != octFs) {
+				octC = oct, octFs = fsOs;
+				float fc = std::pow(2.f, clampf(oct, 3.f, 15.f));
+				octG = gmono::Filter::coef(fc, fsOs);
+			}
+			float g = octG;
 			x = filter.processG(x, g, p.res, gmono::LADDER12);
 			y = d2.process(d1.process(x));
 		}
@@ -554,6 +569,9 @@ struct Bus {
 	int verbTail = 0;
 	float dcx[2] = {}, dcy[2] = {};
 	int quiet = 0;
+	// 2.37: kept until what they are made of changes (were computed every sample)
+	float fetDrv = -1.f, fetDen = 1.f, dToneK = -1.f, dToneFs = 0.f;
+	float cAtkK = -1.f, cRelK = -1.f, cFs = 0.f, cKa = 1.f, cKr = 1.f, mkDb = -1e30f, mkGain = 1.f;
 
 	void setSampleRate(float sr) {
 		fs = sr;
@@ -653,8 +671,16 @@ struct Bus {
 				d = crushHold;
 			}
 			else {
-				d = shape(y, fx.dType, 2.f + 10.f * fx.dMix);
-				dTonePole.set(800.f + 9000.f * fx.dTone, fs);
+				float dv = 2.f + 10.f * fx.dMix;
+				if (fx.dType == D_FET) { // (2.37: the FET's normalising tanh only when the amount moves)
+					if (dv != fetDrv)
+						fetDrv = dv, fetDen = std::tanh(std::max(1.f, dv * 0.5f));
+					d = std::tanh(y * dv) / fetDen;
+				}
+				else
+					d = shape(y, fx.dType, dv);
+				if (fx.dTone != dToneK || fs != dToneFs) // (2.37: the tone pole only when TONE moves)
+					dToneK = fx.dTone, dToneFs = fs, dTonePole.set(800.f + 9000.f * fx.dTone, fs);
 				d = dTonePole.process(d);
 			}
 			y = y * (1.f - 0.6f * fx.dMix) + d * fx.dMix * 0.8f;
@@ -664,17 +690,25 @@ struct Bus {
 		if (fx.compOn && (c > 0.001f || in.scConnected)) {
 			float det = in.scConnected ? std::fabs(in.sc) * 0.2f : std::fabs(y);
 			float atk = 0.0005f + 0.03f * fx.cAtk * fx.cAtk, rel = 0.03f + 0.6f * fx.cRel * fx.cRel;
-			float k = det > cEnv ? 1.f - std::exp(-1.f / (atk * fs)) : 1.f - std::exp(-1.f / (rel * fs));
+			if (atk != cAtkK || rel != cRelK || fs != cFs) // (2.37: attack / release coefficients only on change)
+				cAtkK = atk, cRelK = rel, cFs = fs, cKa = 1.f - std::exp(-1.f / (atk * fs)), cKr = 1.f - std::exp(-1.f / (rel * fs));
+			float k = det > cEnv ? cKa : cKr;
 			cEnv += (det - cEnv) * k;
 			float thrDb = -4.f - 30.f * (in.scConnected ? std::max(c, 0.5f) : c) * (0.4f + 1.2f * fx.thresh);
 			float ratio = 1.5f + 18.5f * fx.ratio * fx.ratio;
 			float lev = 20.f * std::log10(std::max(cEnv, 1e-6f));
 			float over = lev - thrDb;
 			float redDb = over > 0.f ? over * (1.f - 1.f / ratio) : 0.f;
-			float target = dbToGain(-redDb);
+			float target = redDb == 0.f ? 1.f : dbToGain(-redDb); // (below the threshold: no pow)
 			cGain = target;
 			gr = clampf(redDb / 24.f, 0.f, 1.f);
-			float makeup = in.scConnected ? 1.f : dbToGain(std::min(12.f, 0.4f * (-thrDb - 4.f) * (1.f - 1.f / ratio)));
+			float makeup = 1.f;
+			if (!in.scConnected) {
+				float mdb = std::min(12.f, 0.4f * (-thrDb - 4.f) * (1.f - 1.f / ratio));
+				if (mdb != mkDb) // (2.37: the make-up gain only when the settings move)
+					mkDb = mdb, mkGain = dbToGain(mdb);
+				makeup = mkGain;
+			}
 			y *= cGain * makeup;
 		}
 		else
@@ -794,8 +828,8 @@ struct Engine {
 			showGlide = glide;
 			lastNote = in.voct;
 		}
-		else if (in.gate && std::fabs(in.voct - v.target) > 1e-4f)
-			lastNote = in.voct;
+		else if (in.gate && std::fabs(in.voct - lastNote) > 1e-4f) // (2.37: compared with the target set just above, so
+			lastNote = in.voct;                                    // the display never followed a held note's pitch)
 		v.gate = in.gate;
 		lastGate = in.gate;
 		float y = v.active || v.gate ? v.process(p, in, glide ? glideK : 1.f) : 0.f;

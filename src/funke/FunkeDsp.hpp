@@ -122,6 +122,10 @@ struct Voice {
 	gmono::Env aenv, fenv;
 	float dcx = 0.f, dcy = 0.f;
 	float lastEnv = 0.f;
+	// 2.37: kept until what they are made of changes (were computed every sample)
+	float sawT = -1.f, sawUp = 1.f, sawDn = 1.f;       // SAW LEAD: detune ratios for TIMBRE
+	float fluF = -1.f, fluFs = 0.f, fluG = 0.f;        // FLUTE: the breath resonator's coefficient
+	float panC = -9.f, panL = 0.7071f, panR = 0.7071f; // the pan law's two roots
 
 	void setSampleRate(float sr) {
 		fs = sr;
@@ -356,7 +360,7 @@ struct Voice {
 			case SQUARE: {
 				// pulse; BITE drops in from an octave above
 				float pw = 0.5f - 0.42f * T;
-				float fb = f * std::pow(2.f, ex[1]);
+				float fb = ex[1] == 0.f ? f : f * std::pow(2.f, ex[1]); // (2.37: no pow once the blip is over)
 				float d = fb / fsOs;
 				ph[0] = wrap(ph[0] + d);
 				float t = ph[0];
@@ -371,7 +375,9 @@ struct Voice {
 			case SAWLEAD: {
 				// three saws, ± detune by TIMBRE; BITE adds a saw an octave up and drives the mix
 				float cents = 32.f * T * T;
-				float m[4] = {1.f, std::pow(2.f, cents / 1200.f), std::pow(2.f, -cents / 1200.f), 2.f};
+				if (T != sawT) // (2.37: the detune ratios only when TIMBRE moves)
+					sawT = T, sawUp = std::pow(2.f, cents / 1200.f), sawDn = std::pow(2.f, -cents / 1200.f);
+				float m[4] = {1.f, sawUp, sawDn, 2.f};
 				float lv[4] = {1.f, 0.75f, 0.75f, 0.7f * B};
 				float s = 0.f;
 				for (int i = 0; i < 4; i++) {
@@ -387,7 +393,9 @@ struct Voice {
 				float s = sin2pi(ph[0]);
 				s += 0.28f * T * sin2pi(2.f * ph[0]) + 0.12f * T * sin2pi(3.f * ph[0]);
 				// breath: noise through a resonator at the note, louder with TIMBRE; the chiff on the attack
-				float g = std::tan(PI * std::min(f, 0.4f * fsOs) / fsOs), k = 0.25f;
+				if (f != fluF || fsOs != fluFs) // (2.37: the tan once per frequency, not per oversampled step)
+					fluF = f, fluFs = fsOs, fluG = std::tan(PI * std::min(f, 0.4f * fsOs) / fsOs);
+				float g = fluG, k = 0.25f;
 				float n = noise();
 				float h = (n - (k + g) * br1 - br2) / (1.f + g * (k + g));
 				float bp = g * h + br1;
@@ -497,8 +505,10 @@ struct Voice {
 				ks[i] = 0.f;
 		}
 		float pn = clampf(pan, -1.f, 1.f);
-		L = y * std::sqrt(0.5f * (1.f - pn)) * 1.4142f;
-		R = y * std::sqrt(0.5f * (1.f + pn)) * 1.4142f;
+		if (pn != panC)
+			panC = pn, panL = std::sqrt(0.5f * (1.f - pn)), panR = std::sqrt(0.5f * (1.f + pn));
+		L = y * panL * 1.4142f;
+		R = y * panR * 1.4142f;
 		// the PLUCK string keeps ringing in its buffer; the voice ends with the envelope
 		if (!gate && aenv.stage == 0)
 			active = false;
@@ -547,6 +557,7 @@ struct Bus {
 	float eTime = -1.f, eLp[2] = {}, eHp[2] = {};
 	gschmelz::Reverb verb;
 	float dcx[2] = {}, dcy[2] = {};
+	float kFs = 0.f, kGlide = 0.f, kEchoLp = 0.f, kLf = -1.f, kLfFs = 0.f, kTape = 0.f; // 2.37: kept coefficients
 
 	void setSampleRate(float sr) {
 		fs = sr;
@@ -586,7 +597,9 @@ struct Bus {
 			float mix = clampf(lf * 3.f, 0.f, 1.f);
 			l += (holdL - l) * mix;
 			r += (holdR - r) * mix;
-			float a = 1.f - std::exp(-2.f * PI * (14000.f - 10000.f * lf) / fs);
+			if (lf != kLf || fs != kLfFs) // (2.37: only when LO-FI moves)
+				kLf = lf, kLfFs = fs, kTape = 1.f - std::exp(-2.f * PI * (14000.f - 10000.f * lf) / fs);
+			float a = kTape;
 			tapeL += (l - tapeL) * a;
 			tapeR += (r - tapeR) * a;
 			l = tapeL + (l - tapeL) * (1.f - mix);
@@ -621,10 +634,12 @@ struct Bus {
 		float target = clampf(echoSeconds, 0.01f, 3.f) * fs;
 		if (eTime < 0.f)
 			eTime = target;
-		eTime += (target - eTime) * (1.f - std::exp(-1.f / (0.08f * fs)));
+		if (fs != kFs) // (2.37: constants of the sample rate, were computed every sample)
+			kFs = fs, kGlide = 1.f - std::exp(-1.f / (0.08f * fs)), kEchoLp = 1.f - std::exp(-2.f * PI * 4200.f / fs);
+		eTime += (target - eTime) * kGlide;
 		float yl = eL.read(eTime), yr = eR.read(eTime);
 		float fb = clampf(p.fdbk, 0.f, 1.f) * 0.92f;
-		float a = 1.f - std::exp(-2.f * PI * 4200.f / fs), h = 2.f * PI * 120.f / fs;
+		float a = kEchoLp, h = 2.f * PI * 120.f / fs;
 		float in[2] = {yr * fb + 0.5f * (l + r) * 0.7f, yl * fb};  // into left: the right repeat + the input
 		for (int i = 0; i < 2; i++) {
 			eLp[i] += (in[i] - eLp[i]) * a;

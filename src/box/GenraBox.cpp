@@ -182,6 +182,7 @@ struct GenraBox : Genra {
 	uint32_t rollSeen[4] = {};       // GENRA's presetRoll, as the voices took it (audio thread)
 	dsp::SchmittTrigger drumTrig[NUM_DRUMS];
 	float duckEnv = 0.f;
+	float duckDt = -1.f, duckK = 1.f; // the duck's release factor for the sample time
 	bool duckRise = false;
 	int ctlDiv = 0;
 	float sr = 44100.f;
@@ -361,8 +362,11 @@ struct GenraBox : Genra {
 				if (duckEnv > 0.97f)
 					duckRise = false;
 			}
-			else
-				duckEnv *= std::exp(-args.sampleTime / 0.15f);
+			else {
+				if (args.sampleTime != duckDt) // (2.37: a constant of the sample rate, was computed every sample)
+					duckDt = args.sampleTime, duckK = std::exp(-args.sampleTime / 0.15f);
+				duckEnv *= duckK;
+			}
 			float g = 1.f - 0.85f * dk * duckEnv;
 			tl[T_BASS] *= g, tr[T_BASS] *= g;
 			tl[T_PADS] *= g, tr[T_PADS] *= g;

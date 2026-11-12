@@ -16,6 +16,7 @@
 #include "UmlaufPresets.h"
 #include "VaderApi.hpp"
 #include <osdialog.h>
+#include <algorithm>
 #include <atomic>
 #include <cmath>
 #include <cstring>
@@ -50,10 +51,7 @@ static std::string& rootRef() {
 	static std::string r;
 	return r;
 }
-static std::atomic<int>& rootVersion() {  // a module scans again when this changes
-	static std::atomic<int> v{0};
-	return v;
-}
+static void rescanAll();  // every UMLAUF scans its folders again (UI thread; after the class)
 static void loadRootLocked() {
 	static bool done = false;
 	if (done)
@@ -86,7 +84,7 @@ static void setSampleRoot(std::string r) {
 	json_object_set_new(j, "sampleRoot", json_string(r.c_str()));
 	json_dump_file(j, asset::user("Genra/umlauf.json").c_str(), JSON_INDENT(2));
 	json_decref(j);
-	rootVersion()++;
+	rescanAll();
 }
 /** A sample's path inside the samples folder ("" when it is not in there): what a patch keeps, so it plays on another
  * computer too once that one's folder is set. */
@@ -174,6 +172,8 @@ struct Umlauf : Module, follow::Host {
 		float base = 0.f;            // the knob's value (or the engine's, without a knob)
 		float last = NAN;            // the knob's value last seen
 		float written = NAN;         // last written to the engine
+		int idx = -1;                // the engine's index of the parameter (vader_set_index: CV writes, 2.37)
+		bool own = false;            // written elsewhere (a corner's engine and sample): sync() passes it by
 	};
 
 	const mpc_engine_t* E = mpc_engine();
@@ -185,8 +185,10 @@ struct Umlauf : Module, follow::Host {
 	// a corner's knobs 1–5: their key follows the corner's engine
 	float cBase[4][5] = {}, cLast[4][5], cWritten[4][5];
 	std::string cKey[4][5];
+	int cKeyIdx[4][5];               // … and the engine's index of it (-1: none)
+	int idxFocusX = -1, idxFocusY = -1;
 	int engineNow[4] = {-1, -1, -1, -1};
-	std::string smpPath[4];          // the sample of each corner (when its engine is WAV)
+	std::string smpPath[4];          // the sample of each corner (when its engine is WAV); the UI thread's (listMutex)
 	int smpWritten[4] = {-1, -1, -1, -1};
 	int smpMode[4] = {};             // one shot, loop 1–4 bars
 	bool fxWasThere = false;
@@ -210,12 +212,114 @@ struct Umlauf : Module, follow::Host {
 	ovl_view_t view = {};
 	int ctlTick = 0;
 
-	// the lists (the audio thread fills them after a scan; the menus read them)
+	// The lists, the corners' samples (smpPath) and the shape file belong to the UI thread (listMutex; the audio
+	// thread never takes it, 2.37). The folders are scanned on the UI thread (scanNow); the audio thread gets the
+	// finished lists and each corner's place in them in a Handover, and only swaps them into the engine.
 	std::mutex listMutex;
 	std::vector<std::string> shapeFiles, wavFiles;
 	std::string userShape;  // the shape file in use (SHAPE: USER)
-	bool rescanWanted = true;
-	int rootSeen = -1;  // rootVersion() at the last scan
+	int listGen = 0;        // counts the scans
+	struct Handover {
+		void* lists = nullptr;  // the engine's new lists (vader_scan), or none: only the corners' places changed
+		int idx[4] = {};        // each corner's sample in wavFiles, from 1 (0: none, or not found)
+		bool autoFirst[4] = {}; // no sample picked yet: the first one, once the corner plays samples
+		int nWavs = 0, gen = 0;
+	};
+	std::atomic<Handover*> pending{nullptr};  // for the audio thread
+	std::atomic<Handover*> done{nullptr};     // taken: the UI thread frees it (with the lists the engine had)
+	std::atomic<bool> autoTaken[4];           // the audio thread took the first sample for a corner (adoptAutoLocked)
+	// the audio thread's side of it
+	int smpIdx[4] = {};
+	bool smpAuto[4] = {true, true, true, true};
+	int nWavs = 0, listGenA = 0;
+
+	void collectDone() {
+		if (Handover* d = done.exchange(nullptr)) {
+			vader_lists_free(d->lists);
+			delete d;
+		}
+	}
+	/** UI thread, listMutex held: the corners' places in wavFiles (and the engine's new lists) to the audio thread. */
+	void publishLocked(void* lists = nullptr) {
+		collectDone();
+		Handover* h = new Handover;
+		if (Handover* old = pending.exchange(nullptr)) {  // not taken yet: this one stands in for it
+			if (!lists)
+				lists = old->lists;
+			else
+				vader_lists_free(old->lists);
+			delete old;
+		}
+		h->lists = lists;
+		h->nWavs = (int) wavFiles.size();
+		h->gen = listGen;
+		for (int c = 0; c < 4; c++) {
+			for (size_t i = 0; i < wavFiles.size(); i++)
+				if (wavFiles[i] == smpPath[c])
+					h->idx[c] = (int) i + 1;
+			h->autoFirst[c] = smpPath[c].empty();
+		}
+		pending.store(h, std::memory_order_release);
+	}
+	/** UI thread, listMutex held: a corner that began to play samples with none picked took the first one. */
+	void adoptAutoLocked() {
+		bool any = false;
+		for (int c = 0; c < 4; c++)
+			if (autoTaken[c].exchange(false) && smpPath[c].empty() && !wavFiles.empty()) {
+				smpPath[c] = wavFiles[0];
+				any = true;
+			}
+		if (any)
+			publishLocked();
+	}
+	void fillListsLocked(void* lists) {
+		shapeFiles.clear();
+		wavFiles.clear();
+		for (int i = 0; i < vader_lists_count(lists, 0); i++)
+			shapeFiles.push_back(fwd(vader_lists_path(lists, 0, i)));
+		for (int i = 0; i < vader_lists_count(lists, 1); i++)
+			wavFiles.push_back(fwd(vader_lists_path(lists, 1, i)));
+	}
+	/** UI thread: the folders scanned again (here, not on the audio thread), the result handed to the audio thread. */
+	void scanNow() {
+		if (!inst)
+			return;
+		void* lists = vader_scan(inst, sampleRoot().c_str());
+		if (!lists)
+			return;
+		std::lock_guard<std::mutex> lock(listMutex);
+		fillListsLocked(lists);
+		listGen++;
+		publishLocked(lists);
+	}
+	/** UI thread: corner c plays this sample. */
+	void setSample(int c, const std::string& path) {
+		std::lock_guard<std::mutex> lock(listMutex);
+		smpPath[c] = path;
+		publishLocked();
+	}
+	/** Audio thread: what the UI thread handed over. */
+	void takeHandover() {
+		Handover* h = pending.exchange(nullptr, std::memory_order_acq_rel);
+		if (!h)
+			return;
+		if (h->lists) {
+			vader_lists_swap(inst, h->lists);  // (h->lists: now the ones the engine had)
+			for (int c = 0; c < 4; c++)
+				smpWritten[c] = -1;  // the list's order may have changed
+			stateChanged();
+		}
+		for (int c = 0; c < 4; c++) {
+			smpIdx[c] = h->idx[c];
+			smpAuto[c] = h->autoFirst[c];
+		}
+		nWavs = h->nWavs;
+		listGenA = h->gen;
+		if (Handover* old = done.exchange(h)) {  // (the UI thread has not collected the last one: rare)
+			vader_lists_free(old->lists);
+			delete old;
+		}
+	}
 
 	// work for the audio thread (menus, a loaded patch)
 	std::mutex cmdMutex;
@@ -234,8 +338,44 @@ struct Umlauf : Module, follow::Host {
 		float tempo = 120.f;
 		bool clocked = false;
 	};
-	Disp disp;
+	/** What the audio thread writes for it: numbers and fixed buffers (no allocation, 2.37). */
+	struct DispRaw {
+		int shape = 2, mode = 0, eng[4] = {-1, -1, -1, -1}, smp[4] = {}, voices = 0, preset = 0;
+		char mk[8][32] = {}, names[4][5][32] = {};
+		float tempo = 120.f;
+		bool clocked = false;
+	};
+	DispRaw raw;
 	std::mutex dispMutex;
+	/** UI thread: the display's texts. */
+	Disp readDisp() {
+		DispRaw r;
+		{
+			std::lock_guard<std::mutex> lock(dispMutex);
+			r = raw;
+		}
+		Disp d;
+		std::lock_guard<std::mutex> lock(listMutex);
+		adoptAutoLocked();
+		d.shape = SHAPES[clamp(r.shape, 0, NSHAPE - 1)];
+		if (r.shape == SHAPE_USER)
+			d.shape = userShape.empty() ? "USER (NO FILE)" : baseName(userShape);
+		d.mode = MODES[clamp(r.mode, 0, NMODE - 1)];
+		for (int i = 0; i < 8; i++)
+			d.mk[i] = r.mk[i];
+		for (int c = 0; c < 4; c++) {
+			int e = r.eng[c];
+			d.eng[c] = e >= 0 && e < NENGINE ? ENGINES[e] : "";
+			for (int s = 0; s < 5; s++)
+				d.names[c][s] = r.names[c][s];
+			d.sample[c] = e == NENGINE - 1 ? (smpPath[c].empty() || r.smp[c] == 0 ? "NO SAMPLE" : baseName(smpPath[c])) : "";
+		}
+		d.voices = r.voices;
+		d.preset = r.preset;
+		d.tempo = r.tempo;
+		d.clocked = r.clocked;
+		return d;
+	}
 	// when the panel's displays were last drawn (Rack draws nothing off the screen): the texts only while it is seen
 	std::atomic<double> shownAt{-1e9};
 	void markShown() { shownAt.store(system::getTime(), std::memory_order_relaxed); }
@@ -253,22 +393,25 @@ struct Umlauf : Module, follow::Host {
 	// refreshes owed: the engine's state changes only through what the module sends it (and a file it loads in the
 	// background, collected a little later: those owe more than one)
 	int stateOwed = 1;
-	std::vector<char> stateBuf;
+	static const int STATE_MAX = 64 * 1024;  // (what the engine asks for: its get_param "state" without a buffer)
+	std::vector<char> stateBuf;              // STATE_MAX + 1, made once (no allocation on the audio thread, 2.37)
 	void stateChanged(int n = 2) { stateOwed = std::max(stateOwed, n); }
 	/** The engine's state into stateCache; false (still owed) when dataToJson holds the lock just now. */
 	bool refreshState(bool wait = false) {
-		int need = E->get_param(inst, "state", nullptr, 0);
-		if (need <= 0)
+		if ((int) stateBuf.size() != STATE_MAX + 1) {  // (the constructor makes both)
+			stateBuf.assign((size_t) STATE_MAX + 1, 0);
+			std::lock_guard<std::mutex> lock(stateMutex);
+			stateCache.reserve((size_t) STATE_MAX + 1);
+		}
+		if (E->get_param(inst, "state", stateBuf.data(), STATE_MAX) <= 0)
 			return true;
-		stateBuf.assign((size_t) need + 1, 0);
-		if (E->get_param(inst, "state", stateBuf.data(), need) <= 0)
-			return true;
+		stateBuf[STATE_MAX] = 0;
 		std::unique_lock<std::mutex> lock(stateMutex, std::defer_lock);
 		if (wait)
 			lock.lock();
 		else if (!lock.try_lock())
 			return false;
-		stateCache = stateBuf.data();
+		stateCache.assign(stateBuf.data());  // (within what is reserved)
 		return true;
 	}
 
@@ -299,6 +442,7 @@ struct Umlauf : Module, follow::Host {
 		k.snap = snap;
 		k.panel = panel;
 		k.param = param;
+		k.idx = inst ? vader_param_index(name) : -1;
 		keys.push_back(k);
 		return (int) keys.size() - 1;
 	}
@@ -310,11 +454,25 @@ struct Umlauf : Module, follow::Host {
 			return std::strtof(b, nullptr);
 		return def;
 	}
-	void engSet(const std::string& key, float v) {
+	/** state false: a value CV moves (the patch keeps the knob, and the knobs are written over a loaded state). */
+	void engSet(const std::string& key, float v, bool state = true) {
 		char b[32];
 		std::snprintf(b, sizeof(b), "%.6f", v);
 		E->set_param(inst, key.c_str(), b);
-		stateChanged();
+		if (state)
+			stateChanged();
+	}
+	/** A value moved by CV, by the engine's index: no text on the way (2.37). */
+	void engSetAt(int idx, float v, bool state) {
+		vader_set_index(inst, idx, v);
+		if (state)
+			stateChanged();
+	}
+	/** A name the engine gives (a mode knob, a voice's knob) into a display buffer; "" if it has none. */
+	void engName(const char* key, char* out, int len) {
+		if (!(E->get_param(inst, key, out, len) > 0))
+			out[0] = 0;
+		out[len - 1] = 0;
 	}
 	std::string engText(const std::string& key) {
 		char b[96] = "";
@@ -341,9 +499,26 @@ struct Umlauf : Module, follow::Host {
 		}
 		if (inst)
 			bus = (overlay_t*) vader_view_bus(inst);
-		for (int c = 0; c < 4; c++)
-			for (int k = 0; k < 5; k++)
+		for (int c = 0; c < 4; c++) {
+			autoTaken[c] = false;
+			for (int k = 0; k < 5; k++) {
 				cLast[c][k] = cWritten[c][k] = NAN;
+				cKeyIdx[c][k] = -1;
+			}
+		}
+		if (inst) {
+			// the folders, with the user's samples folder: scanned here (no audio thread runs this module yet)
+			if (void* lists = vader_scan(inst, sampleRoot().c_str())) {
+				fillListsLocked(lists);
+				vader_lists_swap(inst, lists);
+				vader_lists_free(lists);
+			}
+			nWavs = (int) wavFiles.size();
+			idxFocusX = vader_param_index("focus_x");
+			idxFocusY = vader_param_index("focus_y");
+			stateBuf.assign((size_t) STATE_MAX + 1, 0);
+			stateCache.reserve((size_t) STATE_MAX + 1);
+		}
 
 		std::vector<std::string> shapes(SHAPES, SHAPES + NSHAPE), modes(MODES, MODES + NMODE);
 		auto def = [&](const char* key, float d) { return inst ? engGet(key, d) : d; };
@@ -427,6 +602,7 @@ struct Umlauf : Module, follow::Host {
 			std::string p = std::string(1, (char) ('a' + c)) + "_";
 			kEng[c] = addKey((p + "eng").c_str(), 0, 14, true);  // written by corner()
 			kSmp[c] = addKey(string::f("smp_%c", 'a' + c).c_str(), 0, 499, true);
+			keys[kEng[c]].own = keys[kSmp[c]].own = true;
 			addKey((p + "ftype").c_str(), 0, 4, true, 0, cp(c, C_FTYPE));
 			addKey((p + "fpos").c_str(), 0, 2, true, 0, cp(c, C_FON));
 			addInput(addKey((p + "cutoff").c_str(), 0, 1, false, 0, cp(c, C_CUT)), 0, CUT_A_INPUT + c);
@@ -500,13 +676,22 @@ struct Umlauf : Module, follow::Host {
 			for (int c = 0; c < 4; c++)
 				for (int s = 0; s < 5; s++)
 					paramQuantities[cp(c, C_K1 + s)]->defaultValue = params[cp(c, C_K1 + s)].getValue();
+			registerSelf();
 		}
 	}
 
 	~Umlauf() {
+		unregister();
+		collectDone();
+		if (Handover* h = pending.exchange(nullptr)) {
+			vader_lists_free(h->lists);
+			delete h;
+		}
 		if (inst)
 			E->destroy(inst);
 	}
+	void registerSelf();  // (the list of UMLAUFs, after the class)
+	void unregister();
 
 	// ---------------------------------------------------------------- engine ↔ knobs
 	Module* fxModule() {
@@ -529,6 +714,7 @@ struct Umlauf : Module, follow::Host {
 			const Slot& sl = slotOf(e, s);
 			if (!sl.key) {
 				cKey[c][s].clear();
+				cKeyIdx[c][s] = -1;
 				continue;
 			}
 			std::string key = std::string(1, (char) ('a' + c)) + "_" + sl.key;
@@ -538,6 +724,7 @@ struct Umlauf : Module, follow::Host {
 			params[cp(c, C_K1 + s)].setValue(n);
 			cBase[c][s] = cLast[c][s] = n;
 			cKey[c][s] = key;
+			cKeyIdx[c][s] = vader_param_index(key.c_str());
 			cWritten[c][s] = v;
 		}
 	}
@@ -584,9 +771,7 @@ struct Umlauf : Module, follow::Host {
 		Module* fx = fxModule();
 		if (fx && !fxWasThere)
 			pullAll(false, true);
-		fxWasThere = fx != nullptr;
-		if (fx)
-			fx->lights[ufx::LINK_LIGHT].setBrightness(1.f);
+		fxWasThere = fx != nullptr;  // (LINK: the expander lights it itself)
 
 		// focus: X / Y steer the orbiter
 		bool foc = inputs[X_INPUT].isConnected() || inputs[Y_INPUT].isConnected();
@@ -596,15 +781,21 @@ struct Umlauf : Module, follow::Host {
 			focusX = focusY = NAN;
 		}
 		if (foc) {
-			float fx = clamp(0.5f + inputs[X_INPUT].getVoltage() / 10.f, 0.f, 1.f);
-			float fy = clamp(0.5f - inputs[Y_INPUT].getVoltage() / 10.f, 0.f, 1.f);
+			float fx = clamp(0.5f + finiteOr0(inputs[X_INPUT].getVoltage()) / 10.f, 0.f, 1.f);
+			float fy = clamp(0.5f - finiteOr0(inputs[Y_INPUT].getVoltage()) / 10.f, 0.f, 1.f);
 			if (cvMoved(fx, focusX, 1.f)) {
 				focusX = fx;
-				engSet("focus_x", fx);
+				if (idxFocusX >= 0)
+					engSetAt(idxFocusX, fx, false);
+				else
+					engSet("focus_x", fx, false);
 			}
 			if (cvMoved(fy, focusY, 1.f)) {
 				focusY = fy;
-				engSet("focus_y", fy);
+				if (idxFocusY >= 0)
+					engSetAt(idxFocusY, fy, false);
+				else
+					engSet("focus_y", fy, false);
 			}
 		}
 		if (delaySync != (keys[kDsync].written > 0.5f)) {
@@ -615,17 +806,17 @@ struct Umlauf : Module, follow::Host {
 
 		for (size_t i = 0; i < keys.size(); i++) {
 			Key& k = keys[i];
-			if ((int) i == kEng[0] || (int) i == kEng[1] || (int) i == kEng[2] || (int) i == kEng[3])
+			if (k.own)  // a corner's engine and sample: below
 				continue;
-			if ((int) i == kSmp[0] || (int) i == kSmp[1] || (int) i == kSmp[2] || (int) i == kSmp[3])
-				continue;
+			bool knobMoved = false;
 			if (k.param >= 0) {
 				// (the expander not there: its keys keep their value, CV from this panel still adds)
-				if (Module* m = panelModule(k.panel)) {
+				if (Module* m = k.panel == 0 ? this : fx) {
 					float v = m->params[k.param].getValue();
 					if (v != k.last) {
 						k.last = v;
 						k.base = v;
+						knobMoved = true;
 					}
 				}
 			} else if (k.inputs.empty()) {
@@ -634,9 +825,9 @@ struct Umlauf : Module, follow::Host {
 			float cv = 0.f;
 			bool byCv = false;
 			for (auto& in : k.inputs) {
-				Module* m = panelModule(in.first);
+				Module* m = in.first == 0 ? this : fx;
 				if (m && m->inputs[in.second].isConnected()) {
-					cv += m->inputs[in.second].getVoltage() * 0.1f * (k.hi - k.lo);
+					cv += finiteOr0(m->inputs[in.second].getVoltage()) * 0.1f * (k.hi - k.lo);
 					byCv = true;
 				}
 			}
@@ -653,7 +844,10 @@ struct Umlauf : Module, follow::Host {
 			}
 			if (byCv && !k.snap ? cvMoved(v, k.written, k.hi - k.lo) : v != k.written) {
 				k.written = v;
-				engSet(k.name, v);
+				if (byCv && k.idx >= 0)
+					engSetAt(k.idx, v, knobMoved);  // CV moves it: by its index, and the saved state need not follow
+				else
+					engSet(k.name, v);
 				if ((int) i == kMode) {  // a new mode: its own knob values come back
 					for (int j = 0; j < 8; j++) {
 						int mk = findKey(string::f("mk%d", j + 1));
@@ -677,14 +871,12 @@ struct Umlauf : Module, follow::Host {
 				pullCorner(c);
 			}
 			int smp = 0;
-			if (e == NENGINE - 1) {
-				std::lock_guard<std::mutex> lock(listMutex);
-				for (size_t i = 0; i < wavFiles.size(); i++)
-					if (wavFiles[i] == smpPath[c])
-						smp = (int) i + 1;
-				if (!smp && smpPath[c].empty() && !wavFiles.empty()) {  // (a sample not found stays: NO SAMPLE)
-					smpPath[c] = wavFiles[0];
+			if (e == NENGINE - 1) {  // its place in the list: worked out on the UI thread (publishLocked), no lock here
+				smp = smpIdx[c];
+				if (!smp && smpAuto[c] && nWavs > 0) {  // none picked: the first (a sample not found stays: NO SAMPLE)
 					smp = 1;
+					if (!autoTaken[c].load(std::memory_order_relaxed))
+						autoTaken[c].store(true, std::memory_order_relaxed);  // (the UI thread makes it the corner's)
 				}
 			}
 			if (smp != smpWritten[c]) {
@@ -696,14 +888,16 @@ struct Umlauf : Module, follow::Host {
 				if (!sl.key)
 					continue;
 				float v = params[cp(c, C_K1 + s)].getValue();
+				bool knobMoved = false;
 				if (v != cLast[c][s]) {
 					cLast[c][s] = v;
 					cBase[c][s] = v;
+					knobMoved = true;
 				}
 				float n = cBase[c][s];
 				bool byCv = s == 0 && inputs[K1_A_INPUT + c].isConnected();
 				if (byCv)
-					n += inputs[K1_A_INPUT + c].getVoltage() * 0.1f;
+					n += finiteOr0(inputs[K1_A_INPUT + c].getVoltage()) * 0.1f;
 				n = clamp(n, 0.f, 1.f);
 				float x = sl.lo + n * (sl.hi - sl.lo);
 				if (sl.snap)
@@ -711,7 +905,10 @@ struct Umlauf : Module, follow::Host {
 				bool moved = byCv && !sl.snap ? cvMoved(x, cWritten[c][s], sl.hi - sl.lo) : x != cWritten[c][s];
 				if (moved && !cKey[c][s].empty()) {  // (cKey follows the engine: pullCorner)
 					cWritten[c][s] = x;
-					engSet(cKey[c][s], x);
+					if (byCv && cKeyIdx[c][s] >= 0)
+						engSetAt(cKeyIdx[c][s], x, knobMoved);
+					else
+						engSet(cKey[c][s], x);
 				}
 			}
 		}
@@ -733,8 +930,8 @@ struct Umlauf : Module, follow::Host {
 			}
 			if (!g && !gate[c])
 				continue;
-			int n = clamp((int) std::lround(60.f + 12.f * inputs[VOCT_INPUT].getPolyVoltage(c)), 0, 127);
-			int vel = velOn ? clamp((int) std::lround(inputs[VEL_INPUT].getPolyVoltage(c) * 12.7f), 1, 127) : 100;
+			int n = clamp((int) std::lround(60.f + 12.f * finiteOr0(inputs[VOCT_INPUT].getPolyVoltage(c))), 0, 127);
+			int vel = velOn ? clamp((int) std::lround(finiteOr0(inputs[VEL_INPUT].getPolyVoltage(c)) * 12.7f), 1, 127) : 100;
 			if (g && !gate[c]) {
 				midi3(0x90, n, vel);
 				note[c] = n;
@@ -779,32 +976,42 @@ struct Umlauf : Module, follow::Host {
 			playing = false;  // the clock stopped: the engine runs on its own (at the last tempo)
 			edge = true;
 		}
-		if (edge)
-			E->set_param(inst, "host_time", string::f("%d %.9f %.6f", playing ? 1 : 0, beats, tempo).c_str());
+		if (edge) {
+			char b[96];  // (no allocation on the audio thread)
+			std::snprintf(b, sizeof(b), "%d %.9f %.6f", playing ? 1 : 0, beats, tempo);
+			E->set_param(inst, "host_time", b);
+		}
 	}
 
 	// ---------------------------------------------------------------- the display's texts
 	void updateDisplay() {
-		Disp d;
-		d.shape = SHAPES[clamp((int) keys[kShape].written, 0, NSHAPE - 1)];
-		if ((int) keys[kShape].written == SHAPE_USER)
-			d.shape = userShape.empty() ? "USER (NO FILE)" : baseName(userShape);
-		int mode = clamp((int) keys[kMode].written, 0, NMODE - 1);
-		d.mode = MODES[mode];
+		DispRaw d;
+		auto put = [](char* out, const char* text) { std::snprintf(out, 32, "%s", text); };
+		char key[24];
+		float sh = keys[kShape].written, mo = keys[kMode].written;
+		d.shape = std::isfinite(sh) ? clamp((int) sh, 0, NSHAPE - 1) : 0;
+		d.mode = std::isfinite(mo) ? clamp((int) mo, 0, NMODE - 1) : 0;
 		for (int i = 0; i < 8; i++)
-			d.mk[i] = mode ? engText(string::f("mk%d_name", i + 1)) : "";
+			if (d.mode) {
+				std::snprintf(key, sizeof(key), "mk%d_name", i + 1);
+				engName(key, d.mk[i], 32);
+			}
 		for (int c = 0; c < 4; c++) {
 			int e = cornerEngine(c);
-			d.eng[c] = ENGINES[e];
+			d.eng[c] = e;
 			for (int s = 0; s < 5; s++) {
 				if (e == 0)
-					d.names[c][s] = SYNTH_NAMES[s];
+					put(d.names[c][s], SYNTH_NAMES[s]);
 				else if (e == NENGINE - 1)
-					d.names[c][s] = WAV_NAMES[s];
-				else
-					d.names[c][s] = s == 4 ? "LIMIT" : engText(string::f("%c_v%d_name", 'a' + c, s + 1));
+					put(d.names[c][s], WAV_NAMES[s]);
+				else if (s == 4)
+					put(d.names[c][s], "LIMIT");
+				else {
+					std::snprintf(key, sizeof(key), "%c_v%d_name", 'a' + c, s + 1);
+					engName(key, d.names[c][s], 32);
+				}
 			}
-			d.sample[c] = e == NENGINE - 1 ? (smpPath[c].empty() || smpWritten[c] == 0 ? "NO SAMPLE" : baseName(smpPath[c])) : "";
+			d.smp[c] = smpWritten[c];
 		}
 		d.voices = vader_voices_on(inst);
 		d.tempo = tempo;
@@ -812,20 +1019,7 @@ struct Umlauf : Module, follow::Host {
 		d.preset = presetIdx;
 		std::unique_lock<std::mutex> lock(dispMutex, std::try_to_lock);
 		if (lock.owns_lock())
-			disp = d;
-	}
-
-	void readLists() {
-		std::vector<std::string> sh, wv;
-		for (int i = 0; i < vader_list_count(inst, 0); i++)
-			sh.push_back(fwd(vader_list_path(inst, 0, i)));
-		for (int i = 0; i < vader_list_count(inst, 1); i++)
-			wv.push_back(fwd(vader_list_path(inst, 1, i)));
-		std::lock_guard<std::mutex> lock(listMutex);
-		shapeFiles = sh;
-		wavFiles = wv;
-		for (int c = 0; c < 4; c++)
-			smpWritten[c] = -1;  // the list's order may have changed
+			raw = d;
 	}
 
 	// ---------------------------------------------------------------- audio
@@ -837,31 +1031,23 @@ struct Umlauf : Module, follow::Host {
 		fol.process(this, args.frame); // FOLLOW GENRA: the jacks without a cable (Follow.hpp)
 		if (!inst)
 			return;
-		if (cmdsPending.load(std::memory_order_acquire)) {
+		bool work = cmdsPending.load(std::memory_order_acquire);
+		if (work || pending.load(std::memory_order_acquire)) {
 			std::vector<std::function<void()>> todo;
-			{
+			if (work) {
 				std::unique_lock<std::mutex> lock(cmdMutex, std::try_to_lock);
 				if (lock.owns_lock()) {
 					todo.swap(cmds);
 					cmdsPending.store(false, std::memory_order_relaxed);
 				}
 			}
+			takeHandover();  // new lists first: a command posted for them (a shape file's place) finds them here
 			for (auto& f : todo)
 				f();
 			if (!todo.empty()) {
 				stateTick = 0;
 				stateChanged(4);  // (a file may still be loading: looked at again a few times)
 			}
-		}
-		if (rootSeen != rootVersion().load())
-			rescanWanted = true;
-		if (rescanWanted) {
-			rescanWanted = false;
-			rootSeen = rootVersion().load();
-			if (inst)
-				E->set_param(inst, "samples_dir", sampleRoot().c_str());
-			engSet("rescan", 1.f);
-			readLists();
 		}
 		notes(args);
 
@@ -955,21 +1141,25 @@ struct Umlauf : Module, follow::Host {
 			loadSerial++;
 		});
 	}
+	/** UI thread: the shape file (one of the list) as the USER shape. */
 	void pickShapeFile(const std::string& path) {
+		int at = -1, gen = 0;
+		{
+			std::lock_guard<std::mutex> lock(listMutex);
+			for (size_t i = 0; i < shapeFiles.size() && at < 0; i++)
+				if (shapeFiles[i] == path)
+					at = (int) i;
+			if (at < 0)
+				return;
+			userShape = path;
+			gen = listGen;
+		}
 		post([=]() {
-			std::vector<std::string> files;
-			{
-				std::lock_guard<std::mutex> lock(listMutex);
-				files = shapeFiles;
-			}
-			for (size_t i = 0; i < files.size(); i++)
-				if (files[i] == path) {
-					engSet("file", (float) i);
-					engSet("load", 1.f);
-					userShape = path;
-					params[SHAPE_PARAM].setValue(SHAPE_USER);
-					return;
-				}
+			if (gen != listGenA)  // (the folders were scanned again in between: the place is another list's)
+				return;
+			engSet("file", (float) at);
+			engSet("load", 1.f);
+			params[SHAPE_PARAM].setValue(SHAPE_USER);
 		});
 	}
 	/** A file from anywhere: copied into the Shapes (or Samples) folder, then picked. */
@@ -978,17 +1168,13 @@ struct Umlauf : Module, follow::Host {
 		std::string dst = dir + "/" + system::getFilename(src);
 		if (fwd(src) != dst)
 			system::copy(src, dst);
-		post([=]() {
-			engSet("rescan", 1.f);
-			readLists();
-		});
-		if (wav)
-			post([=]() {
-				smpPath[corner] = dst;
-				params[cp(corner, C_ENG)].setValue(NENGINE - 1);
-			});
-		else
+		scanNow();
+		if (wav) {
+			setSample(corner, dst);
+			params[cp(corner, C_ENG)].setValue(NENGINE - 1);
+		} else {
 			pickShapeFile(dst);
+		}
 	}
 
 	void onReset(const ResetEvent& e) override {
@@ -1001,14 +1187,23 @@ struct Umlauf : Module, follow::Host {
 		json_object_set_new(r, "ppqn", json_integer(ppqn));
 		json_object_set_new(r, "delaySync", json_boolean(delaySync));
 		json_object_set_new(r, "preset", json_integer(presetIdx));
-		json_object_set_new(r, "userShape", json_string(userShape.c_str()));
+		std::string shapeNow, smpNow[4];
+		{
+			std::lock_guard<std::mutex> lock(listMutex);
+			adoptAutoLocked();
+			shapeNow = userShape;
+			for (int c = 0; c < 4; c++)
+				smpNow[c] = smpPath[c];
+		}
+		collectDone();
+		json_object_set_new(r, "userShape", json_string(shapeNow.c_str()));
 		json_t* s = json_array();
 		for (int c = 0; c < 4; c++)
-			json_array_append_new(s, json_string(smpPath[c].c_str()));
+			json_array_append_new(s, json_string(smpNow[c].c_str()));
 		json_object_set_new(r, "samples", s);
 		json_t* rel = json_array();  // the same, inside the samples folder (the folder is per computer)
 		for (int c = 0; c < 4; c++)
-			json_array_append_new(rel, json_string(relToRoot(smpPath[c]).c_str()));
+			json_array_append_new(rel, json_string(relToRoot(smpNow[c]).c_str()));
 		json_object_set_new(r, "samplesRel", rel);
 		{
 			std::lock_guard<std::mutex> lock(stateMutex);
@@ -1032,31 +1227,44 @@ struct Umlauf : Module, follow::Host {
 			presetIdx = clamp((int) json_integer_value(j), 0, NVADER - 1);
 		if (inst)  // (a patch from before 2.18 has VADER's number only)
 			bank.fromJson(r, json_object_get(r, "preset") ? NOWN + presetIdx : -1);
-		if (json_t* j = json_object_get(r, "userShape"))
-			if (const char* v = json_string_value(j))
-				userShape = v;
-		if (json_t* s = json_object_get(r, "samples"))
-			for (int c = 0; c < 4 && c < (int) json_array_size(s); c++)
-				if (const char* v = json_string_value(json_array_get(s, c)))
-					smpPath[c] = v;
-		if (json_t* rel = json_object_get(r, "samplesRel")) {
+		std::string shapeNow;
+		{
 			std::string root = sampleRoot();
-			for (int c = 0; c < 4 && c < (int) json_array_size(rel); c++) {
-				const char* v = json_string_value(json_array_get(rel, c));
-				if (v && v[0] && !root.empty())
-					smpPath[c] = root + "/" + v;
+			std::lock_guard<std::mutex> lock(listMutex);
+			if (json_t* j = json_object_get(r, "userShape"))
+				if (const char* v = json_string_value(j))
+					userShape = v;
+			if (json_t* s = json_object_get(r, "samples"))
+				for (int c = 0; c < 4 && c < (int) json_array_size(s); c++)
+					if (const char* v = json_string_value(json_array_get(s, c)))
+						smpPath[c] = v;
+			if (json_t* rel = json_object_get(r, "samplesRel")) {
+				for (int c = 0; c < 4 && c < (int) json_array_size(rel); c++) {
+					const char* v = json_string_value(json_array_get(rel, c));
+					if (v && v[0] && !root.empty())
+						smpPath[c] = root + "/" + v;
+				}
 			}
+			for (int c = 0; c < 4; c++)
+				autoTaken[c] = false;
+			publishLocked();  // each corner's place in the list (the folders are not scanned again here, 2.37)
+			shapeNow = userShape;
 		}
 		std::string state;
 		if (json_t* j = json_object_get(r, "state"))
 			if (const char* v = json_string_value(j))
 				state = v;
+		if (!state.empty()) {
+			// what the patch saves is this state from now on, also while the audio thread has not taken it yet (a
+			// bypassed module never does: it saved the sound it was built with, 2.37; a preset's redo step had the
+			// sound before it)
+			std::lock_guard<std::mutex> lock(stateMutex);
+			stateCache = state;
+		}
 		post([=]() {
 			if (!state.empty())
 				E->set_param(inst, "state", state.c_str());
 			stateChanged(4);
-			engSet("rescan", 1.f);
-			readLists();
 			// the knobs (Rack restored them) are written again over the state
 			for (Key& k : keys) {
 				k.written = NAN;
@@ -1073,17 +1281,42 @@ struct Umlauf : Module, follow::Host {
 					cLast[c][s] = cWritten[c][s] = NAN;
 					const Slot& sl = slotOf(engineNow[c], s);
 					cKey[c][s] = sl.key ? std::string(1, (char) ('a' + c)) + "_" + sl.key : "";
+					cKeyIdx[c][s] = sl.key ? vader_param_index(cKey[c][s].c_str()) : -1;
 				}
 			}
 			fxWasThere = fxModule() != nullptr;  // an expander saved with the patch keeps its own knobs
 			if (engineWins && fxWasThere)
 				pullAll(false, true);              // … a preset's sound: the expander shows it
 			refreshState();
-			if (!userShape.empty() && (int) std::lround(params[SHAPE_PARAM].getValue()) == SHAPE_USER)
-				pickShapeFile(userShape);
 		});
+		if (!shapeNow.empty() && (int) std::lround(params[SHAPE_PARAM].getValue()) == SHAPE_USER)
+			pickShapeFile(shapeNow);  // (after the state: its own command)
 	}
 };
+
+// every UMLAUF there is (the UI thread makes and removes them): the samples folder is one for all
+static std::mutex& allMutex() {
+	static std::mutex m;
+	return m;
+}
+static std::vector<Umlauf*>& allUmlaufs() {
+	static std::vector<Umlauf*> v;
+	return v;
+}
+void Umlauf::registerSelf() {
+	std::lock_guard<std::mutex> lock(allMutex());
+	allUmlaufs().push_back(this);
+}
+void Umlauf::unregister() {
+	std::lock_guard<std::mutex> lock(allMutex());
+	std::vector<Umlauf*>& v = allUmlaufs();
+	v.erase(std::remove(v.begin(), v.end(), this), v.end());
+}
+static void rescanAll() {
+	std::lock_guard<std::mutex> lock(allMutex());
+	for (Umlauf* m : allUmlaufs())
+		m->scanNow();
+}
 
 std::string CornerQuantity::getLabel() {
 	Umlauf* m = dynamic_cast<Umlauf*>(module);
@@ -1091,8 +1324,8 @@ std::string CornerQuantity::getLabel() {
 	if (m) {
 		m->markShown();  // (asked for: the texts kept up)
 		std::lock_guard<std::mutex> lock(m->dispMutex);
-		const std::string& s = m->disp.names[corner][slot];
-		if (!s.empty())
+		const char* s = m->raw.names[corner][slot];
+		if (s[0])
 			return string::f("Corner %c ", 'A' + corner) + s;
 	}
 	return "Corner " + n;
@@ -1155,10 +1388,7 @@ struct OrbitDisplay : Widget {
 		bool have = false;
 		if (module && module->bus) {
 			module->markShown();
-			{
-				std::lock_guard<std::mutex> lock(module->dispMutex);
-				d = module->disp;
-			}
+			d = module->readDisp();
 			overlay_read_view(module->bus, &v);
 			unsigned ver = overlay_shape_version(module->bus);
 			if (ver != shapeVer && !(ver & 1)) {
@@ -1318,11 +1548,11 @@ struct CornerDisplay : Widget {
 		std::string eng = "SYNTH", names[5] = {"GEN 1", "GEN 2", "BLEND", "B.MODE", "G2 TUNE"}, smp;
 		if (module) {
 			module->markShown();
-			std::lock_guard<std::mutex> lock(module->dispMutex);
-			eng = module->disp.eng[corner];
+			Umlauf::Disp d = module->readDisp();
+			eng = d.eng[corner];
 			for (int s = 0; s < 5; s++)
-				names[s] = module->disp.names[corner][s];
-			smp = module->disp.sample[corner];
+				names[s] = d.names[corner][s];
+			smp = d.sample[corner];
 		}
 		if (eng.empty())
 			eng = "SYNTH";
@@ -1361,7 +1591,7 @@ static void cornerMenu(Umlauf* m, Menu* menu, int c) {
 			if (rel.empty())
 				rel = w.compare(0, own.size(), own) == 0 ? w.substr(own.size()) : baseName(w);
 			sub->addChild(createCheckMenuItem(rel, "", [=]() { return m->smpPath[c] == w; }, [=]() {
-				m->post([=]() { m->smpPath[c] = w; });
+				m->setSample(c, w);
 				m->params[Umlauf::cp(c, Umlauf::C_ENG)].setValue((float) (NENGINE - 1));
 			}));
 		}
@@ -1516,7 +1746,7 @@ struct UmlaufWidget : ModuleWidget {
 			menu->addChild(createMenuItem("No samples folder (UMLAUF's own only)", "", [=]() { setSampleRoot(""); }));
 		menu->addChild(createMenuItem("Open the UMLAUF folder (Shapes, Samples)", "",
 		                              [=]() { system::openDirectory(m->userDir()); }));
-		menu->addChild(createMenuItem("Scan the folders again", "", [=]() { m->rescanWanted = true; }));
+		menu->addChild(createMenuItem("Scan the folders again", "", [=]() { m->scanNow(); }));
 		menu->addChild(new MenuSeparator);
 		menu->addChild(createIndexSubmenuItem(
 		    "Clock input", {"16ths (GENRA)", "8ths", "Quarter notes", "24 PPQN"},

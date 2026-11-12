@@ -127,6 +127,14 @@ struct OctaveUp {
 		lp.setHz(7000.f, sr);
 	}
 	void clear() { r.clear(), phase = 0.f, lp.s = 0.f; }
+	/** 2.37, while SHIMMER is off: only the window's phase moves on (as it did when zeros were fed), nothing is read
+	 * or written. silence() empties the buffer when SHIMMER goes off. */
+	void idle() {
+		phase += 1.f / W;
+		if (phase >= 1.f)
+			phase -= 1.f;
+	}
+	void silence() { std::fill(r.buf.begin(), r.buf.end(), 0.f), lp.s = 0.f; }
 	float process(float x) {
 		r.write(x);
 		phase += 1.f / W; // ratio 2: the delay shrinks by one sample per sample
@@ -191,9 +199,17 @@ struct Reverb {
 	float outLvl = 1.f, outLvlT = 1.f, widthCur = 1.f, widthT = 1.f, shim = 0.f, shimT = 0.f;
 	float kSlow = 0.f, kFast = 0.f;
 	ReverbParams P;
+	// 2.37
+	bool setValid = false;   // set() was run for P at this sample rate (it only computes again when a value changed)
+	bool shimOn = false;     // the octave shifter runs (SHIMMER above 0); off: its buffer is empty
+	int quiet = 0, quietMax = 1 << 30; // samples in a row with nothing in and nothing but zeros through the lines
+	bool asleep = false;     // for tests and displays: the last sample was not computed
 
 	void setSampleRate(float rate) {
 		sr = rate;
+		setValid = false;
+		quiet = 0;
+		shimOn = false;
 		for (int i = 0; i < 8; i++)
 			line[i].init((int) (0.47f * sr) + 64); // SPACE x1.5 plus drift
 		for (int c = 0; c < 2; c++) {
@@ -202,6 +218,9 @@ struct Reverb {
 				diff[c][k].r.init((int) (0.03f * sr) + 8);
 		}
 		shift.init(sr);
+		// everything has been silent for sure once zeros went through the pre-delay, the diffusers, the longest line
+		// and the shifter one after the other
+		quietMax = (int) (line[0].buf.size() + pre[0].buf.size() + 4 * diff[0][0].r.buf.size() + shift.r.buf.size()) + 64;
 		for (int i = 0; i < 8; i++) {
 			dc[i].setHz(8.f, sr);
 			lfoInc[i] = 2.f * PI * (0.07f + 0.061f * (float) i) / sr;
@@ -226,9 +245,19 @@ struct Reverb {
 				diff[c][k].r.clear();
 		}
 		shift.clear();
+		quiet = 0;
+		shimOn = false;
 	}
-	/** Control rate: computes the targets the audio rate slews to. */
+	static bool same(const ReverbParams& a, const ReverbParams& b) {
+		return a.type == b.type && a.size == b.size && a.decay == b.decay && a.predelayMs == b.predelayMs && a.damp == b.damp
+		       && a.width == b.width && a.shimmer == b.shimmer && a.level == b.level && a.freeze == b.freeze;
+	}
+	/** Control rate: computes the targets the audio rate slews to. 2.37: only when a value changed (it is called every
+	 * 32 samples and ran 17 pow / exp each time); the result is the same, set() depends on p and the sample rate alone. */
 	void set(const ReverbParams& p) {
+		if (setValid && same(p, P))
+			return;
+		setValid = true;
 		P = p;
 		const TypeDef& D = def(p.type);
 		float scale = 0.5f + clampf(p.size, 0.f, 1.f);
@@ -255,6 +284,22 @@ struct Reverb {
 		widthT = clampf(p.width, 0.f, 1.5f);
 		shimT = p.freeze ? 0.f : clampf(p.shimmer, 0.f, 1.f) * 0.5f;
 	}
+	/** The reverb rests (2.37): nothing comes in and only exact zeros have gone through every delay for longer than
+	 * they all hold together, and no filter holds anything. Then the output is zero whatever is computed, so only the
+	 * things that move on their own are kept moving (the slews towards the knobs and the drift's phases): the first
+	 * sample that comes in finds the reverb exactly as if it had been computed all along. */
+	bool resting(float inL, float inR) {
+		if (inL != 0.f || inR != 0.f) {
+			quiet = 0;
+			return false;
+		}
+		if (quiet <= quietMax)
+			return false;
+		for (int i = 0; i < 8; i++)
+			if (damp[i].s != 0.f || dc[i].lp.s != 0.f)
+				return false;
+		return shift.lp.s == 0.f;
+	}
 	void process(float inL, float inR, float& outL, float& outR) {
 		inGain += (inGainT - inGain) * kFast;
 		preCur += (preT - preCur) * kSlow;
@@ -262,6 +307,19 @@ struct Reverb {
 		widthCur += (widthT - widthCur) * kFast;
 		shim += (shimT - shim) * kSlow;
 		driftCur += (driftT - driftCur) * kSlow;
+		asleep = resting(inL, inR);
+		if (asleep) {
+			for (int i = 0; i < 8; i++) {
+				len[i] += (lenT[i] - len[i]) * kSlow;
+				gain[i] += (gainT[i] - gain[i]) * kSlow;
+				lfo[i] += lfoInc[i];
+				if (lfo[i] > 2.f * PI)
+					lfo[i] -= 2.f * PI;
+			}
+			shift.idle();
+			outL = outR = 0.f;
+			return;
+		}
 		// pre-delay, then the diffusers
 		pre[0].write(inL * inGain);
 		pre[1].write(inR * inGain);
@@ -285,7 +343,9 @@ struct Reverb {
 		float oL = v[0] - v[1] + v[2] + v[3] - v[4] + v[5] - v[6] + v[7];
 		float oR = v[0] + v[1] - v[2] + v[3] + v[4] - v[5] - v[6] + v[7];
 		hadamard8(v);
+		bool zeros = inL == 0.f && inR == 0.f && a == 0.f && b == 0.f; // (for resting)
 		if (shim > 1e-4f) { // replace part of the common component by a copy an octave up
+			shimOn = true;
 			float m = 0.f;
 			for (int i = 0; i < 8; i++)
 				m += v[i];
@@ -294,9 +354,17 @@ struct Reverb {
 			float dlt = shim * (up - m);
 			for (int i = 0; i < 8; i++)
 				v[i] += dlt;
+			zeros = zeros && m == 0.f && up == 0.f;
 		}
-		else
-			shift.process(0.f);
+		else {
+			// 2.37: with SHIMMER off the shifter rests (it was fed zeros: four samples read and two sin for nothing).
+			// Its buffer is emptied once, so it starts from silence when SHIMMER comes on again.
+			if (shimOn) {
+				shimOn = false;
+				shift.silence();
+			}
+			shift.idle();
+		}
 		for (int i = 0; i < 8; i++) {
 			float x = dc[i].process(v[i] * gain[i]);
 			// the inputs: left into the even lines, right into the odd ones, signs alternating
@@ -304,8 +372,11 @@ struct Reverb {
 			// safety: soft above ~8 V, transparent below
 			if (std::fabs(x) > 8.f)
 				x = 8.f * softSat(x * 0.125f) * 1.2f;
-			line[i].write(flushDn(x));
+			x = flushDn(x);
+			zeros = zeros && x == 0.f && v[i] == 0.f;
+			line[i].write(x);
 		}
+		quiet = zeros ? std::min(quiet + 1, 1 << 30) : 0;
 		oL *= 0.35f, oR *= 0.35f;
 		float mid = 0.5f * (oL + oR), side = 0.5f * (oL - oR) * widthCur;
 		outL = outLimit((mid + side) * outLvl);
@@ -357,13 +428,20 @@ struct Delay {
 	float wow = 0.f, flut = 0.f, wowInc = 0.f, flutInc = 0.f;
 	float drive = 1.f, driveT = 1.f;
 	DelayParams P;
+	// 2.37 (as the reverb's)
+	bool setValid = false;
+	int quiet = 0, quietMax = 1 << 30;
+	bool asleep = false;
 
 	void setSampleRate(float rate) {
 		sr = rate;
+		setValid = false;
+		quiet = 0;
 		for (int c = 0; c < 2; c++) {
 			line[c].init((int) (MAX_S * sr) + 16);
 			dcb[c].setHz(20.f, sr);
 		}
+		quietMax = (int) line[0].buf.size() + 64;
 		kTime = slewCoef(0.09f, sr);
 		kFast = slewCoef(0.02f, sr);
 		envA = slewCoef(0.005f, sr);
@@ -379,8 +457,18 @@ struct Delay {
 			lp[c].s = tapeLp[c].s = hp[c].lp.s = dcb[c].lp.s = 0.f;
 		}
 		env = 0.f, duckG = 1.f, cur = target;
+		quiet = 0;
 	}
+	static bool same(const DelayParams& a, const DelayParams& b) {
+		return a.sync == b.sync && a.div == b.div && a.mode == b.mode && a.bpm == b.bpm && a.ms == b.ms
+		       && a.feedback == b.feedback && a.tone == b.tone && a.tape == b.tape && a.duck == b.duck && a.width == b.width
+		       && a.pingpong == b.pingpong && a.level == b.level;
+	}
+	/** 2.37: only when a value changed (called every 32 samples: 3 pow, 6 exp each time; same result). */
 	void set(const DelayParams& p) {
+		if (setValid && same(p, P))
+			return;
+		setValid = true;
 		P = p;
 		target = clampf(delaySeconds(p) * sr, 4.f, MAX_S * sr - 8.f);
 		fbT = clampf(p.feedback, 0.f, 1.1f);
@@ -416,7 +504,21 @@ struct Delay {
 			wow -= 2.f * PI;
 		if (flut > 2.f * PI)
 			flut -= 2.f * PI;
-		float mod = tape * sr * (0.0021f * std::sin(wow) + 0.00022f * std::sin(flut));
+		// 2.37: the delay rests while nothing comes in and the whole line and every filter hold exact zeros (see the
+		// reverb): the output is zero whatever is computed; the slews above and the duck's gain move on as they would
+		if (inL != 0.f || inR != 0.f)
+			quiet = 0;
+		asleep = quiet > quietMax && env == 0.f;
+		for (int c = 0; c < 2 && asleep; c++)
+			asleep = lp[c].s == 0.f && hp[c].lp.s == 0.f && dcb[c].lp.s == 0.f
+			         && (tape > 0.f ? tapeLp[c].s == 0.f : true); // (at TAPE 0 its low-pass is not in the loop)
+		if (asleep) {
+			duckG += (1.f - duckG) * kFast;
+			outL = outR = 0.f;
+			return;
+		}
+		// (2.37: at TAPE 0 the two sin are not computed; mod is 0 either way)
+		float mod = tape > 0.f ? tape * sr * (0.0021f * std::sin(wow) + 0.00022f * std::sin(flut)) : 0.f;
 		float dL = clampf(cur + mod, 2.f, MAX_S * sr - 4.f);
 		float dR = clampf(cur + mod * 0.93f, 2.f, MAX_S * sr - 4.f);
 		float yL = line[0].readHermite(dL), yR = line[1].readHermite(dR);
@@ -428,14 +530,19 @@ struct Delay {
 			return sat(dcb[c].process(z)) * fb;
 		};
 		float fL = loop(0, yL), fR = loop(1, yR);
+		float wL, wR;
 		if (P.pingpong) {
-			line[0].write(flushDn(0.5f * (inL + inR) + fR));
-			line[1].write(flushDn(fL));
+			wL = flushDn(0.5f * (inL + inR) + fR);
+			wR = flushDn(fL);
 		}
 		else {
-			line[0].write(flushDn(inL + fL));
-			line[1].write(flushDn(inR + fR));
+			wL = flushDn(inL + fL);
+			wR = flushDn(inR + fR);
 		}
+		line[0].write(wL);
+		line[1].write(wR);
+		bool zeros = inL == 0.f && inR == 0.f && wL == 0.f && wR == 0.f && yL == 0.f && yR == 0.f;
+		quiet = zeros ? std::min(quiet + 1, 1 << 30) : 0;
 		// DUCK: the echoes step back while the input plays
 		float e = 0.5f * (std::fabs(inL) + std::fabs(inR));
 		env += (e - env) * (e > env ? envA : envR);
