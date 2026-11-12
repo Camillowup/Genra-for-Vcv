@@ -23,7 +23,7 @@ Rechen-Engine gibt) einen Test ohne Rack. Panel-Bilder für README und Entwürfe
 
 ## Plugin GENRA Instruments (`instruments/`)
 
-Pfade relativ zu `instruments/`; Panel-Skripte und Bilder liegen im Hauptordner (`tools/panels/`, `docs/panels/`).
+Pfade relativ zu `instruments/`; Panel-Skripte und Bilder liegen im Hauptordner (`tools/panels/`, `docs/panels/`). Ausnahme: die zehn Module aus GENRA Test (seit 2.38.0) bringen ihre Panel-Skripte in `instruments/tools/` mit (dort ausführen; gemeinsame Teile `gpanel.py`, `jpanel.py`, `panellib.py`).
 
 | Modul (Slug) | Code | Firmware / Kern | Panel-Skript | Grafik (`res/`) | Test (`test/`) |
 | --- | --- | --- | --- | --- | --- |
@@ -32,6 +32,15 @@ Pfade relativ zu `instruments/`; Panel-Skripte und Bilder liegen im Hauptordner 
 | UMLAUF (`Umlauf`), UMLAUF FX (`UmlaufFx`) | `src/umlauf/` | `vader/` (VADER, per `tools/vader_vendor.sh`) | `umlauf_panel.py`, `umlauf_fx_panel.py` | `Umlauf.svg`, `UmlaufFx.svg`, `umlauf/shapes` | `vader_test.c` |
 | MONK (`Monk`) | `src/monk/` | – (Sänger-Bilder `res/monk/`, aus `tools/monk_singers.py`) | `monk_panel.py` | `Monk.svg` | – |
 | VOICE (`Voice`), VOICE BEND (`VoiceBend`), ANIMAL (`Animal`) | `src/jiant/` | `../jiantcore/` (`voicecore.c`, `spellcore.c` mit `spellbox/`, `animalcore.c`) | `jiant_panel.py` | `JiantVoice.svg`, `JiantVoiceBend.svg`, `JiantAnimal.svg` | `test/spellcore_test.c` |
+| MATH (`Math`) | `src/math/` | `mathcore/` + `jiant.tar.gz` (JIANT, Branch codex/swarm) | `tools/math_panel.py` | `Math.svg` | `test/mathcore_test.c` |
+| KURBEL (`Kurbel`) | `src/kurbel/` | `kurbelcore/` + `estampie.tar.gz` | `tools/kurbel_panel.py` | `Kurbel.svg` | `test/kurbelcore_test.c` |
+| SWARM (`Swarm`) | `src/swarm/` | `swarmcore/` + `jiant.tar.gz` | `tools/swarm_panel.py` | `Swarm.svg` | `test/swarmcore_test.c` |
+| LIED (`Lied`) | `src/lied/` | `liedcore/` + `espeak.tar.gz`, Sprachdaten `res/espeak-ng-data` | `tools/lied_panel.py` | `Lied.svg` | `test/liedcore_test.c`, `test/lied_test.cpp` |
+| CANTA (`Canta`) | `src/canta/` | `cantacore/` + `canta.tar.gz` (Sängerinnen: `tools/canta_sprites.py`) | `tools/canta_panel.py` | `Canta.svg` | `test/cantacore_test.c` |
+| MIAOU (`Miaou`) | `src/miaou/` | `miaoucore/` (direkt ins Plugin gebaut) | `tools/miaou_panel.py` | `Miaou.svg` | `test/miaoucore_test.c` |
+| SAURUS (`Saurus`) | `src/saurus/` | `sauruscore/` + `paleotone.tar.gz` | `tools/saurus_panel.py` | `Saurus.svg` | `test/sauruscore_test.c` |
+| FUMI (`Fumi`) | `src/fumi/` | `fumicore/` + `fumi.tar.gz` (Pegel: `tools/fumi_levels.c`) | `tools/fumi_panel.py` | `Fumi.svg` | `test/fumicore_test.c` |
+| KESSEL (`Kessel`), KESSEL FX (`KesselFx`) | `src/kessel/` | `kesselcore/` + `kessel.tar.gz` (Kits: `tools/kessel_kits.py`, `res/kessel/`) | `tools/kessel_panel.py` | `Kessel.svg`, `KesselFx.svg` | `test/kesselcore_test.c` |
 
 ## Gemeinsame Teile (in `src/`, von allen GENRA-Plugins benutzt)
 
@@ -46,7 +55,7 @@ Pfade relativ zu `instruments/`; Panel-Skripte und Bilder liegen im Hauptordner 
 | `src/jiant/JiantUI.hpp`, `JiantLayout.hpp` | Look der JIANT-Module (auch MONK und GENRA Test) |
 
 `instruments/src/` reicht diese Teile über kleine Weiterleitungs-Header durch (keine Kopien). Das Testplugin GENRA Test
-(Repo testmodulesvcv) holt sich `src/` und `res/knob/` vor jedem Build frisch aus diesem Repo.
+(Repo testmodulesvcv) holt sich `src/` und `res/knob/` vor jedem Build frisch aus diesem Repo; es ist seit 2.38.0 leer (Ablage für neue Test-Module).
 
 ## Weitere Ordner
 

@@ -20,4 +20,14 @@ void init(Plugin* p) {
 	p->addModel(modelVoice);
 	p->addModel(modelVoiceBend);
 	p->addModel(modelAnimal);
+	p->addModel(modelMath);
+	p->addModel(modelKurbel);
+	p->addModel(modelSwarm);
+	p->addModel(modelLied);
+	p->addModel(modelCanta);
+	p->addModel(modelMiaou);
+	p->addModel(modelSaurus);
+	p->addModel(modelFumi);
+	p->addModel(modelKessel);
+	p->addModel(modelKesselFx);
 }

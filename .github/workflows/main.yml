@@ -69,6 +69,19 @@ jobs:
           gcc -std=gnu11 -O2 test/spellcore_test.c -lm -o spt.exe
           ./spt.exe
 
+      - name: Test the cores from GENRA Test (MATH … KESSEL, without Rack)
+        run: |
+          cd instruments
+          for c in math kurbel swarm canta saurus fumi kessel; do
+            gcc -std=gnu11 -O2 -w test/${c}core_test.c -o t_$c.exe -lm && cp res/${c}core.dll . && ./t_$c.exe ./${c}core.dll || exit 1
+          done
+          gcc -std=gnu11 -O2 -w test/liedcore_test.c -o lt.exe -lm && cp res/liedcore.dll .
+          ./lt.exe ./liedcore.dll res/espeak-ng-data
+          g++ -std=c++11 -O2 -w test/lied_test.cpp -o lst.exe
+          ./lst.exe ./liedcore.dll res/espeak-ng-data
+          gcc -std=gnu11 -O2 -w test/miaoucore_test.c miaoucore/miaoucore.c -o mct.exe -lm
+          ./mct.exe
+
       - name: Check the package
         run: |
           ls -la dist/Genra dist/Genra/res
@@ -83,8 +96,11 @@ jobs:
           D=instruments/dist/GenraInstruments
           ls -la $D $D/res
           test -f $D/plugin.dll
-          for c in voicecore animalcore spellcore kwcore glcore; do test -f $D/res/$c.dll; done
-          for f in Kwasub KwasubFx Golana GolanaFx Umlauf UmlaufFx Monk JiantVoice JiantVoiceBend JiantAnimal; do test -f $D/res/$f.svg; done
+          for c in voicecore animalcore spellcore kwcore glcore mathcore kurbelcore swarmcore liedcore cantacore sauruscore fumicore kesselcore; do test -f $D/res/$c.dll; done
+          for f in Kwasub KwasubFx Golana GolanaFx Umlauf UmlaufFx Monk JiantVoice JiantVoiceBend JiantAnimal Math Kurbel Swarm Lied Canta Miaou Saurus Fumi Kessel KesselFx; do test -f $D/res/$f.svg; done
+          test -f $D/res/espeak-ng-data/phondata
+          test -f $D/res/espeak-ng-data/de_dict
+          test -d "$D/res/espeak-ng-data/voices/!v"
           test -f $D/res/knob/medium.svg
           ls $D/res/umlauf/shapes
           ls $D/res/monk | head -3
@@ -154,7 +170,8 @@ jobs:
           test -f dist/Genra/res/drumcore.dylib
           D=instruments/dist/GenraInstruments
           test -f $D/plugin.dylib
-          for c in voicecore animalcore spellcore kwcore glcore; do test -f $D/res/$c.dylib; done
+          for c in voicecore animalcore spellcore kwcore glcore mathcore kurbelcore swarmcore liedcore cantacore sauruscore fumicore kesselcore; do test -f $D/res/$c.dylib; done
+          test -f $D/res/espeak-ng-data/phondata
           for f in dist/Genra/plugin.dylib dist/Genra/res/drumcore.dylib $D/plugin.dylib $D/res/*core.dylib; do
             echo "$f: $(lipo -archs $f)"
             lipo -archs "$f" | grep -qw "$WANT" || { echo "$f is not $WANT"; exit 1; }
@@ -201,7 +218,8 @@ jobs:
           files: files/*.vcvplugin
           body: |
             GENRA plugins for VCV Rack 2: GENRA (sequencer, song arranger, groovebox, mixer, effects, drums and a set of
-            instruments) and GENRA Instruments (K-WASUB, GOLANA, UMLAUF, MONK, VOICE, ANIMAL). Both appear under the
+            instruments) and GENRA Instruments (K-WASUB, GOLANA, UMLAUF, MONK, VOICE, ANIMAL, MATH, KURBEL, SWARM, LIED,
+            CANTA, MIAOU, SAURUS, FUMI, KESSEL). Both appear under the
             brand "Genra" in Rack's browser; the instruments follow GENRA without cables when both are installed.
 
             Files: `win-x64` = Windows, `mac-arm64` = Mac with Apple chip (M1 and later), `mac-x64` = Intel Mac.

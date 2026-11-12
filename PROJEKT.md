@@ -1,6 +1,6 @@
 # GENRA – Projektstand
 
-**Stand:** 11. November 2026 · **GENRA 2.36.0** (15 Module) und **GENRA Instruments 2.36.0** (10 Module), Windows + macOS
+**Stand:** 12. November 2026 · **GENRA 2.38.0** (15 Module) und **GENRA Instruments 2.38.0** (20 Module), Windows + macOS
 (arm64/x64, Mac noch ungetestet) · Repo `Camillowup/Genra-for-Vcv` (vorher `CamilloGF/genra-v3`, Account nicht mehr
 erreichbar) · Plattform: VCV Rack Pro 2.6.6 unter Windows
 
@@ -18,10 +18,10 @@ erreichbar) · Plattform: VCV Rack Pro 2.6.6 unter Windows
 - **GENRA** (Slug `Genra`, Ordner `src/`): GENRA, GRID, ABLAUF, MIX, GENRA FX, STOTTER, SCHLAG, DRUM-X, GRUND, GRUND FX,
   GENRA MONO, FUNKE, SCHMELZ, GENRA BOX, ABLAUF MINI.
 - **GENRA Instruments** (Slug `GenraInstruments`, Ordner `instruments/`): K-WASUB, K-WASUB FX, GOLANA, GOLANA FX, UMLAUF,
-  UMLAUF FX, MONK, VOICE, ANIMAL. Benutzt die gemeinsamen Teile aus `src/` (Knöpfe, Follow GENRA, Link-Hub, UI) über
+  UMLAUF FX, MONK, VOICE, ANIMAL, seit 2.38.0 auch MATH, KURBEL, SWARM, LIED, CANTA, MIAOU, SAURUS, FUMI, KESSEL, KESSEL FX (aus GENRA Test). Benutzt die gemeinsamen Teile aus `src/` (Knöpfe, Follow GENRA, Link-Hub, UI) über
   kleine Weiterleitungs-Header, nicht als Kopie.
-- **GENRA Test** (eigenes Repo `Camillowup/testmodulesvcv`): neue Instrumente zum Ausprobieren (Stand 2.5.0: MATH, KURBEL, SWARM, LIED,
-  CANTA, MIAOU, SAURUS, FUMI).
+- **GENRA Test** (eigenes Repo `Camillowup/testmodulesvcv`): Ablage für neue Instrumente zum Ausprobieren. Seit 2.38.0 leer:
+  alle zehn Module (MATH bis KESSEL FX) sind getestet und nach GENRA Instruments umgezogen.
   Holt die gemeinsamen Teile vor jedem Build frisch aus diesem Repo (Branch `main`).
 - Später evtl. alles zu einem grossen GENRA-Plugin zusammenführen (offen).
 

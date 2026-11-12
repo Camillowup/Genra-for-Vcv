@@ -8,13 +8,11 @@ selben Schritt aus dem alten Plugin heraus – sonst steht es in Rack doppelt. G
 Neue Instrumente werden zuerst im Testplugin GENRA Test (Repo testmodulesvcv) gebaut und kommen danach nach `instruments/` (GENRA Instruments), im GENRA-Look nach `docs/DESIGN.md`.
 Quellen sind FM-1-Firmwares, alle unter GPL-3.0 (Liste: thefirmwarehub.com, github.com/cicloid/awesome-fm-1).
 
-## Im Test (Testplugin GENRA Test, Repo testmodulesvcv)
+## Umgezogen nach GENRA Instruments (2.38.0)
 
-Gebaut und in Rack zu testen (Stand GENRA Test 2.5.0, 11. Nov. 2026); wandern später nach `instruments/` (dann
-gleichzeitig aus GENRA Test entfernen): **MATH**, **KURBEL**, **SWARM** (Details unten), **LIED** (Textsänger auf
-eSpeak NG, 2.3.0), **CANTA** (2.4.0), **MIAOU**, **SAURUS** und **FUMI** (alle drei 2.5.0), **KESSEL** mit Expander
-**KESSEL FX** (2.6.0, Drum-Modul mit der Klang-Engine der LXR-Firmware von Erica Synths). Beschreibung aller Module
-im README von testmodulesvcv.
+MATH, KURBEL, SWARM, LIED, CANTA, MIAOU, SAURUS, FUMI, KESSEL und KESSEL FX sind getestet (12. Nov. 2026: Look und
+Klang i. O.) und mit 2.38.0 von GENRA Test nach `instruments/` umgezogen, im selben Schritt aus GENRA Test entfernt.
+Ebenfalls getestet und i. O.: alle Module von GENRA Instruments und DRUM-X im neuen Look.
 
 ## Umstellung aller Panels auf den Look der Vorlagen (11. Nov. 2026)
 
@@ -25,8 +23,7 @@ Jedes Panel wird zuerst als Entwurf gezeigt; gebaut wird erst nach Freigabe und 
   das Mausrad. Panels aus `tools/panels/gpanel.py` (gleiches Werkzeug wie `tools/gpanel.py` in GENRA Test).
 - Ebenfalls umgestellt in 2.36.0: K-WASUB 38 HP, K-WASUB FX 41 HP, GOLANA 45 HP, GOLANA FX 14 HP, UMLAUF 54 HP,
   UMLAUF FX 39 HP (Expander ohne Display). Alle Panels bündig: Sektionen 2 mm über den Buchsen, Display füllt den Rest.
-- In Rack prüfen: Schriften in den Displays (dynamisch), GOLANAs schmale Felder, UMLAUFs flacher Orbit-Display,
-  UMLAUF-Sample-Ordner, ABLAUF PATT ↔ SONG und RUN/STOP an GENRA.
+- Geprüft und i. O. (12. Nov. 2026): alle umgestellten Panels. Noch zu prüfen: ABLAUF PATT ↔ SONG und RUN/STOP an GENRA.
 
 ## Aus JIANT FM (github.com/juanjiant-bit/JIANT, Branch `codex/swarm`)
 
@@ -121,3 +118,7 @@ Alle oben genannten Module sind inzwischen gebaut (VOICE SPELL in GENRA Instrume
 - **Cutoff der Presets** etwas höher (+10–15 %), Lautstärke danach neu einmessen: nur die Presets, die der Nutzer noch
   auflistet (Liste folgt).
 
+
+### Aus GENRA Test mitgekommen (GENRA Instruments, seit 2.38.0)
+- **CANTA:** „Arme hoch im Refrain“ und Verbeugung am Ende (DANCE-Modus).
+- **KESSEL:** MIDI-Eingang direkt im Modul (wie bei SCHLAG), falls gewünscht; Kits beim Anhören nachstimmen.

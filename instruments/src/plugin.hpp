@@ -14,6 +14,17 @@ extern Model* modelMonk;
 extern Model* modelVoice;
 extern Model* modelVoiceBend;
 extern Model* modelAnimal;
+// from GENRA Test (2.38)
+extern Model* modelMath;
+extern Model* modelKurbel;
+extern Model* modelSwarm;
+extern Model* modelLied;
+extern Model* modelCanta;
+extern Model* modelMiaou;
+extern Model* modelSaurus;
+extern Model* modelFumi;
+extern Model* modelKessel;
+extern Model* modelKesselFx;
 
 /** A voltage as it goes into lround / floor / a parameter: a NaN or an infinite one (a broken module upstream) counts
  * as 0 V (2.37). */

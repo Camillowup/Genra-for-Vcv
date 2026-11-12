@@ -4,6 +4,19 @@ Was in welcher Version dazukam (GENRA und GENRA Instruments). Der aktuelle Stand
 
 ## 2.21 bis heute (neueste zuerst)
 
+### 2.38.0 – Zehn Instrumente aus GENRA Test ziehen nach GENRA Instruments
+Nur GENRA Instruments ändert sich; GENRA bekommt dieselbe Versionsnummer, sonst nichts Neues.
+- **MATH, KURBEL, SWARM, LIED, CANTA, MIAOU, SAURUS, FUMI, KESSEL und KESSEL FX** sind getestet (Klang und Look) und
+  jetzt Teil von **GENRA Instruments** (20 Module). Code, Kerne, Firmware-Schnappschüsse, Panels, Tests, Panel-Skripte
+  (`instruments/tools/`) und Lizenztexte kamen unverändert aus dem Repo testmodulesvcv mit; nur die Pfade zu den
+  gemeinsamen Teilen zeigen jetzt auf `src/` dieses Repos.
+- Im selben Schritt sind sie aus **GENRA Test** entfernt (Regel Modul-Umzug), damit sie in Rack nicht doppelt stehen.
+- **Alte Patches:** Module aus GENRA Test (Slug `GenraTest`) findet ein Patch nicht mehr; einmal aus GENRA Instruments
+  neu einsetzen. Modul-Slugs, Parameter und Buchsen sind gleich geblieben.
+- `instruments/jiant.tar.gz` ist ein anderer JIANT-Schnappschuss (Branch `codex/swarm`, für MATH und SWARM) als
+  `jiant.tar.gz` im Hauptordner (VOICE, ANIMAL, DRUM-X); er wird in `instruments/jiant/` entpackt.
+- Build: die Kern-Tests der zehn Module laufen im Workflow mit, die Paketprüfung kennt die neuen Kerne und Panels.
+
 ### 2.37.0 – Fehler und Rechenzeit (GENRA und GENRA Instruments)
 Klang und Patches bleiben gleich (alte Patches laden unverändert); wo etwas minimal anders ist, steht es dabei.
 

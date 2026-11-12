@@ -1,6 +1,6 @@
 # GENRA – Plugin für VCV Rack 2
 
-Ein generativer, genreabhängiger 4-Spur-Sequencer mit MIDI-Grid, Performance-Effekten und passenden Instrumenten, alle im selben Look. Plugin-Version **2.35.0**, 15 Module, für Windows und (neu, noch ungetestet) macOS. Die Instrumente K-WASUB, GOLANA, UMLAUF, MONK, VOICE und ANIMAL sind seit 2.29.0 ein eigenes Plugin, **[GENRA Instruments](instruments/README.md)** (gleiche Marke im Browser, Ordner `instruments/`). Projektstand und Entscheidungen: `PROJEKT.md`, wo welches Modul liegt: `docs/UEBERSICHT.md`, Versionsgeschichte: `CHANGELOG.md`.
+Ein generativer, genreabhängiger 4-Spur-Sequencer mit MIDI-Grid, Performance-Effekten und passenden Instrumenten, alle im selben Look. Plugin-Version **2.38.0**, 15 Module, für Windows und (neu, noch ungetestet) macOS. Die Instrumente K-WASUB, GOLANA, UMLAUF, MONK, VOICE und ANIMAL sind seit 2.29.0 ein eigenes Plugin (seit 2.38.0 dazu MATH, KURBEL, SWARM, LIED, CANTA, MIAOU, SAURUS, FUMI und KESSEL), **[GENRA Instruments](instruments/README.md)** (gleiche Marke im Browser, Ordner `instruments/`). Projektstand und Entscheidungen: `PROJEKT.md`, wo welches Modul liegt: `docs/UEBERSICHT.md`, Versionsgeschichte: `CHANGELOG.md`.
 
 | Modul | Breite | Farbe | Was es ist |
 |---|---|---|---|
@@ -302,7 +302,7 @@ Alle Werks-Presets von GRUND, GENRA MONO, K-WASUB, FUNKE, GOLANA und SCHMELZ (au
 
 ## Instrumente
 
-Das passende Set zu GENRA: **GENRA MONO** oder **GRUND** für den Bass, **FUNKE** für die Melodie, **SCHMELZ** für die Pads, **SCHLAG** (Samples) oder **DRUM-X** (Synth) für die Drums – zusammengeführt im **MIX**. Weitere Instrumente (K-WASUB, GOLANA, UMLAUF, MONK, VOICE, ANIMAL) bringt das zweite Plugin **[GENRA Instruments](instruments/README.md)** mit; sie folgen GENRA genauso ohne Kabel.
+Das passende Set zu GENRA: **GENRA MONO** oder **GRUND** für den Bass, **FUNKE** für die Melodie, **SCHMELZ** für die Pads, **SCHLAG** (Samples) oder **DRUM-X** (Synth) für die Drums – zusammengeführt im **MIX**. Weitere Instrumente (K-WASUB, GOLANA, UMLAUF, MONK, VOICE, ANIMAL, MATH, KURBEL, SWARM, LIED, CANTA, MIAOU, SAURUS, FUMI, KESSEL) bringt das zweite Plugin **[GENRA Instruments](instruments/README.md)** mit; sie folgen GENRA genauso ohne Kabel.
 
 **Die GENRA-Leiste (ab 2.13.0):** Jedes Instrument nimmt GENRAs Spur-Ausgänge an derselben Stelle auf – unten links, gleich beschriftet, in derselben Reihenfolge: **V/OCT · GATE · VEL · ACC · SLIDE · MOD** auf einer Fläche mit einer Linie in der Spurfarbe, rechts daneben **CLOCK · RESET** (graue Linie). Was ein Instrument nicht braucht, lässt es weg; die Reihenfolge bleibt. Alle Buchsen sind normale Ein- und Ausgänge, also auch mit anderen VCV-Modulen nutzbar. Neu dafür: MOD an SCHMELZ (auf Crescendo, Animate oder Tone, Rechtsklick-Menü), ACC und SLIDE an K-WASUB, RESET an FUNKE, DRUMS-Eingang an DRUM-X; bei MONO heissen SYNC und RETRIG jetzt CLOCK und RESET, bei FUNKE VIB jetzt MOD. Alle Module haben dieselben dunklen Regler (`res/knob/`).
 
@@ -552,7 +552,7 @@ res/GenraMono.svg     Frontplatte (tools/panels/mono_panel.py real), Vorschau: t
 src/funke/            FUNKE: Modul (Funke.cpp), Klang-Engine (FunkeDsp.hpp, ohne Rack testbar), Presets (FunkePresets.hpp), Frontplatte: tools/panels/funke_panel.py
 src/ui/GenraUI.hpp    GENRA-Look (Farben, Schriften, Lampenreihe), auch für die Instrumente in instruments/
 src/Follow.*, src/link/ kabellose Verbindungen (Follow GENRA, MIX, GENRA FX), über beide Plugins (Link-Hub: link/Hub.hpp)
-instruments/          das zweite Plugin GENRA Instruments: K-WASUB, GOLANA, UMLAUF, MONK, VOICE, ANIMAL samt Kernen,
+instruments/          das zweite Plugin GENRA Instruments: K-WASUB, GOLANA, UMLAUF, MONK, VOICE, ANIMAL, MATH … KESSEL samt Kernen,
                       Firmware (kwasub/, golana/), VADER (vader/), Frontplatten (res/) und eigenem Makefile
 src/ui/PresetBank.hpp Presets für FUNKE und SCHMELZ (Liste, Header-Feld, User-Presets, Kontextmenü)
 src/schmelz/          SCHMELZ: Modul, Klang-Engine (SchmelzDsp.hpp, ohne Rack testbar), Presets (SchmelzPresets.hpp)

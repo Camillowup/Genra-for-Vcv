@@ -11,3 +11,12 @@ plugin.dylib
 
 schlag_*.wav
 __pycache__/
+# GENRA Instruments: firmware snapshots unpacked on the first build (the cores from GENRA Test, 2.38)
+/instruments/jiant/
+/instruments/estampie/
+/instruments/espeak/
+/instruments/canta/
+/instruments/paleotone/
+/instruments/fumi/
+/instruments/kessel/
+/instruments/*.exe
