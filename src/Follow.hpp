@@ -43,6 +43,13 @@ struct Src {
 };
 Src genraOut(int track, int sig);
 bool isGenra(Module* m);
+/** GENRA CHOP (the hip-hop GENRA, a plugin of its own, 2.39): it publishes its tracks in GENRA's output layout through
+ * the link hub, so instruments can follow it too. Not a Genra class: never cast it. */
+bool isGenraChop(Module* m);
+/** What an instrument can follow: a GENRA, a GENRA BOX or a GENRA CHOP. */
+inline bool isSource(Module* m) { return isGenra(m) || isGenraChop(m); }
+/** Audio thread, no locks: the module is a GENRA / GENRA BOX of this family (the Genra class), by its model. */
+bool isGenraModel(const Module* m);
 /** GENRA's tempo right now (from its clock: the internal BPM or the CLOCK input), for the tempo-synced effects.
  * r: a reference pointing at a GENRA. */
 float genraBpm(const Ref& r, float sampleRate);

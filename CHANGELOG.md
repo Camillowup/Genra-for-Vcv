@@ -4,6 +4,17 @@ Was in welcher Version dazukam (GENRA und GENRA Instruments). Der aktuelle Stand
 
 ## 2.21 bis heute (neueste zuerst)
 
+### 2.39.0 – Follow GENRA: auch GENRA CHOP als Quelle
+- **Follow GENRA** (Rechtsklick an DRUM-X, SCHLAG, GRUND, FUNKE, SCHMELZ, MONO, K-WASUB … und allen Instrumenten von
+  GENRA Instruments): unter „Which GENRA“ steht jetzt auch **GENRA CHOP #n** (das Hip-Hop-GENRA, eigenes Plugin
+  `GenraChop`, ab dessen 2.6.0). Die Instrumente nehmen dort Drums, Bass, Melodie, Pads, Clock und Reset genau wie von
+  GENRA. Automatisch wird weiter zuerst ein GENRA genommen; nur ohne GENRA im Patch ein GENRA CHOP.
+- GENRA CHOP meldet sich dafür am Link-Hub an (gleiche Version, gleiche Layouts) und legt seine Ausgänge im Layout von
+  GENRA ab (`link/GenraPorts.hpp`). Es ist keine Genra-Klasse: SCHLAG nimmt von ihm nur Trigger und Tempo (die
+  GENRA-eigenen Extras wie Schritt-Infos bleiben bei GENRA CHOP aus). Neu: `follow::isGenraChop`, `isSource`,
+  `isGenraModel`. MIX-Ducking und GENRA FX bleiben bei GENRA.
+- Alte Patches laden unverändert.
+
 ### 2.38.0 – Zehn Instrumente aus GENRA Test ziehen nach GENRA Instruments
 Nur GENRA Instruments ändert sich; GENRA bekommt dieselbe Versionsnummer, sonst nichts Neues.
 - **MATH, KURBEL, SWARM, LIED, CANTA, MIAOU, SAURUS, FUMI, KESSEL und KESSEL FX** sind getestet (Klang und Look) und

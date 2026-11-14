@@ -622,12 +622,16 @@ struct Schlag : Module, follow::Host {
 	Genra* followed() {
 		if (!fol.active())
 			return nullptr;
-		return static_cast<Genra*>(fol.genra.to.load());
+		Module* m = fol.genra.to.load();
+		// a GENRA CHOP (2.39) can be followed too, but it is no Genra: only its triggers and tempo (through the hub)
+		return follow::isGenraModel(m) ? static_cast<Genra*>(m) : nullptr;
 	}
 	/** Samples per 16th: GENRA's, the clock's, or 120 BPM. */
 	float stepLen() {
 		if (Genra* g = followed())
 			return std::max(1.f, g->stepPeriod);
+		if (fol.active() && fol.genra.genra.stepPeriod && *fol.genra.genra.stepPeriod > 1.f)
+			return *fol.genra.genra.stepPeriod; // GENRA CHOP
 		if (clkPeriod > 0.f && sinceClk < 4.f * clkPeriod)
 			return clkPeriod;
 		return sr * 60.f / 120.f / 4.f;

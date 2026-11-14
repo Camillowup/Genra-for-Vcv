@@ -42,6 +42,17 @@ bool isGenra(Module* m) {
 	       m->model->plugin->slug == "Genra" && genralink::hub().genraInfo(m, &gi);
 }
 
+bool isGenraChop(Module* m) {
+	genralink::GenraInfo gi;
+	return m && m->model && m->model->slug == "GenraChop" && m->model->plugin && m->model->plugin->slug == "GenraChop" &&
+	       genralink::hub().genraInfo(m, &gi);
+}
+
+bool isGenraModel(const Module* m) {
+	return m && m->model && m->model->plugin && m->model->plugin->slug == "Genra" &&
+	       (m->model->slug == "Genra" || m->model->slug == "GenraBox");
+}
+
 void addGenra(Module* g, const float* followPub, int outputs, const float* stepPeriod) {
 	genralink::GenraInfo gi;
 	gi.followPub = followPub;
@@ -200,19 +211,29 @@ void Follower::uiStep(Module* self, float dt) {
 	int64_t id = genraId.load();
 	if (id >= 0) {
 		Module* m = APP->engine->getModule(id);
-		if (isGenra(m))
+		if (isSource(m))
 			want = m;
 	}
 	if (!want) { // automatic, or the chosen one is not there (e.g. a pasted copy): the only / first GENRA
 		if (now && id < 0)
 			want = now; // still there
-		else
-		for (int64_t mid : APP->engine->getModuleIds()) {
-			Module* m = APP->engine->getModule(mid);
-			if (isGenra(m)) {
-				want = m;
-				break;
+		else {
+			for (int64_t mid : APP->engine->getModuleIds()) {
+				Module* m = APP->engine->getModule(mid);
+				if (isGenra(m)) {
+					want = m;
+					break;
+				}
 			}
+			// no GENRA in the patch: a GENRA CHOP (2.39)
+			if (!want)
+				for (int64_t mid : APP->engine->getModuleIds()) {
+					Module* m = APP->engine->getModule(mid);
+					if (isGenraChop(m)) {
+						want = m;
+						break;
+					}
+				}
 		}
 	}
 	if (want != now)
@@ -282,14 +303,15 @@ void Follower::appendMenu(Menu* menu, Module* self) {
 			                                  point(f->genra, self, nullptr);
 			                                  f->uiTimer = 0.f;
 		                                  }));
-		int n = 0;
+		int n = 0, nc = 0;
 		for (int64_t id : APP->engine->getModuleIds()) {
-			if (!isGenra(APP->engine->getModule(id)))
-				continue;
-			n++;
 			Module* gm = APP->engine->getModule(id);
+			bool chop = isGenraChop(gm);
+			if (!chop && !isGenra(gm))
+				continue;
 			bool box = gm && gm->model && gm->model->slug == "GenraBox";
-			sub->addChild(createCheckMenuItem(string::f(box ? "GENRA BOX #%d" : "GENRA #%d", n), "", [=]() { return f->genraId.load() == id; },
+			std::string name = chop ? string::f("GENRA CHOP #%d", ++nc) : string::f(box ? "GENRA BOX #%d" : "GENRA #%d", ++n);
+			sub->addChild(createCheckMenuItem(name, "", [=]() { return f->genraId.load() == id; },
 			                                  [=]() {
 				                                  f->genraId = id;
 				                                  f->uiTimer = 0.f;
