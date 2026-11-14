@@ -3,6 +3,11 @@ name: Build GENRA
 on:
   push:
   workflow_dispatch:
+    inputs:
+      release:
+        description: "Publish the release v<version> after building (Windows + Mac)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write   # a push to the branch "release" publishes GitHub release v<version> with the plugin
@@ -192,7 +197,8 @@ jobs:
   # a push to the branch "release" publishes GitHub release v<version> with all the plugin files
   release:
     # publishes as soon as Windows built; Mac files that did not build (no runner) can be added to the release later
-    if: always() && github.ref == 'refs/heads/release' && needs.windows.result == 'success'
+    # or by hand: Actions › Run workflow on main with "Publish the release" ticked
+    if: always() && (github.ref == 'refs/heads/release' || (github.event_name == 'workflow_dispatch' && inputs.release)) && needs.windows.result == 'success'
     needs: [windows, mac]
     runs-on: ubuntu-latest
     steps:
