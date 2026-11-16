@@ -20,7 +20,7 @@ namespace follow {
 // what an instrument jack takes from GENRA
 enum Sig { VOCT, GATE, VEL, ACC, SLIDE, MOD, CLOCK, RESET, DRUMS, NUM_SIGS };
 // GENRA's tracks as a follower picks them (-1: off)
-enum Track { T_BASS, T_MEL, T_PAD, T_DRUMS, NUM_TRACKS };
+enum Track { T_BASS, T_MEL, T_PAD, T_DRUMS, T_STAB, NUM_TRACKS }; // T_STAB: only GENRA TECHNO has it (2.40)
 extern const char* const TRACK_NAMES[NUM_TRACKS];
 NVGcolor trackColor(int track);
 
@@ -46,8 +46,11 @@ bool isGenra(Module* m);
 /** GENRA CHOP (the hip-hop GENRA, a plugin of its own, 2.39): it publishes its tracks in GENRA's output layout through
  * the link hub, so instruments can follow it too. Not a Genra class: never cast it. */
 bool isGenraChop(Module* m);
-/** What an instrument can follow: a GENRA, a GENRA BOX or a GENRA CHOP. */
-inline bool isSource(Module* m) { return isGenra(m) || isGenraChop(m); }
+/** GENRA TECHNO (the techno GENRA, plugin `GenraTechno`, 2.40): like GENRA CHOP it publishes its tracks in GENRA's
+ * layout (DRUMS, BASS, LEAD as melody, ATMO as pads) plus its STAB (STAB_* outputs). Not a Genra class: never cast it. */
+bool isGenraTechno(Module* m);
+/** What an instrument can follow: a GENRA, a GENRA BOX, a GENRA CHOP or a GENRA TECHNO. */
+inline bool isSource(Module* m) { return isGenra(m) || isGenraChop(m) || isGenraTechno(m); }
 /** Audio thread, no locks: the module is a GENRA / GENRA BOX of this family (the Genra class), by its model. */
 bool isGenraModel(const Module* m);
 /** GENRA's tempo right now (from its clock: the internal BPM or the CLOCK input), for the tempo-synced effects.

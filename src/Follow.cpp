@@ -8,7 +8,7 @@
 
 namespace follow {
 
-const char* const TRACK_NAMES[NUM_TRACKS] = {"Bass", "Melody", "Pad", "Drums"};
+const char* const TRACK_NAMES[NUM_TRACKS] = {"Bass", "Melody", "Pad", "Drums", "Stab"};
 
 NVGcolor trackColor(int track) {
 	switch (track) {
@@ -16,6 +16,7 @@ NVGcolor trackColor(int track) {
 		case T_MEL: return nvgRGB(0x3d, 0xc9, 0xff);
 		case T_PAD: return nvgRGB(0xe0, 0x77, 0x9e);
 		case T_DRUMS: return nvgRGB(0x7b, 0x6c, 0xff);
+		case T_STAB: return nvgRGB(0x5f, 0xe0, 0xc8);
 		default: return nvgRGB(0x8a, 0x8d, 0x99);
 	}
 }
@@ -45,6 +46,12 @@ bool isGenra(Module* m) {
 bool isGenraChop(Module* m) {
 	genralink::GenraInfo gi;
 	return m && m->model && m->model->slug == "GenraChop" && m->model->plugin && m->model->plugin->slug == "GenraChop" &&
+	       genralink::hub().genraInfo(m, &gi);
+}
+
+bool isGenraTechno(Module* m) {
+	genralink::GenraInfo gi;
+	return m && m->model && m->model->slug == "GenraTechno" && m->model->plugin && m->model->plugin->slug == "GenraTechno" &&
 	       genralink::hub().genraInfo(m, &gi);
 }
 
@@ -104,6 +111,14 @@ Src genraOut(int track, int sig) {
 				case GATE: s.id = genraports::PAD_GATE_OUTPUT, s.channels = 4; break;
 				case VEL: s.id = genraports::PAD_VEL_OUTPUT; break;
 				case MOD: s.id = genraports::PAD_MOD_OUTPUT; break;
+				default: break;
+			}
+			break;
+		case T_STAB: // GENRA TECHNO only (a source without these outputs: genraFrame() gives nothing)
+			switch (sig) {
+				case VOCT: s.id = genraports::STAB_VOCT_OUTPUT, s.channels = 4; break;
+				case GATE: s.id = genraports::STAB_GATE_OUTPUT, s.channels = 4; break;
+				case VEL: s.id = genraports::STAB_VEL_OUTPUT; break;
 				default: break;
 			}
 			break;
@@ -225,11 +240,19 @@ void Follower::uiStep(Module* self, float dt) {
 					break;
 				}
 			}
-			// no GENRA in the patch: a GENRA CHOP (2.39)
+			// no GENRA in the patch: a GENRA CHOP (2.39), then a GENRA TECHNO (2.40)
 			if (!want)
 				for (int64_t mid : APP->engine->getModuleIds()) {
 					Module* m = APP->engine->getModule(mid);
 					if (isGenraChop(m)) {
+						want = m;
+						break;
+					}
+				}
+			if (!want)
+				for (int64_t mid : APP->engine->getModuleIds()) {
+					Module* m = APP->engine->getModule(mid);
+					if (isGenraTechno(m)) {
 						want = m;
 						break;
 					}
@@ -287,7 +310,7 @@ void Follower::appendMenu(Menu* menu, Module* self) {
 		for (int k = 0; k < NUM_TRACKS; k++) {
 			if (f->drumsOnly != (k == T_DRUMS))
 				continue;
-			sub->addChild(createCheckMenuItem(TRACK_NAMES[k], "", [=]() { return f->track.load() == k; }, [=]() {
+			sub->addChild(createCheckMenuItem(k == T_STAB ? "Stab (GENRA TECHNO)" : TRACK_NAMES[k], "", [=]() { return f->track.load() == k; }, [=]() {
 				f->track = k;
 				f->uiTimer = 0.f;
 			}));
@@ -303,14 +326,15 @@ void Follower::appendMenu(Menu* menu, Module* self) {
 			                                  point(f->genra, self, nullptr);
 			                                  f->uiTimer = 0.f;
 		                                  }));
-		int n = 0, nc = 0;
+		int n = 0, nc = 0, nt = 0;
 		for (int64_t id : APP->engine->getModuleIds()) {
 			Module* gm = APP->engine->getModule(id);
-			bool chop = isGenraChop(gm);
-			if (!chop && !isGenra(gm))
+			bool chop = isGenraChop(gm), techno = isGenraTechno(gm);
+			if (!chop && !techno && !isGenra(gm))
 				continue;
 			bool box = gm && gm->model && gm->model->slug == "GenraBox";
-			std::string name = chop ? string::f("GENRA CHOP #%d", ++nc) : string::f(box ? "GENRA BOX #%d" : "GENRA #%d", ++n);
+			std::string name = chop ? string::f("GENRA CHOP #%d", ++nc)
+			                        : techno ? string::f("GENRA TECHNO #%d", ++nt) : string::f(box ? "GENRA BOX #%d" : "GENRA #%d", ++n);
 			sub->addChild(createCheckMenuItem(name, "", [=]() { return f->genraId.load() == id; },
 			                                  [=]() {
 				                                  f->genraId = id;

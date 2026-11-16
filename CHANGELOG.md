@@ -4,6 +4,16 @@ Was in welcher Version dazukam (GENRA und GENRA Instruments). Der aktuelle Stand
 
 ## 2.21 bis heute (neueste zuerst)
 
+### 2.40.0 – Follow GENRA: auch GENRA TECHNO als Quelle, neue Spur „Stab“
+- **Follow GENRA** (alle Instrumente beider Plugins): unter „Which GENRA“ steht jetzt auch **GENRA TECHNO #n** (das
+  Techno-GENRA, eigenes Plugin `GenraTechno`, ab dessen 2.0.2). Die Instrumente nehmen dort Drums, Bass, Melodie (=
+  LEAD), Pads (= ATMO), Clock und Reset. Neu ist die Spur **Stab (GENRA TECHNO)** im Follow-Menü: STAB von GENRA
+  TECHNO (V/OCT und Gate poly 4, Velocity); GENRA, GENRA BOX und GENRA CHOP haben keinen Stab.
+- Automatisch wird weiter zuerst ein GENRA genommen, dann ein GENRA CHOP, dann ein GENRA TECHNO.
+- Presets folgen auch GENRA TECHNO: NEW ALL, NEW einer Spur und der Stilwechsel dort laden passende Presets nach dem Stil
+  (z. B. ACID TECHNO, DEEP HOUSE), wenn „Presets follow GENRA“ an ist.
+- Neu: `follow::isGenraTechno`, `T_STAB`, `genraports::STAB_*` (hinten angehängt). Alte Patches laden unverändert.
+
 ### 2.39.0 – Follow GENRA: auch GENRA CHOP als Quelle
 - **Follow GENRA** (Rechtsklick an DRUM-X, SCHLAG, GRUND, FUNKE, SCHMELZ, MONO, K-WASUB … und allen Instrumenten von
   GENRA Instruments): unter „Which GENRA“ steht jetzt auch **GENRA CHOP #n** (das Hip-Hop-GENRA, eigenes Plugin

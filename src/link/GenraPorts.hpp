@@ -22,6 +22,10 @@ enum {
 	MEL_SLIDE_OUTPUT,
 	CLOCK_OUTPUT,
 	RESET_OUTPUT,
+	// 2.40: only GENRA TECHNO publishes these (its STAB track, poly 4); GENRA's followPub ends at RESET_OUTPUT
+	STAB_VOCT_OUTPUT,
+	STAB_GATE_OUTPUT,
+	STAB_VEL_OUTPUT,
 	NUM_DRUM_OUTPUTS = 8,
 	PUB_CHANNELS = 4, // channels per output in GENRA's per-frame copy (followPub)
 };

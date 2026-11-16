@@ -1,7 +1,8 @@
 # GENRA – Projektstand
 
-**Stand:** 14. November 2026 · **GENRA 2.39.0** (15 Module) und **GENRA Instruments 2.39.0** (20 Module), Windows + macOS.
-Neu in 2.39.0: Follow GENRA kennt auch **GENRA CHOP** (eigenes Plugin, ab 2.6.0) als Quelle.
+**Stand:** 16. November 2026 · **GENRA 2.40.0** (15 Module) und **GENRA Instruments 2.40.0** (20 Module), Windows + macOS
+(Testbuild, Release 2.39.0). Neu in 2.40.0: Follow GENRA kennt auch **GENRA TECHNO** (eigenes Plugin) als Quelle,
+mit der neuen Spur „Stab“. 2.39.0: GENRA CHOP als Quelle.
 (arm64/x64, Mac noch ungetestet) · Repo `Camillowup/Genra-for-Vcv` (vorher `CamilloGF/genra-v3`, Account nicht mehr
 erreichbar) · Plattform: VCV Rack Pro 2.6.6 unter Windows
 

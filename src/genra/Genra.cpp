@@ -400,7 +400,8 @@ struct LinkLights : widget::TransparentWidget {
 		int ids[follow::NUM_TRACKS][4] = {{Genra::BASS_VOCT_OUTPUT, Genra::BASS_GATE_OUTPUT, Genra::BASS_VEL_OUTPUT, -1},
 		                                   {Genra::MEL_VOCT_OUTPUT, Genra::MEL_GATE_OUTPUT, Genra::MEL_VEL_OUTPUT, -1},
 		                                   {Genra::PAD_VOCT_OUTPUT, Genra::PAD_GATE_OUTPUT, Genra::PAD_VEL_OUTPUT, -1},
-		                                   {Genra::DRUM_OUTPUT, Genra::DRUM_OUTPUT + 1, Genra::DRUM_OUTPUT + 2, Genra::DRUM_OUTPUT + 3}};
+		                                   {Genra::DRUM_OUTPUT, Genra::DRUM_OUTPUT + 1, Genra::DRUM_OUTPUT + 2, Genra::DRUM_OUTPUT + 3},
+		                                   {-1, -1, -1, -1}}; // T_STAB: GENRA has no stab
 		float x = 0.f;
 		int n = 0;
 		for (int id : ids[t])
