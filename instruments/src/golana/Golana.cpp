@@ -320,6 +320,9 @@ struct Golana : Module, follow::Host {
 			f.style = [this](int i) { return core.api->preset_style(i); };
 			f.name = [this](int i) { return core.api->preset_name(i); };
 			f.info = [](int) { return ""; };
+			f.group = [this](int i) {
+				return genra_groups::of(genra_groups::GOLANA, genra_groups::N_GOLANA, core.api->preset_name(i));
+			};
 			bank.init(this, f, asset::user("Genra/GolanaPresets"), &loadSerial, &loadedPos,
 			          [this](int i) { presetReq = clamp(i, 0, (int) core.api->npresets() - 1); });
 			bank.preset = presetIdx;
@@ -843,7 +846,7 @@ struct Info : Widget {
 		NVGcontext* vg = args.vg;
 		auto bold = ui::boldFont();
 		float w = box.size.x, h = box.size.y;
-		std::string num = "PRESET 1 / 64", name = "WARM POLY KEYS", style = "SOUL · JAZZ · LO-FI";
+		std::string num = "PRESET 1 / 64", name = "WARM POLY KEYS", style = "KEYS";
 		int bpm = 120;
 		if (module) {
 			const genra_states::Bank& b = module->bank;
@@ -965,7 +968,7 @@ struct GolanaWidget : ModuleWidget {
 		pf->bank = module && module->core.api ? &module->bank : nullptr;
 		pf->accent = ACCENT;
 		pf->sample = "WARM POLY KEYS";
-		pf->sampleStyle = "SOUL · JAZZ · LO-FI";
+		pf->sampleStyle = "KEYS";
 		addChild(pf);
 
 		const float* ins[M::NUM_INPUTS] = {L::IN_VOCT,   L::IN_GATE,  L::IN_VEL,   L::IN_ACC,    L::IN_SLIDE,

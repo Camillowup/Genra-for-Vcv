@@ -105,6 +105,7 @@ struct Schmelz : Module, follow::Host {
 		f.style = [](int i) { return PRESETS[i].style; };
 		f.name = [](int i) { return PRESETS[i].name; };
 		f.info = [](int i) { return regName(PRESETS[i].reg); };
+		f.group = [](int i) { return genra_groups::of(genra_groups::SCHMELZ, genra_groups::N_SCHMELZ, PRESETS[i].name); };
 		f.values = [](int i, float* v) { PRESETS[i].values(v); };
 		f.gain = [](int i) { return PRESETS[i].gain; };
 		bank.init(this, f, asset::user("Genra/SchmelzPresets"));

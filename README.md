@@ -324,7 +324,7 @@ Monophoner Synth (28 HP, Stand 2.10.0) im Look von MONK und den JIANT-Stimmen, F
 - **Eingänge:** V/OCT (0 V = C4), GATE, VEL, **ACC**, **SLIDE** – in derselben Reihenfolge wie GENRAs Bass-Ausgänge – und CV für CUT (1 V/Okt.), RES, DRIVE, RATE (1 V/Okt.; mit CLOCK: 1 V = 2 Notenwerte), VCA, EXT (externes Audio durchs Filter). **Ausgänge:** L, R.
 - **ACC:** Eine akzentuierte Note (ACC beim Notenstart über 1 V) wird lauter und bekommt mehr Filterhüllkurve, wie bei der 303. **SLIDE:** Ist der Eingang gesteckt, gleitet MONO nur, solange SLIDE anliegt (Gleitzeit GLIDE, bei 0 eine kurze 303-Gleitzeit); die Hüllkurven starten dabei nicht neu, weil GENRA das Gate offen hält. Ohne Kabel wirkt GLIDE wie bisher auf jede Note.
 - Oszillatoren und Filter laufen mit 2-facher Überabtastung.
-- **Presets (ab 2.9.0):** Feld oben im Kopf – Klick öffnet die Liste, das Mausrad blättert. 23 Werks-Presets nach Stil (SUB, CLASSIC, GARAGE · 2-STEP, DUB · DUBSTEP · GRIME, ACID, HOUSE · TECHNO · ELECTRO, HIP-HOP · LO-FI). Ein grüner Punkt hinter dem Namen zeigt, dass seit dem Laden ein Regler bewegt wurde. Eigene Presets: Rechtsklick → *Save preset as …* (Name, Enter), sie liegen in `Rack2/Genra/MonoPresets/` und erscheinen unter USER.
+- **Presets (ab 2.9.0):** Feld oben im Kopf – Klick öffnet die Liste, das Mausrad blättert. Die Werks-Presets stehen als eine Liste untereinander (ab 2.41.0 ohne Untermenüs nach Stil). Ein grüner Punkt hinter dem Namen zeigt, dass seit dem Laden ein Regler bewegt wurde. Eigene Presets: Rechtsklick → *Save preset as …* (Name, Enter), sie liegen in `Rack2/Genra/MonoPresets/` und erscheinen unter USER.
 
 ### FUNKE: Melodiestimme
 
@@ -349,7 +349,7 @@ Melodie-Ausgängen: V/OCT, GATE, VEL, ACC, SLIDE und CLOCK.
   Clock 120 BPM; Pingpong, FDBK), VERB. CLOCK-Auflösung im Kontextmenü (Standard 16tel wie GENRA).
 - **CV:** MODEL, TIMBRE, BITE, CUT (1 V/Okt.), RES, MOD (Vibrato-Tiefe wie ein Modrad, früher VIB), RESET (Tempo neu messen), ECHO, LO-FI, ATK, REL.
   **Ausgänge:** ENV (Hüllkurve der neuesten Note), L, R (nur L gesteckt: mono).
-- **Presets:** 26 ab Werk nach Stil (Feld oben rechts, Klick = Liste, Mausrad blättert, Punkt = verändert), eigene
+- **Presets:** ab Werk nach Klang in BASS, LEAD, PAD, KEYS, FX (ab 2.41.0; Feld oben rechts, Klick = Liste, Mausrad blättert, Punkt = verändert), eigene
   über Rechtsklick → Save preset as … (`Rack2/Genra/FunkePresets`), dort auch Delete user preset und Open user preset
   folder. Laden lässt sich rückgängig machen; der Patch merkt sich den Namen.
 
@@ -377,7 +377,7 @@ ACC, SLIDE, MOD; ohne Kabel über Rechtsklick → Follow GENRA → Bass.
   kürzer, trockener), **MONO · LEGATO**, **GLIDE** auf SLIDE, **ACCENT** (bei SLAP: Pop).
 - **AMP:** DI · FLIP-TOP · STACK · FUZZ (Feld), TONE (Tiefpass), RES, F.ENV/F.DEC, DRIVE, COMP, KEY.
 - **ENVELOPE** ADSR. **FX:** CHORUS, OCTAVE (Oktaver), WIDTH (nur die Höhen), VERB.
-- **Presets:** 30 ab Werk nach Stil (Feld oben rechts, Klick = Liste, Mausrad blättert, Punkt = verändert),
+- **Presets:** ab Werk als eine Liste (ab 2.41.0; Feld oben rechts, Klick = Liste, Mausrad blättert, Punkt = verändert),
   eigene über Rechtsklick → Save preset as … (`Rack2/Genra/GrundPresets`). Presets speichern auch die FX-Einstellungen.
 - **CV:** MODEL, TIMBRE, BITE, CUT (1 V/Okt.), MUTE, DRIVE, SUB, ATK, REL. **Ausgänge:** ENV, L, R (nur L: mono).
 
@@ -427,7 +427,7 @@ String Machine im Geist der 70er/80er (Vorbild: Waldorf Streichfett), 28 HP (bis
 - **Ausgänge:** ENV (Strings-Hüllkurve, polyphon, 0–10 V), STR (Strings mit Ensemble, ohne Phaser/Hall), SOLO
   (trocken), L, R.
 - **Mit GENRA:** PADS (V/OCT + GATE, poly) → Strings, MELODY → Solo, MOD → REG oder ANIM.
-- **Presets:** 25 ab Werk nach Stil, wie bei FUNKE und GRUND (Feld oben rechts; eigene in `Rack2/Genra/SchmelzPresets`).
+- **Presets:** ab Werk nach Klang in BASS, LEAD, PAD, KEYS, FX, wie bei FUNKE (Feld oben rechts; eigene in `Rack2/Genra/SchmelzPresets`).
 
 | Stil | Presets (Registration) |
 |---|---|

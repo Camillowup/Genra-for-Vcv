@@ -473,21 +473,12 @@ struct FilterField : app::ParamWidget {
 	}
 };
 
-/** The preset list: one submenu per style, the user presets at the end; the one playing ticked. */
+/** The preset list: one list (a bass synth), in the order of the factory list, the user presets at the end; the one
+ * playing ticked. */
 static void appendPresets(Menu* menu, GenraMono* m) {
-	for (int i = 0; i < gmono::NUM_PRESETS;) {
-		std::string st = gmono::PRESETS[i].style;
-		int j = i;
-		while (j < gmono::NUM_PRESETS && st == gmono::PRESETS[j].style)
-			j++;
-		bool here = m->preset >= i && m->preset < j;
-		menu->addChild(createSubmenuItem(st, here ? "✔" : "", [=](Menu* sub) {
-			for (int k = i; k < j; k++)
-				sub->addChild(createCheckMenuItem(string::f("%02d  %s", k + 1, gmono::PRESETS[k].name), "",
-				                                  [=]() { return m->preset == k; }, [=]() { m->load(k); }));
-		}));
-		i = j;
-	}
+	for (int k = 0; k < gmono::NUM_PRESETS; k++)
+		menu->addChild(createCheckMenuItem(string::f("%02d  %s", k + 1, gmono::PRESETS[k].name), "",
+		                                   [=]() { return m->preset == k; }, [=]() { m->load(k); }));
 	bool here = m->preset >= gmono::NUM_PRESETS;
 	menu->addChild(createSubmenuItem("USER", here ? "✔" : string::f("%d", (int) m->user.size()), [=](Menu* sub) {
 		if (m->user.empty())

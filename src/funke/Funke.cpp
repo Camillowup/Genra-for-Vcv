@@ -97,6 +97,7 @@ struct Funke : Module, follow::Host {
 		f.style = [](int i) { return PRESETS[i].style; };
 		f.name = [](int i) { return PRESETS[i].name; };
 		f.info = [](int i) { return MODEL_NAMES[PRESETS[i].model]; };
+		f.group = [](int i) { return genra_groups::of(genra_groups::FUNKE, genra_groups::N_FUNKE, PRESETS[i].name); };
 		f.values = [](int i, float* v) { PRESETS[i].values(v); };
 		f.gain = [](int i) { return PRESETS[i].gain; };
 		bank.init(this, f, asset::user("Genra/FunkePresets"));

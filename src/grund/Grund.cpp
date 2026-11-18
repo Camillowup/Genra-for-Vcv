@@ -502,21 +502,11 @@ struct NameField : app::ParamWidget {
 	}
 };
 
-/** The preset list: one submenu per style, the user presets at the end. */
+/** The preset list: one list (a bass synth), in the order of the factory list, the user presets at the end. */
 static void appendPresets(Menu* menu, Grund* m) {
-	for (int i = 0; i < NUM_PRESETS;) {
-		std::string st = PRESETS[i].style;
-		int j = i;
-		while (j < NUM_PRESETS && st == PRESETS[j].style)
-			j++;
-		bool here = m->preset >= i && m->preset < j;
-		menu->addChild(createSubmenuItem(st, here ? "✔" : "", [=](Menu* sub) {
-			for (int k = i; k < j; k++)
-				sub->addChild(createCheckMenuItem(string::f("%02d  %s", k + 1, PRESETS[k].name), MODEL_NAMES[PRESETS[k].model],
-				                                  [=]() { return m->preset == k; }, [=]() { m->load(k); }));
-		}));
-		i = j;
-	}
+	for (int k = 0; k < NUM_PRESETS; k++)
+		menu->addChild(createCheckMenuItem(string::f("%02d  %s", k + 1, PRESETS[k].name), MODEL_NAMES[PRESETS[k].model],
+		                                   [=]() { return m->preset == k; }, [=]() { m->load(k); }));
 	bool here = m->preset >= NUM_PRESETS;
 	menu->addChild(createSubmenuItem("USER", here ? "✔" : string::f("%d", (int) m->user.size()), [=](Menu* sub) {
 		if (m->user.empty())
@@ -554,7 +544,6 @@ struct PresetField : OpaqueWidget {
 			int idx = module ? module->preset : 0;
 			std::string name = module ? module->nameOf(idx) : PRESETS[0].name;
 			std::string num = idx < 0 ? "--" : idx >= NUM_PRESETS ? "U" : string::f("%02d", idx + 1);
-			std::string style = idx >= 0 && idx < NUM_PRESETS ? PRESETS[idx].style : "";
 			float y = box.size.y / 2 + 2.6f;
 			auto f = ui::boldFont();
 			ui::text(args.vg, f, mm2px(2.f), y, num, 6.4f, ACCENT, NVG_ALIGN_LEFT, 0.8f);
@@ -565,8 +554,6 @@ struct PresetField : OpaqueWidget {
 				nvgFillColor(args.vg, ACCENT);
 				nvgFill(args.vg);
 			}
-			if (!style.empty())
-				ui::text(args.vg, f, box.size.x - mm2px(6.f), y - 0.3f, style, 5.2f, ui::DIM, NVG_ALIGN_RIGHT, 0.6f);
 		}
 		OpaqueWidget::drawLayer(args, layer);
 	}

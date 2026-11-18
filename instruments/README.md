@@ -51,8 +51,8 @@ eigene kleine Bibliothek (`res/kwcore.*`, eine Kopie pro Modul) mit 44,1 kHz, da
 - **SUB · X:** Sub, Rauschen, X-Mod · **WOBBLE:** LFO 1 im Tempo (RATE = Notenwert), DEPTH, SHAPE, DEST ·
   **AMP:** ADSR · **FX:** SAT, DELAY, VERB, GLUE (schalten ihren Effekt ein).
 - **Presets:** das Feld im Kopf wie bei GRUND, FUNKE und SCHMELZ: Nummer, Name, Stil, ein Punkt, sobald ein Regler
-  verstellt ist. Klick (auch auf den Namen im Display) öffnet die 97 Werksklänge nach Stil (DNB, DUB, DUBSTEP …, je ein
-  Untermenü, Namen A–Z), das Mausrad blättert in dieser Reihenfolge; Laden lässt sich rückgängig machen. Eigene Presets
+  verstellt ist. Klick (auch auf den Namen im Display) öffnet die 97 Werksklänge als eine Liste (sortiert nach Stil,
+  dann Namen A–Z; ab 2.41.0 ohne Untermenüs), das Mausrad blättert in dieser Reihenfolge; Laden lässt sich rückgängig machen. Eigene Presets
   per Rechtsklick (*Save preset as …*, löschen, Ordner `Rack2/Genra/KwasubPresets`): Sie speichern den ganzen Klang,
   auch was kein Regler zeigt, samt den Werten von K-WASUB FX.
 - **Eingänge:** V/OCT, GATE, VEL (bis 4 Stimmen, auf Halbtöne gerundet), CLOCK (setzt das Tempo; Standard 16tel wie
@@ -99,8 +99,8 @@ ist die Original-Firmware, unverändert (`golana/`): Sie läuft wie K-WASUB als 
   CLOCK), RANGE (1–4 Oktaven), SWING, ON. Im Rechtsklick-Menü: Latch, Key Sync, Gate.
 - **FX · OUT:** MOD FX, DELAY, REVERB als Summenregler (wie bei K-WASUB); die Einzelheiten stehen im Expander.
   Drehst du einen davon auf, schaltet er seinen Effekt im Expander ein.
-- **Presets:** 55 im Feld oben rechts: 30 eigene nach Stil (wie bei FUNKE) und Golanas 25 Werksklänge als Gruppe
-  GOLANA ORIGINALS. Eigene Presets per Rechtsklick (`Rack2/Genra/GolanaPresets`), samt den Werten von GOLANA FX.
+- **Presets:** 55 im Feld oben rechts: 30 eigene und Golanas 25 Werksklänge, ab 2.41.0 im Menü
+  nach Klang (BASS, LEAD, PAD, KEYS, FX, wie bei FUNKE). Eigene Presets per Rechtsklick (`Rack2/Genra/GolanaPresets`), samt den Werten von GOLANA FX.
 - **Eingänge:** die GENRA-Leiste V/OCT, GATE (bis 4 Stimmen, auf Halbtöne gerundet), VEL, ACC, SLIDE, MOD (Modrad; ohne
   Patch-Weg ein Vibrato), CLOCK (setzt das Tempo; Standard 16tel wie GENRA), RESET (Arp und LFOs von vorn); CV für CUT,
   RESO, EG INT, CTRL 1, FOLD, LFO 1, LFO 2, AFTER (Aftertouch, eine Patch-Quelle). **Ausgänge:** L, R, dazu SPREAD
@@ -177,8 +177,8 @@ Orbiter gerade ist, entscheidet, wie viel man von jeder Ecke hört. Die Engine l
   Weg innerhalb dieses Ordners: Auf einem anderen Computer spielt er wieder, sobald dort der Ordner gesetzt ist. Fehlt
   ein Sample, zeigt das Mini-Display NO SAMPLE.
 - **Presets:** das Feld im Kopf wie bei GRUND, FUNKE und SCHMELZ (Nummer, Name, Stil, Punkt bei verstellten Reglern;
-  Klick = Liste nach Stil, Mausrad blättert, Laden lässt sich rückgängig machen). 28 eigene Werksklänge, dahinter als
-  Gruppe *VADER* die 22 Presets von VADER (die sechs Sample-Presets brauchen eigene WAVs). Eigene Presets per
+  Klick = Liste nach Klang: BASS, LEAD, PAD, KEYS, FX, Mausrad blättert, Laden lässt sich rückgängig machen). 28 eigene Werksklänge, dahinter
+  die 22 Presets von VADER, in dieselben Gruppen einsortiert (die sechs Sample-Presets brauchen eigene WAVs). Eigene Presets per
   Rechtsklick (*Save preset as …*, löschen, Ordner `Rack2/Genra/UmlaufPresets`): der ganze Zustand der Engine samt
   UMLAUF FX.
 

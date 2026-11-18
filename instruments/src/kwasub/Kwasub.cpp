@@ -346,6 +346,7 @@ struct Kwasub : Module, follow::Host {
 			f.style = [this](int i) { return styleOf[order[i]].c_str(); };
 			f.name = [this](int i) { return core.api->preset_name(order[i]); };
 			f.info = [](int) { return ""; };
+			f.flat = true;  // a bass synth: one list, in the order above
 			bank.init(this, f, asset::user("Genra/KwasubPresets"), &loadSerial, &loadedPos,
 			          [this](int i) { presetReq = order[clamp(i, 0, (int) order.size() - 1)]; });
 			bank.preset = posOf(presetIdx);
@@ -1064,7 +1065,7 @@ struct KwasubWidget : ModuleWidget {
 		pf->bank = module && module->core.api ? &module->bank : nullptr;
 		pf->accent = ACCENT;
 		pf->sample = "NEURO GROWL";
-		pf->sampleStyle = "NEUROFUNK";
+		pf->sampleStyle = "";
 		addChild(pf);
 
 		const float* ins[M::NUM_INPUTS] = {L::IN_VOCT, L::IN_GATE,  L::IN_VEL,   L::IN_CLOCK, L::IN_RESET, L::IN_CUT,

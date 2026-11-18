@@ -665,6 +665,10 @@ struct Umlauf : Module, follow::Host {
 			f.style = [](int i) { return i < NOWN ? UMLAUF_PRESETS[i].style : "VADER"; };
 			f.name = [this](int i) { return i < NOWN ? UMLAUF_PRESETS[i].name : presetNames[i - NOWN].c_str(); };
 			f.info = [](int i) { return i < NOWN ? UMLAUF_PRESETS[i].info : (i - NOWN >= 16 ? "SAMPLES" : ""); };
+			f.group = [this](int i) {
+				return i < NOWN ? genra_groups::of(genra_groups::UMLAUF, genra_groups::N_UMLAUF, UMLAUF_PRESETS[i].name)
+				                : genra_groups::vader(presetNames[i - NOWN].c_str());
+			};
 			bank.init(this, f, asset::user("Genra/UmlaufPresets"), &loadSerial, &loadedPos,
 			          [this](int i) { loadFactory(i); });
 			bank.preset = NOWN;  // (INIT ORBIT, as the engine starts)
@@ -1638,7 +1642,7 @@ struct UmlaufWidget : ModuleWidget {
 		pf->bank = module && module->inst ? &module->bank : nullptr;
 		pf->accent = ACCENT;
 		pf->sample = UMLAUF_PRESETS[0].name;
-		pf->sampleStyle = UMLAUF_PRESETS[0].style;
+		pf->sampleStyle = genra_groups::of(genra_groups::UMLAUF, genra_groups::N_UMLAUF, UMLAUF_PRESETS[0].name);
 		addChild(pf);
 
 		OrbitDisplay* d = new OrbitDisplay;

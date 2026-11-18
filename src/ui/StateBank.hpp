@@ -9,6 +9,7 @@
 // The patch keeps the preset's name ("presetName") and the knobs it had ("loaded", for the dot).
 #pragma once
 #include "GenraUI.hpp"
+#include "SoundGroups.hpp"
 #include <algorithm>
 #include <atomic>
 #include <cctype>
@@ -22,6 +23,9 @@ namespace ui = genra_ui;
 struct Factory {
 	int count = 0;
 	std::function<const char*(int)> style, name, info;
+	// the menu: by sound group (BASS, LEAD, PAD, KEYS, FX) when group is set, one list when flat, else by style
+	std::function<const char*(int)> group;
+	bool flat = false;
 };
 
 struct Bank {
@@ -70,7 +74,14 @@ struct Bank {
 			return "INIT";
 		return i < f.count ? f.name(i) : user[i - f.count].name;
 	}
-	std::string styleOf(int i) const { return i >= 0 && i < f.count ? f.style(i) : (i >= f.count ? "USER" : ""); }
+	/** What the header field shows on the right: the sound group (none for a flat list), else the style. */
+	std::string styleOf(int i) const {
+		if (i >= f.count)
+			return "USER";
+		if (i < 0 || f.flat)
+			return "";
+		return f.group ? f.group(i) : f.style(i);
+	}
 	void remember() {
 		for (int i = 0; i < numParams(); i++)
 			loaded[i] = m->params[i].getValue();
@@ -263,22 +274,42 @@ struct Bank {
 	}
 };
 
-/** The preset list: one submenu per style, the user presets at the end. */
+/** The preset list: by sound group (or one list, or by style), the user presets at the end. */
 inline void appendList(Menu* menu, Bank* b) {
 	const Factory& f = b->f;
-	for (int i = 0; i < f.count;) {
-		std::string st = f.style(i);
-		int j = i;
-		while (j < f.count && st == f.style(j))
-			j++;
-		bool here = b->preset >= i && b->preset < j;
-		menu->addChild(createSubmenuItem(st, here ? "✔" : string::f("%d", j - i), [=](Menu* sub) {
-			for (int k = i; k < j; k++)
-				sub->addChild(createCheckMenuItem(string::f("%02d  %s", k + 1, f.name(k)), f.info ? f.info(k) : "",
-				                                  [=]() { return b->preset == k; }, [=]() { b->load(k); }));
-		}));
-		i = j;
-	}
+	if (f.flat) {
+		for (int k = 0; k < f.count; k++)
+			menu->addChild(createCheckMenuItem(string::f("%02d  %s", k + 1, f.name(k)), f.info ? f.info(k) : "",
+			                                  [=]() { return b->preset == k; }, [=]() { b->load(k); }));
+	} else if (f.group) {
+		for (const char* g : genra_groups::ORDER) {
+			std::vector<int> ks;
+			for (int k = 0; k < f.count; k++)
+				if (!std::strcmp(f.group(k), g))
+					ks.push_back(k);
+			if (ks.empty())
+				continue;
+			bool here = std::find(ks.begin(), ks.end(), b->preset) != ks.end();
+			menu->addChild(createSubmenuItem(g, here ? "✔" : string::f("%d", (int) ks.size()), [=](Menu* sub) {
+				for (int k : ks)
+					sub->addChild(createCheckMenuItem(string::f("%02d  %s", k + 1, f.name(k)), f.info ? f.info(k) : "",
+					                                  [=]() { return b->preset == k; }, [=]() { b->load(k); }));
+			}));
+		}
+	} else
+		for (int i = 0; i < f.count;) {
+			std::string st = f.style(i);
+			int j = i;
+			while (j < f.count && st == f.style(j))
+				j++;
+			bool here = b->preset >= i && b->preset < j;
+			menu->addChild(createSubmenuItem(st, here ? "✔" : string::f("%d", j - i), [=](Menu* sub) {
+				for (int k = i; k < j; k++)
+					sub->addChild(createCheckMenuItem(string::f("%02d  %s", k + 1, f.name(k)), f.info ? f.info(k) : "",
+					                                  [=]() { return b->preset == k; }, [=]() { b->load(k); }));
+			}));
+			i = j;
+		}
 	bool here = b->preset >= f.count;
 	menu->addChild(createSubmenuItem("USER", here ? "✔" : string::f("%d", (int) b->user.size()), [=](Menu* sub) {
 		if (b->user.empty())

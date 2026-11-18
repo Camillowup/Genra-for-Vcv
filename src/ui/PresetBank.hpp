@@ -4,6 +4,7 @@
 // when a knob has moved), a click opens the list, the wheel steps. Loading is undoable; the patch keeps the name.
 #pragma once
 #include "GenraUI.hpp"
+#include "SoundGroups.hpp"
 #include <algorithm>
 #include <cctype>
 #include <functional>
@@ -17,6 +18,9 @@ namespace ui = genra_ui;
 struct Factory {
 	int count = 0;
 	std::function<const char*(int)> style, name, info;
+	// the menu: by sound group (BASS, LEAD, PAD, KEYS, FX) when group is set, one list when flat, else by style
+	std::function<const char*(int)> group;
+	bool flat = false;
 	std::function<void(int, float*)> values;
 	std::function<float(int)> gain;  // the output level of factory preset i (none: 1)
 };
@@ -195,22 +199,42 @@ struct Bank {
 	}
 };
 
-/** The preset list: one submenu per style, the user presets at the end. */
+/** The preset list: by sound group (or one list, or by style), the user presets at the end. */
 inline void appendList(Menu* menu, Bank* b) {
 	const Factory& f = b->f;
-	for (int i = 0; i < f.count;) {
-		std::string st = f.style(i);
-		int j = i;
-		while (j < f.count && st == f.style(j))
-			j++;
-		bool here = b->preset >= i && b->preset < j;
-		menu->addChild(createSubmenuItem(st, here ? "✔" : "", [=](Menu* sub) {
-			for (int k = i; k < j; k++)
-				sub->addChild(createCheckMenuItem(string::f("%02d  %s", k + 1, f.name(k)), f.info(k),
-				                                  [=]() { return b->preset == k; }, [=]() { b->load(k); }));
-		}));
-		i = j;
-	}
+	if (f.flat) {
+		for (int k = 0; k < f.count; k++)
+			menu->addChild(createCheckMenuItem(string::f("%02d  %s", k + 1, f.name(k)), f.info(k),
+			                                  [=]() { return b->preset == k; }, [=]() { b->load(k); }));
+	} else if (f.group) {
+		for (const char* g : genra_groups::ORDER) {
+			std::vector<int> ks;
+			for (int k = 0; k < f.count; k++)
+				if (!std::strcmp(f.group(k), g))
+					ks.push_back(k);
+			if (ks.empty())
+				continue;
+			bool here = std::find(ks.begin(), ks.end(), b->preset) != ks.end();
+			menu->addChild(createSubmenuItem(g, here ? "✔" : "", [=](Menu* sub) {
+				for (int k : ks)
+					sub->addChild(createCheckMenuItem(string::f("%02d  %s", k + 1, f.name(k)), f.info(k),
+					                                  [=]() { return b->preset == k; }, [=]() { b->load(k); }));
+			}));
+		}
+	} else
+		for (int i = 0; i < f.count;) {
+			std::string st = f.style(i);
+			int j = i;
+			while (j < f.count && st == f.style(j))
+				j++;
+			bool here = b->preset >= i && b->preset < j;
+			menu->addChild(createSubmenuItem(st, here ? "✔" : "", [=](Menu* sub) {
+				for (int k = i; k < j; k++)
+					sub->addChild(createCheckMenuItem(string::f("%02d  %s", k + 1, f.name(k)), f.info(k),
+					                                  [=]() { return b->preset == k; }, [=]() { b->load(k); }));
+			}));
+			i = j;
+		}
 	bool here = b->preset >= f.count;
 	menu->addChild(createSubmenuItem("USER", here ? "✔" : string::f("%d", (int) b->user.size()), [=](Menu* sub) {
 		if (b->user.empty())

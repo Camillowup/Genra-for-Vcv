@@ -4,6 +4,16 @@ Was in welcher Version dazukam (GENRA und GENRA Instruments). Der aktuelle Stand
 
 ## 2.21 bis heute (neueste zuerst)
 
+### 2.41.0 – Preset-Listen nach Klang statt nach Stil
+- **FUNKE, SCHMELZ, UMLAUF, GOLANA:** Das Preset-Menü (Feld im Kopf und Rechtsklick) zeigt die Werks-Presets in fünf
+  Gruppen **BASS, LEAD, PAD, KEYS, FX** statt in Untermenüs nach Stil. UMLAUF sortiert auch die 22 VADER-Presets ein.
+  Das Feld im Kopf (UMLAUF, GOLANA) und GOLANAs Display zeigen die Gruppe statt des Stils.
+- **GENRA MONO, GRUND, K-WASUB** (reine Bass-Synths): eine einzige Liste ohne Untermenüs, in der bisherigen
+  Reihenfolge. GRUND zeigt im Kopf keinen Stil mehr.
+- Der Stil bleibt in den Presets gespeichert: NEW mit „Presets follow GENRA“ wählt weiter passend zum Genre.
+  Nummern, Mausrad-Reihenfolge und alte Patches bleiben unverändert. KESSEL (Kits) bleibt nach Stil.
+- Neu: `src/ui/SoundGroups.hpp` (Zuordnung Preset → Gruppe), Test `test/test_groups.cpp`.
+
 ### 2.40.0 – Follow GENRA: auch GENRA TECHNO als Quelle, neue Spur „Stab“
 - **Follow GENRA** (alle Instrumente beider Plugins): unter „Which GENRA“ steht jetzt auch **GENRA TECHNO #n** (das
   Techno-GENRA, eigenes Plugin `GenraTechno`, ab dessen 2.0.2). Die Instrumente nehmen dort Drums, Bass, Melodie (=

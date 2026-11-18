@@ -105,7 +105,8 @@ bedient wie die anderen. Stand: GENRA und GENRA Instruments 2.29.1.
 - Löschen von viel (z. B. CLR ALL): zweimal drücken, mit UNDO zurückholbar.
 - **Endlos-Regler** (Drehgeber) für Werte, bei denen jeder Dreh etwas auslöst (SCHLAG RANDOM): ohne Zeiger, Wert als
   Zahl in der Mitte und als Bogen; eine ganze Drehung = ein UNDO-Schritt.
-- Presets per Dropdown im Kopf des Panels (Werks-Presets nach Stil, eigene speicherbar): `src/ui/PresetBank.hpp`, wenn die
+- Presets per Dropdown im Kopf des Panels (Werks-Presets nach Klang: BASS, LEAD, PAD, KEYS, FX aus
+  `src/ui/SoundGroups.hpp`; reine Bass-Synths als eine Liste; eigene speicherbar): `src/ui/PresetBank.hpp`, wenn die
   Regler den ganzen Klang tragen; `src/ui/StateBank.hpp`, wenn er in einer Engine liegt (K-WASUB, UMLAUF).
 
 ## Rechenzeit
