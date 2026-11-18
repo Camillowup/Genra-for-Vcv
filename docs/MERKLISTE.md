@@ -114,6 +114,11 @@ Alle oben genannten Module sind inzwischen gebaut (VOICE SPELL in GENRA Instrume
 
 ## Offene Änderungen an bestehenden Modulen (gesammelt, noch nicht gebaut)
 
+- **Später, eventuell:** HARMONIE (Akkord-Ansicht) auch für das normale GENRA mit seinem ABLAUF. Zuerst entsteht es
+  für GENRA TECHNO (Repo Technogen, Entwurf 18. Nov. 2026): Quintenzirkel mit Akkordfläche, Akkordfolge als Blöcke mit
+  Stufen und Funktionsfarben (Tonika, Subdominante, Dominante), der Song aus ABLAUF mit seinen Akkorden. Für GENRA
+  müsste es ins GENRA-Plugin (Zugriff auf `prog`/`ev` des Patterns und die ABLAUF-Zeilen wie GRID und ABLAUF).
+
 ### FUNKE, SCHMELZ, GRUND, GENRA MONO (GENRA-Plugin)
 - **Cutoff der Presets** etwas höher (+10–15 %), Lautstärke danach neu einmessen: nur die Presets, die der Nutzer noch
   auflistet (Liste folgt).
