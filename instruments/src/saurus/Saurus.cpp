@@ -4,6 +4,7 @@
 // knobs and CV into the part's parameters, V/OCT + GATE (polyphonic) into its notes, CALL into one call, its 44.1 kHz
 // audio resampled to Rack's rate. The display shows one of eight own pixel creatures, the one the preset is.
 // After KURBEL (src/kurbel/Kurbel.cpp).
+#include "../ui/MapOverlay.hpp"
 #include "../plugin.hpp"
 #include "../../../src/Follow.hpp"
 #include "../../../src/jiant/JiantUI.hpp"
@@ -68,7 +69,8 @@ struct Saurus : Module, follow::Host {
 		LEVEL_PARAM,
 		PREV_PARAM, NEXT_PARAM,
 		CALL_PARAM,
-		PARAMS_LEN
+		PARAMS_LEN,
+		PRESETSEL_PARAM = PARAMS_LEN // 2.41.2: the preset field for MIDI-MAP (after the knobs)
 	};
 	enum InputId {
 		ENUMS(E_INPUT, NE),
@@ -122,7 +124,8 @@ struct Saurus : Module, follow::Host {
 	float age = 1e9f;
 
 	Saurus() {
-		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
+		config(PARAMS_LEN + 1, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
+		genra_map::configSelect(this, PRESETSEL_PARAM, "Preset");
 		srcName = "SAURUS";
 		audioL = L_OUTPUT;
 		audioR = R_OUTPUT;
@@ -249,7 +252,9 @@ struct Saurus : Module, follow::Host {
 		fol.toJson(r);
 		return r;
 	}
+	uint32_t mapCode = 0; // bumped by dataFromJson (MIDI-MAP of the preset field)
 	void dataFromJson(json_t* r) override {
+		mapCode++; // the preset select (MIDI-MAP) does not load then
 		fol.fromJson(r);
 		if (json_t* j = json_object_get(r, "preset"))
 			preset = (int) json_integer_value(j);
@@ -605,6 +610,8 @@ struct SaurusWidget : ModuleWidget {
 				module->presetReq = i;
 		};
 		addChild(pf);
+		genra_map::select(this, pf, module, Saurus::PRESETSEL_PARAM, module ? &module->mapCode : nullptr, pf->count, pf->current,
+		                  pf->choose); // MIDI-MAP: a knob goes through the presets
 
 		addParam(createLightParamCentered<VCVLightBezel<jiant::AccentLight<SAURUS_RGB>>>(
 		    jiant::at(L::CALL), module, Saurus::CALL_PARAM, Saurus::CALL_LIGHT));

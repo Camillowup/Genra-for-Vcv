@@ -4,6 +4,7 @@
 // in cents with the ST-50's tunings (chromatic, or snapped to the scale), 本数 / tuning / scale, the sound's knobs and CV,
 // the ornaments (buttons and gates), the sprung bend from BEND, its 44.1 kHz audio resampled to Rack's rate.
 // After KURBEL (src/kurbel/Kurbel.cpp).
+#include "../ui/MapOverlay.hpp"
 #include "../plugin.hpp"
 #include "../../../src/Follow.hpp"
 #include "../../../src/OutLimit.hpp"
@@ -70,7 +71,8 @@ struct Fumi : Module, follow::Host {
 		ENUMS(S_PARAM, NS),
 		ENUMS(H_PARAM, NH),
 		FINE_PARAM, A4_PARAM,
-		PARAMS_LEN
+		PARAMS_LEN,
+		PRESETSEL_PARAM = PARAMS_LEN // 2.41.2: the preset field for MIDI-MAP (after the knobs)
 	};
 	enum InputId {
 		ENUMS(S_INPUT, NS),
@@ -123,7 +125,8 @@ struct Fumi : Module, follow::Host {
 	dsp::BooleanTrigger prevTrig, nextTrig;
 
 	Fumi() {
-		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
+		config(PARAMS_LEN + 1, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
+		genra_map::configSelect(this, PRESETSEL_PARAM, "Preset");
 		srcName = "FUMI";
 		audioL = L_OUTPUT;
 		audioR = R_OUTPUT;
@@ -252,7 +255,9 @@ struct Fumi : Module, follow::Host {
 		fol.toJson(r);
 		return r;
 	}
+	uint32_t mapCode = 0; // bumped by dataFromJson (MIDI-MAP of the preset field)
 	void dataFromJson(json_t* r) override {
+		mapCode++; // the preset select (MIDI-MAP) does not load then
 		fol.fromJson(r);
 		fromPatch = true;
 		if (json_t* j = json_object_get(r, "patch"))
@@ -669,6 +674,8 @@ struct FumiWidget : ModuleWidget {
 				module->patchReq = i;
 		};
 		addChild(pf);
+		genra_map::select(this, pf, module, Fumi::PRESETSEL_PARAM, module ? &module->mapCode : nullptr, pf->count, pf->current,
+		                  pf->choose); // MIDI-MAP: a knob goes through the presets
 
 		genra_look::ParamField* tune = createParam<genra_look::ParamField>(Vec(L::TUNEF[0], L::TUNEF[1]), module, Fumi::TUNE_PARAM);
 		tune->box.size = Vec(L::TUNEF[2], L::TUNEF[3]);

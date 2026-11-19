@@ -10,6 +10,7 @@
 #include <array>
 #include <cstring>
 #include "JiantUI.hpp"
+#include "../ui/MapOverlay.hpp"
 #include "../ui/Look.hpp"
 
 namespace jiant_animal {
@@ -29,7 +30,8 @@ struct Animal : Module, follow::Host {
 		LEVEL_PARAM,
 		VOICE_PARAM,
 		PREV_PARAM, NEXT_PARAM, CALL_PARAM,
-		PARAMS_LEN
+		PARAMS_LEN,
+		PRESETSEL_PARAM = PARAMS_LEN // 2.41.2: the preset field for MIDI-MAP (after the knobs)
 	};
 	enum InputId { ENUMS(E_INPUT, NE), VOCT_INPUT, GATE_INPUT, VEL_INPUT, CALL_INPUT, INPUTS_LEN };
 	enum OutputId { L_OUTPUT, R_OUTPUT, OUTPUTS_LEN };
@@ -66,7 +68,8 @@ struct Animal : Module, follow::Host {
 	dsp::BooleanTrigger prevTrig, nextTrig;
 
 	Animal() {
-		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
+		config(PARAMS_LEN + 1, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
+		genra_map::configSelect(this, PRESETSEL_PARAM, "Preset");
 		srcName = "ANIMAL";
 		audioL = L_OUTPUT;
 		audioR = R_OUTPUT;
@@ -204,7 +207,9 @@ struct Animal : Module, follow::Host {
 		fol.toJson(r);
 		return r;
 	}
+	uint32_t mapCode = 0; // bumped by dataFromJson (MIDI-MAP of the preset field)
 	void dataFromJson(json_t* r) override {
+		mapCode++; // the preset select (MIDI-MAP) does not load then
 		fol.fromJson(r);
 		if (json_t* j = json_object_get(r, "preset"))
 			preset = (int) json_integer_value(j);
@@ -444,6 +449,8 @@ struct AnimalWidget : ModuleWidget {
 				module->presetReq = i;
 		};
 		addChild(pf);
+		genra_map::select(this, pf, module, Animal::PRESETSEL_PARAM, module ? &module->mapCode : nullptr, pf->count, pf->current,
+		                  pf->choose); // MIDI-MAP: a knob goes through the presets
 
 		genra_look::ParamField* mf = createParam<genra_look::ParamField>(Vec(L::MODEF[0], L::MODEF[1]), module, Animal::MODE_PARAM);
 		mf->box.size = Vec(L::MODEF[2], L::MODEF[3]);

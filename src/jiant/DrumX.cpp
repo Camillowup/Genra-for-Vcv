@@ -14,6 +14,7 @@
 #include <mutex>
 #include <thread>
 #include "JiantUI.hpp"
+#include "../ui/MapOverlay.hpp"
 #include "../ui/Look.hpp"
 
 namespace jiant_drumx {
@@ -63,7 +64,8 @@ struct DrumX : Module, follow::Host {
 		ENUMS(PAD_PARAM, NL),
 		ENUMS(LEVEL_PARAM, NL),
 		DLY_PARAM, REV_PARAM, MASTER_PARAM,
-		PARAMS_LEN
+		PARAMS_LEN,
+		PRESETSEL_PARAM = PARAMS_LEN // 2.41.2: the preset field for MIDI-MAP (after the knobs)
 	};
 	enum InputId { MORPH_INPUT, VOCT_INPUT, GATE_INPUT, ENUMS(MACRO_INPUT, NM), ENUMS(TRIG_INPUT, NL), ACC_INPUT, GENRA_INPUT, INPUTS_LEN };
 	enum OutputId { ENUMS(LANE_OUTPUT, NL), L_OUTPUT, R_OUTPUT, OUTPUTS_LEN };
@@ -190,7 +192,8 @@ struct DrumX : Module, follow::Host {
 	CvVoice cv[16];
 
 	DrumX() {
-		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
+		config(PARAMS_LEN + 1, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
+		genra_map::configSelect(this, PRESETSEL_PARAM, "Preset");
 		srcName = "DRUM-X";
 		audioL = L_OUTPUT;
 		audioR = R_OUTPUT;
@@ -424,7 +427,9 @@ struct DrumX : Module, follow::Host {
 		fol.toJson(r);
 		return r;
 	}
+	uint32_t mapCode = 0; // bumped by dataFromJson (MIDI-MAP of the preset field)
 	void dataFromJson(json_t* r) override {
+		mapCode++; // the preset select (MIDI-MAP) does not load then
 		fol.fromJson(r);
 		if (json_t* j = json_object_get(r, "kit"))
 			kit = (int) json_integer_value(j);
@@ -763,11 +768,17 @@ struct DrumXWidget : ModuleWidget {
 				module->kitReq = i;
 		};
 		addChild(pf);
+		genra_map::select(this, pf, module, DrumX::PRESETSEL_PARAM, module ? &module->mapCode : nullptr, pf->count, pf->current,
+		                  pf->choose); // MIDI-MAP: a knob goes through the presets
 
 		SoundHead* sh = new SoundHead;
 		sh->module = module;
 		sh->box = jiant::area(L::SOUND_HEAD);
 		addChild(sh);
+		{ // MIDI-MAP: A | B is a param already (a knob or button sets it)
+			math::Rect r(sh->box.pos.plus(Vec(sh->box.size.x - 42, 0)), Vec(34, sh->box.size.y));
+			genra_map::press(this, sh, module, DrumX::AB_PARAM, nullptr, nullptr, &r)->press = nullptr;
+		}
 		for (int k = 0; k < JDX_NSND; k++) {
 			if (k == 0)
 				addParam(createParamCentered<GLargeKnob>(jiant::at(L::SND[k]), module, DrumX::SND_PARAM + k));

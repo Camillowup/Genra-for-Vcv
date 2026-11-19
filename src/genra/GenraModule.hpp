@@ -1,5 +1,6 @@
 // GENRA – module definition (shared by the GENRA module and the grid editor)
 #pragma once
+#include "../ui/MapOverlay.hpp"
 #include <thread>
 #include "../plugin.hpp"
 #include "Engine.hpp"
@@ -68,6 +69,17 @@ inline std::set<Genra*>& genraRegistry() {
 struct VariantQuantity : ParamQuantity {
 	std::string getDisplayValueString() override;
 };
+
+/** Every genre profile in the order of the genre menu (families, genres, variants). */
+inline const std::vector<int>& genreList() {
+	static std::vector<int> l;
+	if (l.empty())
+		for (int f = 0; f < (int) (sizeof(FAMILIES) / sizeof(FAMILIES[0])); f++)
+			for (int g = FAMILIES[f].first; g < FAMILIES[f].first + FAMILIES[f].count; g++)
+				for (int v = 0; v < numVariants(g); v++)
+					l.push_back(profileOf(g, v));
+	return l;
+}
 
 struct Genra : Module {
 	// NOTE: only append to these lists – Rack stores params by index, older patches rely on the order
@@ -589,6 +601,9 @@ struct Genra : Module {
 	}
 
 	// extra: params / inputs / outputs / lights a module built on GENRA (GENRA BOX) appends after GENRA's own
+	static const int MAP_N = 4 + MAX_PROG; // MIDI-MAP: the 4 genre fields, the chords
+	int mapBase = 0;
+	uint32_t mapCode = 0; // bumped by dataFromJson
 	explicit Genra(int extraParams = 0, int extraInputs = 0, int extraOutputs = 0, int extraLights = 0) {
 		// followers of the other plugin (GENRA Instruments) reach GENRA's outputs and tempo through the link hub
 		follow::addGenra(this, &followPub[0][0][0], OUTPUTS_LEN, &stepPeriod);
@@ -605,7 +620,13 @@ struct Genra : Module {
 			gridGen[t] = false;
 			presetRoll[t] = 0;
 		}
-		config(PARAMS_LEN + extraParams, INPUTS_LEN + extraInputs, OUTPUTS_LEN + extraOutputs, LIGHTS_LEN + extraLights);
+		// 2.41.2: MIDI-MAP for the genre fields and the chords, after everything else (also a derived module's extras)
+		mapBase = PARAMS_LEN + extraParams;
+		config(PARAMS_LEN + extraParams + MAP_N, INPUTS_LEN + extraInputs, OUTPUTS_LEN + extraOutputs, LIGHTS_LEN + extraLights);
+		for (int t = 0; t < 4; t++)
+			genra_map::configSelect(this, mapBase + t, std::string(TRACK_NAMES[t]) + " track genre");
+		for (int i = 0; i < MAX_PROG; i++)
+			genra_map::configSelect(this, mapBase + 4 + i, string::f("Chord %d", i + 1));
 		std::vector<std::string> genreNames;
 		for (int g = 0; g < NUM_GENRES; g++)
 			genreNames.push_back(prof(profileOf(g, 0)).name);
@@ -1771,6 +1792,7 @@ struct Genra : Module {
 
 	void dataFromJson(json_t* root) override {
 		json_t* j;
+		mapCode++;
 		running = false; // after loading GENRA waits for RUN (or an ABLAUF song)
 		genreTempo = false;
 		if ((j = json_object_get(root, "genreTempo")))

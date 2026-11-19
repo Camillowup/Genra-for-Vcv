@@ -4,6 +4,7 @@
 // its panel shows a part of GENRA's controls and adds the voices, NOTES / GATES, DUCK and the mix.
 // 2.31: back on 2.30 (it was lost with the old account): GENRA MONO instead of GRUND, NEW / HOLD by the pattern, presets
 // of the track's genre by default, MUTATE, CLOCK out, DUCK, the mono sum on L.
+#include "../ui/MapOverlay.hpp"
 #include "../genra/GenraModule.hpp"
 #include "BoxLayout.hpp"
 #include "BoxVoices.hpp"
@@ -111,6 +112,8 @@ struct GenraBox : Genra {
 		ENUMS(HOLD_PARAM, 4),
 		MASTER_PARAM,
 		DUCK_PARAM,            // the kick pushes bass and pads down
+		GENRESEL_PARAM,        // 2.41.2: MIDI-MAP of the header genre
+		ENUMS(PRESETSEL_PARAM, 4), // 2.41.2: MIDI-MAP of the SOUND fields (by GENRA track)
 		BOX_PARAMS_END
 	};
 	enum BoxOutputId {
@@ -134,6 +137,9 @@ struct GenraBox : Genra {
 	std::atomic<int> soundAll{2}; // 2.31: the track's genre by default
 
 	GenraBox() : Genra(BOX_PARAMS_END - Genra::PARAMS_LEN, 0, BOX_OUTPUTS_END - Genra::OUTPUTS_LEN, BOX_LIGHTS_END - Genra::LIGHTS_LEN) {
+		genra_map::configSelect(this, GENRESEL_PARAM, "Genre (main)");
+		for (int t = 0; t < 4; t++)
+			genra_map::configSelect(this, PRESETSEL_PARAM + t, string::f("Track %d sound", t + 1));
 		for (int t = 0; t < 4; t++)
 			soundMode[t] = 0;
 		configSwitch(SOUND_PARAM, 0.f, 1.f, 1.f, "SOUND: NEW also re-rolls the presets", {"Off", "On"});
@@ -934,6 +940,28 @@ struct GenraBoxWidget : ModuleWidget {
 		MainGenreField* gf = new MainGenreField;
 		gf->module = module;
 		place(gf, L::GENREF);
+		// MIDI-MAP (2.41.2): BPM is GENRA's param, the header genre gets its own
+		genra_map::select(this, bpm, module, Genra::BPM_PARAM, nullptr, nullptr, nullptr, nullptr);
+		{
+			GenraBox* m = module;
+			genra_map::select(this, gf, m, GenraBox::GENRESEL_PARAM, m ? &m->mapCode : nullptr, []() { return (int) genreList().size(); },
+			                  [=]() {
+				                  if (!m)
+					                  return 0;
+				                  const std::vector<int>& l = genreList();
+				                  for (size_t k = 0; k < l.size(); k++)
+					                  if (l[k] == m->knobProfile())
+						                  return (int) k;
+				                  return 0;
+			                  },
+			                  [=](int i) {
+				                  if (!m)
+					                  return;
+				                  int p = genreList()[i];
+				                  m->params[Genra::GENRE_PARAM].setValue((float) genreOfProfile(p));
+				                  m->params[Genra::VARIANT_PARAM].setValue((float) variantOfProfile(p));
+			                  });
+		}
 
 		// generator
 		small(L::KEY, Genra::KEY_PARAM);
@@ -968,6 +996,42 @@ struct GenraBoxWidget : ModuleWidget {
 			pf->module = module;
 			pf->track = t;
 			place(pf, pr[c]);
+			{ // MIDI-MAP (2.41.2): the track genre is GENRA's genre select, the sound one of BOX's own
+				GenraBox* m = module;
+				genra_map::select(this, f, m, m ? m->mapBase + t : -1, m ? &m->mapCode : nullptr, []() { return (int) genreList().size() + 1; },
+				                  [=]() {
+					                  if (!m || m->trackSel[t] < 0)
+						                  return 0;
+					                  const std::vector<int>& l = genreList();
+					                  for (size_t k = 0; k < l.size(); k++)
+						                  if (l[k] == m->trackSel[t])
+							                  return (int) k + 1;
+					                  return 0;
+				                  },
+				                  [=](int i) {
+					                  if (m)
+						                  m->setTrackSel(t, i == 0 ? -1 : genreList()[i - 1]);
+				                  });
+				genra_map::select(this, pf, m, GenraBox::PRESETSEL_PARAM + t, m ? &m->mapCode : nullptr,
+				                  [=]() {
+					                  if (follow::Host* h = pf->followHost())
+						                  return h->hostPresetCount();
+					                  return pf->count();
+				                  },
+				                  [=]() {
+					                  if (follow::Host* h = pf->followHost())
+						                  return h->hostPresetCurrent();
+					                  return pf->current();
+				                  },
+				                  [=](int i) {
+					                  if (!m)
+						                  return;
+					                  if (follow::Host* h = pf->followHost())
+						                  h->hostPresetLoad(i);
+					                  else
+						                  m->presetReq[t] = i;
+				                  });
+			}
 			small(dens[c], Genra::DENS_PARAM + t);
 			small(shape[c], SHAPE_PARAM[t]);
 			addParam(createParamCentered<GKnob>(P(ma[c]), module, GenraBox::MACA_PARAM + t));

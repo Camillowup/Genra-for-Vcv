@@ -1,7 +1,7 @@
 # GENRA – Projektstand
 
-**Stand:** 18. November 2026 · **GENRA 2.41.1** (15 Module) und **GENRA Instruments 2.41.1** (20 Module), Windows + macOS
-(Testbuild auf `dev`, Release 2.39.0). Neu in 2.41.1: SCHLAG-RANDOM und Preset-Felder per MIDI-MAP. 2.41.0: Preset-Menüs nach Klang (BASS, LEAD, PAD, KEYS, FX), Bass-Synths
+**Stand:** 18. November 2026 · **GENRA 2.41.2** (15 Module) und **GENRA Instruments 2.41.2** (20 Module), Windows + macOS
+(Testbuild auf `dev`, Release 2.39.0). Neu in 2.41.2: alle gezeichneten Felder und Tasten per MIDI-MAP. 2.41.1: SCHLAG-RANDOM und Preset-Felder per MIDI-MAP. 2.41.0: Preset-Menüs nach Klang (BASS, LEAD, PAD, KEYS, FX), Bass-Synths
 als eine Liste. Neu in 2.40.0: Follow GENRA kennt auch **GENRA TECHNO** (eigenes Plugin) als Quelle,
 mit der neuen Spur „Stab“. 2.39.0: GENRA CHOP als Quelle.
 (arm64/x64, Mac noch ungetestet) · Repo `Camillowup/Genra-for-Vcv` (vorher `CamilloGF/genra-v3`, Account nicht mehr

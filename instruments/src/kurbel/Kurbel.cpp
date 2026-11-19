@@ -4,6 +4,7 @@
 // knobs and CV into the part's parameters, V/OCT + GATE into its (one) melody string, the crank's speed (knob + CV)
 // into GHOULBOX's crank, CLOCK into the tempo of COUP's strokes, its 44.1 kHz audio resampled to Rack's rate.
 // After GENRA Instruments' ANIMAL (instruments/src/jiant/Animal.cpp) and MATH.
+#include "../ui/MapOverlay.hpp"
 #include "../plugin.hpp"
 #include "../../../src/Follow.hpp"
 #include "../../../src/jiant/JiantUI.hpp"
@@ -42,7 +43,8 @@ struct Kurbel : Module, follow::Host {
 		RING_PARAM,
 		PREV_PARAM, NEXT_PARAM,
 		CALL_PARAM,
-		PARAMS_LEN
+		PARAMS_LEN,
+		PRESETSEL_PARAM = PARAMS_LEN // 2.41.2: the preset field for MIDI-MAP (after the knobs)
 	};
 	enum InputId {
 		ENUMS(E_INPUT, NE),
@@ -91,7 +93,8 @@ struct Kurbel : Module, follow::Host {
 	float bpm = 120.f;
 
 	Kurbel() {
-		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
+		config(PARAMS_LEN + 1, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
+		genra_map::configSelect(this, PRESETSEL_PARAM, "Preset");
 		srcName = "KURBEL";
 		audioL = L_OUTPUT;
 		audioR = R_OUTPUT;
@@ -249,7 +252,9 @@ struct Kurbel : Module, follow::Host {
 		fol.toJson(r);
 		return r;
 	}
+	uint32_t mapCode = 0; // bumped by dataFromJson (MIDI-MAP of the preset field)
 	void dataFromJson(json_t* r) override {
+		mapCode++; // the preset select (MIDI-MAP) does not load then
 		fol.fromJson(r);
 		if (json_t* j = json_object_get(r, "preset"))
 			preset = (int) json_integer_value(j);
@@ -622,6 +627,8 @@ struct KurbelWidget : ModuleWidget {
 				module->presetReq = i;
 		};
 		addChild(pf);
+		genra_map::select(this, pf, module, Kurbel::PRESETSEL_PARAM, module ? &module->mapCode : nullptr, pf->count, pf->current,
+		                  pf->choose); // MIDI-MAP: a knob goes through the presets
 		static const char* ENG_NAMES[2] = {"WHEEL", "REED"};
 		genra_look::ParamField* eng = createParam<genra_look::ParamField>(Vec(L::ENGF[0], L::ENGF[1]), module, Kurbel::ENGINE_PARAM);
 		eng->box.size = Vec(L::ENGF[2], L::ENGF[3]);

@@ -6,6 +6,7 @@
 // eight drum triggers in GENRA's order onto the voices (the clap plays the snare: on the LXR the snare is the clap,
 // by REPEAT), the knobs of the lane edited, the kit macros, the mix, the effect bus, all resampled to Rack's rate.
 // Not affiliated with or endorsed by Erica Synths; the engine is taken from their open-source firmware.
+#include "../ui/MapOverlay.hpp"
 #include "../plugin.hpp"
 #include "../../../src/Follow.hpp"
 #include "../../../src/OutLimit.hpp"
@@ -189,7 +190,10 @@ struct Kessel : Module, follow::Host {
 	enum ParamId {
 		ENUMS(EDIT_PARAM, NE),
 		ENUMS(K_PARAM, 7),  // TUNE DECAY TONE DRIVE ACCENT FX VOLUME
-		PARAMS_LEN
+		PARAMS_LEN,
+		// 2.41.2: for MIDI-MAP (after the knobs, not in a kit): the kit, the lane buttons
+		KITSEL_PARAM = PARAMS_LEN,
+		LANEBTN_PARAM
 	};
 	enum Macro { M_TUNE, M_DECAY, M_TONE, M_DRIVE, M_ACC, M_FX, M_VOL };
 	enum InputId { DRUMS_INPUT, VEL_INPUT, ACC_INPUT, CLOCK_INPUT, RESET_INPUT, KTUNE_INPUT, KDECAY_INPUT, KTONE_INPUT,
@@ -258,7 +262,10 @@ struct Kessel : Module, follow::Host {
 	float svfIc1[2] = {}, svfIc2[2] = {};
 
 	Kessel() {
-		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
+		config(PARAMS_LEN + 1 + NL, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
+		genra_map::configSelect(this, KITSEL_PARAM, "Kit");
+		for (int l = 0; l < NL; l++)
+			genra_map::configPress(this, LANEBTN_PARAM + l, string::f("Lane %d", l + 1));
 		srcName = "KESSEL";
 		audioL = L_OUTPUT;
 		audioR = R_OUTPUT;
@@ -311,6 +318,7 @@ struct Kessel : Module, follow::Host {
 		f.style = [](int i) { return kessel_kits::KITS[i].style; };
 		f.name = [](int i) { return kessel_kits::KITS[i].name; };
 		f.info = [](int) { return ""; };
+		bank.sel = KITSEL_PARAM; // the MIDI-MAP params are not part of a kit
 		bank.init(this, f, asset::user("Genra/KesselPresets"), &loadSerial, &loadedPos,
 		          [this](int i) { kitReq = clamp(i, 0, kessel_kits::NUM - 1); });
 		bank.preset = 0;
@@ -440,6 +448,7 @@ struct Kessel : Module, follow::Host {
 		return r;
 	}
 	void dataFromJson(json_t* r) override {
+		bank.selCode++;
 		fol.fromJson(r);
 		if (json_t* j = json_object_get(r, "kit"))
 			kit = clamp((int) json_integer_value(j), 0, kessel_kits::NUM - 1);
@@ -1232,6 +1241,15 @@ struct KesselWidget : ModuleWidget {
 		kf->box.size = mm2px(Vec(L::PRESETF[2], L::PRESETF[3]));
 		kf->module = module;
 		addChild(kf);
+		{ // MIDI-MAP (2.41.2): a knob goes through the kits
+			Kessel* m = module;
+			genra_map::select(this, kf, m, Kessel::KITSEL_PARAM, m ? &m->bank.selCode : nullptr,
+			                  [=]() { return m ? m->bank.count() : 1; }, [=]() { return m ? m->bank.preset : 0; },
+			                  [=](int i) {
+				                  if (m)
+					                  m->bank.load(i);
+			                  });
+		}
 		for (int l = 0; l < NL; l++) {
 			if (LANE_VOICE[l] < 0)
 				continue;
@@ -1240,6 +1258,13 @@ struct KesselWidget : ModuleWidget {
 			b->module = module;
 			b->l = l;
 			addChild(b);
+			Kessel* m = module;
+			genra_map::press(this, b, m, Kessel::LANEBTN_PARAM + l, nullptr, [=]() { // as a click: pick the lane, strike it
+				if (m) {
+					m->laneReq = l;
+					m->padHits |= 1u << l;
+				}
+			});
 		}
 		using M = Kessel;
 		auto field = [&](const float* r, int id, const char* const* names, const char* const* info, int count,

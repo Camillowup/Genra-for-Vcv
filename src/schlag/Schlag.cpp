@@ -6,6 +6,7 @@
 // action). The hits come from GENRA (Follow GENRA: DRUMS, CLOCK, RESET without cables), the TRIG jacks, V/OCT + GATE
 // (General MIDI) or the MIDI input. PRINT keeps the rolled samples with the ABLAUF pad GENRA plays.
 // The sound parts: SchlagDsp.hpp. Panel: tools/panels/schlag_panel.py.
+#include "../ui/MapOverlay.hpp"
 #include "../plugin.hpp"
 #include "../Follow.hpp"
 #include "../genra/GenraModule.hpp"
@@ -379,7 +380,8 @@ struct Schlag : Module, follow::Host {
 		UNDO_PARAM,
 		BASICALL_PARAM,
 		PRINT_PARAM,
-		PARAMS_LEN
+		PARAMS_LEN,
+		KITSEL_PARAM = PARAMS_LEN // 2.41.2: the kit for MIDI-MAP (after the knobs)
 	};
 	enum InputId {
 		ENUMS(TRIG_INPUT, NT),
@@ -513,7 +515,8 @@ struct Schlag : Module, follow::Host {
 	};
 
 	Schlag() {
-		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
+		config(PARAMS_LEN + 1, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
+		genra_map::configSelect(this, KITSEL_PARAM, "Kit");
 		loadSettings();
 		srcName = "SCHLAG";
 		audioL = L_OUTPUT;
@@ -1489,7 +1492,9 @@ struct Schlag : Module, follow::Host {
 		fol.toJson(j);
 		return j;
 	}
+	uint32_t mapCode = 0; // bumped by dataFromJson (MIDI-MAP of the kit)
 	void dataFromJson(json_t* j) override {
+		mapCode++;
 		fol.fromJson(j);
 		if (!json_object_get(j, "followGenra"))
 			fol.track = -1;
@@ -2186,6 +2191,26 @@ struct SchlagWidget : ModuleWidget {
 		kf->box.size = mm2px(Vec(L::KITF[2], L::KITF[3]));
 		kf->module = module;
 		addChild(kf);
+		{ // MIDI-MAP (2.41.2): a knob goes through the saved kits
+			Schlag* m = module;
+			auto kits = std::make_shared<std::vector<std::string>>();
+			genra_map::select(this, kf, m, Schlag::KITSEL_PARAM, m ? &m->mapCode : nullptr,
+			                  [=]() {
+				                  if (m)
+					                  *kits = m->kitFiles();
+				                  return (int) kits->size();
+			                  },
+			                  [=]() {
+				                  for (size_t k = 0; m && k < kits->size(); k++)
+					                  if (system::getStem((*kits)[k]) == m->kitName)
+						                  return (int) k;
+				                  return -1;
+			                  },
+			                  [=](int i) {
+				                  if (m && i >= 0 && i < (int) kits->size())
+					                  m->loadKit((*kits)[i]);
+			                  });
+		}
 		MidiField* mf = createWidget<MidiField>(mm2px(Vec(L::MIDIF[0], L::MIDIF[1])));
 		mf->box.size = mm2px(Vec(L::MIDIF[2], L::MIDIF[3]));
 		mf->module = module;

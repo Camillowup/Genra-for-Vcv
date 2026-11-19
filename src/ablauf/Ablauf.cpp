@@ -10,6 +10,7 @@
 // the outputs from values the UI thread publishes.
 #include "../genra/GenraModule.hpp"
 #include "../ui/GenraUI.hpp"
+#include "../ui/MapOverlay.hpp"
 #include "../ui/BigPad.hpp"
 #include "AblaufLayout.hpp"
 #include <deque>
@@ -129,7 +130,8 @@ struct Ablauf : Module {
 		CLEAR_PARAM,
 		CLEARALL_PARAM, // (appended: saved patches keep their ids)
 		MAKESONG_PARAM,
-		PARAMS_LEN
+		PARAMS_LEN,
+		FORMSEL_PARAM = PARAMS_LEN // 2.41.2: SONG FORM for MIDI-MAP (after the knobs and buttons)
 	};
 	enum InputId { RUN_INPUT, RESET_INPUT, NEXT_INPUT, PATT_INPUT, ROW_INPUT, INPUTS_LEN };
 	enum OutputId { END_OUTPUT, ROW_OUTPUT, BUILD_OUTPUT, DROP_OUTPUT, POS_OUTPUT, CVA_OUTPUT, CVB_OUTPUT, OUTPUTS_LEN };
@@ -245,7 +247,8 @@ struct Ablauf : Module {
 	uint32_t gPlaySeen = 0, gToggleSeen = 0, gStopSeen = 0;  // RUN / STOP pressed on GENRA (song mode)
 
 	Ablauf() {
-		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
+		config(PARAMS_LEN + 1, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
+		genra_map::configSelect(this, FORMSEL_PARAM, "SONG FORM");
 		for (int i = 0; i < NUM_PRESS; i++)
 			presses[i] = 0;
 		struct RowQuantity : ParamQuantity {
@@ -1873,8 +1876,10 @@ struct Ablauf : Module {
 		return root;
 	}
 
+	uint32_t mapCode = 0; // bumped by dataFromJson (MIDI-MAP of SONG FORM)
 	void dataFromJson(json_t* root) override {
 		json_t* j;
+		mapCode++;
 		if ((j = json_object_get(root, "linkedId")))
 			linkedId = json_integer_value(j);
 		partOpts = PartOpts();
@@ -2818,11 +2823,31 @@ struct AblaufWidget : ModuleWidget {
 			addChild(w);
 		};
 		add(new SongList, L::SONGLIST);
-		add(new BankButtons, L::BANKS);
+		BankButtons* banks = new BankButtons;
+		add(banks, L::BANKS);
 		add(new Pads, L::PADS);
 		add(new InfoLine, L::INFO);
-		add(new RerollBoxes, L::REROLL);
-		add(new SongFormField, L::SONGFORM);
+		RerollBoxes* rr = new RerollBoxes;
+		add(rr, L::REROLL);
+		SongFormField* sff = new SongFormField;
+		add(sff, L::SONGFORM);
+		// MIDI-MAP (2.41.2): the bank and the four boxes are params already (a knob sets them), SONG FORM gets one
+		{
+			genra_map::Overlay* ob = genra_map::select(this, banks, module, A::BANK_PARAM, nullptr, nullptr, nullptr, nullptr);
+			(void) ob;
+			for (int t = 0; t < 4; t++) {
+				math::Rect r(rr->box.pos.plus(mm2px(Vec(t * 4.6f, 0.f))), Vec(mm2px(4.6f), rr->box.size.y));
+				genra_map::Overlay* o = genra_map::press(this, rr, module, A::REROLL_PARAM + t, nullptr, nullptr, &r);
+				o->press = nullptr; // the param itself: no press logic
+			}
+			Ablauf* m = module;
+			genra_map::select(this, sff, m, A::FORMSEL_PARAM, m ? &m->mapCode : nullptr, []() { return NUM_SONG_FORMS + 1; },
+			                  [=]() { return m ? m->songForm + 1 : 0; },
+			                  [=](int i) {
+				                  if (m)
+					                  m->songForm = i - 1;
+			                  });
+		}
 		SectionRing* ring = new SectionRing;
 		add(ring, L::SECRING);
 		SectionRing* nm = new SectionRing;

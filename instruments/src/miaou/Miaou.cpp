@@ -5,6 +5,7 @@
 // and the glue: poly V/OCT + GATE + VEL into the voices, PAW (button or gate) makes every key meow, TOY's seven knobs
 // scale what the firmware held fixed, and a chorus, a delay and a reverb (GENRA FX's) come after. No beats, songs,
 // recorder, arpeggiator or sequencer: GENRA plays it.
+#include "../ui/MapOverlay.hpp"
 #include "../plugin.hpp"
 #include "../../../src/Follow.hpp"
 #include "../../../src/jiant/JiantUI.hpp"
@@ -111,7 +112,8 @@ struct Miaou : Module, follow::Host {
 		PAW_PARAM, SOUND_PARAM, LEVEL_PARAM,
 		ENUMS(T_PARAM, NT),
 		CHOR_PARAM, DLY_PARAM, REV_PARAM,
-		PARAMS_LEN
+		PARAMS_LEN,
+		PRESETSEL_PARAM = PARAMS_LEN // 2.41.2: the preset field for MIDI-MAP (after the knobs)
 	};
 	enum InputId {
 		ENUMS(T_INPUT, NT),
@@ -152,7 +154,8 @@ struct Miaou : Module, follow::Host {
 	float fxRate = 0.f;
 
 	Miaou() {
-		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
+		config(PARAMS_LEN + 1, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
+		genra_map::configSelect(this, PRESETSEL_PARAM, "Preset");
 		srcName = "MIAOU";
 		audioL = L_OUTPUT;
 		audioR = R_OUTPUT;
@@ -205,7 +208,8 @@ struct Miaou : Module, follow::Host {
 		fol.toJson(r);
 		return r;
 	}
-	void dataFromJson(json_t* r) override { fol.fromJson(r); }
+	uint32_t mapCode = 0; // bumped by dataFromJson (MIDI-MAP of the preset field)
+	void dataFromJson(json_t* r) override { mapCode++; fol.fromJson(r); }
 
 	void allOff() {
 		if (eng)
@@ -533,6 +537,8 @@ struct MiaouWidget : ModuleWidget {
 			APP->history->push(h);
 		};
 		addChild(pf);
+		genra_map::select(this, pf, module, Miaou::PRESETSEL_PARAM, module ? &module->mapCode : nullptr, pf->count, pf->current,
+		                  pf->choose); // MIDI-MAP: a knob goes through the presets
 
 		addParam(createLightParamCentered<VCVLightLatch<jiant::AccentLight<MIAOU_RGB>>>(jiant::at(L::PAW), module,
 		                                                                              Miaou::PAW_PARAM, Miaou::PAW_LIGHT));

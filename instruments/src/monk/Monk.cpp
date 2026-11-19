@@ -10,6 +10,7 @@
 #include "MonkLayout.hpp"
 #include "MonkSingers.hpp"
 #include "../jiant/JiantUI.hpp"
+#include "../ui/MapOverlay.hpp"
 #include "../ui/Look.hpp"
 #include <atomic>
 #include <array>
@@ -37,7 +38,8 @@ struct Monk : Module, follow::Host {
 		VIBD_PARAM, VIBR_PARAM, ECHO_PARAM, TIME_PARAM, FB_PARAM,
 		PDEPTH_PARAM, VELSENS_PARAM, LEVEL_PARAM, ROUTE_PARAM,
 		PREV_PARAM, NEXT_PARAM,
-		PARAMS_LEN
+		PARAMS_LEN,
+		PRESETSEL_PARAM = PARAMS_LEN // 2.41.2: the preset field for MIDI-MAP (after the knobs)
 	};
 	enum InputId { ENUMS(K_INPUT, NK), VOCT_INPUT, GATE_INPUT, VEL_INPUT, PRESS_INPUT, SINGER_INPUT, INPUTS_LEN };
 	enum OutputId { ENV_OUTPUT, DRY_OUTPUT, L_OUTPUT, R_OUTPUT, OUTPUTS_LEN };
@@ -100,7 +102,8 @@ struct Monk : Module, follow::Host {
 	};
 
 	Monk() {
-		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
+		config(PARAMS_LEN + 1, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
+		genra_map::configSelect(this, PRESETSEL_PARAM, "Preset");
 		srcName = "MONK";
 		audioL = L_OUTPUT;
 		audioR = R_OUTPUT;
@@ -274,7 +277,9 @@ struct Monk : Module, follow::Host {
 		fol.toJson(root);
 		return root;
 	}
+	uint32_t mapCode = 0; // bumped by dataFromJson (MIDI-MAP of the preset field)
 	void dataFromJson(json_t* root) override {
+		mapCode++; // the preset select (MIDI-MAP) does not load then
 		fol.fromJson(root);
 		if (json_t* s = json_object_get(root, "singer"))
 			singer = clamp((int) json_integer_value(s), 0, monksingers::COUNT - 1);
@@ -525,6 +530,8 @@ struct MonkWidget : ModuleWidget {
 				module->singerReq = i;
 		};
 		addChild(pf);
+		genra_map::select(this, pf, module, Monk::PRESETSEL_PARAM, module ? &module->mapCode : nullptr, pf->count, pf->current,
+		                  pf->choose); // MIDI-MAP: a knob goes through the presets
 
 		jiant::LampRow* route = createParam<jiant::LampRow>(Vec(0, 0), module, Monk::ROUTE_PARAM);
 		route->place(L::ROUTE, 4);

@@ -15,6 +15,7 @@
 #include <cstring>
 #include <mutex>
 #include "JiantUI.hpp"
+#include "../ui/MapOverlay.hpp"
 #include "../ui/Look.hpp"
 
 namespace jiant_voice {
@@ -32,7 +33,8 @@ struct Voice : Module, follow::Host, SpellSink {
 		VOICE_PARAM, LANG_PARAM, LYRIC_PARAM,
 		PREV_PARAM, NEXT_PARAM, LPREV_PARAM, LNEXT_PARAM, CALL_PARAM,
 		SPELL_MODE_PARAM,  // (2.35.0, appended: old patches load)
-		PARAMS_LEN
+		PARAMS_LEN,
+		PRESETSEL_PARAM = PARAMS_LEN // 2.41.2: the preset field for MIDI-MAP (after the knobs)
 	};
 	enum InputId { ENUMS(E_INPUT, NE), VOCT_INPUT, GATE_INPUT, VEL_INPUT, CALL_INPUT, WORD_INPUT, INPUTS_LEN };
 	enum OutputId { L_OUTPUT, R_OUTPUT, OUTPUTS_LEN };
@@ -128,7 +130,8 @@ struct Voice : Module, follow::Host, SpellSink {
 	};
 
 	Voice() {
-		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
+		config(PARAMS_LEN + 1, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
+		genra_map::configSelect(this, PRESETSEL_PARAM, "Preset");
 		srcName = "VOICE";
 		audioL = L_OUTPUT;
 		audioR = R_OUTPUT;
@@ -319,7 +322,9 @@ struct Voice : Module, follow::Host, SpellSink {
 		fol.toJson(r);
 		return r;
 	}
+	uint32_t mapCode = 0; // bumped by dataFromJson (MIDI-MAP of the preset field)
 	void dataFromJson(json_t* r) override {
+		mapCode++; // the preset select (MIDI-MAP) does not load then
 		fol.fromJson(r);
 		if (json_t* j = json_object_get(r, "preset"))
 			preset = (int) json_integer_value(j);
@@ -922,6 +927,8 @@ struct VoiceWidget : ModuleWidget {
 				module->presetReq = i;
 		};
 		addChild(pf);
+		genra_map::select(this, pf, module, Voice::PRESETSEL_PARAM, module ? &module->mapCode : nullptr, pf->count, pf->current,
+		                  pf->choose); // MIDI-MAP: a knob goes through the presets
 
 		genra_look::ParamField* lang = createParam<genra_look::ParamField>(Vec(L::LANGF[0], L::LANGF[1]), module, Voice::LANG_PARAM);
 		lang->box.size = Vec(L::LANGF[2], L::LANGF[3]);

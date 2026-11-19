@@ -7,6 +7,7 @@
 // and CV into its parameters, gates into notes, the clock into its tempo and beat, resamples its output, and puts out
 // the orbiter, the corners' weights, the envelope and each corner on its own. UMLAUF FX docks to the right.
 // Panels: tools/panels/umlauf_panel.py, tools/panels/umlauf_fx_panel.py.
+#include "../ui/MapOverlay.hpp"
 #include "../plugin.hpp"
 #include "../Follow.hpp"
 #include "../ui/GenraUI.hpp"
@@ -1664,6 +1665,8 @@ struct UmlaufWidget : ModuleWidget {
 			w->box.pos = mm2px(Vec(cd[c][0], cd[c][1]));
 			w->box.size = mm2px(Vec(cd[c][2], cd[c][3]));
 			addChild(w);
+			// MIDI-MAP (2.41.2): the corner's engine is a param already (a knob goes through the engines)
+			genra_map::select(this, w, module, Umlauf::cp(c, Umlauf::C_ENG), nullptr, nullptr, nullptr, nullptr);
 		}
 
 		using M = Umlauf;

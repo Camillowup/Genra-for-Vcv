@@ -4,6 +4,17 @@ Was in welcher Version dazukam (GENRA und GENRA Instruments). Der aktuelle Stand
 
 ## 2.21 bis heute (neueste zuerst)
 
+### 2.41.2 – MIDI-MAP für die übrigen gezeichneten Felder und Tasten
+- Über jedem selbst gezeichneten Feld liegt jetzt ein unsichtbarer Rack-Parameter (`src/ui/MapOverlay.hpp`): in MIDI-MAP
+  auf das Feld klicken und einen Regler drehen; das Feld zeigt nach 0,3 s Ruhe den neuen Eintrag. Klick, Mausrad und
+  Doppelklick wirken wie bisher.
+- **GENRA:** Genre-Feld pro Spur, die Akkorde im Display (ein Regler pro Akkord wählt wie das Rechtsklick-Menü).
+- **ABLAUF:** Bank A–D, NEU WÜRFELN D/B/M/P (direkt die Parameter), SONG FORM.
+- **BOX:** Genre im Kopf, BPM, PATTERN-Genre und SOUND pro Spur (auch die Presets eines verbundenen Instruments).
+- **SCHLAG:** KIT. **JIANT DRUM-X:** Kit, SOUND A|B.
+- **Preset-Feld:** MONK, JIANT VOICE, JIANT ANIMAL, MATH, KURBEL, SWARM, CANTA, MIAOU, SAURUS, FUMI, LIED.
+- **KESSEL:** KIT und die Lane-Tasten (ein Knopf wählt und spielt die Lane). **UMLAUF:** der Klang jeder Ecke.
+
 ### 2.41.1 – MIDI-MAP für RANDOM und die Preset-Auswahl
 - **SCHLAG:** RANDOM würfelt auch, wenn MIDI-MAP oder ein anderes Mapping-Modul den Wert ändert (wie beim Drehen,
   höchstens 25-mal pro Sekunde, der letzte Wert immer). Eine Bewegung ist ein UNDO-Schritt, sobald der Regler 0,6 s ruht.

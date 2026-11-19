@@ -2,6 +2,7 @@
 // LIED: a text singer. Four lines of lyrics on the panel, spoken by eSpeak NG (the worker, LiedCore.hpp) and sung at
 // the note of V/OCT, syllable by syllable on every gate (LiedDsp.hpp). The GENRA strip (V/OCT GATE VEL ACC SLIDE MOD,
 // CLOCK RESET) and Follow GENRA as on every instrument of the family.
+#include "../ui/MapOverlay.hpp"
 #include "../plugin.hpp"
 #include "../../../src/Follow.hpp"
 #include "../../../src/jiant/JiantUI.hpp"
@@ -80,7 +81,8 @@ struct Lied : Module, follow::Host {
 		SPEED_PARAM, VOWEL_PARAM, GLIDE_PARAM, ACCENT_PARAM,
 		VDEPTH_PARAM, VRATE_PARAM, VDELAY_PARAM,
 		ECHO_PARAM, FDBK_PARAM, VERB_PARAM, LOFI_PARAM,
-		PARAMS_LEN
+		PARAMS_LEN,
+		PRESETSEL_PARAM = PARAMS_LEN // 2.41.2: the preset field for MIDI-MAP (after the knobs)
 	};
 	enum InputId {
 		VOCT_INPUT, GATE_INPUT, VEL_INPUT, ACC_INPUT, SLIDE_INPUT, MOD_INPUT, CLOCK_INPUT, RESET_INPUT,
@@ -122,7 +124,8 @@ struct Lied : Module, follow::Host {
 	std::atomic<double> uiSeen{-1e9};   // when the panel last stepped (it asks for the lines while it is there)
 
 	Lied() {
-		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
+		config(PARAMS_LEN + 1, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
+		genra_map::configSelect(this, PRESETSEL_PARAM, "Preset");
 		srcName = "LIED";
 		audioL = L_OUTPUT;
 		audioR = R_OUTPUT;
@@ -261,7 +264,9 @@ struct Lied : Module, follow::Host {
 		fol.toJson(r);
 		return r;
 	}
+	uint32_t mapCode = 0; // bumped by dataFromJson (MIDI-MAP of the preset field)
 	void dataFromJson(json_t* r) override {
+		mapCode++;
 		fol.fromJson(r);
 		if (json_t* a = json_object_get(r, "lyrics"))
 			for (int i = 0; i < 4 && i < (int) json_array_size(a); i++)
@@ -756,6 +761,15 @@ struct LiedWidget : ModuleWidget {
 		pf->module = module;
 		pf->box = mmBox(L::PRESETF);
 		addChild(pf);
+		{ // MIDI-MAP (2.41.2): a knob goes through the presets
+			Lied* m = module;
+			genra_map::select(this, pf, m, Lied::PRESETSEL_PARAM, m ? &m->mapCode : nullptr, []() { return NPRESET; },
+			                  [=]() { return m ? (int) m->shownPreset : 0; },
+			                  [=](int i) {
+				                  if (m)
+					                  presetAction(m, i);
+			                  });
+		}
 
 		// the lyrics: four lines in the field, a number to pick each
 		Rect ly = mmBox(L::LYRICSF);

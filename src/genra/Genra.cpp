@@ -507,6 +507,29 @@ struct GenraWidget : ModuleWidget {
 		disp->box.size = mm2px(Vec(layout::DISPLAY[2], layout::DISPLAY[3]));
 		disp->module = module;
 		addChild(disp);
+		// MIDI-MAP: one knob per chord goes through its alternatives (like the right-click list)
+		for (int i = 0; i < MAX_PROG; i++) {
+			Genra* m = module;
+			genra_map::Overlay* o = genra_map::select(this, disp, m, m ? m->mapBase + 4 + i : -1, m ? &m->mapCode : nullptr,
+			                                          []() { return numAlternatives(); },
+			                                          [=]() {
+				                                          if (!m || i >= m->pat.nProg)
+					                                          return -1;
+				                                          return currentAlternative(m->pat.prog[i], m->buildParams());
+			                                          },
+			                                          [=](int a) {
+				                                          if (m && !m->extChord && i < m->pat.nProg)
+					                                          m->pushChordEdit(Genra::CE_SET, i, a);
+			                                          });
+			o->place = [=](math::Rect& r) {
+				int n = m ? std::max<int>(1, m->pat.nProg) : 4;
+				if (i >= n)
+					return false;
+				float w = std::min(18.f, CHORD_W / n);
+				r = math::Rect(disp->box.pos.plus(mm2px(Vec(CHORD_X + i * w, CHORD_Y))), mm2px(Vec(w, CHORD_H)));
+				return true;
+			};
+		}
 
 		// global row
 		addParam(createParamCentered<GLargeKnob>(P(layout::GENRE), module, Genra::GENRE_PARAM));
@@ -582,6 +605,24 @@ struct GenraWidget : ModuleWidget {
 			gf->module = module;
 			gf->track = t;
 			addChild(gf);
+			{ // MIDI-MAP: a knob goes through "Global" and every genre (in the order of the menu)
+				Genra* m = module;
+				genra_map::select(this, gf, m, m ? m->mapBase + t : -1, m ? &m->mapCode : nullptr,
+				                  []() { return (int) genreList().size() + 1; },
+				                  [=]() {
+					                  if (!m || m->trackSel[t] < 0)
+						                  return 0;
+					                  const std::vector<int>& l = genreList();
+					                  for (size_t k = 0; k < l.size(); k++)
+						                  if (l[k] == m->trackSel[t])
+							                  return (int) k + 1;
+					                  return 0;
+				                  },
+				                  [=](int i) {
+					                  if (m)
+						                  m->setTrackSel(t, i == 0 ? -1 : genreList()[i - 1]);
+				                  });
+			}
 			in(genreIn[t], Genra::TGENRE_INPUT + t);
 			addParam(createLightParamCentered<VCVLightBezel<WhiteLight>>(P(tnew[t]), module, Genra::TNEW_PARAM + t, Genra::TNEW_LIGHT + t));
 			in(tin[t], Genra::TNEW_INPUT + t);

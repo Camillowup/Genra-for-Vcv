@@ -4,6 +4,7 @@
 // the glue: knobs and CV into the part's parameters, V/OCT + GATE into its notes (KEYS) or one note held with the
 // formula running on (THRU), CLOCK / RESET into the song's position for MOTION SYNC, its 44.1 kHz audio resampled to
 // Rack's rate. After GENRA Instruments' ANIMAL (instruments/src/jiant/Animal.cpp).
+#include "../ui/MapOverlay.hpp"
 #include "../plugin.hpp"
 #include "../../../src/Follow.hpp"
 #include "../../../src/jiant/JiantUI.hpp"
@@ -37,7 +38,8 @@ struct Math : Module, follow::Host {
 		VOICE_PARAM,
 		PLAY_PARAM,
 		PREV_PARAM, NEXT_PARAM, CALL_PARAM,
-		PARAMS_LEN
+		PARAMS_LEN,
+		PRESETSEL_PARAM = PARAMS_LEN // 2.41.2: the preset field for MIDI-MAP (after the knobs)
 	};
 	enum InputId { ENUMS(E_INPUT, NE), VOCT_INPUT, GATE_INPUT, VEL_INPUT, CLOCK_INPUT, RESET_INPUT, INPUTS_LEN };
 	enum OutputId { L_OUTPUT, R_OUTPUT, OUTPUTS_LEN };
@@ -93,7 +95,8 @@ struct Math : Module, follow::Host {
 	bool resetDue = false;                        // THRU: the formula from its start (RESET, CALL)
 
 	Math() {
-		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
+		config(PARAMS_LEN + 1, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
+		genra_map::configSelect(this, PRESETSEL_PARAM, "Preset");
 		srcName = "MATH";
 		audioL = L_OUTPUT;
 		audioR = R_OUTPUT;
@@ -240,7 +243,9 @@ struct Math : Module, follow::Host {
 		fol.toJson(r);
 		return r;
 	}
+	uint32_t mapCode = 0; // bumped by dataFromJson (MIDI-MAP of the preset field)
 	void dataFromJson(json_t* r) override {
+		mapCode++; // the preset select (MIDI-MAP) does not load then
 		fol.fromJson(r);
 		if (json_t* j = json_object_get(r, "preset"))
 			preset = (int) json_integer_value(j);
@@ -599,6 +604,8 @@ struct MathWidget : ModuleWidget {
 				module->presetReq = i;
 		};
 		addChild(pf);
+		genra_map::select(this, pf, module, Math::PRESETSEL_PARAM, module ? &module->mapCode : nullptr, pf->count, pf->current,
+		                  pf->choose); // MIDI-MAP: a knob goes through the presets
 
 		genra_look::ParamField* wf = createParam<genra_look::ParamField>(Vec(L::WAVEF[0], L::WAVEF[1]), module, Math::WAVE_PARAM);
 		wf->box.size = Vec(L::WAVEF[2], L::WAVEF[3]);
