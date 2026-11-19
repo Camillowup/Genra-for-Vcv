@@ -83,7 +83,8 @@ struct Golana : Module, follow::Host {
 		P3SRC_PARAM, P3DST_PARAM, P3INT_PARAM, P4SRC_PARAM, P4DST_PARAM, P4INT_PARAM,
 		ARPTYPE_PARAM, ARPRES_PARAM, ARPRANGE_PARAM, ARPSWING_PARAM, ARPON_PARAM,
 		MFXAMT_PARAM, DLYAMT_PARAM, REVAMT_PARAM, SPREAD_PARAM, LEVEL_PARAM,
-		NUM_PARAMS
+		NUM_PARAMS,
+		PRESETSEL_PARAM = NUM_PARAMS // after the knobs: the preset select (MIDI-MAP), not in a preset
 	};
 	enum InputId {
 		VOCT_INPUT, GATE_INPUT, VEL_INPUT, ACC_INPUT, SLIDE_INPUT, MOD_INPUT, CLOCK_INPUT, RESET_INPUT,
@@ -136,7 +137,8 @@ struct Golana : Module, follow::Host {
 	std::mutex dispMutex;
 
 	Golana() {
-		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
+		config(NUM_PARAMS + 1, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
+		genra_presel::config(this, PRESETSEL_PARAM);
 		srcName = "GOLANA";
 		audioL = L_OUTPUT;
 		audioR = R_OUTPUT;
@@ -323,6 +325,7 @@ struct Golana : Module, follow::Host {
 			f.group = [this](int i) {
 				return genra_groups::of(genra_groups::GOLANA, genra_groups::N_GOLANA, core.api->preset_name(i));
 			};
+			bank.sel = PRESETSEL_PARAM;
 			bank.init(this, f, asset::user("Genra/GolanaPresets"), &loadSerial, &loadedPos,
 			          [this](int i) { presetReq = clamp(i, 0, (int) core.api->npresets() - 1); });
 			bank.preset = presetIdx;
@@ -654,6 +657,7 @@ struct Golana : Module, follow::Host {
 		return r;
 	}
 	void dataFromJson(json_t* r) override {
+		bank.selCode++; // a patch, undo, a user preset: the preset select does not load
 		fol.fromJson(r);
 		if (json_t* j = json_object_get(r, "preset"))
 			presetIdx = std::max(0, (int) json_integer_value(j));
@@ -966,6 +970,8 @@ struct GolanaWidget : ModuleWidget {
 		genra_states::PresetField* pf = createWidget<genra_states::PresetField>(mm2px(Vec(L::PRESETF[0], L::PRESETF[1])));
 		pf->box.size = mm2px(Vec(L::PRESETF[2], L::PRESETF[3]));
 		pf->bank = module && module->core.api ? &module->bank : nullptr;
+		pf->module = module;
+		pf->paramId = Golana::PRESETSEL_PARAM;
 		pf->accent = ACCENT;
 		pf->sample = "WARM POLY KEYS";
 		pf->sampleStyle = "KEYS";

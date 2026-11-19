@@ -4,6 +4,15 @@ Was in welcher Version dazukam (GENRA und GENRA Instruments). Der aktuelle Stand
 
 ## 2.21 bis heute (neueste zuerst)
 
+### 2.41.1 – MIDI-MAP für RANDOM und die Preset-Auswahl
+- **SCHLAG:** RANDOM würfelt auch, wenn MIDI-MAP oder ein anderes Mapping-Modul den Wert ändert (wie beim Drehen,
+  höchstens 25-mal pro Sekunde, der letzte Wert immer). Eine Bewegung ist ein UNDO-Schritt, sobald der Regler 0,6 s ruht.
+  UNDO, BASIC, RND ALL, Patch laden und Reset würfeln nicht.
+- **MONO, GRUND, FUNKE, SCHMELZ, UMLAUF, GOLANA, K-WASUB:** Das Preset-Feld lässt sich mit MIDI-MAP lernen (in MIDI-MAP
+  auf das Feld klicken). Ein Regler fährt durch die Liste (Reihenfolge wie das Mausrad), das Feld zeigt den Namen sofort,
+  das Preset lädt, wenn der Regler 0,3 s ruht. Dafür hat jedes dieser Module einen Parameter mehr (nach den Reglern, nicht
+  Teil der Presets).
+
 ### 2.41.0 – Preset-Listen nach Klang statt nach Stil
 - **FUNKE, SCHMELZ, UMLAUF, GOLANA:** Das Preset-Menü (Feld im Kopf und Rechtsklick) zeigt die Werks-Presets in fünf
   Gruppen **BASS, LEAD, PAD, KEYS, FX** statt in Untermenüs nach Stil. UMLAUF sortiert auch die 22 VADER-Presets ein.

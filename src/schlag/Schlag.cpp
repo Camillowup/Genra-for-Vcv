@@ -469,6 +469,9 @@ struct Schlag : Module, follow::Host {
 	std::atomic<float> hitFlash[NT];
 	uint32_t hitLoop[NT][MAXS];         // loopCount + 1 of the last hit on a step (0 never)
 	std::atomic<uint32_t> rndMask{0};   // RND jack: tracks to roll (UI does it)
+	// RANDOM set by the code (undo, BASIC, RND ALL, a patch, reset): the encoders do not roll on it. Anything else that
+	// moves it (MIDI-MAP, another mapping module) rolls, as a turn of the knob does.
+	std::atomic<uint32_t> randSetByCode{0};
 	std::atomic<int> kitNext{0};        // KIT jack: next kit
 	std::atomic<int64_t> sendPulledAt[2];
 	int64_t frameNow = 0;
@@ -1154,6 +1157,7 @@ struct Schlag : Module, follow::Host {
 		std::memcpy(map, s.m, sizeof map);
 		for (int t = 0; t < NT; t++)
 			params[RAND_PARAM + t].setValue(s.amt[t]);
+		randSetByCode++;
 	}
 	// UNDO: the own stack (32) and Rack's Ctrl+Z; rolls from the RND jack only into the own stack (a clock there would
 	// fill Ctrl+Z), the moves of a turned RANDOM knob into neither (one entry when the turn ends)
@@ -1180,6 +1184,7 @@ struct Schlag : Module, follow::Host {
 		snapshot(before);
 		for (int t = 0; t < NT; t++)
 			params[RAND_PARAM + t].setValue(0.1f + 0.9f * random::uniform());
+		randSetByCode++;
 		roll(0xffu, "SCHLAG RND ALL", U_NONE);
 		pushUndo(before, "SCHLAG RND ALL");
 		say("RND ALL · 10-100 %");
@@ -1214,6 +1219,7 @@ struct Schlag : Module, follow::Host {
 					map[t][s] = -1;
 				params[RAND_PARAM + t].setValue(0.f); // the encoder back to 0 %
 			}
+		randSetByCode++;
 		pushUndo(before, "SCHLAG basic");
 	}
 	void undo() {
@@ -1310,6 +1316,7 @@ struct Schlag : Module, follow::Host {
 						fnVal[t][f] = clamp((float) json_number_value(v), 0.f, 1.f);
 			if (json_t* v = json_object_get(o, "random"))
 				params[RAND_PARAM + t].setValue(clamp((float) json_number_value(v), 0.f, 1.f));
+			randSetByCode++;
 			for (int r = 0; r < NROW; r++) {
 				int fn = clamp((int) std::round(params[FN_PARAM + t * NROW + r].getValue()), 0, NUM_FN - 1);
 				params[K_PARAM + t * NROW + r].setValue(fnVal[t][fn]);
@@ -1394,6 +1401,7 @@ struct Schlag : Module, follow::Host {
 			}
 			params[RAND_PARAM + t].setValue(0.f);
 		}
+		randSetByCode++;
 		kitName = "INIT";
 	}
 	void nextKit() {
@@ -1933,6 +1941,12 @@ struct RandKnob : app::ParamWidget {
 	bool turning = false, rolled = false, dirty = false;
 	float acc = 0.f;
 	Schlag::Snap atStart;
+	// moved from outside (MIDI-MAP): the value last seen, the code's serial, and the turn from outside
+	float seen = -1.f;
+	uint32_t seenCode = 0;
+	bool extTurn = false;
+	double extLast = 0.0;
+	Schlag::Snap extStart;
 	RandKnob() { box.size = mm2px(Vec(10.4f, 10.4f)); }
 	Schlag* sch() { return dynamic_cast<Schlag*>(module); }
 	int pct() {
@@ -1959,6 +1973,7 @@ struct RandKnob : app::ParamWidget {
 		if (p == pct())
 			return;
 		pq->setValue(p / 100.f);
+		seen = p / 100.f; // our own turn: not one from outside
 		dirty = true;
 		rollNow(um, p == 0); // reaching 0 % always rolls: the base sample everywhere at once
 	}
@@ -2012,6 +2027,45 @@ struct RandKnob : app::ParamWidget {
 					m->pushUndo(before, "SCHLAG RANDOM");
 			}
 			e.consume(this);
+		}
+	}
+	/** MIDI-MAP and other mapping modules set the value without a turn of the knob: roll as a turn does (at most 25 times a
+	 * second, the last value always); the whole move is one UNDO entry once it rests for 0.6 s. */
+	void step() override {
+		ParamWidget::step();
+		Schlag* m = sch();
+		ParamQuantity* pq = getParamQuantity();
+		if (!m || !pq)
+			return;
+		float v = pq->getValue();
+		uint32_t code = m->randSetByCode.load();
+		double now = system::getTime();
+		if (code != seenCode || seen < 0.f) { // set by the code (undo, a patch …): take it as it is
+			seenCode = code;
+			seen = v;
+			extTurn = false;
+			return;
+		}
+		if (!turning && std::fabs(v - seen) > 1e-4f) {
+			if (!extTurn) {
+				m->snapshot(extStart);
+				extStart.amt[track] = seen; // before the move
+				extTurn = true;
+				rolled = false;
+			}
+			seen = v;
+			extLast = now;
+			dirty = true;
+			rollNow(Schlag::U_NONE, v <= 0.f);
+		}
+		if (extTurn) {
+			if (dirty && now - last >= 0.04)
+				rollNow(Schlag::U_NONE, true); // the last value rolls too
+			if (now - extLast > 0.6) {
+				if (rolled)
+					m->pushUndo(extStart, "SCHLAG RANDOM");
+				extTurn = false;
+			}
 		}
 	}
 	void onDoubleClick(const DoubleClickEvent& e) override {

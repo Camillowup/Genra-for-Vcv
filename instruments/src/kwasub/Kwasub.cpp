@@ -73,7 +73,8 @@ struct Kwasub : Module, follow::Host {
 		AEA_PARAM, AED_PARAM, AES_PARAM, AER_PARAM,
 		SAT_PARAM, DLY_PARAM, VERB_PARAM, GLUE_PARAM,
 		PREV_PARAM, NEXT_PARAM,
-		NUM_PARAMS
+		NUM_PARAMS,
+		PRESETSEL_PARAM = NUM_PARAMS // after the knobs: the preset select (MIDI-MAP), not in a preset
 	};
 	enum InputId {
 		VOCT_INPUT, GATE_INPUT, VEL_INPUT, CLOCK_INPUT, RESET_INPUT,
@@ -162,7 +163,8 @@ struct Kwasub : Module, follow::Host {
 	std::mutex dispMutex;
 
 	Kwasub() {
-		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, 0);
+		config(NUM_PARAMS + 1, NUM_INPUTS, NUM_OUTPUTS, 0);
+		genra_presel::config(this, PRESETSEL_PARAM);
 		srcName = "K-WASUB";
 		audioL = L_OUTPUT;
 		audioR = R_OUTPUT;
@@ -347,6 +349,7 @@ struct Kwasub : Module, follow::Host {
 			f.name = [this](int i) { return core.api->preset_name(order[i]); };
 			f.info = [](int) { return ""; };
 			f.flat = true;  // a bass synth: one list, in the order above
+			bank.sel = PRESETSEL_PARAM;
 			bank.init(this, f, asset::user("Genra/KwasubPresets"), &loadSerial, &loadedPos,
 			          [this](int i) { presetReq = order[clamp(i, 0, (int) order.size() - 1)]; });
 			bank.preset = posOf(presetIdx);
@@ -763,6 +766,7 @@ struct Kwasub : Module, follow::Host {
 		return r;
 	}
 	void dataFromJson(json_t* r) override {
+		bank.selCode++; // a patch, undo, a user preset: the preset select does not load
 		fol.fromJson(r);
 		if (json_t* j = json_object_get(r, "preset"))
 			presetIdx = std::max(0, (int) json_integer_value(j));
@@ -1063,6 +1067,8 @@ struct KwasubWidget : ModuleWidget {
 		genra_states::PresetField* pf = createWidget<genra_states::PresetField>(mm2px(Vec(L::PRESETF[0], L::PRESETF[1])));
 		pf->box.size = mm2px(Vec(L::PRESETF[2], L::PRESETF[3]));
 		pf->bank = module && module->core.api ? &module->bank : nullptr;
+		pf->module = module;
+		pf->paramId = Kwasub::PRESETSEL_PARAM;
 		pf->accent = ACCENT;
 		pf->sample = "NEURO GROWL";
 		pf->sampleStyle = "";

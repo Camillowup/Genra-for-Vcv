@@ -26,7 +26,8 @@ struct Schmelz : Module, follow::Host {
 		REG_PARAM, CRESC_PARAM, REL_PARAM, TONE_PARAM, ENSDEPTH_PARAM, OCT_PARAM, ENS_PARAM,
 		SOUND_PARAM, DECAY_PARAM, SUSTAIN_PARAM, TREM_PARAM, SPLIT_PARAM, ATK_PARAM, TRATE_PARAM, VEL_PARAM, HOLD_PARAM,
 		BAL_PARAM, ANIM_PARAM, ARATE_PARAM, PHASER_PARAM, PRATE_PARAM, VERB_PARAM, SIZE_PARAM, VOLUME_PARAM,
-		NUM_PARAMS
+		NUM_PARAMS,
+		PRESETSEL_PARAM = NUM_PARAMS // after the knobs: the preset select (MIDI-MAP), not in a preset
 	};
 	enum InputId {
 		STR_VOCT_INPUT, STR_GATE_INPUT, STR_VEL_INPUT, SOLO_VOCT_INPUT, SOLO_GATE_INPUT, SOLO_VEL_INPUT,
@@ -108,11 +109,13 @@ struct Schmelz : Module, follow::Host {
 		f.group = [](int i) { return genra_groups::of(genra_groups::SCHMELZ, genra_groups::N_SCHMELZ, PRESETS[i].name); };
 		f.values = [](int i, float* v) { PRESETS[i].values(v); };
 		f.gain = [](int i) { return PRESETS[i].gain; };
+		bank.sel = PRESETSEL_PARAM;
 		bank.init(this, f, asset::user("Genra/SchmelzPresets"));
 	}
 
 	Schmelz() {
-		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
+		config(NUM_PARAMS + 1, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
+		genra_presel::config(this, PRESETSEL_PARAM);
 		srcName = "SCHMELZ";
 		audioL = L_OUTPUT;
 		audioR = R_OUTPUT;
@@ -223,6 +226,7 @@ struct Schmelz : Module, follow::Host {
 		return root;
 	}
 	void dataFromJson(json_t* root) override {
+		bank.selCode++; // a patch, undo, a user preset: the preset select does not load
 		fol.fromJson(root);
 		if (json_t* j = json_object_get(root, "modTarget"))
 			modTarget = clamp((int) json_integer_value(j), 0, 2);
@@ -474,6 +478,8 @@ struct SchmelzWidget : ModuleWidget {
 		genra_presets::PresetField* pf = createWidget<genra_presets::PresetField>(mm2px(Vec(L::PRESETF[0], L::PRESETF[1])));
 		pf->box.size = mm2px(Vec(L::PRESETF[2], L::PRESETF[3]));
 		pf->bank = module ? &module->bank : nullptr;
+		pf->module = module;
+		pf->paramId = Schmelz::PRESETSEL_PARAM;
 		pf->accent = ACCENT;
 		pf->sample = PRESETS[0].name;
 		addChild(pf);

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // GENRA MONO – monophonic bass synth after the Moog Minitaur, in the look of MONK and the JIANT voices (accent: turquoise).
 // Sound engine: MonoDsp.hpp. Panel: tools/panels/mono_panel.py (res/GenraMono.svg + MonoLayout.hpp).
+#include "../ui/PresetSelect.hpp"
 #include "../plugin.hpp"
 #include "../Follow.hpp"
 #include <cctype>
@@ -25,7 +26,8 @@ struct GenraMono : Module, follow::Host {
 		FA_PARAM, FD_PARAM, FS_PARAM, FR_PARAM, AA_PARAM, AD_PARAM, AS_PARAM, AR_PARAM,
 		RATE_PARAM, LFOWAVE_PARAM, LFOPITCH_PARAM, LFOFILT_PARAM,
 		ACCENT_PARAM, WIDTH_PARAM,  // 2.10.0
-		NUM_PARAMS
+		NUM_PARAMS,
+		PRESETSEL_PARAM = NUM_PARAMS // after the knobs: the preset select (MIDI-MAP), not in a preset
 	};
 	enum InputId { VOCT_INPUT, GATE_INPUT, VEL_INPUT, CUTOFF_INPUT, RES_INPUT, DRIVE_INPUT, RATE_INPUT, VCA_INPUT,
 		           EXT_INPUT, ACC_INPUT, SLIDE_INPUT, RETRIG_INPUT, SYNC_INPUT, NUM_INPUTS };
@@ -77,6 +79,7 @@ struct GenraMono : Module, follow::Host {
 		float gain = 1.f;
 	};
 	std::vector<UserPreset> user;
+	uint32_t selCode = 0;     // bumped by dataFromJson: the preset select does not load then
 	int preset = -1;            // index into factory + user list, -1 = none (INIT)
 	std::string presetName;     // a user preset is remembered by name, the list may change
 	float loaded[NUM_PARAMS];   // the values as loaded, to show when a knob has moved since
@@ -195,7 +198,8 @@ struct GenraMono : Module, follow::Host {
 	}
 
 	GenraMono() {
-		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, 0);
+		config(NUM_PARAMS + 1, NUM_INPUTS, NUM_OUTPUTS, 0);
+		genra_presel::config(this, PRESETSEL_PARAM);
 		srcName = "MONO";
 		audioL = L_OUTPUT;
 		audioR = R_OUTPUT;
@@ -288,6 +292,7 @@ struct GenraMono : Module, follow::Host {
 		return j;
 	}
 	void dataFromJson(json_t* j) override {
+		selCode++;
 		fol.fromJson(j);
 		json_t* pJ = json_object_get(j, "preset");
 		preset = -1;
@@ -489,10 +494,24 @@ static void appendPresets(Menu* menu, GenraMono* m) {
 }
 
 /** The preset field in the header: number and name (a dot when a knob has moved), click = list, wheel = step. */
-struct PresetField : OpaqueWidget {
-	GenraMono* module = nullptr;
+struct PresetField : app::ParamWidget { // the param: the preset select (MIDI-MAP)
+	GenraMono* module = nullptr;  // (the ParamWidget's own is set too)
+	genra_presel::Watch watch;
+	void step() override {
+		ParamWidget::step();
+		if (module) {
+			int k = watch.step(ParamWidget::module, paramId, module->selCode, module->count());
+			if (k >= 0 && k != module->preset)
+				module->load(k);
+		}
+	}
+	void onEnter(const EnterEvent& e) override {}
+	void onLeave(const LeaveEvent& e) override {}
+	void onDoubleClick(const DoubleClickEvent& e) override { e.consume(this); }
 	void onButton(const ButtonEvent& e) override {
 		if (e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_LEFT && module) {
+			if (ParamWidget::module)
+				ParamWidget::onButton(e); // touch the param (MIDI-MAP learns it)
 			module->scanUser();
 			Menu* menu = createMenu();
 			menu->addChild(createMenuLabel("Preset"));
@@ -500,7 +519,10 @@ struct PresetField : OpaqueWidget {
 			e.consume(this);
 			return;
 		}
-		OpaqueWidget::onButton(e);
+		if (ParamWidget::module)
+			ParamWidget::onButton(e); // right-click: the param's menu (Unmap)
+		else
+			OpaqueWidget::onButton(e);
 	}
 	void onHoverScroll(const HoverScrollEvent& e) override {
 		if (module && e.scrollDelta.y != 0.f) {
@@ -510,13 +532,13 @@ struct PresetField : OpaqueWidget {
 		}
 		OpaqueWidget::onHoverScroll(e);
 	}
-	void draw(const DrawArgs& args) override {}
+	void draw(const DrawArgs& args) override { ParamWidget::draw(args); }
 	void drawLayer(const DrawArgs& args, int layer) override {
 		if (layer == 1) {
 			std::shared_ptr<window::Font> f = boldFont();
 			if (f && f->handle >= 0) {
 				NVGcontext* vg = args.vg;
-				int idx = module ? module->preset : 0;
+				int idx = module ? (watch.want >= 0 ? watch.want : module->preset) : 0;
 				std::string name = module ? module->nameOf(idx) : gmono::PRESETS[0].name;
 				std::string num = idx < 0 ? "--" : idx >= gmono::NUM_PRESETS ? "U" : string::f("%02d", idx + 1);
 				float y = box.size.y / 2 + 0.5f;
@@ -538,7 +560,7 @@ struct PresetField : OpaqueWidget {
 				}
 			}
 		}
-		OpaqueWidget::drawLayer(args, layer);
+		ParamWidget::drawLayer(args, layer);
 	}
 };
 
@@ -584,6 +606,8 @@ struct GenraMonoWidget : ModuleWidget {
 		PresetField* pf = createWidget<PresetField>(mm2px(Vec(L::PFIELD[0], L::PFIELD[1])));
 		pf->box.size = mm2px(Vec(L::PFIELD[2], L::PFIELD[3]));
 		pf->module = module;
+		pf->ParamWidget::module = module;
+		pf->paramId = GenraMono::PRESETSEL_PARAM;
 		addChild(pf);
 		addParam(createParamCentered<GLargeKnob>(P(L::CUTOFF), module, M::CUTOFF_PARAM));
 		knob(L::RES, M::RES_PARAM);

@@ -29,7 +29,8 @@ struct Funke : Module, follow::Host {
 		ATK_PARAM, DEC_PARAM, SUS_PARAM, REL_PARAM,
 		VDEPTH_PARAM, VRATE_PARAM, VDELAY_PARAM,
 		EDIV_PARAM, CHORUS_PARAM, ECHO_PARAM, FDBK_PARAM, LOFI_PARAM, VERB_PARAM,
-		NUM_PARAMS
+		NUM_PARAMS,
+		PRESETSEL_PARAM = NUM_PARAMS // after the knobs: the preset select (MIDI-MAP), not in a preset
 	};
 	enum InputId {
 		VOCT_INPUT, GATE_INPUT, VEL_INPUT, ACC_INPUT, SLIDE_INPUT, CLOCK_INPUT,
@@ -100,11 +101,13 @@ struct Funke : Module, follow::Host {
 		f.group = [](int i) { return genra_groups::of(genra_groups::FUNKE, genra_groups::N_FUNKE, PRESETS[i].name); };
 		f.values = [](int i, float* v) { PRESETS[i].values(v); };
 		f.gain = [](int i) { return PRESETS[i].gain; };
+		bank.sel = PRESETSEL_PARAM;
 		bank.init(this, f, asset::user("Genra/FunkePresets"));
 	}
 
 	Funke() {
-		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
+		config(NUM_PARAMS + 1, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
+		genra_presel::config(this, PRESETSEL_PARAM);
 		srcName = "FUNKE";
 		audioL = L_OUTPUT;
 		audioR = R_OUTPUT;
@@ -301,6 +304,7 @@ struct Funke : Module, follow::Host {
 		return j;
 	}
 	void dataFromJson(json_t* j) override {
+		bank.selCode++; // a patch, undo, a user preset: the preset select does not load
 		fol.fromJson(j);
 		if (json_t* v = json_object_get(j, "ppqn"))
 			ppqn = std::max(1, (int) json_integer_value(v));
@@ -462,6 +466,8 @@ struct FunkeWidget : ModuleWidget {
 		genra_presets::PresetField* pf = createWidget<genra_presets::PresetField>(mm2px(Vec(L::PRESETF[0], L::PRESETF[1])));
 		pf->box.size = mm2px(Vec(L::PRESETF[2], L::PRESETF[3]));
 		pf->bank = module ? &module->bank : nullptr;
+		pf->module = module;
+		pf->paramId = Funke::PRESETSEL_PARAM;
 		pf->accent = ACCENT;
 		pf->sample = PRESETS[0].name;
 		addChild(pf);

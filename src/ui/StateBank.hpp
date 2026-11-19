@@ -10,6 +10,7 @@
 #pragma once
 #include "GenraUI.hpp"
 #include "SoundGroups.hpp"
+#include "PresetSelect.hpp"
 #include <algorithm>
 #include <atomic>
 #include <cctype>
@@ -59,7 +60,9 @@ struct Bank {
 		if (undoOld)
 			json_decref(undoOld);
 	}
-	int numParams() const { return (int) m->params.size(); }
+	int sel = -1;          // the preset select param (PRESETSEL_PARAM, after the knobs): not part of a preset
+	uint32_t selCode = 0;  // bumped by the module's dataFromJson (genra_presel::Watch)
+	int numParams() const { return sel >= 0 ? sel : (int) m->params.size(); }
 	/** The module's JSON for an undo step or a preset: its engine state is the sound (the module's dataFromJson
 	 * then lets the engine set the expander's knobs, not the other way round). */
 	json_t* moduleJ() const {
@@ -320,17 +323,28 @@ inline void appendList(Menu* menu, Bank* b) {
 }
 
 /** The header field: number, name (a dot when a knob has moved), the style on the right. */
-struct PresetField : OpaqueWidget {
+struct PresetField : app::ParamWidget {  // the param: the preset select (MIDI-MAP)
 	Bank* bank = nullptr;
 	NVGcolor accent = ui::WHITE;
 	std::string sample, sampleStyle;  // in the module browser
+	genra_presel::Watch watch;
 	void step() override {
 		if (bank)
 			bank->poll();
-		OpaqueWidget::step();
+		ParamWidget::step();
+		if (bank && module) {
+			int k = watch.step(module, paramId, bank->selCode, bank->count());
+			if (k >= 0 && k != bank->preset)
+				bank->load(k);
+		}
 	}
+	void onEnter(const EnterEvent& e) override {}  // no param tooltip: the field shows the preset
+	void onLeave(const LeaveEvent& e) override {}
+	void onDoubleClick(const DoubleClickEvent& e) override { e.consume(this); }
 	void onButton(const ButtonEvent& e) override {
 		if (e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_LEFT && bank) {
+			if (module && paramId >= 0)
+				ParamWidget::onButton(e);  // touch the param (MIDI-MAP learns it)
 			bank->scan();
 			Menu* menu = createMenu();
 			menu->addChild(createMenuLabel("Preset"));
@@ -338,7 +352,10 @@ struct PresetField : OpaqueWidget {
 			e.consume(this);
 			return;
 		}
-		OpaqueWidget::onButton(e);
+		if (module && paramId >= 0)
+			ParamWidget::onButton(e);  // right-click: the param's menu (Unmap)
+		else
+			OpaqueWidget::onButton(e);
 	}
 	void onHoverScroll(const HoverScrollEvent& e) override {
 		if (bank && e.scrollDelta.y != 0.f) {
@@ -348,10 +365,10 @@ struct PresetField : OpaqueWidget {
 		}
 		OpaqueWidget::onHoverScroll(e);
 	}
-	void draw(const DrawArgs& args) override {}
+	void draw(const DrawArgs& args) override { ParamWidget::draw(args); }
 	void drawLayer(const DrawArgs& args, int layer) override {
 		if (layer == 1) {
-			int idx = bank ? bank->preset : 0;
+			int idx = bank ? (watch.want >= 0 ? watch.want : bank->preset) : 0;
 			int nf = bank ? bank->f.count : 1;
 			std::string name = bank ? bank->nameOf(idx) : sample;
 			std::string style = bank ? bank->styleOf(idx) : sampleStyle;
@@ -369,7 +386,7 @@ struct PresetField : OpaqueWidget {
 			if (!style.empty())
 				ui::text(args.vg, font, box.size.x - mm2px(6.f), y - 0.3f, style, 5.2f, ui::DIM, NVG_ALIGN_RIGHT, 0.6f);
 		}
-		OpaqueWidget::drawLayer(args, layer);
+		ParamWidget::drawLayer(args, layer);
 	}
 };
 

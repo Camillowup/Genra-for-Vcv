@@ -2,6 +2,7 @@
 // GRUND – the bass voice for GENRA's bass track, in the GENRA look (accent: GENRA's bass green).
 // Sound engine: GrundDsp.hpp, presets: GrundPresets.hpp, expander: GrundFx.*.
 // Panel: tools/panels/grund_panel.py (res/Grund.svg + GrundLayout.hpp).
+#include "../ui/PresetSelect.hpp"
 #include "../plugin.hpp"
 #include "../Follow.hpp"
 #include "../ui/GenraUI.hpp"
@@ -30,7 +31,8 @@ struct Grund : Module, follow::Host {
 		MODEL_PARAM, TIMBRE_PARAM, BITE_PARAM, BODY_PARAM, SUB_PARAM, MUTE_PARAM, GLIDE_PARAM, ACCENT_PARAM,
 		VMODE_PARAM, AMP_PARAM, CUTOFF_PARAM, RES_PARAM, FENV_PARAM, FDEC_PARAM, DRIVE_PARAM, COMP_PARAM, KEY_PARAM,
 		ATK_PARAM, DEC_PARAM, SUS_PARAM, REL_PARAM, CHORUS_PARAM, OCTAVE_PARAM, WIDTH_PARAM, VERB_PARAM,
-		NUM_PARAMS
+		NUM_PARAMS,
+		PRESETSEL_PARAM = NUM_PARAMS // after the knobs: the preset select (MIDI-MAP), not in a preset
 	};
 	enum InputId {
 		VOCT_INPUT, GATE_INPUT, VEL_INPUT, ACC_INPUT, SLIDE_INPUT, MOD_INPUT,
@@ -83,6 +85,7 @@ struct Grund : Module, follow::Host {
 		float gain = 1.f;
 	};
 	std::vector<UserPreset> user;
+	uint32_t selCode = 0;     // bumped by dataFromJson: the preset select does not load then
 	int preset = -1;
 	std::string presetName;
 	float loaded[NUM_PARAMS];
@@ -237,7 +240,8 @@ struct Grund : Module, follow::Host {
 	}
 
 	Grund() {
-		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, 0);
+		config(NUM_PARAMS + 1, NUM_INPUTS, NUM_OUTPUTS, 0);
+		genra_presel::config(this, PRESETSEL_PARAM);
 		srcName = "GRUND";
 		audioL = L_OUTPUT;
 		audioR = R_OUTPUT;
@@ -421,6 +425,7 @@ struct Grund : Module, follow::Host {
 		return j;
 	}
 	void dataFromJson(json_t* j) override {
+		selCode++;
 		fol.fromJson(j);
 		fxFromJson(json_object_get(j, "fx"), fxStore);
 		fxWasLinked = true;  // a loaded expander keeps its own knobs (they were saved with the same values)
@@ -517,10 +522,24 @@ static void appendPresets(Menu* menu, Grund* m) {
 }
 
 /** The preset field in the header: number and name (a dot when a knob has moved), click = list, wheel = step. */
-struct PresetField : OpaqueWidget {
-	Grund* module = nullptr;
+struct PresetField : app::ParamWidget { // the param: the preset select (MIDI-MAP)
+	Grund* module = nullptr;  // (the ParamWidget's own is set too)
+	genra_presel::Watch watch;
+	void step() override {
+		ParamWidget::step();
+		if (module) {
+			int k = watch.step(ParamWidget::module, paramId, module->selCode, module->count());
+			if (k >= 0 && k != module->preset)
+				module->load(k);
+		}
+	}
+	void onEnter(const EnterEvent& e) override {}
+	void onLeave(const LeaveEvent& e) override {}
+	void onDoubleClick(const DoubleClickEvent& e) override { e.consume(this); }
 	void onButton(const ButtonEvent& e) override {
 		if (e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_LEFT && module) {
+			if (ParamWidget::module)
+				ParamWidget::onButton(e); // touch the param (MIDI-MAP learns it)
 			module->scanUser();
 			Menu* menu = createMenu();
 			menu->addChild(createMenuLabel("Preset"));
@@ -528,7 +547,10 @@ struct PresetField : OpaqueWidget {
 			e.consume(this);
 			return;
 		}
-		OpaqueWidget::onButton(e);
+		if (ParamWidget::module)
+			ParamWidget::onButton(e); // right-click: the param's menu (Unmap)
+		else
+			OpaqueWidget::onButton(e);
 	}
 	void onHoverScroll(const HoverScrollEvent& e) override {
 		if (module && e.scrollDelta.y != 0.f) {
@@ -538,10 +560,10 @@ struct PresetField : OpaqueWidget {
 		}
 		OpaqueWidget::onHoverScroll(e);
 	}
-	void draw(const DrawArgs& args) override {}
+	void draw(const DrawArgs& args) override { ParamWidget::draw(args); }
 	void drawLayer(const DrawArgs& args, int layer) override {
 		if (layer == 1) {
-			int idx = module ? module->preset : 0;
+			int idx = module ? (watch.want >= 0 ? watch.want : module->preset) : 0;
 			std::string name = module ? module->nameOf(idx) : PRESETS[0].name;
 			std::string num = idx < 0 ? "--" : idx >= NUM_PRESETS ? "U" : string::f("%02d", idx + 1);
 			float y = box.size.y / 2 + 2.6f;
@@ -555,7 +577,7 @@ struct PresetField : OpaqueWidget {
 				nvgFill(args.vg);
 			}
 		}
-		OpaqueWidget::drawLayer(args, layer);
+		ParamWidget::drawLayer(args, layer);
 	}
 };
 
@@ -662,6 +684,8 @@ struct GrundWidget : ModuleWidget {
 		PresetField* pf = createWidget<PresetField>(mm2px(Vec(L::PRESETF[0], L::PRESETF[1])));
 		pf->box.size = mm2px(Vec(L::PRESETF[2], L::PRESETF[3]));
 		pf->module = module;
+		pf->ParamWidget::module = module;
+		pf->paramId = Grund::PRESETSEL_PARAM;
 		addChild(pf);
 
 		auto large = [&](const float* p, int id) { addParam(createParamCentered<GLargeKnob>(ui::mm(p), module, id)); };

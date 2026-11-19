@@ -146,7 +146,8 @@ struct Umlauf : Module, follow::Host {
 		SUBSPD_PARAM, OENV_PARAM,
 		M1_PARAM, M8_PARAM = M1_PARAM + 7,
 		CORNER0,  // per corner: ENG, C1..C5, FTYPE, FON, CUT, RES, OCT, LVL
-		NUM_PARAMS = CORNER0 + 4 * 12
+		NUM_PARAMS = CORNER0 + 4 * 12,
+		PRESETSEL_PARAM = NUM_PARAMS // after the knobs: the preset select (MIDI-MAP), not in a preset
 	};
 	enum CornerParam { C_ENG, C_K1, C_K5 = C_K1 + 4, C_FTYPE, C_FON, C_CUT, C_RES, C_OCT, C_LVL, NC };
 	enum InputId {
@@ -482,7 +483,8 @@ struct Umlauf : Module, follow::Host {
 	}
 
 	Umlauf() {
-		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, 0);
+		config(NUM_PARAMS + 1, NUM_INPUTS, NUM_OUTPUTS, 0);
+		genra_presel::config(this, PRESETSEL_PARAM);
 		srcName = "UMLAUF";
 		audioL = L_OUTPUT;
 		audioR = R_OUTPUT;
@@ -669,6 +671,7 @@ struct Umlauf : Module, follow::Host {
 				return i < NOWN ? genra_groups::of(genra_groups::UMLAUF, genra_groups::N_UMLAUF, UMLAUF_PRESETS[i].name)
 				                : genra_groups::vader(presetNames[i - NOWN].c_str());
 			};
+			bank.sel = PRESETSEL_PARAM;
 			bank.init(this, f, asset::user("Genra/UmlaufPresets"), &loadSerial, &loadedPos,
 			          [this](int i) { loadFactory(i); });
 			bank.preset = NOWN;  // (INIT ORBIT, as the engine starts)
@@ -1220,6 +1223,7 @@ struct Umlauf : Module, follow::Host {
 		return r;
 	}
 	void dataFromJson(json_t* r) override {
+		bank.selCode++; // a patch, undo, a user preset: the preset select does not load
 		fol.fromJson(r);
 		// a preset or an undo step (StateBank.hpp): the engine's state is the whole sound, the expander follows it
 		bool engineWins = json_is_true(json_object_get(r, "engineWins"));
@@ -1640,6 +1644,8 @@ struct UmlaufWidget : ModuleWidget {
 		genra_states::PresetField* pf = createWidget<genra_states::PresetField>(mm2px(Vec(L::PRESETF[0], L::PRESETF[1])));
 		pf->box.size = mm2px(Vec(L::PRESETF[2], L::PRESETF[3]));
 		pf->bank = module && module->inst ? &module->bank : nullptr;
+		pf->module = module;
+		pf->paramId = Umlauf::PRESETSEL_PARAM;
 		pf->accent = ACCENT;
 		pf->sample = UMLAUF_PRESETS[0].name;
 		pf->sampleStyle = genra_groups::of(genra_groups::UMLAUF, genra_groups::N_UMLAUF, UMLAUF_PRESETS[0].name);
