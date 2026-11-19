@@ -114,6 +114,17 @@ Alle oben genannten Module sind inzwischen gebaut (VOICE SPELL in GENRA Instrume
 
 ## Offene Änderungen an bestehenden Modulen (gesammelt, noch nicht gebaut)
 
+- **MIDI-MAP für alle gezeichneten Felder und Tasten** (Prüfung 19. Nov. 2026; wie 2.41.1: Felder blättert ein Regler
+  durch, sie übernehmen nach 0,3 s Ruhe; Tasten drückt ein Knopf; neue Parameter immer hinten anhängen):
+  - GENRA: Genre-Feld pro Spur, Akkorde im Display (Klick/Mausrad).
+  - ABLAUF: Bank-Tasten A–D, NEU WÜRFELN D/B/M/P, SONG FORM.
+  - BOX: Genre im Kopf, BPM-Feld, PATTERN-Genre pro Spur (4), Preset pro Spur (4).
+  - SCHLAG: KIT-Feld. JIANT DRUM-X: Preset-Feld, SOUND A|B.
+  - Preset-Feld (`PickField` in `src/ui/Look.hpp`): MONK, JIANT VOICE, JIANT ANIMAL, MATH, KURBEL, SWARM, CANTA, MIAOU,
+    SAURUS, FUMI; LIED (eigenes Feld).
+  - KESSEL: KIT-Feld, Lane-Tasten. UMLAUF: Klangwahl der 4 Ecken. MONK: Vokal-Chips.
+  - Bewusst nicht: Pads, Songlisten, GRID-Editor, SCHLAG-Display (Dateiwahl), MIDI IN, LYRICS (CANTA), die Katze (MIAOU).
+
 - **Später, eventuell:** HARMONIE (Akkord-Ansicht) auch für das normale GENRA mit seinem ABLAUF. Zuerst entsteht es
   für GENRA TECHNO (Repo Technogen, Entwurf 18. Nov. 2026): Quintenzirkel mit Akkordfläche, Akkordfolge als Blöcke mit
   Stufen und Funktionsfarben (Tonika, Subdominante, Dominante), der Song aus ABLAUF mit seinen Akkorden. Für GENRA
